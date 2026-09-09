@@ -822,6 +822,25 @@ factor is clamped to `[calibration_min_factor, calibration_max_factor]` so a bro
 either. The fitted factors and the resulting change in mean absolute error are logged at INFO
 level on every update.
 
+By default, calibration also rejects probable outage or curtailment days. It estimates the
+healthy plant ratio from `calibration_reference_days`, excludes days below
+`calibration_outage_threshold` of that reference, and falls back to the most recent
+`calibration_min_healthy_days` when the normal calibration window contains an outage. This keeps
+a battery or inverter failure that limits PV to local demand from becoming a permanent forecast
+loss. Set `calibration_outage_filter_enabled` to false only when measured curtailed production,
+rather than available PV potential, is the intended prediction target.
+
+The measurement cadence controls the detail that can be learned. Hourly cumulative meter
+readings calibrate hourly energy while the native Open-Meteo/pvlib chain continues to supply the
+15-minute shape. If every configured PV meter supplies genuine 15-minute readings, calibration
+automatically uses those native slots as well. It never interpolates hourly counters into an
+invented quarter-hour profile. Azimuth factors are interpolated smoothly between bin centres so
+they do not introduce steps into the EMS input curve. The shape fit uses all healthy days in the
+reference window, while the global factor still follows the shorter recent window. Finally, the
+shape is normalized per forecast day: it redistributes the calibrated energy across the day's
+15-minute slots without changing that day's global kWh correction (unless the physical inverter
+limit clips a peak).
+
 Calibration requires `measurement.pv_production_emr_keys` to be configured and fed with
 cumulative PV production meter readings in kWh:
 

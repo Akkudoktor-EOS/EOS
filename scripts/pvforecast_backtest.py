@@ -46,8 +46,11 @@ ENSEMBLE = ["icon_seamless", "ecmwf_ifs025", "gfs_seamless"]
 # Variants scored against the meter. Each entry is a label plus the settings overrides
 # applied on top of the configured provider settings.
 VARIANTS: list[tuple[str, dict[str, Any]]] = [
-    ("best_match", {"weather_models": ["best_match"]}),
-    ("ensemble", {"weather_models": ENSEMBLE}),
+    (
+        "best_match",
+        {"weather_models": ["best_match"], "calibration_enabled": False},
+    ),
+    ("ensemble", {"weather_models": ENSEMBLE, "calibration_enabled": False}),
     ("ensemble + calibration", {"weather_models": ENSEMBLE, "calibration_enabled": True}),
     (
         "ensemble + calibration (global only)",
@@ -57,8 +60,18 @@ VARIANTS: list[tuple[str, dict[str, Any]]] = [
             "calibration_azimuth_bin_degrees": 0,
         },
     ),
-    ("ensemble, isotropic sky", {"weather_models": ENSEMBLE, "transposition_model": "isotropic"}),
-    ("ensemble, no IAM", {"weather_models": ENSEMBLE, "apply_iam": False}),
+    (
+        "ensemble, isotropic sky",
+        {
+            "weather_models": ENSEMBLE,
+            "transposition_model": "isotropic",
+            "calibration_enabled": False,
+        },
+    ),
+    (
+        "ensemble, no IAM",
+        {"weather_models": ENSEMBLE, "apply_iam": False, "calibration_enabled": False},
+    ),
 ]
 
 
@@ -94,6 +107,8 @@ def main(days: int, tilt: Optional[float], azimuth: Optional[float]) -> int:
     singletons_init()
     config = get_config()
     measurement = get_measurement()
+    if measurement.max_datetime is None:
+        measurement.load()
 
     if not config.measurement.pv_production_emr_keys:
         print(
@@ -174,6 +189,11 @@ def main(days: int, tilt: Optional[float], azimuth: Optional[float]) -> int:
         "\nNote: the calibrated variants are fitted on the same window they are scored\n"
         "on, so their advantage here is optimistic. Re-run with a longer --days to see\n"
         "how much of it survives."
+    )
+    print(
+        "Outage or curtailment periods are excluded from calibration but remain in these\n"
+        "scores, because the script cannot prove the plant's availability without an\n"
+        "explicit availability measurement."
     )
 
     best_label, best, hours = min(rows, key=lambda row: row[1]["mae"])

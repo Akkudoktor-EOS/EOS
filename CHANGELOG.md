@@ -118,6 +118,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add `scripts/pvforecast_backtest.py`, which scores PV forecast configuration variants against
   the stored meter readings straight away instead of waiting for new forecasts to come true, and
   `Measurement.pv_production_total_kwh()` alongside the existing load total.
+- The local PV provider's calibration now excludes probable outage and curtailment days instead of
+  learning them as permanent model losses: `calibration_outage_filter_enabled` (default on),
+  `calibration_outage_threshold`, `calibration_reference_days` and `calibration_min_healthy_days`
+  estimate the healthy plant ratio and fall back to the most recent healthy days. Calibration also
+  uses native 15-minute meter readings when every configured PV meter supplies them, interpolates
+  azimuth factors smoothly between bin centres instead of stepping, and normalizes the fitted
+  shape per forecast day so it redistributes energy without changing that day's kWh correction.
+  The default `calibration_azimuth_bin_degrees` moves from 15 to 45, which is what a typical
+  calibration window actually supports.
 - Separate the control horizon from the battery lookahead. `optimization.horizon_hours` remains
   the only span that receives control commands; the new `optimization.tail_horizon_hours`
   (default 48 h) is a forecast lookahead that never produces a command. In `AUTO` terminal-value
@@ -219,6 +228,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   provider could 404 the whole load prediction. It now defaults to a cache-aware update and
   accepts an optional `force_update` flag in the request body for callers that still want
   to force.
+- The local PV provider derived its calibration window from the measurement store as a whole
+  instead of from the configured PV production meters. A load meter reaching further than the PV
+  meter placed the window where no PV reading exists, so calibration silently fell back to hourly
+  fitting or skipped itself entirely. The window now follows the PV meters.
+- `Measurement.load()` silently discarded every stored record. It validated the file into a
+  temporary `Measurement`, but `Measurement` is a singleton, so the "temporary" instance was the
+  already initialized one and the parsed records were dropped. The records are now validated
+  individually and inserted directly.
 - A rejected configuration update no longer damages the running configuration.
   `merge_settings_from_dict` validated the merged candidate only while reinitializing the
   singleton, so an invalid update could leave EOS half-updated. The candidate is validated first.

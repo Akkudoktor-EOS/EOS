@@ -126,7 +126,9 @@ def test_records_are_shifted_to_interval_start(pvforecast_instance):
     shifted = pvforecast_instance._forecast_frame(synthetic_openmeteo())
 
     pvforecast_instance.config.pvforecast.provider_settings.PVForecastAkkudoktorLocal = (
-        PVForecastAkkudoktorLocalCommonSettings(resolution_minutes=15, shift_to_interval_start=False)
+        PVForecastAkkudoktorLocalCommonSettings(
+            resolution_minutes=15, shift_to_interval_start=False
+        )
     )
     raw = pvforecast_instance._forecast_frame(synthetic_openmeteo())
 
@@ -173,7 +175,9 @@ def test_horizon_shading_reduces_yield(pvforecast_instance):
 
 
 def test_update_data_writes_records(pvforecast_instance):
-    with patch.object(PVForecastAkkudoktorLocal, "_request_forecast", return_value=synthetic_openmeteo()):
+    with patch.object(
+        PVForecastAkkudoktorLocal, "_request_forecast", return_value=synthetic_openmeteo()
+    ):
         pvforecast_instance._update_data(force_update=True)
 
     assert len(pvforecast_instance.records) > 0
@@ -205,6 +209,59 @@ def _feed_measurements(
     # Closing reading so the last interval has a difference to work with.
     measurement.update_value(
         pendulum.instance(hourly.index[-1].to_pydatetime()).add(hours=1),
+        key,
+        round(cumulative, 6),
+    )
+
+
+def _feed_measurements_with_recent_outage(
+    instance: PVForecastAkkudoktorLocal,
+    frame: pd.DataFrame,
+    healthy_bias: float,
+    outage_bias: float,
+    outage_days: int,
+    key: str,
+) -> None:
+    """Write a healthy meter history followed by demand-limited PV production."""
+    instance.config.measurement.pv_production_emr_keys = [key]
+    measurement = get_measurement()
+
+    hourly = frame["ac_power"].resample("1h").mean()
+    hourly = hourly.loc[hourly.index < START]
+    outage_start = START.subtract(days=outage_days)
+    healthy_looking_gap = outage_start.add(days=2).date()
+
+    cumulative = 0.0
+    for timestamp, power_w in hourly.items():
+        measurement.update_value(
+            pendulum.instance(timestamp.to_pydatetime()), key, round(cumulative, 6)
+        )
+        in_outage = timestamp >= outage_start and timestamp.date() != healthy_looking_gap
+        bias = outage_bias if in_outage else healthy_bias
+        cumulative += float(power_w) * bias / 1000.0
+    measurement.update_value(
+        pendulum.instance(hourly.index[-1].to_pydatetime()).add(hours=1),
+        key,
+        round(cumulative, 6),
+    )
+
+
+def _feed_native_quarter_hour_measurements(
+    instance: PVForecastAkkudoktorLocal, frame: pd.DataFrame, bias: float, key: str
+) -> None:
+    """Write cumulative PV readings at the provider's native 15-minute cadence."""
+    instance.config.measurement.pv_production_emr_keys = [key]
+    measurement = get_measurement()
+    slots = frame.loc[frame.index < START, "ac_power"]
+
+    cumulative = 0.0
+    for timestamp, power_w in slots.items():
+        measurement.update_value(
+            pendulum.instance(timestamp.to_pydatetime()), key, round(cumulative, 6)
+        )
+        cumulative += float(power_w) * 0.25 * bias / 1000.0
+    measurement.update_value(
+        pendulum.instance(slots.index[-1].to_pydatetime()).add(minutes=15),
         key,
         round(cumulative, 6),
     )
@@ -246,6 +303,84 @@ def test_calibration_recovers_a_systematic_bias(pvforecast_instance):
     assert corrected["ac_power"].sum() == pytest.approx(frame["ac_power"].sum() * global_factor)
 
 
+def test_calibration_excludes_recent_demand_limited_outage(pvforecast_instance, caplog):
+    """A battery outage must not teach demand-limited PV as available generation."""
+    pvforecast_instance.config.pvforecast.provider_settings.PVForecastAkkudoktorLocal = (
+        PVForecastAkkudoktorLocalCommonSettings(
+            calibration_enabled=True,
+            calibration_days=5,
+            calibration_reference_days=14,
+            calibration_azimuth_bin_degrees=0,
+            calibration_min_factor=0.2,
+        )
+    )
+
+    frame = pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    _feed_measurements_with_recent_outage(
+        pvforecast_instance,
+        frame,
+        healthy_bias=0.8,
+        outage_bias=0.2,
+        outage_days=5,
+        key="pv_demand_limited_emr",
+    )
+
+    with caplog.at_level("INFO"):
+        calibration = pvforecast_instance._fit_calibration(frame)
+
+    assert calibration is not None
+    global_factor, factors = calibration
+    assert global_factor == pytest.approx(0.8, abs=0.03)
+    assert factors == pytest.approx([global_factor])
+    assert "excluded probable outage/curtailment days" in caplog.text
+    # A single statistically healthy-looking day inside the outage is bridged.
+    assert "2025-06-12" in caplog.text
+
+    # Filtering only selects training data. Applying a global factor preserves the
+    # native quarter-hour shape instead of replacing it with hourly bucket values.
+    corrected = pvforecast_instance._apply_calibration(frame, factors, 10000.0)
+    producing = frame["ac_power"] > 0.0
+    assert corrected.index.to_series().diff().dropna().unique().tolist() == [
+        pd.Timedelta(minutes=15)
+    ]
+    assert (
+        corrected.loc[producing, "ac_power"] / frame.loc[producing, "ac_power"]
+    ).to_numpy() == pytest.approx(np.full(producing.sum(), global_factor))
+
+
+def test_calibration_uses_real_quarter_hour_measurements(pvforecast_instance, caplog):
+    """Native meter slots permit shape calibration without inventing intrahour data."""
+    pvforecast_instance.config.pvforecast.provider_settings.PVForecastAkkudoktorLocal = (
+        PVForecastAkkudoktorLocalCommonSettings(
+            calibration_enabled=True,
+            calibration_days=14,
+            calibration_reference_days=14,
+            calibration_azimuth_bin_degrees=0,
+        )
+    )
+    frame = pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    _feed_native_quarter_hour_measurements(
+        pvforecast_instance, frame, bias=0.8, key="pv_quarter_hour_emr"
+    )
+
+    assert (
+        pvforecast_instance._calibration_interval_minutes(
+            START.subtract(days=14), START
+        )
+        == 15
+    )
+    with caplog.at_level("INFO"):
+        calibration = pvforecast_instance._fit_calibration(frame)
+
+    assert calibration is not None
+    global_factor, _ = calibration
+    assert global_factor == pytest.approx(0.8, abs=0.03)
+    assert (
+        "15-minute measurement resolution" in caplog.text
+        or "15-minute intervals" in caplog.text
+    )
+
+
 def test_calibration_factor_is_clamped(pvforecast_instance):
     """A wildly wrong meter must not be allowed to swing the forecast."""
     pvforecast_instance.config.pvforecast.provider_settings.PVForecastAkkudoktorLocal = (
@@ -271,6 +406,73 @@ def test_calibration_respects_the_inverter_cap(pvforecast_instance):
     frame = pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
     corrected = PVForecastAkkudoktorLocal._apply_calibration(frame, np.array([1.5]), 10000.0)
     assert corrected["ac_power"].max() <= 10000.0 + 1e-6
+
+
+def test_azimuth_calibration_is_interpolated_smoothly():
+    """Azimuth correction must not introduce steps into the quarter-hour plan."""
+    frame = pd.DataFrame(
+        {
+            "solar_azimuth": [44.9, 45.0, 45.1, 134.9, 135.0, 135.1],
+            "dc_power": [1000.0] * 6,
+            "ac_power": [1000.0] * 6,
+        }
+    )
+    corrected = PVForecastAkkudoktorLocal._apply_calibration(
+        frame, np.array([0.5, 1.0, 1.5, 1.0]), ac_cap_w=2000.0
+    )
+
+    assert corrected.loc[1, "ac_power"] == pytest.approx(500.0)
+    assert corrected.loc[4, "ac_power"] == pytest.approx(1000.0)
+    assert abs(corrected.loc[2, "ac_power"] - corrected.loc[0, "ac_power"]) < 2.0
+    assert abs(corrected.loc[5, "ac_power"] - corrected.loc[3, "ac_power"]) < 2.0
+
+
+def test_azimuth_shape_preserves_each_days_global_energy():
+    """The EMS gets a changed shape without a changed daily energy budget."""
+    index = pd.date_range("2025-06-01", periods=8, freq="12h", tz="UTC")
+    frame = pd.DataFrame(
+        {
+            "solar_azimuth": [45.0, 225.0, 45.0, 225.0, 45.0, 225.0, 45.0, 225.0],
+            "dc_power": [100.0, 300.0, 200.0, 200.0, 300.0, 100.0, 150.0, 250.0],
+            "ac_power": [100.0, 300.0, 200.0, 200.0, 300.0, 100.0, 150.0, 250.0],
+        },
+        index=index,
+    )
+    global_factor = 0.8
+    corrected = PVForecastAkkudoktorLocal._apply_calibration(
+        frame,
+        np.array([0.5, 1.0, 1.5, 1.0]),
+        ac_cap_w=10_000.0,
+        global_factor=global_factor,
+        timezone="UTC",
+    )
+
+    raw_daily = frame["ac_power"].resample("1D").sum()
+    corrected_daily = corrected["ac_power"].resample("1D").sum()
+    assert corrected_daily.to_numpy() == pytest.approx(
+        raw_daily.to_numpy() * global_factor
+    )
+    assert np.std(corrected["ac_power"] / frame["ac_power"]) > 0.01
+
+
+def test_azimuth_shape_fit_preserves_global_energy(pvforecast_instance):
+    """Intraday correction must not undo the independently fitted daily kWh."""
+    centers = np.arange(22.5, 360.0, 45.0)
+    azimuth = np.repeat(centers, 20)
+    modelled_kwh = np.ones(len(azimuth))
+    expected_shape = np.repeat([0.8, 0.9, 1.0, 1.1, 1.2, 1.1, 1.0, 0.9], 20)
+    global_factor = 0.8
+    measured_kwh = modelled_kwh * global_factor * expected_shape
+
+    factors = pvforecast_instance._fit_azimuth_factors(
+        modelled_kwh, measured_kwh, azimuth, global_factor
+    )
+    fitted_scale = pvforecast_instance._interpolate_azimuth_factors(azimuth, factors)
+
+    assert np.std(factors) > 0.01
+    assert np.dot(modelled_kwh, fitted_scale) == pytest.approx(
+        global_factor * modelled_kwh.sum(), rel=1e-6
+    )
 
 
 def test_forecast_frame_applies_the_calibration(pvforecast_instance):

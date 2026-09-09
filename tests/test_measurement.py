@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import pytest
 from pendulum import datetime, duration
@@ -430,3 +432,30 @@ class TestMeasurement:
         result = measurement_eos.load_total_kwh(start_datetime=start_datetime, end_datetime=end_datetime, interval=interval)
         expected = np.array([100])  # Only one complete interval covered
         np.testing.assert_array_equal(result, expected)
+
+    def test_load_restores_file_records_into_singleton(self, measurement_eos, config_eos, tmp_path):
+        """File loading must not lose records when validating the Measurement singleton."""
+        # ConfigEOS and Measurement are singletons that outlive this module, so
+        # every global this test touches has to be put back; otherwise later
+        # modules read their measurements from a deleted tmp_path.
+        previous_folder = config_eos.general.data_folder_path
+        previous_keys = config_eos.measurement.load_emr_keys
+        previous_records = measurement_eos.records
+        config_eos.general.data_folder_path = tmp_path
+        config_eos.measurement.load_emr_keys = ["load0_mr"]
+        record = MeasurementDataRecord(date_time=to_datetime("2026-08-01T12:00:00Z"))
+        record["load0_mr"] = 123.5
+        payload = {"records": [record.model_dump(mode="json")]}
+        (tmp_path / "measurement.json").write_text(
+            json.dumps(payload), encoding="utf-8", newline="\n"
+        )
+
+        try:
+            measurement_eos.records = []
+            assert measurement_eos.load() is True
+            assert len(measurement_eos.records) == 1
+            assert measurement_eos.records[0]["load0_mr"] == pytest.approx(123.5)
+        finally:
+            measurement_eos.records = previous_records
+            config_eos.measurement.load_emr_keys = previous_keys
+            config_eos.general.data_folder_path = previous_folder

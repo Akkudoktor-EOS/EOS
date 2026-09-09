@@ -6,6 +6,7 @@ data records for measurements.
 The measurements can be added programmatically or imported from a file or JSON string.
 """
 
+import json
 from pathlib import Path
 from typing import Any, Optional
 
@@ -359,14 +360,12 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             if not measurement_file_path.exists():
                 return False
             try:
-                # Validate into a temporary instance
-                loaded = self.__class__.model_validate_json(
-                    measurement_file_path.read_text(encoding="utf-8")
-                )
-
-                # Explicitly add data records to the existing singleton
-                for record in loaded.records:
-                    self.insert_by_datetime(record)
+                # Do not validate the complete Measurement model here. Measurement is a
+                # singleton, so constructing a temporary instance returns the already
+                # initialized singleton and silently discards the serialized records.
+                payload = json.loads(measurement_file_path.read_text(encoding="utf-8"))
+                for record_data in payload.get("records", []):
+                    self.insert_by_datetime(MeasurementDataRecord.model_validate(record_data))
             except Exception as e:
                 logger.exception("Cannot load measurements")
         return True

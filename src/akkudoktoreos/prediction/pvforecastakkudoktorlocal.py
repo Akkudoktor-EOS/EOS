@@ -203,8 +203,56 @@ class PVForecastAkkudoktorLocalCommonSettings(SettingsBaseModel):
             "examples": [30, 14],
         },
     )
+    calibration_reference_days: int = Field(
+        default=30,
+        ge=3,
+        le=MAX_PAST_DAYS,
+        json_schema_extra={
+            "description": (
+                "Lookback used to distinguish healthy production from outages or "
+                "curtailment. If the calibration window contains too few healthy days, "
+                "the most recent healthy days from this reference window are used."
+            ),
+            "examples": [30, 14],
+        },
+    )
+    calibration_outage_filter_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "description": (
+                "Exclude days whose measured production is far below the recent healthy "
+                "plant level. This prevents inverter, battery and curtailment events from "
+                "being learned as permanent PV model losses."
+            ),
+            "examples": [True],
+        },
+    )
+    calibration_outage_threshold: float = Field(
+        default=0.55,
+        gt=0.0,
+        lt=1.0,
+        json_schema_extra={
+            "description": (
+                "A day is treated as unavailable when its measured/modelled energy ratio "
+                "is below this fraction of the robust healthy reference ratio."
+            ),
+            "examples": [0.55, 0.5],
+        },
+    )
+    calibration_min_healthy_days: int = Field(
+        default=3,
+        ge=1,
+        le=31,
+        json_schema_extra={
+            "description": (
+                "Minimum number of healthy days used for a fit. Older healthy days from "
+                "the reference window are added when the recent window contains fewer."
+            ),
+            "examples": [3],
+        },
+    )
     calibration_azimuth_bin_degrees: int = Field(
-        default=15,
+        default=45,
         ge=0,
         le=180,
         json_schema_extra={
@@ -212,7 +260,7 @@ class PVForecastAkkudoktorLocalCommonSettings(SettingsBaseModel):
                 "Width of the solar-azimuth bins for the correction. 0 fits a single "
                 "global factor only."
             ),
-            "examples": [15, 30, 0],
+            "examples": [45, 30, 15, 0],
         },
     )
     calibration_prior_kwh: float = Field(
@@ -295,7 +343,12 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
         if settings.calibration_enabled:
             # The fit compares modelled against measured power over the same past
             # intervals, so the weather for that window has to come back with the request.
-            past_days = max(past_days, settings.calibration_days)
+            calibration_lookback = settings.calibration_days
+            if settings.calibration_outage_filter_enabled:
+                calibration_lookback = max(
+                    calibration_lookback, settings.calibration_reference_days
+                )
+            past_days = max(past_days, calibration_lookback)
 
         return forecast_days, min(MAX_PAST_DAYS, past_days)
 
@@ -305,7 +358,9 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
         latitude = self.config.general.latitude
         longitude = self.config.general.longitude
         if latitude is None or longitude is None:
-            raise ValueError("PVForecastAkkudoktorLocal needs general.latitude and general.longitude")
+            raise ValueError(
+                "PVForecastAkkudoktorLocal needs general.latitude and general.longitude"
+            )
 
         settings = self._settings
         block = "minutely_15" if settings.resolution_minutes == 15 else "hourly"
@@ -602,8 +657,14 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             # The fit needs the raw model to compare against, which is exactly `frame`.
             calibration = self._fit_calibration(frame)
             if calibration is not None:
-                _, factors = calibration
-                frame = self._apply_calibration(frame, factors, self._installed_ac_capacity_w())
+                global_factor, factors = calibration
+                frame = self._apply_calibration(
+                    frame,
+                    factors,
+                    self._installed_ac_capacity_w(),
+                    global_factor=global_factor,
+                    timezone=self.config.general.timezone,
+                )
         return frame
 
     # ------------------------------------------------------------ calibration
@@ -617,6 +678,127 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             elif plane.peakpower is not None:
                 total += float(plane.peakpower) * 1000.0
         return total
+
+    def _pv_measurement_window(self) -> Optional[tuple[Any, Any]]:
+        """First and last timestamp that actually carries PV production readings.
+
+        The measurement store holds every meter, not just the PV ones. Load meters
+        routinely reach further than the PV meter in both directions, so deriving
+        the calibration window from the store as a whole would place it where no
+        PV reading exists - which silently skips calibration or downgrades it to
+        hourly fitting.
+        """
+        measurement = self.measurement
+        if measurement.min_datetime is None or measurement.max_datetime is None:
+            return None
+        earliest: Any = None
+        latest: Any = None
+        for key in self.config.measurement.pv_production_emr_keys or []:
+            dates, _ = measurement.key_to_lists(
+                key=key,
+                start_datetime=measurement.min_datetime,
+                end_datetime=measurement.max_datetime.add(minutes=1),
+            )
+            if not dates:
+                continue
+            if earliest is None or compare_datetimes(dates[0], earliest).lt:
+                earliest = dates[0]
+            if latest is None or compare_datetimes(dates[-1], latest).gt:
+                latest = dates[-1]
+        if earliest is None or latest is None:
+            return None
+        return earliest, latest
+
+    def _calibration_interval_minutes(self, start: Any, end: Any) -> int:
+        """Use native forecast slots only when every PV meter resolves them.
+
+        Interpolating an hourly cumulative meter onto quarter hours would create a
+        perfectly flat, but invented, intrahour profile. Fall back to hourly fitting
+        until all configured production meters actually provide native slot readings.
+        """
+        native_minutes = self._settings.resolution_minutes
+        meter_resolutions: list[float] = []
+        for key in self.config.measurement.pv_production_emr_keys or []:
+            dates, _ = self.measurement.key_to_lists(
+                key=key, start_datetime=start, end_datetime=end
+            )
+            if len(dates) < 3:
+                return 60
+            deltas = np.asarray(
+                [
+                    (dates[index] - dates[index - 1]).total_seconds() / 60.0
+                    for index in range(1, len(dates))
+                    if dates[index] > dates[index - 1]
+                ],
+                dtype=float,
+            )
+            if deltas.size == 0:
+                return 60
+            meter_resolutions.append(float(np.median(deltas)))
+
+        if not meter_resolutions:
+            return 60
+        if max(meter_resolutions) <= native_minutes * 1.5:
+            return native_minutes
+        return 60
+
+    def _fit_azimuth_factors(
+        self,
+        modelled_kwh: np.ndarray,
+        measured_kwh: np.ndarray,
+        azimuth: np.ndarray,
+        global_factor: float,
+    ) -> np.ndarray:
+        """Fit an energy-weighted intraday shape while preserving global energy."""
+        settings = self._settings
+        bin_degrees = settings.calibration_azimuth_bin_degrees
+        if bin_degrees <= 0:
+            return np.array([global_factor])
+
+        bin_count = max(1, int(round(360 / bin_degrees)))
+        bin_index = np.clip((azimuth % 360.0) / (360.0 / bin_count), 0, bin_count - 1).astype(int)
+
+        # Fit the shape as a residual around the independently determined global
+        # energy factor. Day-level availability filtering has already removed outages;
+        # energy sums now give productive intervals the influence relevant to the EMS.
+        # The prior shrinks sparse bins back toward a neutral relative factor of one.
+        relative_shape = np.ones(bin_count, dtype=float)
+        prior = settings.calibration_prior_kwh
+        for bin_number in range(bin_count):
+            in_bin = bin_index == bin_number
+            weight = float(modelled_kwh[in_bin].sum())
+            if weight <= 0.0:
+                continue
+            measured_sum = float(measured_kwh[in_bin].sum())
+            raw_shape = measured_sum / (weight * global_factor)
+            relative_shape[bin_number] = (weight * raw_shape + prior) / (weight + prior)
+
+        factors = np.clip(
+            global_factor * relative_shape,
+            settings.calibration_min_factor,
+            settings.calibration_max_factor,
+        )
+
+        # Smooth interpolation changes the exact weighted mean of the bin-centre
+        # values. Renormalize after interpolation so shape correction cannot silently
+        # change the global kWh calibration. Re-clipping is iterated to respect bounds.
+        target_energy = global_factor * float(modelled_kwh.sum())
+        for _ in range(8):
+            scale = self._interpolate_azimuth_factors(azimuth, factors)
+            corrected_energy = float(np.dot(modelled_kwh, scale))
+            if corrected_energy <= 0.0:
+                break
+            correction = target_energy / corrected_energy
+            updated = np.clip(
+                factors * correction,
+                settings.calibration_min_factor,
+                settings.calibration_max_factor,
+            )
+            if np.allclose(updated, factors, rtol=1e-6, atol=1e-8):
+                factors = updated
+                break
+            factors = updated
+        return factors
 
     def _fit_calibration(self, frame: pd.DataFrame) -> Optional[tuple[float, np.ndarray]]:
         """Fit correction factors from measured PV production against the model.
@@ -642,21 +824,35 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             return None
 
         measurement = self.measurement
-        if measurement.max_datetime is None or measurement.min_datetime is None:
+        pv_window = self._pv_measurement_window()
+        if pv_window is None:
             logger.info("PVForecastAkkudoktorLocal calibration: no PV measurements yet - skipping.")
             return None
+        pv_min_datetime, reference_end = pv_window
 
-        interval = to_duration("1 hour")
-        end = measurement.max_datetime.start_of("hour")
-        start = end.subtract(days=settings.calibration_days)
-        if compare_datetimes(start, measurement.min_datetime).lt:
-            start = measurement.min_datetime.start_of("hour").add(hours=1)
+        lookback_days = settings.calibration_days
+        if settings.calibration_outage_filter_enabled:
+            lookback_days = max(lookback_days, settings.calibration_reference_days)
+        reference_start = reference_end.subtract(days=lookback_days)
+        interval_minutes = self._calibration_interval_minutes(reference_start, reference_end)
+        interval_hours = interval_minutes / 60.0
+        interval = to_duration(f"{interval_minutes} minutes")
+        end = reference_end.start_of("hour")
+        if interval_minutes < 60:
+            end = reference_end.start_of("minute").set(
+                minute=(reference_end.minute // interval_minutes) * interval_minutes
+            )
+        start = end.subtract(days=lookback_days)
+        if compare_datetimes(start, pv_min_datetime).lt:
+            start = pv_min_datetime.start_of("minute").add(minutes=interval_minutes)
         # The model side only exists for the weather window that was requested.
         model_start = to_datetime(frame.index[0].to_pydatetime())
         if compare_datetimes(start, model_start).lt:
-            start = model_start.start_of("hour").add(hours=1)
+            start = model_start.start_of("minute").add(minutes=interval_minutes)
         if compare_datetimes(start, end).ge:
-            logger.info("PVForecastAkkudoktorLocal calibration: measurement window too short - skipping.")
+            logger.info(
+                "PVForecastAkkudoktorLocal calibration: measurement window too short - skipping."
+            )
             return None
 
         measured_kwh = np.asarray(
@@ -666,24 +862,32 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             dtype=float,
         )
         if measured_kwh.size == 0 or not np.isfinite(measured_kwh).any():
-            logger.info("PVForecastAkkudoktorLocal calibration: no usable PV measurements - skipping.")
+            logger.info(
+                "PVForecastAkkudoktorLocal calibration: no usable PV measurements - skipping."
+            )
             return None
 
-        # Model side on the same hourly grid. `ac_power` is a mean power per interval,
-        # so the hourly mean in W is directly the hourly energy in Wh.
-        hourly = frame[["ac_power", "solar_azimuth"]].resample("1h").mean()
+        # Model side on the same grid as the real meter. Mean power is converted to
+        # interval energy below; hourly meters stay hourly and native 15-minute meters
+        # retain the shape that matters to the EMS.
+        samples_frame = (
+            frame[["ac_power", "solar_azimuth"]].resample(f"{interval_minutes}min").mean()
+        )
         grid = pd.date_range(
             start=pd.Timestamp(start.in_timezone("UTC").isoformat()),
             periods=len(measured_kwh),
-            freq="1h",
+            freq=f"{interval_minutes}min",
         )
-        hourly = hourly.reindex(grid)
-        modelled_kwh = hourly["ac_power"].to_numpy(dtype=float) / 1000.0
-        azimuth = hourly["solar_azimuth"].to_numpy(dtype=float)
+        samples_frame = samples_frame.reindex(grid)
+        modelled_kwh = samples_frame["ac_power"].to_numpy(dtype=float) / 1000.0 * interval_hours
+        azimuth = samples_frame["solar_azimuth"].to_numpy(dtype=float)
 
         # Only fit where the model says something meaningful is being produced. Dawn and
         # dusk intervals otherwise dominate the ratio with noise.
-        floor_kwh = max(0.02 * self._installed_ac_capacity_w() / 1000.0, 0.05)
+        floor_kwh = max(
+            0.02 * self._installed_ac_capacity_w() / 1000.0 * interval_hours,
+            0.05 * interval_hours,
+        )
         usable = (
             np.isfinite(modelled_kwh)
             & np.isfinite(measured_kwh)
@@ -691,12 +895,108 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             & (modelled_kwh > floor_kwh)
             & (measured_kwh >= 0.0)
         )
-        if usable.sum() < 12:
+        shape_usable = usable.copy()
+
+        # Calibration represents the available PV potential. A battery or inverter
+        # outage can make an otherwise healthy plant cover only local demand; those
+        # intervals must not be learned as a permanent model loss. Detect this at day
+        # level, because individual cloudy hours are much too noisy for a reliable
+        # availability decision.
+        local_days = samples_frame.index.tz_convert(self.config.general.timezone).normalize()
+        fit_start = pd.Timestamp(
+            end.subtract(days=settings.calibration_days)
+            .in_timezone(self.config.general.timezone)
+            .isoformat()
+        ).normalize()
+
+        if settings.calibration_outage_filter_enabled and usable.any():
+            samples = pd.DataFrame(
+                {
+                    "modelled_kwh": modelled_kwh[usable],
+                    "measured_kwh": measured_kwh[usable],
+                    "local_day": local_days[usable],
+                }
+            )
+            daily = samples.groupby("local_day").agg(
+                modelled_kwh=("modelled_kwh", "sum"),
+                measured_kwh=("measured_kwh", "sum"),
+                usable_intervals=("modelled_kwh", "size"),
+            )
+            daily["ratio"] = daily["measured_kwh"] / daily["modelled_kwh"]
+
+            # Low-yield weather days do not carry enough evidence to call an outage.
+            # Half an equivalent full-load hour scales naturally with plant size.
+            minimum_day_kwh = max(0.5 * self._installed_ac_capacity_w() / 1000.0, 1.0)
+            reference_candidates = daily[
+                (daily["modelled_kwh"] >= minimum_day_kwh) & np.isfinite(daily["ratio"])
+            ]
+
+            outage_days = pd.DatetimeIndex([])
+            reference_ratio = float("nan")
+            if len(reference_candidates) >= settings.calibration_min_healthy_days:
+                # The upper quartile is a robust estimate of the available plant level:
+                # outages and curtailment only pull the ratio down, while a few weather
+                # outliers cannot dominate it as a maximum would.
+                reference_ratio = float(reference_candidates["ratio"].quantile(0.75))
+                outage_limit = reference_ratio * settings.calibration_outage_threshold
+                outage_days = pd.DatetimeIndex(
+                    reference_candidates.index[reference_candidates["ratio"] < outage_limit]
+                )
+
+                # A cloudy day inside a known low-production block can accidentally
+                # resemble a healthy ratio because both numerator and denominator are
+                # small. Bridge a single-day gap between two detected outage days so a
+                # continuous plant event is not partly admitted into the fit.
+                ordered_days = pd.DatetimeIndex(daily.index).sort_values()
+                bridged_days = []
+                for index in range(1, len(ordered_days) - 1):
+                    previous_day = ordered_days[index - 1]
+                    day = ordered_days[index]
+                    next_day = ordered_days[index + 1]
+                    if (
+                        previous_day in outage_days
+                        and next_day in outage_days
+                        and (day.date() - previous_day.date()).days == 1
+                        and (next_day.date() - day.date()).days == 1
+                    ):
+                        bridged_days.append(day)
+                if bridged_days:
+                    outage_days = outage_days.union(pd.DatetimeIndex(bridged_days)).sort_values()
+
+            healthy_days = pd.DatetimeIndex(daily.index).difference(outage_days).sort_values()
+            recent_healthy_days = healthy_days[healthy_days >= fit_start]
+            if len(recent_healthy_days) < settings.calibration_min_healthy_days:
+                fit_days = healthy_days[-settings.calibration_min_healthy_days :]
+            else:
+                fit_days = recent_healthy_days
+
+            # The recent healthy window tracks the current energy level. The stable
+            # intraday signature uses the full healthy reference window, avoiding noisy
+            # shape factors learned from only a handful of days.
+            shape_usable &= np.asarray(local_days.isin(healthy_days), dtype=bool)
+            usable &= np.asarray(local_days.isin(fit_days), dtype=bool)
+            if len(outage_days) > 0:
+                day_list = ", ".join(day.strftime("%Y-%m-%d") for day in outage_days)
+                logger.info(
+                    "PVForecastAkkudoktorLocal calibration: excluded probable outage/"
+                    f"curtailment days [{day_list}] (healthy reference "
+                    f"{reference_ratio:.3f})."
+                )
+        else:
+            usable &= np.asarray(local_days >= fit_start, dtype=bool)
+            shape_usable = usable.copy()
+
+        minimum_samples = math.ceil(12 / interval_hours)
+        if usable.sum() < minimum_samples:
             logger.info(
-                f"PVForecastAkkudoktorLocal calibration: only {int(usable.sum())} usable hours - skipping."
+                "PVForecastAkkudoktorLocal calibration: only "
+                f"{int(usable.sum())} usable {interval_minutes}-minute intervals - skipping."
             )
             return None
 
+        shape_modelled_kwh = modelled_kwh[shape_usable]
+        shape_measured_kwh = measured_kwh[shape_usable]
+        shape_azimuth = azimuth[shape_usable]
         modelled_kwh = modelled_kwh[usable]
         measured_kwh = measured_kwh[usable]
         azimuth = azimuth[usable]
@@ -712,54 +1012,83 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             )
         )
 
-        bin_degrees = settings.calibration_azimuth_bin_degrees
-        if bin_degrees <= 0:
+        factors = self._fit_azimuth_factors(
+            shape_modelled_kwh,
+            shape_measured_kwh,
+            shape_azimuth,
+            global_factor,
+        )
+        if len(factors) == 1:
             logger.info(
                 f"PVForecastAkkudoktorLocal calibration: global factor {global_factor:.3f} "
-                f"from {usable.sum()} hours."
+                f"from {usable.sum()} {interval_minutes}-minute intervals."
             )
-            return global_factor, np.array([global_factor])
-
-        bin_count = max(1, int(round(360 / bin_degrees)))
-        bin_index = np.clip((azimuth % 360.0) / (360.0 / bin_count), 0, bin_count - 1).astype(int)
-
-        # Weight each bin by its modelled energy and shrink toward the global factor, so
-        # a thinly sampled bin cannot swing the forecast on its own.
-        prior = settings.calibration_prior_kwh
-        factors = np.full(bin_count, global_factor, dtype=float)
-        for b in range(bin_count):
-            in_bin = bin_index == b
-            weight = float(modelled_kwh[in_bin].sum())
-            if weight <= 0.0:
-                continue
-            raw = float(measured_kwh[in_bin].sum()) / weight
-            factors[b] = np.clip(
-                (weight * raw + prior * global_factor) / (weight + prior),
-                settings.calibration_min_factor,
-                settings.calibration_max_factor,
-            )
+            return global_factor, factors
 
         # Report how much of the bias the fit actually removes on its own training window.
         before = float(np.abs(modelled_kwh - measured_kwh).mean())
-        after = float(np.abs(modelled_kwh * factors[bin_index] - measured_kwh).mean())
+        fitted_scale = self._interpolate_azimuth_factors(azimuth, factors)
+        after = float(np.abs(modelled_kwh * fitted_scale - measured_kwh).mean())
         logger.info(
-            f"PVForecastAkkudoktorLocal calibration over {usable.sum()} h: global factor "
-            f"{global_factor:.3f}, {bin_count} azimuth bins, "
-            f"MAE {before:.3f} -> {after:.3f} kWh/h"
+            f"PVForecastAkkudoktorLocal calibration over {usable.sum()} intervals: global factor "
+            f"{global_factor:.3f}, {len(factors)} azimuth bins at {interval_minutes}-minute "
+            "measurement resolution, "
+            f"MAE {before:.3f} -> {after:.3f} kWh per interval"
         )
         return global_factor, factors
 
     @staticmethod
-    def _apply_calibration(
-        frame: pd.DataFrame, factors: np.ndarray, ac_cap_w: float
-    ) -> pd.DataFrame:
-        """Scale the modelled power by the per-azimuth factor of each interval."""
+    def _interpolate_azimuth_factors(azimuth: np.ndarray, factors: np.ndarray) -> np.ndarray:
+        """Interpolate fitted bin-centre factors without a discontinuity at north."""
         bin_count = len(factors)
+        if bin_count == 1:
+            return np.full(len(azimuth), factors[0], dtype=float)
+
+        bin_width = 360.0 / bin_count
+        centers = (np.arange(bin_count, dtype=float) + 0.5) * bin_width
+        interpolation_azimuths = np.concatenate(
+            ([centers[-1] - 360.0], centers, [centers[0] + 360.0])
+        )
+        interpolation_factors = np.concatenate(([factors[-1]], factors, [factors[0]]))
+        return np.interp(
+            np.nan_to_num(azimuth % 360.0),
+            interpolation_azimuths,
+            interpolation_factors,
+        )
+
+    @staticmethod
+    def _apply_calibration(
+        frame: pd.DataFrame,
+        factors: np.ndarray,
+        ac_cap_w: float,
+        global_factor: Optional[float] = None,
+        timezone: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Scale power with a smooth, circular interpolation of azimuth factors."""
         azimuth = frame["solar_azimuth"].to_numpy(dtype=float)
-        bin_index = np.clip(
-            np.nan_to_num(azimuth % 360.0) / (360.0 / bin_count), 0, bin_count - 1
-        ).astype(int)
-        scale = factors[bin_index]
+        scale = PVForecastAkkudoktorLocal._interpolate_azimuth_factors(azimuth, factors)
+
+        # Preserve the independently fitted kWh correction for every forecast day.
+        # Azimuth factors may redistribute energy within a day, but cannot change its
+        # calibrated total (apart from the physical inverter cap applied below).
+        if global_factor is not None and len(frame) > 0:
+            ac_power = frame["ac_power"].to_numpy(dtype=float)
+            if isinstance(frame.index, pd.DatetimeIndex):
+                day_index = frame.index
+                if timezone is not None and day_index.tz is not None:
+                    day_index = day_index.tz_convert(timezone)
+                groups = pd.Series(np.arange(len(frame)), index=frame.index).groupby(
+                    day_index.normalize()
+                )
+                group_indices = (group.to_numpy() for _, group in groups)
+            else:
+                group_indices = (np.arange(len(frame)),)
+            for indices in group_indices:
+                model_energy = float(ac_power[indices].sum())
+                shaped_energy = float(np.dot(ac_power[indices], scale[indices]))
+                if model_energy > 0.0 and shaped_energy > 0.0:
+                    scale[indices] *= global_factor * model_energy / shaped_energy
+
         frame = frame.copy()
         frame["dc_power"] = frame["dc_power"] * scale
         frame["ac_power"] = frame["ac_power"] * scale
