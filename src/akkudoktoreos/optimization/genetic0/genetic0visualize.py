@@ -141,7 +141,11 @@ class Genetic0VisualizationReport(ConfigMixin):
                 marker = markers[idx] if markers and idx < len(markers) else "o"  # Marker style
                 line_style = line_styles[idx] if line_styles and idx < len(line_styles) else "-"
                 plt.plot(
-                    timestamps, y_data, label=label, marker=marker, linestyle=line_style
+                    mdates.date2num(timestamps),
+                    np.asarray(y_data, dtype=float),
+                    label=label,
+                    marker=marker,
+                    linestyle=line_style,
                 )  # Plot line
 
             # Format the time axis
@@ -178,8 +182,15 @@ class Genetic0VisualizationReport(ConfigMixin):
             # Add vertical line for the current date if within the axis range
             current_time = pendulum.now(self.config.general.timezone)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
-                plt.axvline(current_time, color="r", linestyle="--", label="Now")
-                plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
+                plt.axvline(mdates.date2num(current_time), color="r", linestyle="--", label="Now")
+                plt.text(
+                    mdates.date2num(current_time),
+                    plt.ylim()[1],
+                    "Now",
+                    color="r",
+                    ha="center",
+                    va="bottom",
+                )
 
             # Add a second x-axis on top
             ax1 = plt.gca()
@@ -191,7 +202,9 @@ class Genetic0VisualizationReport(ConfigMixin):
             # ax2.set_xticks(timestamps[::48])  # Set ticks every 12 hours
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
             # ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
-            ax2.set_xticks(timestamps[:: len(timestamps) // 12])  # Select 10 evenly spaced ticks
+            ax2.set_xticks(
+                mdates.date2num(timestamps[:: len(timestamps) // 12])
+            )  # Select 10 evenly spaced ticks
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
             ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 12]])
             if x2label:
@@ -251,7 +264,13 @@ class Genetic0VisualizationReport(ConfigMixin):
                 line_style = (
                     line_styles[idx] if line_styles and idx < len(line_styles) else "-"
                 )  # Line style
-                plt.plot(x, y_data, label=label, marker=marker, linestyle=line_style)  # Plot line
+                plt.plot(
+                    x,
+                    np.asarray(y_data, dtype=float),
+                    label=label,
+                    marker=marker,
+                    linestyle=line_style,
+                )  # Plot line
 
             plt.title(title)  # Set title
             plt.xlabel(xlabel)  # Set x-axis label

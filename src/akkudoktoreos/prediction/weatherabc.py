@@ -112,7 +112,7 @@ class WeatherDataRecord(PredictionRecord):
     )
 
 
-class WeatherProvider(PredictionProvider):
+class WeatherProvider(PredictionProvider[WeatherDataRecord]):
     """Abstract base class for weather providers.
 
     WeatherProvider is a thread-safe singleton, ensuring only one instance of this class is created.

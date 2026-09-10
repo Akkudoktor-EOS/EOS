@@ -5,14 +5,16 @@
 
 # Use uv for all program actions
 UV := uv
-PYTHON := $(UV) run python
+UV_PYTHON := python3
+PYTHON := $(UV) run --python $(UV_PYTHON) python
 PYTEST := $(UV) run pytest
-MYPY := $(UV) run mypy
-PRECOMMIT := $(UV) run pre-commit
+MYPY := $(UV) run --locked --exact --extra dev python -m mypy --config-file pyproject.toml
+PRECOMMIT := $(UV) run --locked --extra dev pre-commit
 COMMITIZEN := $(UV) run cz
 
 # - Take VERSION from version.py
-VERSION := $(shell $(PYTHON) scripts/get_version.py)
+# Evaluate only for targets that need it, so typing never runs an unlocked uv command.
+VERSION = $(shell $(PYTHON) scripts/get_version.py)
 
 # Default target
 all: help
@@ -160,7 +162,7 @@ format:
 gitlint:
 	$(COMMITIZEN) check --rev-range main..HEAD
 
-# Target to format code.
+# Check the complete typing policy in the locked development environment.
 mypy:
 	$(MYPY)
 

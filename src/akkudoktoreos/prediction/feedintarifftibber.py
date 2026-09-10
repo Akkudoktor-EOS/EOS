@@ -137,11 +137,11 @@ class FeedInTariffTibber(FeedInTariffProvider):
         history = np.asarray(
             await self.key_to_array(
                 key="feed_in_tariff_wh",
-                end_datetime=self.highest_orig_datetime,
+                end_datetime=to_datetime(self.highest_orig_datetime),
                 interval=to_duration(f"{interval_seconds} seconds"),
                 fill_method="linear",
             ),
-            dtype=float,
+            dtype=np.float64,
         )
         covered_slots = 0
         if self.highest_orig_datetime >= self.ems_start_datetime:

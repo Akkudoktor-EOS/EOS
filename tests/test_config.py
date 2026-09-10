@@ -256,11 +256,11 @@ def test_config_common_settings_invalid(field_name, invalid_value, expected_erro
         "latitude": 40.7128,
         "longitude": -74.0060,
     }
-    assert GeneralSettings(**valid_data) is not None
+    assert GeneralSettings.model_validate(valid_data) is not None
     valid_data[field_name] = invalid_value
 
     with pytest.raises(ValidationError, match=expected_error):
-        GeneralSettings(**valid_data)
+        GeneralSettings.model_validate(valid_data)
 
 
 def test_config_common_settings_no_location():

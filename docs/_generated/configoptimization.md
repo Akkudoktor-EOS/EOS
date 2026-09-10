@@ -98,13 +98,13 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| generations | `int | None` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
+| generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
 | horizon | `int` | `ro` | `N/A` | Number of optimization steps. |
 | horizon_hours | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
-| individuals | `int | None` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
+| individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
 | interval_sec | `int` | `ro` | `N/A` | The optimization interval [sec]. Fixed to 1 hour (3600 seconds). |
-| penalties | `dict[str, float | int | str]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
-| seed | `int | None` | `rw` | `None` | Random seed for reproducibility. None = random. |
+| penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
+| seed | `Optional[int]` | `rw` | `None` | Random seed for reproducibility. None = random. |
 :::
 <!-- pyml enable line-length -->
 
@@ -163,13 +163,13 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| generations | `int | None` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
+| generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
 | horizon | `int` | `ro` | `N/A` | Number of optimization steps. |
 | horizon_hours | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
-| individuals | `int | None` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
+| individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
 | interval_sec | `int` | `rw` | `3600` | The optimization interval [sec]. Defaults to 3600 seconds (1 hour) |
-| penalties | `dict[str, float | int | str]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
-| seed | `int | None` | `rw` | `None` | Random seed for reproducibility. None = random. |
+| penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
+| seed | `Optional[int]` | `rw` | `None` | Random seed for reproducibility. None = random. |
 :::
 <!-- pyml enable line-length -->
 

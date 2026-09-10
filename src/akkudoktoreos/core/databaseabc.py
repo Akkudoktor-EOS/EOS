@@ -23,6 +23,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 
 from loguru import logger
@@ -39,6 +40,7 @@ from akkudoktoreos.core.types import (
     ResampleMethod,
 )
 from akkudoktoreos.utils.datetimeutil import (
+    UTC,
     DateTime,
     Duration,
     to_datetime,
@@ -278,9 +280,10 @@ class DatabaseBackendABC(ABC, ConfigMixin, SingletonMixin):
 
 
 class DataRecordProtocol(Protocol):
-    date_time: DateTime
+    # Records may be incomplete in memory; database entry points require a timestamp.
+    date_time: Optional[DateTime]
 
-    def __init__(self, date_time: Any) -> None: ...
+    def __init__(self, date_time: Optional[DateTime]) -> None: ...
 
     def __getitem__(self, key: str) -> Any: ...
 
@@ -303,15 +306,13 @@ class DatabaseTimestamp(str):
 
     @classmethod
     def from_datetime(cls, dt: DateTime) -> "DatabaseTimestamp":
-        if dt.tz is None:
+        if dt is None or dt.tz is None:
             raise ValueError("Timezone-aware datetime required")
 
         return cls(dt.in_timezone("UTC").format("YYYYMMDDTHHmmss[Z]"))
 
     def to_datetime(self) -> DateTime:
-        from pendulum import parse
-
-        return parse(self)
+        return to_datetime(self, in_timezone="UTC")
 
 
 class _DatabaseTimestampUnbound(str):
@@ -800,6 +801,19 @@ class DatabaseRecordProtocolMixin(
             return ts  # first valid one
 
         return None
+
+    def _db_require_date_time(self, record: T_Record) -> DateTime:
+        """Validate a record's timestamp before it enters the database index."""
+        date_time = record.date_time
+        if date_time is None:
+            try:
+                namespace = self.db_namespace()
+            except NotImplementedError:
+                namespace = self.__class__.__name__
+            raise ValueError(
+                f"Database records require a datetime (namespace='{namespace}', got {record!r})"
+            )
+        return date_time
 
     def _db_serialize_record(self, record: T_Record) -> bytes:
         """Serialize a DataRecord to bytes."""
@@ -1404,10 +1418,14 @@ class DatabaseRecordProtocolMixin(
         if not candidates:
             return None
 
+        # Indexed records have timestamps, validated when inserted or loaded.
+        # We validate again to be safe for future refactoring/ changes.
         record = min(
             candidates,
             key=lambda r: abs(
-                (r.date_time - DatabaseTimestamp.to_datetime(target_timestamp)).total_seconds()
+                (
+                    self._db_require_date_time(r) - DatabaseTimestamp.to_datetime(target_timestamp)
+                ).total_seconds()
             ),
         )
 
@@ -1417,7 +1435,8 @@ class DatabaseRecordProtocolMixin(
             if (
                 abs(
                     (
-                        record.date_time - DatabaseTimestamp.to_datetime(target_timestamp)
+                        self._db_require_date_time(record)
+                        - DatabaseTimestamp.to_datetime(target_timestamp)
                     ).total_seconds()
                 )
                 > half_seconds
@@ -1436,7 +1455,7 @@ class DatabaseRecordProtocolMixin(
         await self._db_ensure_initialized()
 
         # Ensure normalized to UTC
-        db_record_date_time = DatabaseTimestamp.from_datetime(record.date_time)
+        db_record_date_time = DatabaseTimestamp.from_datetime(self._db_require_date_time(record))
 
         await self._db_ensure_loaded(
             start_timestamp=db_record_date_time,
@@ -1533,7 +1552,9 @@ class DatabaseRecordProtocolMixin(
                 continue
 
             record = self._db_deserialize_record(value)
-            db_record_date_time = DatabaseTimestamp.from_datetime(record.date_time)
+            db_record_date_time = DatabaseTimestamp.from_datetime(
+                self._db_require_date_time(record)
+            )
 
             # Do not resurrect explicitly deleted records
             if db_record_date_time in self._db_deleted_timestamps:
@@ -1645,7 +1666,11 @@ class DatabaseRecordProtocolMixin(
             start_idx = bisect.bisect_left(self._db_sorted_timestamps, start_timestamp)
 
         for record in self.records[start_idx:]:
-            record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
+            # Indexed records were validated on insertion or loading.
+            # We validate againg to be safe for future refactoring/ changes.
+            record_date_time_timestamp = DatabaseTimestamp.from_datetime(
+                self._db_require_date_time(record)
+            )
 
             if start_timestamp and record_date_time_timestamp < start_timestamp:
                 continue
@@ -1666,7 +1691,9 @@ class DatabaseRecordProtocolMixin(
         # Ensure db in memory data and metadata is initialized
         await self._db_ensure_initialized()
 
-        record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
+        record_date_time_timestamp = DatabaseTimestamp.from_datetime(
+            self._db_require_date_time(record)
+        )
         self._db_dirty_timestamps.add(record_date_time_timestamp)
 
     # -----------------------------------------------------
@@ -1691,10 +1718,20 @@ class DatabaseRecordProtocolMixin(
         save_items = []
         for dt in self._db_dirty_timestamps:
             record = self._db_record_index.get(dt)
-            if record:
-                key = self._db_key_from_timestamp(dt)
-                value = self._db_serialize_record(record)
-                save_items.append((key, value))
+            if record is None:
+                continue
+            # Do sanity checks on the record - date_time set and no shift since insertion
+            current_ts = DatabaseTimestamp.from_datetime(self._db_require_date_time(record))
+            if current_ts != dt:
+                raise RuntimeError(
+                    f"Record date_time was mutated after insertion "
+                    f"(index key {dt!r} != current {current_ts!r}); "
+                    "use delete_by_datetime()+insert_by_datetime() to re-time a record."
+                )
+            # Add to save
+            key = self._db_key_from_timestamp(dt)
+            value = self._db_serialize_record(record)
+            save_items.append((key, value))
         saved_count = len(save_items)
         if saved_count:
             await self.database.save_records(save_items, namespace=namespace)
@@ -1969,7 +2006,7 @@ class DatabaseRecordProtocolMixin(
         # run — they are inside the age window but straddle an incomplete bucket.
         raw_cutoff_epoch = int(raw_cutoff_dt.timestamp())
         floored_cutoff_epoch = (raw_cutoff_epoch // interval_sec) * interval_sec
-        new_cutoff_dt = DateTime.fromtimestamp(floored_cutoff_epoch, tz="UTC")
+        new_cutoff_dt = DateTime.fromtimestamp(floored_cutoff_epoch, tz=UTC)
         new_cutoff_ts = DatabaseTimestamp.from_datetime(new_cutoff_dt)
 
         # ---- Determine window start (incremental) ------------------------
@@ -2001,7 +2038,7 @@ class DatabaseRecordProtocolMixin(
         # overwritten with the same values).
         raw_start_epoch = int(raw_window_start_dt.timestamp())
         floored_start_epoch = (raw_start_epoch // interval_sec) * interval_sec
-        window_start_dt = DateTime.fromtimestamp(floored_start_epoch, tz="UTC")
+        window_start_dt = DateTime.fromtimestamp(floored_start_epoch, tz=UTC)
         window_start_ts = DatabaseTimestamp.from_datetime(window_start_dt)
 
         window_end_dt = new_cutoff_dt  # exclusive upper bound, already aligned
@@ -2031,13 +2068,19 @@ class DatabaseRecordProtocolMixin(
             # Data is already sparse — check whether timestamps are aligned.
             # If every record already sits on an interval boundary, nothing to do.
             # If any are misaligned, snap them in place without resampling.
+
+            # Indexed records have timestamps, validated when inserted or loaded.
+            # We validate again to be safe for future refactoring/ changes.
             records_in_window = [
                 r
                 for r in self.records
-                if r.date_time is not None and window_start_dt <= r.date_time < window_end_dt
+                if window_start_dt <= self._db_require_date_time(r) < window_end_dt
             ]
+            # The window filter above raises an exception for records without timestamps.
             misaligned = [
-                r for r in records_in_window if int(r.date_time.timestamp()) % interval_sec != 0
+                r
+                for r in records_in_window
+                if int(cast(DateTime, r.date_time).timestamp()) % interval_sec != 0
             ]
             if not misaligned:
                 logger.debug(
@@ -2065,8 +2108,8 @@ class DatabaseRecordProtocolMixin(
             # Process chronologically so the earliest record's values win when
             # multiple records floor to the same bucket.
             snapped_bucket: dict[int, dict[str, Any]] = {}
-            for r in sorted(records_in_window, key=lambda x: x.date_time):
-                ts_epoch = int(r.date_time.timestamp())
+            for r in sorted(records_in_window, key=lambda r: cast(DateTime, r.date_time)):
+                ts_epoch = int(cast(DateTime, r.date_time).timestamp())
                 snapped_epoch = (ts_epoch // interval_sec) * interval_sec
                 bucket = snapped_bucket.setdefault(snapped_epoch, {})
                 for key in self.record_keys_writable:
@@ -2089,7 +2132,7 @@ class DatabaseRecordProtocolMixin(
             for snapped_epoch, values in snapped_bucket.items():
                 if not values:
                     continue
-                snapped_dt = DateTime.fromtimestamp(snapped_epoch, tz="UTC")
+                snapped_dt = DateTime.fromtimestamp(snapped_epoch, tz=UTC)
                 record = self.record_class()(date_time=snapped_dt, **values)
                 await self.db_insert_record(record, mark_dirty=True)
 
@@ -2148,7 +2191,7 @@ class DatabaseRecordProtocolMixin(
                 while first_bucket_epoch < int(window_start_dt.timestamp()):
                     first_bucket_epoch += interval_sec
                 compacted_timestamps = [
-                    DateTime.fromtimestamp(first_bucket_epoch + i * interval_sec, tz="UTC")
+                    DateTime.fromtimestamp(first_bucket_epoch + i * interval_sec, tz=UTC)
                     for i in range(len(array))
                 ]
 

@@ -4,9 +4,13 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any, MutableMapping, Optional
+from typing import TYPE_CHECKING, Any, MutableMapping, Optional
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from loguru import Record
+
 
 from akkudoktoreos.core.coreabc import get_config
 from akkudoktoreos.server.server import (
@@ -99,7 +103,7 @@ def _emit_drop_warning() -> None:
 
 
 def patch_loguru_record(
-    record: MutableMapping[str, Any],
+    record: "Record | MutableMapping[str, Any]",
     *,
     file_name: str,
     file_path: str,

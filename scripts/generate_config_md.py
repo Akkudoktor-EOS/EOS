@@ -8,7 +8,7 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any, Optional, Type, Union, get_args
+from typing import Any, Optional, Type, TypeVar, Union, get_args
 
 from loguru import logger
 from pydantic.fields import ComputedFieldInfo, FieldInfo
@@ -24,8 +24,8 @@ from akkudoktoreos.core.coreabc import get_config, singletons_init
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
-documented_types: set[PydanticBaseModel] = set()
-undocumented_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
+documented_types: set[type[PydanticBaseModel]] = set()
+undocumented_types: dict[type[PydanticBaseModel], tuple[str, list[str]]] = dict()
 
 global_config_dict: dict[str, Any] = dict()
 
@@ -60,6 +60,9 @@ def get_body(config: type[PydanticBaseModel]) -> str:
 
 def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple[Any, list[str]]]:
     resolved_types: list[tuple[type, list[str]]] = []
+
+    if isinstance(field_type, TypeVar):
+        field_type = field_type.__bound__ or Any
 
     origin = getattr(field_type, "__origin__", field_type)
     if origin is Union:
@@ -167,7 +170,7 @@ def build_nested_structure(keys: list[str], value: Any) -> Any:
 
 def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_field: bool) -> Any:
     default_value = ""
-    if regular_field:
+    if regular_field and isinstance(field_info, FieldInfo):
         if (val := field_info.default) is not PydanticUndefined:
             default_value = val
         else:
@@ -177,8 +180,13 @@ def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_f
     return default_value
 
 
-def get_type_name(field_type: type) -> str:
+def get_type_name(field_type: Any) -> str:
     type_name = str(field_type).replace("typing.", "").replace("pathlib._local", "pathlib")
+    # Unparameterized Pydantic generics validate against their TypeVar bound.
+    for arg in get_args(field_type):
+        if isinstance(arg, TypeVar) and isinstance(arg.__bound__, type):
+            bound = arg.__bound__
+            type_name = type_name.replace(str(arg), f"{bound.__module__}.{bound.__qualname__}")
     if type_name.startswith("<class"):
         type_name = field_type.__name__
     return type_name
@@ -229,17 +237,14 @@ def generate_config_table_md(
         table += f"| ---- {env_header_underline}| ---- | --------- | ------- | ----------- |\n"
 
 
-    fields = {}
-    for field_name, field_info in config.model_fields.items():
-        fields[field_name] = field_info
-    for field_name, field_info in config.model_computed_fields.items():
-        fields[field_name] = field_info
+    fields: dict[str, FieldInfo | ComputedFieldInfo] = dict(config.model_fields)
+    fields.update(config.model_computed_fields)
     for field_name in sorted(fields.keys()):
         field_info = fields[field_name]
         regular_field = isinstance(field_info, FieldInfo)
 
         config_name = field_name if extra_config else field_name.upper()
-        field_type = field_info.annotation if regular_field else field_info.return_type
+        field_type = (field_info.annotation if isinstance(field_info, FieldInfo) else field_info.return_type)
         default_value = get_default_value(field_info, regular_field)
         description = config.field_description(field_name)
         deprecated = config.field_deprecated(field_name)
@@ -462,6 +467,8 @@ def write_to_file(file_path: Optional[Union[str, Path]], config_md: str):
 
     # Assure timezone name does not leak to documentation
     tz_name = to_datetime().timezone_name
+    if tz_name is None:
+        raise RuntimeError("Documentation generation requires a timezone name")
     config_md = re.sub(re.escape(tz_name), "Europe/Berlin", config_md, flags=re.IGNORECASE)
     # Also replace UTC, as GitHub CI always is on UTC
     config_md = re.sub(re.escape("UTC"), "Europe/Berlin", config_md, flags=re.IGNORECASE)

@@ -125,7 +125,7 @@ class GeneticSimulation(PydanticBaseModel):
         self.pv_prediction_wh = np.array(parameters.pv_forecast_wh, float)
         self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
         self.elect_revenue_per_hour_arr = (
-            parameters.feed_in_tariff_per_wh
+            np.asarray(parameters.feed_in_tariff_per_wh, dtype=float)
             if isinstance(parameters.feed_in_tariff_per_wh, list)
             else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
         )
@@ -1205,21 +1205,21 @@ class GeneticOptimization(OptimizationBase):
         )
 
         # Simulation may have changed something, use simulation values
-        ac_charge_hours = self.simulation.ac_charge_hours
-        if ac_charge_hours is None:
-            ac_charge_hours = []
-        else:
-            ac_charge_hours = ac_charge_hours.tolist()
-        dc_charge_hours = self.simulation.dc_charge_hours
-        if dc_charge_hours is None:
-            dc_charge_hours = []
-        else:
-            dc_charge_hours = dc_charge_hours.tolist()
-        discharge = self.simulation.bat_discharge_hours
-        if discharge is None:
-            discharge = []
-        else:
-            discharge = discharge.tolist()
+        ac_charge_hours = (
+            self.simulation.ac_charge_hours.tolist()
+            if self.simulation.ac_charge_hours is not None
+            else []
+        )
+        dc_charge_hours = (
+            self.simulation.dc_charge_hours.tolist()
+            if self.simulation.dc_charge_hours is not None
+            else []
+        )
+        discharge = (
+            self.simulation.bat_discharge_hours.tolist()
+            if self.simulation.bat_discharge_hours is not None
+            else []
+        )
 
         return GeneticSolution(
             **{

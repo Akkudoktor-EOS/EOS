@@ -5,10 +5,13 @@ import argparse
 import json
 import os
 import sys
+from typing import TYPE_CHECKING
 
 import git
 
-if __package__ is None or __package__ == "":
+if TYPE_CHECKING:
+    from . import generate_openapi
+elif __package__ is None or __package__ == "":
     # uses current directory visibility
     import generate_openapi
 else:

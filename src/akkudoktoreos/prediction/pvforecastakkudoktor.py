@@ -188,7 +188,7 @@ class PVForecastAkkudoktorDataRecord(PVForecastDataRecord):
             return self.pvforecast_ac_power
 
 
-class PVForecastAkkudoktor(PVForecastProvider):
+class PVForecastAkkudoktor(PVForecastProvider[PVForecastAkkudoktorDataRecord]):
     """Fetch and process PV forecast data from akkudoktor.net.
 
     PVForecastAkkudoktor is a singleton-based class that retrieves weather forecast data

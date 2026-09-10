@@ -13,6 +13,7 @@ from docutils.core import publish_parts
 from docutils.frontend import get_default_settings
 from docutils.parsers.rst import Directive, Parser, directives
 from docutils.utils import Reporter, new_document
+from sphinx.config import Config as SphinxConfig
 from sphinx.ext.napoleon import Config as NapoleonConfig
 from sphinx.ext.napoleon.docstring import GoogleDocstring
 
@@ -341,7 +342,7 @@ def test_all_docstrings_rst_compliant():
             continue
 
         # convert like sphinx napoleon does
-        doc_converted = str(GoogleDocstring(doc, napoleon_config))
+        doc_converted = str(GoogleDocstring(doc, cast(SphinxConfig, napoleon_config)))
 
         # Register directives that sphinx knows - just to avaid errors
         prepare_docutils_for_sphinx()

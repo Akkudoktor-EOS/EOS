@@ -62,10 +62,10 @@ class GeneticCommonSettings(SettingsBaseModel):
     # --- Penalties (existing) -------------------------------------------------
 
     penalties: dict[str, Union[float, int, str]] = Field(
-        default_factory=lambda: {
-            "ev_soc_miss": 10,
-            "ac_charge_break_even": 1.0,
-        },
+        default_factory=lambda: dict[str, float | int | str](
+            ev_soc_miss=10,
+            ac_charge_break_even=1.0,
+        ),
         json_schema_extra={
             "description": "Penalty parameters used in fitness evaluation.",
             "examples": [{"ev_soc_miss": 10}],

@@ -81,7 +81,7 @@ class TestMergeModels:
 
     def test_flat_override(self):
         """Top-level fields in update_dict override those in source, including None."""
-        source = SampleModel(name="Test", count=10, config={"threshold": 5})
+        source = SampleModel.model_validate(dict(name="Test", count=10, config={"threshold": 5}))
         update = {"name": "Updated"}
         result = merge_models(source, update)
 
@@ -91,7 +91,7 @@ class TestMergeModels:
 
     def test_flat_override_with_none(self):
         """Update with None value should override source value."""
-        source = SampleModel(name="Test", count=10, config={"threshold": 5}, optional="keep me")
+        source = SampleModel.model_validate(dict(name="Test", count=10, config={"threshold": 5}, optional="keep me"))
         update = {"optional": None}
         result = merge_models(source, update)
 
@@ -99,7 +99,7 @@ class TestMergeModels:
 
     def test_nested_override(self):
         """Nested fields in update_dict override nested fields in source, including None."""
-        source = SampleModel(name="Test", count=10, config={"threshold": 5, "enabled": True})
+        source = SampleModel.model_validate(dict(name="Test", count=10, config={"threshold": 5, "enabled": True}))
         update = {"config": {"threshold": 99, "enabled": False}}
         result = merge_models(source, update)
 
@@ -108,7 +108,7 @@ class TestMergeModels:
 
     def test_nested_override_with_none(self):
         """Nested update with None should override nested source values."""
-        source = SampleModel(name="Test", count=10, config={"threshold": 5, "enabled": True})
+        source = SampleModel.model_validate(dict(name="Test", count=10, config={"threshold": 5, "enabled": True}))
         update = {"config": {"threshold": None}}
         result = merge_models(source, update)
 
@@ -117,7 +117,7 @@ class TestMergeModels:
 
     def test_preserve_source_values(self):
         """Source values are preserved if not overridden in update_dict."""
-        source = SampleModel(name="Source", count=7, config={"threshold": 1})
+        source = SampleModel.model_validate(dict(name="Source", count=7, config={"threshold": 1}))
         update: dict[str, Any] = {}
         result = merge_models(source, update)
 
@@ -127,7 +127,7 @@ class TestMergeModels:
 
     def test_update_extends_source(self):
         """Optional fields in update_dict are added to result."""
-        source = SampleModel(name="Test", count=10, config={"threshold": 5})
+        source = SampleModel.model_validate(dict(name="Test", count=10, config={"threshold": 5}))
         update = {"optional": "new value"}
         result = merge_models(source, update)
 
@@ -135,7 +135,7 @@ class TestMergeModels:
 
     def test_update_extends_source_with_none(self):
         """Optional field with None in update_dict is added and overrides source."""
-        source = SampleModel(name="Test", count=10, config={"threshold": 5}, optional="value")
+        source = SampleModel.model_validate(dict(name="Test", count=10, config={"threshold": 5}, optional="value"))
         update = {"optional": None}
         result = merge_models(source, update)
 
@@ -143,7 +143,7 @@ class TestMergeModels:
 
     def test_deep_merge_behavior(self):
         """Nested updates merge with source, overriding only specified subkeys."""
-        source = SampleModel(name="Model", count=3, config={"threshold": 1, "enabled": False})
+        source = SampleModel.model_validate(dict(name="Model", count=3, config={"threshold": 1, "enabled": False}))
         update = {"config": {"enabled": True}}
         result = merge_models(source, update)
 
@@ -152,7 +152,7 @@ class TestMergeModels:
 
     def test_override_all(self):
         """All fields in update_dict override all fields in source, including None."""
-        source = SampleModel(name="Orig", count=1, config={"threshold": 10, "enabled": True})
+        source = SampleModel.model_validate(dict(name="Orig", count=1, config={"threshold": 10, "enabled": True}))
         update = {
             "name": "New",
             "count": None,
@@ -376,7 +376,7 @@ class TestPydanticBaseModel:
 
     def test_invalid_datetime_string(self):
         with pytest.raises(ValueError):
-            PydanticTestModel(datetime_field="invalid_datetime")
+            PydanticTestModel.model_validate(dict(datetime_field="invalid_datetime"))
 
     def test_iso8601_serialization(self):
         dt = pendulum.datetime(2024, 12, 21, 15, 0, 0)
@@ -444,8 +444,11 @@ class TestPydanticDateTimeData:
             "timestamps": ["2024-12-21T15:00:00+00:00"],
             "values": [100],
         }
-        model = PydanticDateTimeData(root=data)
-        assert pendulum.parse(model.root["timestamps"][0]) == pendulum.parse(
+        model = PydanticDateTimeData.model_validate(data)
+        timestamps = model.root["timestamps"]
+        assert isinstance(timestamps, list)
+        assert isinstance(timestamps[0], str)
+        assert pendulum.parse(timestamps[0]) == pendulum.parse(
             "2024-12-21T15:00:00+00:00"
         )
 
@@ -457,7 +460,7 @@ class TestPydanticDateTimeData:
         with pytest.raises(
             ValidationError, match="All lists in the dictionary must have the same length"
         ):
-            PydanticDateTimeData(root=data)
+            PydanticDateTimeData.model_validate(data)
 
 
 class TestPydanticDateTimeDataFrame:

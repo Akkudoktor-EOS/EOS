@@ -8,6 +8,7 @@
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | forecastsolar | `EOS_PVFORECAST__FORECASTSOLAR` | `PVForecastForecastSolarCommonSettings` | `rw` | `required` | ForecastSolar provider settings |
+| homeassistant | `EOS_PVFORECAST__HOMEASSISTANT` | `PVForecastHomeAssistantCommonSettings` | `rw` | `required` | Home Assistant provider settings |
 | max_planes | `EOS_PVFORECAST__MAX_PLANES` | `int | None` | `rw` | `0` | Maximum number of planes that can be set |
 | planes | `EOS_PVFORECAST__PLANES` | `list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting] | None` | `rw` | `None` | Plane configuration. |
 | planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
@@ -41,6 +42,15 @@
            "vrm": {
                "token": "your-token",
                "site_id": 12345
+           },
+           "homeassistant": {
+               "entity_id": "sensor.pv_forecast",
+               "attribute": "forecast",
+               "datetime_key": "datetime",
+               "value_key": "watts",
+               "value_unit": "W",
+               "base_url": null,
+               "token": null
            },
            "pvlib": {},
            "pvnode": {
@@ -124,6 +134,15 @@
                "token": "your-token",
                "site_id": 12345
            },
+           "homeassistant": {
+               "entity_id": "sensor.pv_forecast",
+               "attribute": "forecast",
+               "datetime_key": "datetime",
+               "value_key": "watts",
+               "value_unit": "W",
+               "base_url": null,
+               "token": null
+           },
            "pvlib": {},
            "pvnode": {
                "api_key": "",
@@ -187,6 +206,7 @@
            "providers": [
                "PVForecastAkkudoktor",
                "PVForecastForecastSolar",
+               "PVForecastHomeAssistant",
                "PVForecastImport",
                "PVForecastPVLib",
                "PVForecastPVNode",
@@ -438,6 +458,47 @@
                    "strings_per_inverter": 2
                }
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for pvforecast data from a Home Assistant entity
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::homeassistant
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| attribute | `str` | `rw` | `forecast` | Entity attribute holding the forecast list. |
+| base_url | `str | None` | `rw` | `None` | Base URL of the Home Assistant instance. Only required when EOS is not running as a Home Assistant add-on (no SUPERVISOR_TOKEN available). |
+| datetime_key | `str` | `rw` | `datetime` | Key for the timestamp in each forecast entry. |
+| entity_id | `str` | `rw` | `sensor.pv_forecast` | Home Assistant entity providing the PV forecast. |
+| token | `str | None` | `rw` | `None` | Long-lived access token for the Home Assistant instance. Only required when EOS is not running as a Home Assistant add-on. |
+| value_key | `str` | `rw` | `watts` | Key for the AC power value in each forecast entry. |
+| value_unit | `Literal['W', 'kW']` | `rw` | `W` | Unit of the forecast value. Converted to W internally. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "homeassistant": {
+               "entity_id": "sensor.pv1_power_now",
+               "attribute": "forecast",
+               "datetime_key": "datetime",
+               "value_key": "watts",
+               "value_unit": "W",
+               "base_url": "http://homeassistant.local:8123",
+               "token": null
+           }
        }
    }
 ```

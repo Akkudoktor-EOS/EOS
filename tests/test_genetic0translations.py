@@ -18,7 +18,7 @@ def test_genetic0_params_german_input():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = Genetic0EnergyManagementParameters(**data_de)
+    params = Genetic0EnergyManagementParameters.model_validate(data_de)
     assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ German input accepted")
 
@@ -31,7 +31,7 @@ def test_genetic0_params_english_input():
         "price_per_wh_battery": 0.0001,
         "total_load": [500.0, 600.0],
     }
-    params = Genetic0EnergyManagementParameters(**data_en)
+    params = Genetic0EnergyManagementParameters.model_validate(data_en)
     assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ English input accepted")
 
@@ -44,7 +44,7 @@ def test_genetic0_params_english_output():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = Genetic0EnergyManagementParameters(**data_de)
+    params = Genetic0EnergyManagementParameters.model_validate(data_de)
     json_output = json.loads(params.model_dump_json(by_alias=True))
 
     # English names should be in output
@@ -84,7 +84,7 @@ def test_genetic0_simulation_result_translations():
         "akku_soc_pro_stunde": [80.0, 90.0],
         "Electricity_price": [0.0003, 0.0003],
     }
-    result = Genetic0SimulationResult(**data_de)
+    result = Genetic0SimulationResult.model_validate(data_de)
     json_output = json.loads(result.model_dump_json(by_alias=True))
 
     # Check English field names in output
@@ -140,12 +140,12 @@ def test_genetic0_optimization_parameters_device_translations():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = Genetic0OptimizationParameters(
+    params = Genetic0OptimizationParameters.model_validate(dict(
         ems=ems_de,
         pv_akku={"device_id": "battery1", "capacity_wh": 8000},
         inverter=None,
         eauto={"device_id": "ev1", "capacity_wh": 60000},
-    )
+    ))
     # English attributes are populated from the German input names
     assert params.pv_battery is not None
     assert params.pv_battery.capacity_wh == 8000
@@ -153,12 +153,12 @@ def test_genetic0_optimization_parameters_device_translations():
     assert params.ev.capacity_wh == 60000
 
     # English input names work as well
-    params_en = Genetic0OptimizationParameters(
+    params_en = Genetic0OptimizationParameters.model_validate(dict(
         ems=ems_de,
         pv_battery={"device_id": "battery1", "capacity_wh": 8000},
         inverter=None,
         ev={"device_id": "ev1", "capacity_wh": 60000},
-    )
+    ))
     assert params_en.pv_battery is not None
     assert params_en.ev is not None
 

@@ -3,11 +3,14 @@ from typing import Optional, Union
 import pandas as pd
 import requests
 from bokeh.models import ColumnDataSource, LinearAxis, Range1d
-from bokeh.plotting import figure
 from monsterui.franken import FT, Grid, P
 
 from akkudoktoreos.core.pydantic import PydanticDateTimeSeries
-from akkudoktoreos.server.dash.bokeh import Bokeh, bokey_apply_theme_to_plot
+from akkudoktoreos.server.dash.bokeh import (
+    Bokeh,
+    bokey_apply_theme_to_plot,
+    create_figure,
+)
 from akkudoktoreos.server.dash.components import Error
 
 # bar width for 15 minutes bars (time given in millseconds)
@@ -18,7 +21,7 @@ def PVForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dark:
     source = ColumnDataSource(predictions)
     provider = config["pvforecast"]["provider"]
 
-    plot = figure(
+    plot = create_figure(
         x_axis_type="datetime",
         title=f"PV Power Prediction ({provider})",
         x_axis_label=f"Datetime [localtime {date_time_tz}]",
@@ -46,7 +49,7 @@ def ElectricityPriceForecast(
     source = ColumnDataSource(predictions)
     provider = config["elecprice"]["provider"]
 
-    plot = figure(
+    plot = create_figure(
         x_axis_type="datetime",
         y_range=Range1d(
             predictions["elecprice_marketprice_kwh"].min() - 0.1,
@@ -78,7 +81,7 @@ def WeatherTempAirHumidityForecast(
     source = ColumnDataSource(predictions)
     provider = config["weather"]["provider"]
 
-    plot = figure(
+    plot = create_figure(
         x_axis_type="datetime",
         title=f"Air Temperature and Humidity Prediction ({provider})",
         x_axis_label=f"Datetime [localtime {date_time_tz}]",
@@ -115,7 +118,7 @@ def WeatherIrradianceForecast(
     source = ColumnDataSource(predictions)
     provider = config["weather"]["provider"]
 
-    plot = figure(
+    plot = create_figure(
         x_axis_type="datetime",
         title=f"Irradiance Prediction ({provider})",
         x_axis_label=f"Datetime [localtime {date_time_tz}]",
@@ -157,7 +160,7 @@ def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dar
         year_energy = config["load"]["loadakkudoktor"]["loadakkudoktor_year_energy_kwh"]
         provider = f"{provider}, {year_energy} kWh"
 
-    plot = figure(
+    plot = create_figure(
         title=f"Load Prediction ({provider})",
         x_axis_type="datetime",
         x_axis_label=f"Datetime [localtime {date_time_tz}]",

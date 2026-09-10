@@ -30,17 +30,14 @@ repos:
       - id: ruff-format
 
   # --- Static type checking ---
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v2.3.1
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - types-requests==2.33.0.20260712
-          - pandas-stubs==3.0.5.260730
-          - tokenize-rt==6.2.0
-          - types-docutils==0.23.0.20260827
-          - types-PyYaml==6.0.12.20260815
+        name: mypy (locked development environment)
+        entry: uv run --locked --exact --extra dev python -m mypy --config-file pyproject.toml
+        language: unsupported
         pass_filenames: false
+        always_run: true
 
   # --- Markdown linter ---
   - repo: https://github.com/jackdewinter/pymarkdown

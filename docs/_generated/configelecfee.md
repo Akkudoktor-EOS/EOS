@@ -9,7 +9,7 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | elecfeefixed | `EOS_ELECFEE__ELECFEEFIXED` | `ElecFeeFixedCommonSettings` | `rw` | `required` | Fixed electricity fees provider settings. |
 | elecfeeimport | `EOS_ELECFEE__ELECFEEIMPORT` | `ElecFeeImportCommonSettings` | `rw` | `required` | Electricity fees import provider settings. |
-| provider | `EOS_ELECFEE__PROVIDER` | `str | None` | `rw` | `None` | Electricity fee provider id of provider to be used. |
+| provider | `EOS_ELECFEE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity fee provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity fee provider ids. |
 :::
 <!-- pyml enable line-length -->
@@ -91,8 +91,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import elecfee data from. |
-| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of electricity fee forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecfee data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity fee forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -124,12 +124,12 @@ This model extends `TimeWindow` by associating a value with the defined time int
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| date | `pydantic_extra_types.pendulum_dt.Date | None` | `rw` | `None` | Optional specific calendar date for the time window. Naive — matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set. |
-| day_of_week | `int | str | None` | `rw` | `None` | Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set. |
+| date | `Optional[pydantic_extra_types.pendulum_dt.Date]` | `rw` | `None` | Optional specific calendar date for the time window. Naive — matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set. |
+| day_of_week | `Union[int, str, NoneType]` | `rw` | `None` | Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set. |
 | duration | `Duration` | `rw` | `required` | Duration of the time window starting from `start_time`. |
-| locale | `str | None` | `rw` | `None` | Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc. |
+| locale | `Optional[str]` | `rw` | `None` | Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc. |
 | start_time | `Time` | `rw` | `required` | Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time(). |
-| value | `float | None` | `rw` | `None` | Value applicable during this time window. |
+| value | `Optional[float]` | `rw` | `None` | Value applicable during this time window. |
 :::
 <!-- pyml enable line-length -->
 

@@ -11,7 +11,7 @@
 | elecpricefixed | `EOS_ELECPRICE__ELECPRICEFIXED` | `ElecPriceFixedCommonSettings` | `rw` | `required` | Fixed electricity price provider settings. |
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Electricity price import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
-| provider | `EOS_ELECPRICE__PROVIDER` | `str | None` | `rw` | `None` | Electricity price provider id of provider to be used. |
+| provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
 | smard | `EOS_ELECPRICE__SMARD` | `ElecPriceSMARDCommonSettings` | `rw` | `required` | SMARD electricity price provider settings. |
 | tibber | `EOS_ELECPRICE__TIBBER` | `ElecPriceTibberCommonSettings` | `rw` | `required` | Tibber electricity price provider settings. |
@@ -105,8 +105,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| access_token | `str | None` | `rw` | `None` | Tibber API access token. |
-| home_id | `str | None` | `rw` | `None` | Optional Tibber home id. If omitted, the first home with a subscription is used. |
+| access_token | `Optional[str]` | `rw` | `None` | Tibber API access token. |
+| home_id | `Optional[str]` | `rw` | `None` | Optional Tibber home id. If omitted, the first home with a subscription is used. |
 :::
 <!-- pyml enable line-length -->
 
@@ -196,8 +196,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import elecprice data from. |
-| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 

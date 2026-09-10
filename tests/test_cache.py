@@ -17,7 +17,12 @@ from akkudoktoreos.core.cache import (
     cache_energy_management,
     cache_in_file,
 )
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    Duration,
+    compare_datetimes,
+    to_datetime,
+    to_duration,
+)
 
 # ---------------------------------
 # In-Memory Caching Functionality
@@ -257,7 +262,7 @@ class TestCacheFileStore:
         assert ttl_duration is None
 
         # -- From now on we expect a until_datetime in one hour
-        ttl_duration_expected = to_duration("1 hour")
+        ttl_duration_expected: Duration | None = to_duration("1 hour")
 
         # Test with with_ttl as timedelta
         until_datetime_expected = to_datetime().add(hours=1)

@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,36 @@ DIR_DOCS_GENERATED = DIR_PROJECT_ROOT / "docs" / "_generated"
 DIR_TEST_GENERATED = DIR_TESTDATA / "docs" / "_generated"
 
 GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS")
+
+
+def test_config_documentation_requires_a_timezone_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.syspath_prepend(str(DIR_PROJECT_ROOT))
+    from scripts import generate_config_md
+
+    monkeypatch.setattr(generate_config_md, "to_datetime", lambda: SimpleNamespace(timezone_name=None))
+    output = tmp_path / "config.md"
+    with pytest.raises(RuntimeError, match="Documentation generation requires a timezone name"):
+        generate_config_md.write_to_file(output, "Configuration documentation")
+    assert not output.exists()
+
+
+def test_generic_time_windows_keep_nested_documentation(monkeypatch):
+    from akkudoktoreos.config.configabc import TimeWindowSequence
+
+    monkeypatch.syspath_prepend(str(DIR_PROJECT_ROOT))
+    from scripts import generate_config_md
+
+    monkeypatch.setattr(generate_config_md, "documented_types", set())
+    monkeypatch.setattr(generate_config_md, "undocumented_types", {})
+    markdown = generate_config_md.generate_config_table_md(
+        TimeWindowSequence, ["time_windows"], "", toplevel=True, extra_config=True
+    )
+    assert "`list[akkudoktoreos.config.configabc.TimeWindow]`" in markdown
+    assert ":::{table} time_windows::windows::list" in markdown
+    assert "| start_time | `Time`" in markdown
+    assert "| duration | `Duration`" in markdown
 
 
 @pytest.mark.skipif(GITHUB_ACTIONS == "true", reason="Skipped on GitHub Actions - TODO!")

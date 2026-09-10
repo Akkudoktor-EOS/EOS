@@ -25,6 +25,7 @@ from typing import (
     Optional,
     ParamSpec,
     TypeVar,
+    cast,
 )
 
 import cachebox
@@ -46,7 +47,8 @@ from akkudoktoreos.utils.datetimeutil import (
 # ---------------------------------
 
 # Define a type variable for methods and functions
-TCallable = TypeVar("TCallable", bound=Callable[..., Any])
+Param = ParamSpec("Param")
+RetType = TypeVar("RetType")
 
 
 def cache_energy_management_store_callback(event: int, key: Any, value: Any) -> None:
@@ -195,7 +197,9 @@ class CacheEnergyManagementStore(SingletonMixin):
             raise AttributeError(f"'{self.cache.__class__.__name__}' object has no method 'clear'")
 
 
-def cache_energy_management(callable: TCallable) -> TCallable:
+def cache_energy_management(
+    func: Callable[Param, RetType],
+) -> Callable[Param, RetType]:
     """Decorator for in memory caching the result of a callable.
 
     This decorator caches the method or function's result in `CacheEnergyManagementStore`,
@@ -203,7 +207,7 @@ def cache_energy_management(callable: TCallable) -> TCallable:
     next energy management start.
 
     Args:
-        callable (Callable): The function or method to be decorated.
+        func (Callable): The function or method to be decorated.
 
     Returns:
         Callable: The wrapped function with caching functionality.
@@ -218,23 +222,21 @@ def cache_energy_management(callable: TCallable) -> TCallable:
 
     """
 
-    @cachebox.cached(
-        cache=CacheEnergyManagementStore().cache, callback=cache_energy_management_store_callback
-    )
-    @functools.wraps(callable)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        result = callable(*args, **kwargs)
-        return result
+    @functools.wraps(func)
+    def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
+        return func(*args, **kwargs)
 
-    return wrapper
+    cached_wrapper = cachebox.cached(
+        cache=CacheEnergyManagementStore().cache,
+        callback=cache_energy_management_store_callback,
+    )(wrapper)
+
+    return cast(Callable[Param, RetType], cached_wrapper)
 
 
 # ---------------------------------
 # Cache File Management
 # ---------------------------------
-
-Param = ParamSpec("Param")
-RetType = TypeVar("RetType")
 
 
 def cache_clear(clear_all: Optional[bool] = None) -> None:
@@ -742,6 +744,9 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                 if clear_all:
                     clear_file = True
                 else:
+                    # Initialized above when clear_all is false; should never raise.
+                    if before_datetime is None:
+                        raise AssertionError("Cache expiry threshold is not initialized")
                     clear_file = compare_datetimes(cache_item.until_datetime, before_datetime).lt
 
                 if clear_file:
@@ -782,9 +787,11 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
         with self._store_lock:
             store_current = {}
             for key, record in self._store.items():
-                ttl_duration = record.ttl_duration
-                if ttl_duration:
-                    ttl_duration = ttl_duration.total_seconds()
+                ttl_duration = (
+                    record.ttl_duration.total_seconds()
+                    if record.ttl_duration
+                    else record.ttl_duration
+                )
                 store_current[key] = {
                     # Convert file-like objects to file paths for serialization
                     "cache_file": self._get_file_path(record.cache_file),
