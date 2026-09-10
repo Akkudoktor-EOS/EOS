@@ -842,6 +842,71 @@ class TestPendulumTypes:
 # -----------------------------
 
 
+@pytest.mark.parametrize("month", [1, 7])
+@pytest.mark.parametrize("separator", [" ", "T"])
+@pytest.mark.parametrize("in_timezone", [None, "Europe/Berlin", Timezone("Europe/Berlin")])
+def test_to_datetime_naive_precision_uses_target_timezone(
+    monkeypatch: pytest.MonkeyPatch,
+    month: int,
+    separator: str,
+    in_timezone: str | Timezone | None,
+) -> None:
+    """Equivalent naive strings keep their wall time and date in winter and summer."""
+    local_zone = Timezone("Europe/Berlin" if in_timezone is None else "UTC")
+    monkeypatch.setattr(pendulum, "local_timezone", lambda: local_zone)
+    expected = pendulum.datetime(2026, month, 15, 23, 45, tz="Europe/Berlin")
+
+    for suffix in ("", ":00", ":00.000"):
+        value = f"2026-{month:02d}-15{separator}23:45{suffix}"
+        actual = to_datetime(value, in_timezone=in_timezone)
+        assert actual == expected
+        assert actual.to_iso8601_string() == expected.to_iso8601_string()
+
+
+@pytest.mark.parametrize("month", [1, 7])
+@pytest.mark.parametrize("separator", [" ", "T"])
+@pytest.mark.parametrize("fraction, microsecond", [("1", 100000), ("000001", 1), ("123456", 123456)])
+@pytest.mark.parametrize("in_timezone", [None, "Europe/Berlin"])
+def test_to_datetime_naive_fractional_seconds_are_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+    month: int,
+    separator: str,
+    fraction: str,
+    microsecond: int,
+    in_timezone: str | None,
+) -> None:
+    """Fractional seconds do not alter the local date, wall time, or precision."""
+    monkeypatch.setattr(pendulum, "local_timezone", lambda: Timezone("Europe/Berlin"))
+    value = f"2026-{month:02d}-15{separator}23:45:00.{fraction}"
+    expected = pendulum.datetime(2026, month, 15, 23, 45, 0, microsecond, tz="Europe/Berlin")
+    actual = to_datetime(value, in_timezone=in_timezone)
+    assert actual.to_iso8601_string() == expected.to_iso8601_string()
+
+
+@pytest.mark.parametrize("month", [1, 7])
+@pytest.mark.parametrize("separator", [" ", "T"])
+@pytest.mark.parametrize("precision", ["", ":00", ":00.123456"])
+@pytest.mark.parametrize("offset", ["Z", "+00:00", "+02:00", "-05:30"])
+def test_to_datetime_explicit_offset_preserves_instant(
+    month: int, separator: str, precision: str, offset: str
+) -> None:
+    """An explicit offset takes precedence over the timezone for naive strings."""
+    value = f"2026-{month:02d}-15{separator}23:45{precision}{offset}"
+    expected = datetime.datetime.fromisoformat(value)
+    actual = to_datetime(value, in_timezone="Europe/Berlin")
+    assert actual.timestamp() == expected.timestamp()
+    assert actual.microsecond == expected.microsecond
+    assert actual.timezone_name == "Europe/Berlin"
+
+
+@pytest.mark.parametrize("value", [1768517100, 1768517100.123456, "1768517100.123456"])
+def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) -> None:
+    """The default timezone for naive strings does not apply to Unix timestamps."""
+    actual = to_datetime(value, in_timezone="Europe/Berlin")
+    assert actual.timestamp() == float(value)
+    assert actual.timezone_name == "Europe/Berlin"
+
+
 # Test cases for valid pendulum.duration inputs
 @pytest.mark.parametrize(
     "test_case, local_timezone, date_input, as_string, in_timezone, to_naiv, to_maxtime, expected_output, expected_approximately",

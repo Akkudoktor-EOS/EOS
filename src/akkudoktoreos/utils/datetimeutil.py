@@ -32,7 +32,7 @@ Usage Examples:
     >>> to_time("15:30:00", in_timezone="Europe/Berlin")
     Time(17, 30, 0, tzinfo=Timezone('Europe/Berlin'))
 
-    >>> to_datetime("2024-10-13T15:30:00", in_timezone="Europe/Berlin")
+    >>> to_datetime("2024-10-13T15:30:00Z", in_timezone="Europe/Berlin")
     DateTime(2024, 10, 13, 17, 30, 0, tzinfo=Timezone('Europe/Berlin'))
 
     >>> to_duration("2 days 5 hours")
@@ -875,7 +875,12 @@ def to_datetime(
 ) -> Union[DateTime, str]:
     """Convert a date input into a Pendulum DateTime object or a formatted string, with optional timezone handling.
 
-    This function handles various date input formats, adjusts for timezones, and provides flexibility for formatting and time adjustments. For date strings without explicit timezone information, the local timezone is assumed. Be aware that Pendulum DateTime objects created without a timezone default to UTC.
+    This function handles various date input formats, adjusts for timezones, and provides
+    flexibility for formatting and time adjustments. Date strings without explicit timezone
+    information are interpreted in `in_timezone`, or in the local timezone if it is omitted,
+    regardless of whether they include minutes, seconds, or fractional seconds. Explicit offsets
+    and Unix timestamps retain their instant when converted to the target timezone. Be aware that
+    Pendulum DateTime objects created without a timezone default to UTC.
 
     Args:
         date_input (Optional[Any]): The date input to convert. Supported types include:
@@ -896,6 +901,7 @@ def to_datetime(
         in_timezone (Optional[Union[str, Timezone]]): Specifies the target timezone for the result.
             - Can be a timezone string (e.g., "UTC", "Europe/Berlin") or a `pendulum.Timezone` object.
             - Defaults to the local timezone if not provided.
+            - Also defines the assumed timezone for strings without timezone information.
 
         to_naiv (Optional[bool]): If `True`, removes timezone information from the resulting datetime object.
             - Defaults to `False`.
@@ -918,6 +924,9 @@ def to_datetime(
         '2024-10-13T00:00:00+00:00'
 
         >>> to_datetime("2024-10-13T15:30:00", in_timezone="Europe/Berlin")
+        DateTime(2024, 10, 13, 15, 30, 0, tzinfo=Timezone('Europe/Berlin'))
+
+        >>> to_datetime("2024-10-13T15:30:00Z", in_timezone="Europe/Berlin")
         DateTime(2024, 10, 13, 17, 30, 0, tzinfo=Timezone('Europe/Berlin'))
 
         >>> to_datetime(date(2024, 10, 13), to_maxtime=True)
@@ -974,9 +983,10 @@ def to_datetime(
                 logger.trace(f"{date_input}, {fmt}, {e}")
                 dt = None
         else:
-            # DateTime input with timezone info
+            # The fallback also handles naive strings with omitted or fractional seconds.
+            # Supply their assumed timezone; explicit offsets take precedence in Pendulum.
             try:
-                dt = cast(pendulum.DateTime, pendulum.parse(date_input))
+                dt = cast(pendulum.DateTime, pendulum.parse(date_input, tz=timezone))
                 logger.trace(
                     f"Pendulum Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={timezone}"
                 )
