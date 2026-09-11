@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any, Callable
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -136,9 +137,18 @@ def test_request_forecast(mock_get, provider, sample_openmeteo_1_json):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
 @patch("requests.get")
-async def test_update_data(mock_get, provider, sample_openmeteo_1_json, cache_store):
-    """Test fetching and processing forecast from Open-Meteo."""
+async def test_update_data(
+    mock_get: Mock,
+    provider: WeatherOpenMeteo,
+    sample_openmeteo_1_json: dict[str, Any],
+    cache_store: CacheFileStore,
+    set_other_timezone: Callable[[str], str],
+    host_timezone: str,
+) -> None:
+    """Map each forecast hour in the provider timezone, regardless of the host timezone."""
+    set_other_timezone(host_timezone)
     # Mock response object
     mock_response = Mock()
     mock_response.status_code = 200
@@ -158,15 +168,18 @@ async def test_update_data(mock_get, provider, sample_openmeteo_1_json, cache_st
     mock_get.assert_called_once()
     assert len(provider) > 0
 
-    # Verify that direct radiation values were properly mapped
-    # Get the first record and check for irradiance values
-    value_datetime = to_datetime("2026-03-04 09:00:00+01:00", in_timezone="Europe/Berlin")
-    weather_ghi = await provider.key_to_value("weather_ghi", target_datetime=start_datetime)
-    weather_dni = await provider.key_to_value("weather_dni", target_datetime=start_datetime)
-    weather_dhi = await provider.key_to_value("weather_dhi", target_datetime=start_datetime)
-    assert weather_ghi == 21.8
-    assert weather_dni == 1.2
-    assert weather_dhi == 20.5
+    # Open-Meteo returns local wall times without offsets or seconds. Build the
+    # expected instants independently of to_datetime, including midnight boundaries.
+    hourly = sample_openmeteo_1_json["hourly"]
+    expected_datetimes = pd.DatetimeIndex(hourly["time"], tz="Europe/Berlin").to_pydatetime()
+    for source_key, record_key in (
+        ("shortwave_radiation", "weather_ghi"),
+        ("direct_radiation", "weather_dni"),
+        ("diffuse_radiation", "weather_dhi"),
+    ):
+        datetimes, values = await provider.key_to_lists(record_key)
+        assert list(datetimes) == list(expected_datetimes)
+        assert values == hourly[source_key]
 
 
 # ------------------------------------------------
