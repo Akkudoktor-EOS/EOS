@@ -842,31 +842,53 @@ class TestPendulumTypes:
 # -----------------------------
 
 
-@pytest.mark.parametrize("month", [1, 7])
-@pytest.mark.parametrize("separator", [" ", "T"])
-@pytest.mark.parametrize("in_timezone", [None, "Europe/Berlin", Timezone("Europe/Berlin")])
+@pytest.mark.parametrize("month", [1, 7], ids=["winter", "summer"])
+@pytest.mark.parametrize("separator", [" ", "T"], ids=["space", "T"])
+@pytest.mark.parametrize(
+    "in_timezone",
+    [None, "Europe/Berlin", Timezone("Europe/Berlin")],
+    ids=["local-berlin", "target-berlin-name", "target-berlin-object"],
+)
+@pytest.mark.parametrize(
+    "suffix", ["", ":00", ":00.000"], ids=["minutes", "seconds", "fractional-seconds"]
+)
 def test_to_datetime_naive_precision_uses_target_timezone(
     monkeypatch: pytest.MonkeyPatch,
     month: int,
     separator: str,
     in_timezone: str | Timezone | None,
+    suffix: str,
 ) -> None:
     """Equivalent naive strings keep their wall time and date in winter and summer."""
     local_zone = Timezone("Europe/Berlin" if in_timezone is None else "UTC")
     monkeypatch.setattr(pendulum, "local_timezone", lambda: local_zone)
     expected = pendulum.datetime(2026, month, 15, 23, 45, tz="Europe/Berlin")
 
-    for suffix in ("", ":00", ":00.000"):
-        value = f"2026-{month:02d}-15{separator}23:45{suffix}"
-        actual = to_datetime(value, in_timezone=in_timezone)
-        assert actual == expected
-        assert actual.to_iso8601_string() == expected.to_iso8601_string()
+    value = f"2026-{month:02d}-15{separator}23:45{suffix}"
+    actual = to_datetime(value, in_timezone=in_timezone)
+    assert actual == expected
+    assert actual.to_iso8601_string() == expected.to_iso8601_string()
+    # Check the location and clock components as well as the represented instant.
+    assert actual.timezone_name == "Europe/Berlin"
+    assert actual.year == 2026
+    assert actual.month == month
+    assert actual.day == 15
+    assert actual.hour == 23
+    assert actual.minute == 45
+    assert actual.second == 0
+    assert actual.microsecond == 0
 
 
-@pytest.mark.parametrize("month", [1, 7])
-@pytest.mark.parametrize("separator", [" ", "T"])
-@pytest.mark.parametrize("fraction, microsecond", [("1", 100000), ("000001", 1), ("123456", 123456)])
-@pytest.mark.parametrize("in_timezone", [None, "Europe/Berlin"])
+@pytest.mark.parametrize("month", [1, 7], ids=["winter", "summer"])
+@pytest.mark.parametrize("separator", [" ", "T"], ids=["space", "T"])
+@pytest.mark.parametrize(
+    "fraction, microsecond",
+    [("1", 100000), ("000001", 1), ("123456", 123456)],
+    ids=["tenths", "one-microsecond", "six-decimals"],
+)
+@pytest.mark.parametrize(
+    "in_timezone", [None, "Europe/Berlin"], ids=["local-berlin", "target-berlin"]
+)
 def test_to_datetime_naive_fractional_seconds_are_preserved(
     monkeypatch: pytest.MonkeyPatch,
     month: int,
@@ -881,12 +903,24 @@ def test_to_datetime_naive_fractional_seconds_are_preserved(
     expected = pendulum.datetime(2026, month, 15, 23, 45, 0, microsecond, tz="Europe/Berlin")
     actual = to_datetime(value, in_timezone=in_timezone)
     assert actual.to_iso8601_string() == expected.to_iso8601_string()
+    assert actual.timezone_name == "Europe/Berlin"
+    assert actual.year == 2026
+    assert actual.month == month
+    assert actual.day == 15
+    assert actual.hour == 23
+    assert actual.minute == 45
+    assert actual.second == 0
+    assert actual.microsecond == microsecond
 
 
-@pytest.mark.parametrize("month", [1, 7])
-@pytest.mark.parametrize("separator", [" ", "T"])
-@pytest.mark.parametrize("precision", ["", ":00", ":00.123456"])
-@pytest.mark.parametrize("offset", ["Z", "+00:00", "+02:00", "-05:30"])
+@pytest.mark.parametrize("month", [1, 7], ids=["winter", "summer"])
+@pytest.mark.parametrize("separator", [" ", "T"], ids=["space", "T"])
+@pytest.mark.parametrize(
+    "precision", ["", ":00", ":00.123456"], ids=["minutes", "seconds", "fractional-seconds"]
+)
+@pytest.mark.parametrize(
+    "offset", ["Z", "+00:00", "+02:00", "-05:30", "+02", "-05", "+0200", "-0530"]
+)
 def test_to_datetime_explicit_offset_preserves_instant(
     month: int, separator: str, precision: str, offset: str
 ) -> None:
@@ -899,7 +933,11 @@ def test_to_datetime_explicit_offset_preserves_instant(
     assert actual.timezone_name == "Europe/Berlin"
 
 
-@pytest.mark.parametrize("value", [1768517100, 1768517100.123456, "1768517100.123456"])
+@pytest.mark.parametrize(
+    "value",
+    [1768517100, 1768517100.123456, "1768517100.123456"],
+    ids=["integer", "fractional-float", "fractional-string"],
+)
 def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) -> None:
     """The default timezone for naive strings does not apply to Unix timestamps."""
     actual = to_datetime(value, in_timezone="Europe/Berlin")
@@ -916,7 +954,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         # ---------------------------------------
         # - no timezone
         (
-            "TC001",
+            "date_only_local_utc",
             "Etc/UTC",
             "2024-01-01",
             None,
@@ -927,7 +965,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC002",
+            "date_only_local_berlin",
             "Europe/Berlin",
             "2024-01-01",
             None,
@@ -938,7 +976,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC003",
+            "date_only_berlin_matches_utc_instant",
             "Europe/Berlin",
             "2024-01-01",
             None,
@@ -949,7 +987,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC004",
+            "seconds_space_local_paris",
             "Europe/Paris",
             "2024-01-01 00:00:00",
             None,
@@ -960,7 +998,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC005",
+            "seconds_space_utc_matches_berlin_instant",
             "Etc/UTC",
             "2024-01-01 00:00:00",
             None,
@@ -971,7 +1009,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC006",
+            "seconds_space_berlin_matches_utc_instant",
             "Europe/Berlin",
             "2024-01-01 00:00:00",
             None,
@@ -982,7 +1020,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC007",
+            "seconds_space_local_canary",
             "Atlantic/Canary",
             "2024-01-01 12:00:00",
             None,
@@ -1001,7 +1039,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC008",
+            "seconds_space_default_utc_matches_berlin_instant",
             "Etc/UTC",
             "2024-01-01 12:00:00",
             None,
@@ -1012,7 +1050,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC009",
+            "seconds_space_default_berlin_matches_utc_instant",
             "Europe/Berlin",
             "2024-01-01 12:00:00",
             None,
@@ -1024,7 +1062,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         ),
         # - with timezone
         (
-            "TC010",
+            "slash_date_target_berlin",
             "Etc/UTC",
             "02/02/24",
             None,
@@ -1035,7 +1073,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC011",
+            "offset_datetime_target_berlin_winter",
             "Etc/UTC",
             "2024-03-03T10:20:30.000+01:00",  # No dalight saving time at this date
             None,
@@ -1046,7 +1084,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC012",
+            "offset_datetime_target_berlin_summer",
             "Etc/UTC",
             "2024-04-04T10:20:30.000+02:00",
             None,
@@ -1057,7 +1095,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC013",
+            "offset_datetime_to_naive",
             "Etc/UTC",
             "2024-05-05T10:20:30.000+02:00",
             None,
@@ -1069,7 +1107,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         ),
         # - without local timezone as UTC
         (
-            "TC014",
+            "date_only_target_utc",
             "UTC",
             "2024-01-03",
             None,
@@ -1080,7 +1118,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC015",
+            "slash_date_target_utc",
             "Atlantic/Canary",
             "02/02/24",
             None,
@@ -1091,7 +1129,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC016",
+            "z_datetime_preserves_utc_instant",
             "Atlantic/Canary",
             "2024-03-03T10:20:30.000Z",  # No dalight saving time at this date
             None,
@@ -1105,7 +1143,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         # from pendulum.datetime to pendulum.datetime object
         # ---------------------------------------
         (
-            "TC017",
+            "pendulum_default_utc_preserves_instant",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 0, 0, 0),
             None,
@@ -1116,7 +1154,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC018",
+            "pendulum_default_utc_to_berlin",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 1, 0, 0),
             None,
@@ -1127,7 +1165,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC019",
+            "pendulum_explicit_utc_to_berlin",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 1, 0, 0, tz="Etc/UTC"),
             None,
@@ -1138,7 +1176,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC020",
+            "pendulum_berlin_to_utc",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 2, 0, 0, tz="Europe/Berlin"),
             None,
@@ -1154,7 +1192,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         # - no timezone
         #   local timezone UTC
         (
-            "TC021",
+            "naive_seconds_as_utc_string_from_utc",
             "Etc/UTC",
             "2023-11-06T00:00:00",
             "UTC",
@@ -1166,7 +1204,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         ),
         #    local timezone "Europe/Berlin"
         (
-            "TC022",
+            "naive_seconds_as_utc_string_from_berlin",
             "Europe/Berlin",
             "2023-11-06T00:00:00",
             "UTC",
@@ -1178,7 +1216,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         ),
         # - no microseconds
         (
-            "TC023",
+            "offset_seconds_as_utc_string",
             "Atlantic/Canary",
             "2024-10-30T00:00:00+01:00",
             "UTC",
@@ -1189,7 +1227,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
             False,
         ),
         (
-            "TC024",
+            "offset_seconds_as_lowercase_utc_string",
             "Atlantic/Canary",
             "2024-10-30T01:00:00+01:00",
             "utc",
@@ -1201,7 +1239,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         ),
         # - with microseconds
         (
-            "TC025",
+            "offset_fractional_seconds_as_utc_string",
             "Atlantic/Canary",
             "2024-10-07T10:20:30.000+02:00",
             "UTC",
@@ -1217,7 +1255,7 @@ def test_to_datetime_unix_timestamp_keeps_utc_instant(value: int | float | str) 
         # - no timezone
         #   local timezone
         (
-            "TC026",
+            "none_returns_current_datetime",
             None,
             None,
             None,

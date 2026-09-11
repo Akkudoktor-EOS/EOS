@@ -877,10 +877,14 @@ def to_datetime(
 
     This function handles various date input formats, adjusts for timezones, and provides
     flexibility for formatting and time adjustments. Date strings without explicit timezone
-    information are interpreted in `in_timezone`, or in the local timezone if it is omitted,
-    regardless of whether they include minutes, seconds, or fractional seconds. Explicit offsets
-    and Unix timestamps retain their instant when converted to the target timezone. Be aware that
-    Pendulum DateTime objects created without a timezone default to UTC.
+    information represent wall-clock time in `in_timezone`, or in the local timezone if it is
+    omitted, regardless of whether they include minutes, seconds, or fractional seconds. Pass the
+    configured location's timezone as `in_timezone` to interpret its local date and time. For
+    example, `2026-01-15 23:45` in `Europe/Berlin` means `2026-01-15T23:45:00+01:00`.
+    Supplying this timezone during parsing preserves the local date and clock components instead
+    of first assuming UTC and shifting them during conversion. Explicit offsets and Unix
+    timestamps retain their instant when converted to the target timezone. Be aware that Pendulum
+    DateTime objects created without a timezone default to UTC.
 
     Args:
         date_input (Optional[Any]): The date input to convert. Supported types include:
@@ -984,7 +988,9 @@ def to_datetime(
                 dt = None
         else:
             # The fallback also handles naive strings with omitted or fractional seconds.
-            # Supply their assumed timezone; explicit offsets take precedence in Pendulum.
+            # Interpret their clock components directly in the resolved location/local timezone.
+            # Parsing as UTC first and then converting would shift the clock and possibly the date.
+            # Explicit offsets take precedence over tz in Pendulum, preserving the input instant.
             try:
                 dt = cast(pendulum.DateTime, pendulum.parse(date_input, tz=timezone))
                 logger.trace(
