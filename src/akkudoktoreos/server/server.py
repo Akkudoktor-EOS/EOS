@@ -1,5 +1,6 @@
 """Server Module."""
 
+import errno
 import ipaddress
 import os
 import re
@@ -94,79 +95,116 @@ def validate_ip_or_hostname(value: str) -> str:
     return value
 
 
-def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App") -> bool:
-    """Wait for a network port to become free, with timeout.
+def _is_port_available(port: int) -> bool:
+    """Check TCP binding on local IPv4 and IPv6 addresses without inspecting PIDs."""
+    addresses = [(socket.AF_INET, "")]
+    if socket.has_ipv6:
+        addresses.append((socket.AF_INET6, "::"))
 
-    Checks if the port is currently in use and logs warnings with process details.
-    Retries every 3 seconds until timeout is reached.
+    # Reuse avoids waiting for TIME_WAIT connections. On macOS, a wildcard bind
+    # with reuse can coexist with a listener on a specific interface, so probe
+    # each local address too. Interface enumeration does not inspect processes.
+    try:
+        interface_addresses = [
+            (address.family, address.address)
+            for interface in psutil.net_if_addrs().values()
+            for address in interface
+            if address.family == socket.AF_INET
+            or (socket.has_ipv6 and address.family == socket.AF_INET6)
+        ]
+    except (psutil.Error, OSError):
+        interface_addresses = []
+    addresses.extend(interface_addresses)
+
+    for family, address in dict.fromkeys(addresses):
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as probe:
+                # Fall back to exclusive probes if interface details are unavailable.
+                if os.name != "nt" and interface_addresses:
+                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+                if os.name == "nt" and exclusive is not None:
+                    probe.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+                if family == socket.AF_INET6:
+                    probe.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+                    # Preserve the scope ID required for link-local IPv6 binds.
+                    sockaddr = socket.getaddrinfo(
+                        address, port, family, socket.SOCK_STREAM, 0, socket.AI_NUMERICHOST
+                    )[0][4]
+                    probe.bind(sockaddr)
+                else:
+                    probe.bind((address, port))
+        except OSError as error:
+            if error.errno in (errno.EADDRINUSE, errno.EACCES):
+                return False
+            if address not in ("", "::") and error.errno == errno.EADDRNOTAVAIL:
+                # A local interface may disappear after enumeration.
+                continue
+            if family == socket.AF_INET6 and error.errno in (
+                errno.EAFNOSUPPORT,
+                errno.EPROTONOSUPPORT,
+                errno.EADDRNOTAVAIL,
+            ):
+                # Python may support IPv6 even when it is disabled on this host.
+                continue
+            raise
+    return True
+
+
+def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App") -> bool:
+    """Wait for a TCP port to become available for binding, with a bounded timeout.
+
+    Probe IPv4 and supported IPv6 sockets, retrying at most every three seconds.
+    Process details are optional diagnostics when the port remains unavailable.
 
     Args:
-        port: The network port number to check
-        timeout: Maximum seconds to wait (0 means check once without waiting)
-        waiting_app_name: Name of the application waiting for the port
+        port: The network port number to check.
+        timeout: Maximum seconds to wait (0 means check once without waiting).
+        waiting_app_name: Name of the application waiting for the port.
 
     Returns:
-        bool: True if port is free, False if port is still in use after timeout
+        True if the port can be bound, False if it remains unavailable.
 
     Raises:
-        ValueError: If port number or timeout is invalid
-        psutil.Error: If there are problems accessing process information
+        ValueError: If the port number or timeout is invalid.
+        OSError: If socket probing fails for reasons other than an unavailable port
+            or unsupported IPv6.
     """
     if not 0 <= port <= 65535:
         raise ValueError(f"Invalid port number: {port}")
     if timeout < 0:
         raise ValueError(f"Invalid timeout: {timeout}")
 
-    def get_processes_using_port() -> list[dict]:
-        """Get info about processes using the specified port."""
-        processes: list[dict] = []
-        seen_pids: set[int] = set()
-
-        try:
-            for conn in psutil.net_connections(kind="inet"):
-                if (
-                    conn.laddr
-                    and conn.laddr.port == port
-                    and conn.pid is not None
-                    and conn.pid not in seen_pids
-                ):
-                    try:
-                        process = psutil.Process(conn.pid)
-                        seen_pids.add(conn.pid)
-                        processes.append(process.as_dict(attrs=["pid", "cmdline"]))
-                    except psutil.NoSuchProcess:
-                        continue
-        except psutil.Error as e:
-            logger.error(f"Error checking port {port}: {e}")
-            raise
-
-        return processes
-
-    retries = max(int(timeout / 3), 1) if timeout > 0 else 1
-
-    for _ in range(retries):
-        process_info = get_processes_using_port()
-
-        if not process_info:
+    deadline = time.monotonic() + timeout
+    while True:
+        if _is_port_available(port):
             return True
-
-        if timeout <= 0:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
             break
-
         logger.info(f"{waiting_app_name} waiting for port {port} to become free...")
-        time.sleep(3)
+        time.sleep(min(3.0, remaining))
 
-    if process_info:
-        logger.warning(
-            f"{waiting_app_name} port {port} still in use after waiting {timeout} seconds."
-        )
-        for info in process_info:
-            logger.warning(
-                f"Process using port - PID: {info['pid']}, Command: {' '.join(info['cmdline'])}"
-            )
+    logger.warning(f"{waiting_app_name} port {port} still in use after waiting {timeout} seconds.")
+    try:
+        connections = psutil.net_connections(kind="inet")
+    except (psutil.Error, OSError) as error:
+        logger.debug(f"Process details unavailable for port {port}: {error}")
         return False
 
-    return True
+    seen_pids: set[int] = set()
+    for conn in connections:
+        if not conn.laddr or conn.laddr.port != port or conn.pid is None or conn.pid in seen_pids:
+            continue
+        seen_pids.add(conn.pid)
+        try:
+            process = psutil.Process(conn.pid)
+            cmdline = process.cmdline()
+        except (psutil.Error, OSError):
+            # Protected or disappearing processes do not change the port result.
+            continue
+        logger.warning(f"Process using port - PID: {conn.pid}, Command: {' '.join(cmdline)}")
+    return False
 
 
 def drop_root_privileges(run_as_user: Optional[str] = None) -> bool:
