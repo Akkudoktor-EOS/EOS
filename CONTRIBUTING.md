@@ -95,7 +95,7 @@ keeps diagnostics independent of cache history without suppressing checks.
 To regression-test the entry points run:
 
 ```bash
-uv run --locked --extra dev pytest -q --finalize tests/test_typingmypytoolchain.py
+uv run --locked --extra dev pytest -q --finalize tests/test_typingmypytooling.py
 ```
 
 This test creates a temporary project and a fresh locked development environment and hook/type-check
