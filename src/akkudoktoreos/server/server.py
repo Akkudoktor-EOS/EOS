@@ -127,7 +127,13 @@ def _is_port_available(port: int) -> bool:
                     probe.setsockopt(socket.SOL_SOCKET, exclusive, 1)
                 if family == socket.AF_INET6:
                     probe.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
-                probe.bind((address, port))
+                    # Preserve the scope ID required for link-local IPv6 binds.
+                    sockaddr = socket.getaddrinfo(
+                        address, port, family, socket.SOCK_STREAM, 0, socket.AI_NUMERICHOST
+                    )[0][4]
+                    probe.bind(sockaddr)
+                else:
+                    probe.bind((address, port))
         except OSError as error:
             if error.errno in (errno.EADDRINUSE, errno.EACCES):
                 return False

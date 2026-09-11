@@ -136,6 +136,49 @@ def test_ipv6_listener_is_detected_after_free_ipv4_probe(
     ]
 
 
+@pytest.mark.parametrize("scope", ["eth0", "3"])
+@pytest.mark.parametrize("occupied", [False, True])
+def test_scoped_ipv6_port_probe_preserves_interface_id(
+    port_environment: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    occupied: bool,
+) -> None:
+    """Linux requires an explicit scope ID when binding link-local IPv6 addresses."""
+    env = port_environment
+    address = f"fe80::1%{scope}"
+    scoped_sockaddr = ("fe80::1", 8503, 0, 3)
+    monkeypatch.setattr(server.socket, "has_ipv6", True)
+    monkeypatch.setattr(
+        server.psutil,
+        "net_if_addrs",
+        Mock(return_value={"eth0": [SimpleNamespace(family=socket.AF_INET6, address=address)]}),
+    )
+    resolver = Mock(
+        side_effect=[
+            [(socket.AF_INET6, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("::", 8503, 0, 0))],
+            [(socket.AF_INET6, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", scoped_sockaddr)],
+        ]
+    )
+    monkeypatch.setattr(server.socket, "getaddrinfo", resolver)
+
+    def bind(sockaddr: tuple[str, int] | tuple[str, int, int, int]) -> None:
+        if sockaddr[0].startswith("fe80:"):
+            if len(sockaddr) != 4 or sockaddr[3] != 3:
+                raise OSError(errno.EINVAL, "Missing IPv6 scope ID")
+            if occupied:
+                raise OSError(errno.EADDRINUSE, "IPv6 listener")
+
+    env.probe.bind.side_effect = bind
+
+    assert server.wait_for_port_free(8503) is not occupied
+
+    env.probe.bind.assert_any_call(scoped_sockaddr)
+    resolver.assert_called_with(
+        address, 8503, socket.AF_INET6, socket.SOCK_STREAM, 0, socket.AI_NUMERICHOST
+    )
+
+
 @pytest.mark.parametrize(
     "error_number", [errno.EAFNOSUPPORT, errno.EPROTONOSUPPORT, errno.EADDRNOTAVAIL]
 )
