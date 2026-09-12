@@ -27,7 +27,10 @@ from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
     GeneticSolution,
 )
-from akkudoktoreos.optimization.genetic.tailvalue import TailValueCurve, build_tail_value_curve
+from akkudoktoreos.optimization.genetic.tailvalue import (
+    TailValueCurve,
+    build_tail_value_curve,
+)
 from akkudoktoreos.optimization.genetic.terminalvalue import (
     TailDiagnostics,
     TerminalValueCurve,
