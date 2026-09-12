@@ -127,3 +127,25 @@ def test_request_forecast_raises_on_http_error(pvforecast_instance):
         with pytest.raises(RuntimeError) as exc_info:
             pvforecast_instance._request_forecast(force_update=True)
         assert "Failed to fetch pvforecast from Forecast.Solar" in str(exc_info.value)
+
+
+def test_plane_url_passes_userhorizon(config_eos):
+    """A plane's userhorizon is forwarded as the Forecast.Solar horizon parameter."""
+    _config(
+        config_eos,
+        planes=[
+            {
+                "surface_tilt": 87.9,
+                "surface_azimuth": 175.0,
+                "peakpower": 13.11,
+                "userhorizon": [28.0, 34.0, 32.0, 60.0],
+            }
+        ],
+    )
+    pv = PVForecastForecastSolar(
+        config=config_eos.load, start_datetime=pendulum.datetime(2025, 1, 1, tz="UTC")
+    )
+    with patch("requests.get", return_value=_http({})) as mock_get:
+        pv._request_forecast(force_update=True)  # type: ignore
+        url = mock_get.call_args[0][0]
+        assert url.endswith("/estimate/52.5/13.4/87.9/-5.0/13.11?horizon=28.0,34.0,32.0,60.0")

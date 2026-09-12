@@ -131,7 +131,7 @@ def test_request_forecast(mock_get, provider, sample_openmeteo_1_json):
     assert "time" in openmeteo_data["hourly"]
     assert "temperature_2m" in openmeteo_data["hourly"]
     assert "shortwave_radiation" in openmeteo_data["hourly"]  # GHI
-    assert "direct_radiation" in openmeteo_data["hourly"]     # DNI
+    assert "direct_normal_irradiance" in openmeteo_data["hourly"]     # DNI
     assert "diffuse_radiation" in openmeteo_data["hourly"]    # DHI
 
 
@@ -161,7 +161,7 @@ def test_update_data(mock_get, provider, sample_openmeteo_1_json, cache_store):
     # Get the first record and check for irradiance values
     value_datetime = to_datetime("2026-03-04 09:00:00+01:00", in_timezone="Europe/Berlin")
     assert provider.key_to_value("weather_ghi", target_datetime=start_datetime) == 21.8
-    assert provider.key_to_value("weather_dni", target_datetime=start_datetime) == 1.2
+    assert provider.key_to_value("weather_dni", target_datetime=start_datetime) == 17.9
     assert provider.key_to_value("weather_dhi", target_datetime=start_datetime) == 20.5
 
 
@@ -176,18 +176,22 @@ def test_openmeteo_radiation_mapping(provider):
     from akkudoktoreos.prediction.weatheropenmeteo import WeatherDataOpenMeteoMapping
 
     radiation_keys = [item[0] for item in WeatherDataOpenMeteoMapping
-                     if item[0] in ['shortwave_radiation', 'direct_radiation', 'diffuse_radiation']]
+                     if item[0] in ['shortwave_radiation', 'direct_normal_irradiance',
+                                    'diffuse_radiation']]
 
     assert 'shortwave_radiation' in radiation_keys
-    assert 'direct_radiation' in radiation_keys
+    assert 'direct_normal_irradiance' in radiation_keys
     assert 'diffuse_radiation' in radiation_keys
 
-    # Verify they map to correct descriptions
+    # Verify they map to correct descriptions. Open-Meteo's `direct_radiation` is beam
+    # irradiance on the HORIZONTAL plane, so it must not be mapped to DNI.
     for key, desc, _ in WeatherDataOpenMeteoMapping:
         if key == 'shortwave_radiation':
             assert desc == "Global Horizontal Irradiance (W/m2)"
-        elif key == 'direct_radiation':
+        elif key == 'direct_normal_irradiance':
             assert desc == "Direct Normal Irradiance (W/m2)"
+        elif key == 'direct_radiation':
+            assert desc is None
         elif key == 'diffuse_radiation':
             assert desc == "Diffuse Horizontal Irradiance (W/m2)"
 

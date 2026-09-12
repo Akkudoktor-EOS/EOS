@@ -7,12 +7,14 @@ energy at the chosen start(s). Several runs (DAILY mode) and several devices may
 overlap; their energies simply add up.
 """
 
+import math
 from typing import Optional
 
 import numpy as np
+from loguru import logger
 
 from akkudoktoreos.config.configabc import TimeWindowSequence
-from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
+from akkudoktoreos.devices.devicesabc import ConsumerDeadlinePolicy, ConsumerScheduleMode
 from akkudoktoreos.optimization.genetic.geneticdevices import HomeApplianceParameters
 from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
@@ -95,6 +97,12 @@ class HomeAppliance:
         self.device_id: str = parameters.device_id
         self.schedule_mode: ConsumerScheduleMode = parameters.schedule_mode
         self.time_windows: Optional[TimeWindowSequence] = parameters.time_windows
+        self.earliest_start_datetime: Optional[DateTime] = parameters.earliest_start_datetime
+        self.deadline_datetime: Optional[DateTime] = parameters.deadline_datetime
+        self.deadline_policy: ConsumerDeadlinePolicy = parameters.deadline_policy
+        # Set when a BEST_EFFORT deadline had to be dropped in the last
+        # allowed_start_slots() call, so callers can report the miss.
+        self.deadline_relaxed: bool = False
         self._build_run_profile()
         self.reset_load_curve()
 
@@ -119,6 +127,25 @@ class HomeAppliance:
         )
         self.run_slots: int = int(len(self.run_energy_wh))
 
+    def _slot_offset(self, moment: DateTime, slot0_datetime: DateTime, *, round_up: bool) -> int:
+        """Convert an absolute moment into a slot index relative to slot 0.
+
+        Args:
+            moment: Absolute moment; converted into ``slot0_datetime``'s timezone.
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+            round_up: ``True`` returns the first slot boundary at or after
+                ``moment`` (lower bounds), ``False`` the last one at or before
+                it (upper bounds).
+
+        Returns:
+            Slot index (may be negative or beyond the grid; callers clamp).
+        """
+        seconds = (moment.in_timezone(slot0_datetime.timezone) - slot0_datetime).total_seconds()
+        exact = seconds / self.slot_interval_seconds
+        # Tolerance absorbs float noise so a moment that sits exactly on a slot
+        # boundary is not pushed to the neighbouring slot.
+        return math.ceil(exact - 1e-9) if round_up else math.floor(exact + 1e-9)
+
     def allowed_start_slots(
         self,
         *,
@@ -128,12 +155,21 @@ class HomeAppliance:
     ) -> list[int]:
         """Return the sorted absolute start slots at which a full run is allowed.
 
-        A start slot ``s`` is allowed when the complete run fits both the
-        optimization horizon and (if configured) a single allowed time window:
+        A start slot ``s`` is allowed when the complete run fits the optimization
+        horizon, both absolute bounds and (if configured) a single allowed time
+        window:
 
         - ``earliest_slot <= s`` and ``s + run_slots <= horizon_end_slot``
+        - with ``earliest_start_datetime`` set, the run starts at or after it
+        - with ``deadline_datetime`` set, the run *ends* at or before it
         - with ``time_windows`` set, the run's whole occupied span starting at
-          ``s`` is contained in one window (respecting weekday/date constraints).
+          ``s`` is contained in one window (respecting weekday/date constraints)
+
+        When a deadline leaves no start at all and the policy is
+        ``BEST_EFFORT``, the deadline is dropped and only the earliest still
+        possible start is offered (a warning is logged and ``deadline_relaxed``
+        is set): the run happens too late anyway, so it is scheduled with the
+        smallest possible delay instead of at the cheapest slot.
 
         No snapping is performed: every returned slot is a genuinely valid start.
 
@@ -145,11 +181,80 @@ class HomeAppliance:
         Returns:
             Sorted list of allowed absolute start slots (may be empty).
         """
+        self.deadline_relaxed = False
+        allowed = self._allowed_start_slots(
+            slot0_datetime=slot0_datetime,
+            earliest_slot=earliest_slot,
+            horizon_end_slot=horizon_end_slot,
+            apply_deadline=True,
+        )
+        if (
+            allowed
+            or self.deadline_datetime is None
+            or self.deadline_policy == ConsumerDeadlinePolicy.STRICT
+        ):
+            return allowed
+
+        relaxed = self._allowed_start_slots(
+            slot0_datetime=slot0_datetime,
+            earliest_slot=earliest_slot,
+            horizon_end_slot=horizon_end_slot,
+            apply_deadline=False,
+        )
+        if not relaxed:
+            return relaxed
+        self.deadline_relaxed = True
+        # Keep only the earliest possible start: the deadline is already missed,
+        # so the run is scheduled as soon as possible rather than as cheap as
+        # possible.
+        earliest = relaxed[:1]
+        logger.warning(
+            "Home appliance '{}': deadline {} can not be met - running as early as "
+            "possible instead (BEST_EFFORT). Run ends {}.",
+            self.device_id,
+            self.deadline_datetime,
+            self.run_end_datetime(earliest[0], slot0_datetime),
+        )
+        return earliest
+
+    def _allowed_start_slots(
+        self,
+        *,
+        slot0_datetime: DateTime,
+        earliest_slot: int,
+        horizon_end_slot: int,
+        apply_deadline: bool,
+    ) -> list[int]:
+        """Compute the allowed start slots for one set of constraints.
+
+        Args:
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+            earliest_slot: First slot the optimizer may schedule at ("now").
+            horizon_end_slot: Exclusive upper bound; a run must end at or before.
+            apply_deadline: Whether ``deadline_datetime`` restricts the run end.
+
+        Returns:
+            Sorted list of allowed absolute start slots (may be empty).
+        """
         run_slots = self.run_slots
         if run_slots <= 0:
             return []
-        last_start = min(horizon_end_slot, self.total_slots) - run_slots
+
         first_start = max(earliest_slot, 0)
+        if self.earliest_start_datetime is not None:
+            first_start = max(
+                first_start,
+                self._slot_offset(self.earliest_start_datetime, slot0_datetime, round_up=True),
+            )
+
+        end_bound = min(horizon_end_slot, self.total_slots)
+        if apply_deadline and self.deadline_datetime is not None:
+            end_bound = min(
+                end_bound,
+                self._slot_offset(self.deadline_datetime, slot0_datetime, round_up=False),
+            )
+
+        last_start = end_bound - run_slots
         if last_start < first_start:
             return []
 
@@ -163,6 +268,41 @@ class HomeAppliance:
             if self.time_windows.contains(start_dt, duration=run_duration):
                 allowed.append(slot)
         return allowed
+
+    def run_end_datetime(self, start_slot: int, slot0_datetime: DateTime) -> DateTime:
+        """Absolute local moment at which a run started at ``start_slot`` finishes.
+
+        Args:
+            start_slot: Absolute start slot of the run.
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+
+        Returns:
+            End datetime of the run (exclusive, i.e. the first free moment).
+        """
+        return slot0_datetime.add(
+            seconds=(start_slot + self.run_slots) * self.slot_interval_seconds
+        )
+
+    def deadline_missed(self, starts: list[int], slot0_datetime: DateTime) -> bool:
+        """Whether the scheduled runs violate the configured deadline.
+
+        Without a deadline nothing can be missed. With one, a consumer that was
+        not scheduled at all, or whose run ends after the deadline (a relaxed
+        BEST_EFFORT deadline), counts as missed.
+
+        Args:
+            starts: Absolute start slots of the scheduled runs.
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+
+        Returns:
+            True if the deadline is set and not met.
+        """
+        if self.deadline_datetime is None:
+            return False
+        if not starts:
+            return True
+        deadline = self.deadline_datetime.in_timezone(slot0_datetime.timezone)
+        return any(self.run_end_datetime(start, slot0_datetime) > deadline for start in starts)
 
     def build_load_curve(self, starts: list[int]) -> None:
         """Place the resampled run energy at each decoded start slot.

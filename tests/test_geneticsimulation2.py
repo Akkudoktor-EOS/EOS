@@ -28,7 +28,7 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
     """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+        {"prediction": {"hours": 48}, "optimization": {"tail_horizon_hours": 0, "hours": 24}}
     )
     assert config_eos.prediction.hours == 48
     assert config_eos.optimization.horizon_hours == 24

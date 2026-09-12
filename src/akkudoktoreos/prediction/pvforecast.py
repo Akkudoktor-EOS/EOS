@@ -11,6 +11,7 @@ from akkudoktoreos.prediction.pvforecastforecastsolar import (
     PVForecastForecastSolarCommonSettings,
 )
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocalCommonSettings
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNodeCommonSettings
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcastCommonSettings
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings
@@ -30,6 +31,7 @@ def pvforecast_provider_ids() -> list[str]:
             "PVForecastPVNode",
             "PVForecastForecastSolar",
             "PVForecastSolcast",
+            "PVForecastAkkudoktorLocal",
         ]
 
     return [
@@ -202,6 +204,10 @@ class PVForecastCommonProviderSettings(SettingsBaseModel):
     PVForecastSolcast: Optional[PVForecastSolcastCommonSettings] = Field(
         default=None,
         json_schema_extra={"description": "PVForecastSolcast settings", "examples": [None]},
+    )
+    PVForecastAkkudoktorLocal: Optional[PVForecastAkkudoktorLocalCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "PVForecastAkkudoktorLocal settings", "examples": [None]},
     )
 
 

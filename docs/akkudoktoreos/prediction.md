@@ -489,6 +489,7 @@ Configuration options:
     - `PVForecastForecastSolar`: Retrieves forecasts from the free Forecast.Solar API.
     - `PVForecastSolcast`: Retrieves forecasts from the Solcast rooftop-site API.
     - `PVForecastImport`: Imports from a file or JSON string or by endpoint data provision.
+    - `PVForecastAkkudoktorLocal`: Computes the forecast inside EOS from Open-Meteo weather with pvlib.
 
   - `planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
   - `planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
@@ -522,6 +523,17 @@ Configuration options:
   - `provider_settings.PVForecastForecastSolar.api_key`: Forecast.Solar API key (optional).
   - `provider_settings.PVForecastSolcast.api_key`: Solcast API key.
   - `provider_settings.PVForecastSolcast.site_id`: Solcast rooftop resource (site) id.
+  - `provider_settings.PVForecastAkkudoktorLocal.resolution_minutes`: 15 or 60.
+  - `provider_settings.PVForecastAkkudoktorLocal.forecast_days`: 1-16, empty derives it from `prediction.hours`.
+  - `provider_settings.PVForecastAkkudoktorLocal.past_days`: 0-92, empty derives it from `prediction.historic_hours`.
+  - `provider_settings.PVForecastAkkudoktorLocal.weather_models`: Open-Meteo models; several are averaged.
+  - `provider_settings.PVForecastAkkudoktorLocal.transposition_model`: pvlib sky-diffuse model.
+  - `provider_settings.PVForecastAkkudoktorLocal.albedo`: Fallback albedo for planes without their own.
+  - `provider_settings.PVForecastAkkudoktorLocal.inverter_efficiency`: Nominal inverter efficiency.
+  - `provider_settings.PVForecastAkkudoktorLocal.temperature_coefficient`: Module power coefficient in %/degC.
+  - `provider_settings.PVForecastAkkudoktorLocal.apply_iam`: Apply the ASHRAE incidence-angle modifier.
+  - `provider_settings.PVForecastAkkudoktorLocal.shift_to_interval_start`: Relabel Open-Meteo interval-end stamps.
+  - `provider_settings.PVForecastAkkudoktorLocal.calibration_*`: Self-calibration against measured PV production.
 
 ---
 
@@ -746,6 +758,147 @@ site id empty to send the configured `planes` geometry inline.
         }
     }
 ```
+
+The prediction keys for the PV forecast data are:
+
+- `pvforecast_ac_power`: Total AC power (W).
+- `pvforecast_dc_power`: Total DC power (W).
+
+### PVForecastAkkudoktorLocal Provider
+
+The `PVForecastAkkudoktorLocal` provider does not call a PV forecast service at all. It fetches raw
+irradiance and weather from [Open-Meteo](https://open-meteo.com) and runs the whole modelling
+chain locally with `pvlib`:
+
+    solar position -> horizon shading -> transposition to the module plane ->
+    incidence-angle modifier -> cell temperature -> PVWatts DC -> inverter AC
+
+Three properties make it the right default for long-horizon optimization:
+
+- **Horizon.** Up to 16 forecast days at 15-minute resolution from a single request. Services
+  that wrap Open-Meteo cut the horizon much shorter, which starves
+  `optimization.tail_horizon_hours`.
+- **Call budget.** One request per hour against a ~10k/day non-commercial budget, instead of
+  competing for someone else's upstream quota.
+- **Honest parameters.** `albedo`, inverter efficiency and the module temperature coefficient are
+  real configuration rather than constants baked into a service URL.
+
+No API key is required. The location comes from `general.latitude`/`longitude` and the geometry
+from the configured `planes`, including `userhorizon`, `trackingtype`, `mountingplace` and `loss`.
+
+```python
+    {
+        "pvforecast": {
+            "provider": "PVForecastAkkudoktorLocal",
+            "provider_settings": {
+                "PVForecastAkkudoktorLocal": {
+                    "resolution_minutes": 15,
+                    "weather_models": ["icon_seamless", "ecmwf_ifs025", "gfs_seamless"],
+                    "calibration_enabled": true
+                }
+            }
+        }
+    }
+```
+
+#### Improving accuracy
+
+**Model ensemble.** Listing several models in `weather_models` averages them per variable. This
+is the cheapest reliable way to cut irradiance forecast error and costs no extra API calls,
+because Open-Meteo returns all members in the same response. `icon_seamless` (DWD, strong over
+Central Europe), `ecmwf_ifs025` and `gfs_seamless` are a reasonable trio.
+
+**Self-calibration.** With `calibration_enabled` the provider compares its own model against
+measured PV production over the past `calibration_days` and fits a correction:
+
+- a **global scale factor**, which absorbs a wrong `peakpower`, soiling, degradation and any
+  systematic offset in the loss assumption;
+- **per-solar-azimuth factors**, which absorb near-field shading that a coarse `userhorizon`
+  cannot express - a chimney, a tree, a neighbouring roof.
+
+Each bin is weighted by its modelled energy and shrunk toward the global factor by
+`calibration_prior_kwh`, so a thinly sampled bin cannot swing the forecast on its own, and every
+factor is clamped to `[calibration_min_factor, calibration_max_factor]` so a broken meter cannot
+either. The fitted factors and the resulting change in mean absolute error are logged at INFO
+level on every update.
+
+By default, calibration also rejects probable outage or curtailment days. It estimates the
+healthy plant ratio from `calibration_reference_days`, excludes days below
+`calibration_outage_threshold` of that reference, and falls back to the most recent
+`calibration_min_healthy_days` when the normal calibration window contains an outage. This keeps
+a battery or inverter failure that limits PV to local demand from becoming a permanent forecast
+loss. Set `calibration_outage_filter_enabled` to false only when measured curtailed production,
+rather than available PV potential, is the intended prediction target.
+
+The measurement cadence controls the detail that can be learned. Hourly cumulative meter
+readings calibrate hourly energy while the native Open-Meteo/pvlib chain continues to supply the
+15-minute shape. If every configured PV meter supplies genuine 15-minute readings, calibration
+automatically uses those native slots as well. It never interpolates hourly counters into an
+invented quarter-hour profile. Azimuth factors are interpolated smoothly between bin centres so
+they do not introduce steps into the EMS input curve. The shape fit uses all healthy days in the
+reference window, while the global factor still follows the shorter recent window. Finally, the
+shape is normalized per forecast day: it redistributes the calibrated energy across the day's
+15-minute slots without changing that day's global kWh correction (unless the physical inverter
+limit clips a peak).
+
+Calibration requires `measurement.pv_production_emr_keys` to be configured and fed with
+cumulative PV production meter readings in kWh:
+
+```python
+    {
+        "measurement": {
+            "pv_production_emr_keys": ["pv1_emr"]
+        }
+    }
+```
+
+Note what this does and does not correct. The comparison runs on past intervals, where the
+Open-Meteo rows are analysed rather than forecast weather, so it isolates the error of the *PV
+model* from the error of the *weather forecast*. That is deliberate: only the former is
+systematic enough to correct. A cloudy day that the weather model got wrong stays wrong.
+
+**Choosing the window.** `calibration_days` trades responsiveness against stability. A long
+window averages more weather and gives a steadier factor, but it also reaches back into the
+plant's own history - and calibration cannot tell a modelling error from a *plant* error. A
+window that spans a string outage, an inverter derating or a period of heavy soiling will fit
+that fault as if it were a permanent property of the installation, and the forecast stays
+depressed long after the plant recovered. Before trusting a factor, compare modelled against
+measured energy *per day*: a run of days at a markedly different ratio is a plant event, and
+the window should start after it.
+
+**Bins need data.** The per-azimuth factors are only worth fitting when the window holds enough
+daylight hours to populate the bins - roughly a few hundred, so several weeks at the default
+15 degrees. With a short window, set `calibration_azimuth_bin_degrees` to 0 to fit the global
+factor alone. One well-determined number beats twenty-four noisy ones.
+
+**Geometry is out of scope.** Calibration is a scale factor on the model's output; it never
+touches `userhorizon`, `surface_tilt`, `surface_azimuth` or `peakpower`. That makes it the right
+tool for *multiplicative* errors and the wrong one for geometric errors. Horizon shading in
+particular gates the beam component as a hard function of both solar azimuth *and* elevation, so
+a per-azimuth scale factor cannot move the edge of the shadow to where it belongs, and what it
+learns in one season is wrong in the next, when the sun crosses the same azimuth at a different
+height. A wrong horizon should be corrected in `userhorizon`, not calibrated away.
+
+`scripts/pvforecast_backtest.py` scores configuration variants against the stored meter readings
+without waiting for new forecasts to come true, which is the quickest way to test a geometry
+change:
+
+```bash
+    python scripts/pvforecast_backtest.py --days 30 --tilt 88 --azimuth 175
+```
+
+#### Conventions
+
+Two timing conventions are handled explicitly and are worth knowing when comparing against other
+providers:
+
+- Open-Meteo radiation values are the mean over the **preceding** interval, so the representative
+  sun position for a value stamped `t` is `t - interval/2`.
+- EOS records label an interval by its **start**, so a value stamped `t` by Open-Meteo is stored
+  at `t - interval`. Set `shift_to_interval_start` to false to keep the raw stamps.
+
+Note also that Open-Meteo's `direct_radiation` is beam irradiance on the *horizontal* plane; the
+DNI this chain needs is `direct_normal_irradiance`.
 
 The prediction keys for the PV forecast data are:
 

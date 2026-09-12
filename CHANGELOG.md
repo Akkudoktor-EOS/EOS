@@ -31,6 +31,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   weekday/date restrictions) and the horizon; ONCE without any valid start is rejected.
   Results are reported per device (`result.home_appliance_energy_wh`, `appliance_starts`,
   per-device solution columns and `DDBCInstruction`s emitted only on RUN/OFF transitions).
+- Flexible consumers can be given absolute time bounds: `earliest_start_datetime` and
+  `deadline_datetime`, where the deadline demands that the complete run has *finished* before
+  that moment ("clean dishes by 03:00 tonight"). When no start can meet the deadline,
+  `deadline_policy` decides between `BEST_EFFORT` (run as early as possible, minimizing the
+  delay) and `STRICT` (keep the deadline; a `ONCE` consumer then fails the optimization).
+  The solution reports `appliance_deadline_missed` per device so callers can warn instead of
+  silently trusting a late schedule.
+- Battery-to-grid export (direct marketing) is no longer all-or-nothing: `grid_export_rates`
+  configures the selectable export levels as a factor of the rated discharge power
+  (default `[0.25, 0.5, 0.75, 1.0]`), settable per battery in `devices.batteries[].
+  grid_export_rates` or per request in `pv_akku.grid_export_rates`. The optimizer picks one
+  level per slot and reports it in `battery_grid_export_factor` and as the
+  `GRID_SUPPORT_EXPORT` operation factor. `[1.0]` restores the previous behaviour.
+- The EV charging target can be given a deadline: `min_soc_deadline_datetime` (absolute, e.g.
+  the next departure) and/or `min_soc_max_duration_h` ("full in 6 hours"), the earlier of the
+  two applies. The `ev_soc_miss` penalty is then evaluated at that slot instead of at the end
+  of the horizon, and the seeding heuristics only propose charge slots before it. Without a
+  deadline the behaviour is unchanged.
+- Fix: with grid charging disabled (`inverter.max_ac_charge_power_w = 0`) the returned
+  `ac_charge` array kept the optimizer's unused gene values. The simulation ignored them, so
+  they were never costed - but a controller acting on the plan would grid-charge the battery
+  anyway. The disabled AC charge is now cleared in the reported plan as well.
+- The energy left in the battery at the end of the horizon is now valued with a concave curve
+  derived from the trailing horizon window (`optimization.terminal_value_mode = AUTO`, the new
+  default): the first stored kWh replaces the most expensive hour that PV cannot cover, the next
+  one the second most expensive, and energy beyond the residual load is credited only when it can
+  be exported. A single price per kWh could not express this - with the previous default of 0 the
+  optimizer emptied the battery towards the end of the horizon, with a high value it hoarded it.
+  The curve is built once per run and reported as `terminal_value` in the solution.
+  `terminal_value_mode = FIXED` restores the old scalar behaviour.
 - EV Bug (wrong output in genetic.py / no senseful results)
 - Direktvermarktung active / Battery discharge into grid (new state / action battery_grid_export_allowed) + (new simulation output Feed_in_tariff)
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
@@ -68,6 +98,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   day-ahead market prices are retained at their native hourly or quarter-hourly resolution and
   missing slots at the end of the optimization horizon are extended with weekly or daily seasonal
   ETS forecasts. A median fallback is used when the available history is too short for ETS.
+- Add the `PVForecastAkkudoktorLocal` PV forecast provider, which runs the whole modelling chain
+  inside EOS with `pvlib` on raw Open-Meteo irradiance instead of calling a forecast service:
+  solar position, horizon shading, plane transposition, incidence-angle modifier, cell temperature,
+  PVWatts DC and inverter AC. It needs no API key, serves up to 16 days at 15-minute resolution
+  from one hourly request - enough to feed `optimization.tail_horizon_hours` - and exposes albedo,
+  inverter efficiency and the module temperature coefficient as real configuration. Several
+  Open-Meteo models can be listed in `weather_models` and are averaged per variable at no extra
+  request cost.
+- The local provider can calibrate itself against measured PV production (`calibration_enabled`).
+  It compares its own model against `measurement.pv_production_emr_keys` over the past
+  `calibration_days` and fits a global scale factor plus optional per-solar-azimuth factors, each
+  weighted by modelled energy, shrunk toward the global factor by `calibration_prior_kwh` and
+  clamped to `[calibration_min_factor, calibration_max_factor]`. The comparison runs on past
+  intervals, where Open-Meteo serves analysed rather than forecast weather, so it corrects the
+  error of the PV model and not that of the weather forecast. Setting
+  `calibration_azimuth_bin_degrees` to 0 fits the global factor alone, which is what a short
+  window supports.
+- Add `scripts/pvforecast_backtest.py`, which scores PV forecast configuration variants against
+  the stored meter readings straight away instead of waiting for new forecasts to come true, and
+  `Measurement.pv_production_total_kwh()` alongside the existing load total.
+- The local PV provider's calibration now excludes probable outage and curtailment days instead of
+  learning them as permanent model losses: `calibration_outage_filter_enabled` (default on),
+  `calibration_outage_threshold`, `calibration_reference_days` and `calibration_min_healthy_days`
+  estimate the healthy plant ratio and fall back to the most recent healthy days. Calibration also
+  uses native 15-minute meter readings when every configured PV meter supplies them, interpolates
+  azimuth factors smoothly between bin centres instead of stepping, and normalizes the fitted
+  shape per forecast day so it redistributes energy without changing that day's kWh correction.
+  The default `calibration_azimuth_bin_degrees` moves from 15 to 45, which is what a typical
+  calibration window actually supports.
+- Separate the control horizon from the battery lookahead. `optimization.horizon_hours` remains
+  the only span that receives control commands; the new `optimization.tail_horizon_hours`
+  (default 48 h) is a forecast lookahead that never produces a command. In `AUTO` terminal-value
+  mode a deterministic dynamic program now solves that tail backwards on a 101-point SoC grid,
+  using the production battery and inverter models with their SoC bounds, power caps, conversion
+  losses, configured charge/export rates and LCOS, and applies the existing AUTO proxy as the
+  continuation value at the tail end. Genetic fitness reads the resulting curve instead of a
+  single price per kWh, so the optimizer stops treating the horizon boundary as the end of the
+  world. `tail_horizon_hours: 0` restores the plain AUTO proxy at the control end; `FIXED` is
+  unchanged. See `docs/akkudoktoreos/optimization_horizons.md`.
+- The `terminal_value` result reports the split explicitly: `mode` (`TAIL`, `AUTO` or `FIXED`),
+  `tail_operating_euro` plus `continuation_value_euro` (which always sum to `credited_euro`),
+  the combined `curve` fitness reads, the `continuation_curve` proxy at the tail end,
+  `requested_tail_hours` versus `effective_tail_hours`, and `tail_diagnostics`. The optional
+  `tail_plan` replays the optimal battery path inside the tail for debugging. None of it is
+  executable - tail actions are never copied into the returned control arrays.
+- Raise the default `prediction.hours` from 48 to 72 so the default control horizon plus the
+  default tail are covered out of the box. A shorter prediction horizon is never rejected: a tail
+  that does not fit is cut to what the forecast covers (logged once and reported as
+  `effective_tail_hours`), and a control horizon that does not fit is warned about at
+  configuration time and rejected by the optimizer at run time, naming the series that ends too
+  early. Existing configurations therefore keep starting after an upgrade.
+- Genetic solutions carry `controls_start_at_now`. Index zero of every returned control array and
+  warm-start genome is now the run timestamp rather than midnight of the run's day. The solution
+  and plan adapters still read older, midnight-indexed solutions, and warm starts with an
+  incompatible genome length are discarded instead of misapplied.
+- The optimization request accepts `forecast_interval_seconds` (900 or 3600), which declares the
+  resolution of shortened native quarter-hour input arrays. Fully sized native arrays are still
+  auto-detected, and a scalar feed-in tariff still means an explicitly constant tariff.
+- Add operator tooling for the split horizon: `docs/akkudoktoreos/grafana_tail_debugging.md`
+  explains how to read control plan versus tail in Grafana, and
+  `scripts/update_nodered_tail_flow.py` plus the `nodered_tail_*`/`nodered_pv_*` helpers build an
+  importable Node-RED flow for it.
 
 ### Changed
 - Replace the fixed DEAP variation loop with adaptive genetic evolution. Crossover offspring may
@@ -92,6 +184,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   failed evaluations and results from previous runs are never reused.
 - `max_home_appliances` is now purely an upper bound. No demo appliance is created when
   no `home_appliances` are configured, and the number is no longer used as an on/off switch.
+- The genetic diversity boost is an intervention again instead of the steady state. Its trigger
+  (`DIVERSITY_BOOST_THRESHOLD`) sat above the floor the selection guarantees
+  (`SELECTION_DIVERSITY_FLOOR`), so on a converged population it was permanently true; it now sits
+  below the floor. Freshly injected immigrants are also the worst individuals in the pool and were
+  removed by the very tournament of the generation that created them, so their genes never
+  recombined - a bounded share of seats is now reserved for them for two selections. The log line
+  is edge-triggered on the boost itself rather than on the last fitness improvement, and the end
+  of a boost is logged too.
+- Required forecasts are no longer silently replaced by demo providers. Previously a missing PV,
+  price, load, feed-in or weather forecast rewrote the configured provider to a demo one and
+  retried, so a run could quietly optimize against invented data. Missing values now stay missing:
+  a gap inside the control horizon fails the run with the series that ends too early, and a gap
+  after it shortens the tail. Provider values are held only within their own source interval and
+  the last observed value is never extended indefinitely.
 
 ### Deprecated
 - The single-appliance genetic optimization input `dishwasher` is deprecated in favour of
@@ -125,11 +231,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   historical data exists, the existing history is kept and the remaining slots are
   extrapolated via ETS instead of failing. A genuine cold start (no data at all) still
   fails.
+- A day-ahead price source that has not published the next day yet no longer fails the whole
+  prediction update. `ElecPriceEnergyCharts` and its `ElecPriceSMARD` subclass ask for prices
+  starting at the run day, while the optimization horizon always reaches past the last published
+  price, so every morning before the auction is published the request came back empty and the
+  provider raised - answering `/v1/prediction/update` with 400 until the source caught up. The
+  provider now keeps its existing history and extrapolates the remaining slots via ETS, the same
+  way `FeedInTariffEnergyCharts` already did. A cold start with no history at all still fails.
+- `ElecPriceSMARD` now distinguishes a lagging publication from a broken response. A window the
+  source cannot serve yet reports the latest value it does have, instead of claiming the response
+  contained no usable prices.
+- A day-ahead source that lags no longer shortens the price forecast by its own lag. The ETS
+  extrapolation is appended after the last known price, but its length was measured from the run
+  start, so a source that had not published the current day yet left exactly that lag uncovered at
+  the end of the horizon. Callers reading `elecprice_marketprice_wh` or `feed_in_tariff_wh` past
+  that point saw the last value held constant - a flat price in precisely the trailing window the
+  terminal value curve is derived from. The length is now measured from the last known value
+  through to `ems_start + prediction.hours`.
+- A weather-API outage no longer takes the whole prediction update with it.
+  `PVForecastAkkudoktorLocal` raised on the first failed Open-Meteo request, and
+  `PredictionContainer.update_data` re-raises whatever an enabled provider raises, so every
+  provider after it was skipped and `/v1/prediction/update` answered 400 - over a 503 that
+  Open-Meteo clears within seconds while rotating its model runs. Retryable responses (429 and
+  5xx) and connection errors are now retried three times with a growing pause, and if the fetch
+  still fails while a stored forecast reaches past the run start, that forecast is kept for one
+  more run instead of failing the update. A cold start with no stored forecast still fails.
+- `cache_in_file` no longer leaves an empty cache entry behind when the wrapped function raises.
+  The entry was claimed before the call, so every later call within the TTL first failed to read
+  it ("Ran out of input") before refetching. The entry is now created only after the call returns.
 - The deprecated `/gesamtlast` endpoint no longer forces a full provider refresh on every
   call. Forcing bypassed the provider caches and hammered external APIs, so a single flaky
   provider could 404 the whole load prediction. It now defaults to a cache-aware update and
   accepts an optional `force_update` flag in the request body for callers that still want
   to force.
+- The local PV provider derived its calibration window from the measurement store as a whole
+  instead of from the configured PV production meters. A load meter reaching further than the PV
+  meter placed the window where no PV reading exists, so calibration silently fell back to hourly
+  fitting or skipped itself entirely. The window now follows the PV meters.
+- `Measurement.load()` silently discarded every stored record. It validated the file into a
+  temporary `Measurement`, but `Measurement` is a singleton, so the "temporary" instance was the
+  already initialized one and the parsed records were dropped. The records are now validated
+  individually and inserted directly.
+- A rejected configuration update no longer damages the running configuration.
+  `merge_settings_from_dict` validated the merged candidate only while reinitializing the
+  singleton, so an invalid update could leave EOS half-updated. The candidate is validated first.
 
 ## 0.3.0 (2026-03-17)
 

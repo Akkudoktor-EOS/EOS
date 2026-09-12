@@ -260,6 +260,12 @@ tests/testdata/new_optimize_result*
 tests/testdata/openapi-new.json
 tests/testdata/openapi-new.md
 tests/testdata/config-new.md
+# Working copies test_configmigrate leaves behind when a migration test fails
+tests/testdata/*.new
+# Written by test_visualize into the working directory
+example_report.pdf
+# Written by test_config into the working directory
+tests/testdata/docs/
 
 # FastHTML session key
 .sesskey

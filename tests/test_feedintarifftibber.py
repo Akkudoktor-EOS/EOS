@@ -55,6 +55,7 @@ def provider(config_eos):
                 "provider": "FeedInTariffTibber",
             },
             "prediction": {"hours": 2},
+            "optimization": {"horizon_hours": 2, "tail_horizon_hours": 0},
         }
     )
     value = FeedInTariffTibber()

@@ -30,7 +30,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+        {"prediction": {"hours": 48}, "optimization": {"tail_horizon_hours": 0, "hours": 24}}
     )
     assert config_eos.prediction.hours == 48
     assert config_eos.optimization.horizon_hours == 24
@@ -381,7 +381,7 @@ def test_simulation(genetic_simulation):
 
 def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 1}, "optimization": {"horizon_hours": 1}}
+        {"prediction": {"hours": 1}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 1}}
     )
     ev = Battery(
         ElectricVehicleParameters(
@@ -422,7 +422,7 @@ def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
 
 def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
+        {"prediction": {"hours": 2}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 2}}
     )
 
     inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
@@ -460,7 +460,7 @@ def _direct_marketing_battery_export_simulation(
     dc_to_ac_efficiency: float = 1.0,
 ) -> GeneticSimulation:
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
+        {"prediction": {"hours": 2}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 2}}
     )
 
     battery = Battery(
@@ -528,6 +528,20 @@ def test_direct_marketing_battery_grid_export_uses_separate_signal(config_eos):
     assert simulation.battery.current_soc_percentage() == 50.0
 
 
+def test_direct_marketing_grid_export_rate_limits_exported_energy(config_eos):
+    """A partial export level exports that share of the rated discharge power."""
+    simulation = _direct_marketing_battery_export_simulation(config_eos)
+    assert simulation.bat_grid_export_hours is not None
+    # 500 W rated discharge power over a one hour slot -> 500 Wh at rate 1.0.
+    simulation.bat_grid_export_hours[0] = 0.5
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == pytest.approx(250.0)
+    assert simulation.battery is not None
+    assert simulation.battery.current_soc_percentage() == 75.0
+
+
 def test_battery_lcos_is_charged_once_on_delivered_energy(config_eos):
     simulation = _direct_marketing_battery_export_simulation(
         config_eos,
@@ -546,3 +560,62 @@ def test_battery_lcos_is_charged_once_on_delivered_energy(config_eos):
     assert result["Gesamtkosten_Euro"] == pytest.approx(0.06)
     assert result["Einnahmen_Euro_pro_Stunde"][0] == pytest.approx(0.08)
     assert result["Gesamtbilanz_Euro"] == pytest.approx(-0.02)
+
+
+def test_disabled_ac_charging_clears_the_reported_plan(config_eos):
+    """With AC charging off the reported plan must not keep charge commands.
+
+    The simulation ignores the AC charge genes when the inverter forbids grid
+    charging. The solution is read back from the same array, so a controller
+    acting on it would grid-charge the battery although no such charge was ever
+    simulated or paid for.
+    """
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 2}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 2}}
+    )
+
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=10000,
+            initial_soc_percentage=50,
+            min_soc_percentage=0,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            max_charge_power_w=5000,
+        ),
+        prediction_hours=config_eos.prediction.hours,
+    )
+    inverter = Inverter(
+        InverterParameters(
+            device_id="inverter1",
+            max_power_wh=5000.0,
+            battery_id=battery.parameters.device_id,
+            max_ac_charge_power_w=0,  # Netzladen deaktiviert
+        ),
+        battery=battery,
+    )
+
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters(
+            pv_prognose_wh=[0.0, 0.0],
+            strompreis_euro_pro_wh=[0.0003, 0.0003],
+            einspeiseverguetung_euro_pro_wh=[0.0001, 0.0001],
+            preis_euro_pro_wh_akku=0.0,
+            gesamtlast=[0.0, 0.0],
+        ),
+        optimization_hours=config_eos.optimization.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+        inverter=inverter,
+    )
+    simulation.ac_charge_hours = np.array([0.8, 0.0])
+
+    soc_before = battery.current_soc_percentage()
+    simulation.simulate(start_hour=0)
+
+    # Nothing was charged ...
+    assert battery.current_soc_percentage() == pytest.approx(soc_before)
+    # ... and the plan says so.
+    assert simulation.ac_charge_hours is not None
+    assert list(simulation.ac_charge_hours) == [0.0, 0.0]

@@ -121,9 +121,9 @@ def test_update_data(mock_get, provider, sample_akkudoktor_1_json, cache_store):
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
-    assert (
-        len(provider) == 73
-    )  # we have 48 datasets in the api response, we want to know 48h into the future. The data we get has already 23h into the future so we need only 25h more. 48+25=73
+    # The API response holds 48 datasets, 23 h of which already reach into the
+    # future, so the provider forecasts the remaining hours of the horizon itself.
+    assert len(provider) == 48 + provider.config.prediction.hours - 23
 
     # Assert we get hours prioce values by resampling
     np_price_array = provider.key_to_array(

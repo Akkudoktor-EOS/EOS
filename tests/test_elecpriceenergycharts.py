@@ -125,9 +125,9 @@ def test_update_data(mock_get, provider, sample_energycharts_json, cache_store):
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
-    assert len(provider) == 72
     # The final raw timestamp already represents its complete interval. Thus the
-    # 48 API values need 24, rather than 25, additional hourly forecasts.
+    # 48 API values need one hour less of extrapolation than the horizon suggests.
+    assert len(provider) == 48 + provider.config.prediction.hours - 24
 
     # Assert we get hours prioce values by resampling
     np_price_array = provider.key_to_array(
@@ -267,9 +267,8 @@ def test_market_price_charge_round_trip(provider):
     )
 
 
-@patch("requests.get")
-def test_update_data_with_incomplete_forecast(mock_get, provider):
-    """Test `_update_data` with incomplete or missing forecast data."""
+def _mock_empty_forecast(mock_get) -> None:
+    """Let the API answer correctly but without any price rows."""
     incomplete_data: dict = {
         "license_info": "",
         "unix_seconds": [],
@@ -281,9 +280,50 @@ def test_update_data_with_incomplete_forecast(mock_get, provider):
     mock_response.status_code = 200
     mock_response.content = json.dumps(incomplete_data)
     mock_get.return_value = mock_response
+
+
+@patch("requests.get")
+def test_update_data_with_incomplete_forecast_is_fatal_on_cold_start(mock_get, provider):
+    """Without any history there is nothing to fall back to."""
+    _mock_empty_forecast(mock_get)
+    provider.highest_orig_datetime = None
     logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(ValueError):
         provider._update_data(force_update=True)
+
+
+@patch("requests.get")
+def test_update_data_with_incomplete_forecast_keeps_existing_history(
+    mock_get, provider, sample_energycharts_json, cache_store
+):
+    """An upstream without new prices must not fail the whole prediction update.
+
+    The horizon always reaches past the last published price, so a day-ahead
+    source that has not published the next day yet is the normal case. The
+    provider keeps its history and extrapolates the remaining slots.
+    """
+    # Establish a history first.
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = json.dumps(sample_energycharts_json)
+    mock_get.return_value = mock_response
+    cache_store.clear(clear_all=True)
+    get_ems().set_start_datetime(to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin"))
+    provider.highest_orig_datetime = None
+    provider.update_data(force_enable=True, force_update=True)
+
+    before = provider.highest_orig_datetime
+    assert before is not None
+    records_before = len(provider)
+
+    # The next refresh finds nothing new upstream.
+    _mock_empty_forecast(mock_get)
+    cache_store.clear(clear_all=True)
+    logger.info("The following errors are intentional and part of the test.")
+    provider._update_data(force_update=True)
+
+    assert provider.highest_orig_datetime == before
+    assert len(provider) == records_before
 
 
 @pytest.mark.parametrize(
@@ -395,3 +435,32 @@ def test_energycharts_development_forecast_data(provider):
         "w", encoding="utf-8", newline="\n"
     ) as f_out:
         json.dump(energy_charts_data, f_out, indent=4)
+
+
+@patch("requests.get")
+def test_forecast_covers_the_horizon_when_the_source_lags(
+    mock_get, provider, sample_energycharts_json, cache_store
+):
+    """A lagging source must not shorten the forecast by its own lag.
+
+    The extrapolation is appended after the last known price, so measuring its
+    length from now leaves exactly the lag uncovered at the end of the horizon -
+    where callers then see the last value held constant.
+    """
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = json.dumps(sample_energycharts_json)
+    mock_get.return_value = mock_response
+    cache_store.clear(clear_all=True)
+
+    # The sample ends at 2024-12-11 23:00; start the run more than a day later.
+    start = to_datetime("2024-12-12 13:00:00", in_timezone="Europe/Berlin")
+    get_ems().set_start_datetime(start)
+    provider.highest_orig_datetime = None
+    provider.update_data(force_enable=True, force_update=True)
+
+    assert provider.highest_orig_datetime < start
+
+    horizon_end = start.add(hours=provider.config.prediction.hours)
+    series = provider.key_to_series(key="elecprice_marketprice_wh")
+    assert series.index.max() >= horizon_end.subtract(hours=1)

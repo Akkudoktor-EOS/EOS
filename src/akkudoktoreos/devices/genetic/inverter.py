@@ -51,6 +51,7 @@ class Inverter:
         consumption: float,
         hour: int,
         allow_battery_grid_export: bool = False,
+        battery_grid_export_factor: float = 1.0,
     ) -> tuple[float, float, float, float]:
         """Process one slot using probabilistic direct PV-to-load overlap.
 
@@ -59,6 +60,17 @@ class Inverter:
         PV-to-load power. The remaining load and PV surplus are then handled
         independently, because both can occur during different sub-intervals of
         the same hourly or 15-minute slot.
+
+        Args:
+            generation: PV energy of the slot [Wh].
+            consumption: Load energy of the slot [Wh].
+            hour: Slot index.
+            allow_battery_grid_export: Whether the battery may discharge into the
+                grid in this slot (direct marketing).
+            battery_grid_export_factor: Export level as a factor of the battery's
+                rated discharge power [0.0 ... 1.0]. 1.0 exports as much as the
+                battery and the inverter allow, which is the behaviour when no
+                export rates are configured.
         """
         losses = 0.0
         grid_export = 0.0
@@ -123,10 +135,20 @@ class Inverter:
         losses += max(remaining_surplus - pv_grid_export, 0.0)
 
         if allow_battery_grid_export and self.battery and remaining_inverter_ac_capacity > 0.0:
+            export_factor = min(max(float(battery_grid_export_factor), 0.0), 1.0)
             remaining_battery_ac = (
                 self.battery.remaining_discharge_energy_wh(hour) * self.dc_to_ac_efficiency
             )
-            export_capacity = min(remaining_inverter_ac_capacity, remaining_battery_ac)
+            # The rate caps the export against the battery's *rated* discharge
+            # power, so it stays a plain power setpoint ("export at 50 %") that
+            # does not silently grow when self-consumption used less of the slot.
+            # At factor 1.0 this bound never binds; behaviour is unchanged.
+            rated_export_ac = (
+                self.battery.rated_discharge_energy_wh() * export_factor * self.dc_to_ac_efficiency
+            )
+            export_capacity = min(
+                remaining_inverter_ac_capacity, remaining_battery_ac, rated_export_ac
+            )
             battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
                 export_capacity, hour
             )

@@ -166,9 +166,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
                 highest_orig_datetime = orig_datetime
 
             # Convert EUR/MWh to EUR/Wh and add the configured retail price components.
-            price_wh = self._price_with_charges(
-                price_eur_per_mwh / 1_000_000, orig_datetime
-            )
+            price_wh = self._price_with_charges(price_eur_per_mwh / 1_000_000, orig_datetime)
 
             # Store in series
             series_data.at[orig_datetime] = price_wh
@@ -279,8 +277,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
         if needs_update:
             logger.info(
-                "Update {} is needed, last in history: {}, "
-                "force_update={}, history_refresh={}",
+                "Update {} is needed, last in history: {}, " "force_update={}, history_refresh={}",
                 self.provider_id(),
                 self.highest_orig_datetime,
                 bool(force_update),
@@ -290,15 +287,36 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             start_date = to_datetime(
                 self.ems_start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
             )
-            # Get Energy-Charts electricity price data
-            energy_charts_data = self._request_forecast(
-                start_date=start_date, force_update=force_update
-            )  # type: ignore
+            try:
+                # Get Energy-Charts electricity price data
+                energy_charts_data = self._request_forecast(
+                    start_date=start_date, force_update=force_update
+                )  # type: ignore
 
-            # Parse and store data
-            series_data = self._parse_data(energy_charts_data)
-            self.highest_orig_datetime = series_data.index.max()
-            self.key_from_series("elecprice_marketprice_wh", series_data)
+                # Parse and store data
+                series_data = self._parse_data(energy_charts_data)
+                if series_data.empty:
+                    raise ValueError("No electricity price data available")
+                self.highest_orig_datetime = series_data.index.max()
+                self.key_from_series("elecprice_marketprice_wh", series_data)
+            except Exception as exc:
+                if self.highest_orig_datetime is None:
+                    # Cold start: there is no history to fall back to, so a failed
+                    # fetch is fatal.
+                    raise
+                # The horizon reaches past the last published price on every run,
+                # so an upstream that has not published the next day yet is the
+                # normal case, not an outage - and neither is a transient API
+                # failure a reason to fail the whole prediction update. Keep the
+                # history and let the ETS/median branch below extrapolate the
+                # remaining slots.
+                logger.warning(
+                    "{} update failed ({}); keeping existing history until {} and "
+                    "extrapolating the remaining slots.",
+                    self.provider_id(),
+                    exc,
+                    self.highest_orig_datetime,
+                )
         else:
             logger.info(
                 "No update {} is needed, last in history: {}",
@@ -338,16 +356,16 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         )
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
-        covered_slots = 0
-        if self.highest_orig_datetime >= self.ems_start_datetime:
-            covered_slots = (
-                int(
-                    (self.highest_orig_datetime - self.ems_start_datetime).total_seconds()
-                    // resolution_seconds
-                )
-                + 1
-            )
-        needed_slots = self.config.prediction.hours * slots_per_hour - covered_slots
+        # The forecast is appended after the last known value, so its length has
+        # to be measured from there - not from now. When the source lags behind
+        # (a day-ahead auction that has not been published yet), measuring from
+        # now leaves exactly that lag uncovered at the end of the horizon, where
+        # callers then see the last value held constant.
+        horizon_end = self.ems_start_datetime + to_duration(f"{self.config.prediction.hours} hours")
+        needed_slots = (
+            int((horizon_end - self.highest_orig_datetime).total_seconds() // resolution_seconds)
+            - 1
+        )
 
         if needed_slots <= 0:
             logger.warning(

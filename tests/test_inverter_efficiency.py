@@ -222,7 +222,7 @@ class TestAcChargingInSimulation:
         )
 
         config_eos.merge_settings_from_dict(
-            {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+            {"prediction": {"hours": 48}, "optimization": {"tail_horizon_hours": 0, "hours": 24}}
         )
 
         prediction_hours = config_eos.prediction.hours
@@ -561,7 +561,7 @@ def _run_evaluate_with_mocked_sim(
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"hours": 24},
+            "optimization": {"tail_horizon_hours": 0, "hours": 24},
         }
     )
     config_eos.optimization.genetic.penalties = {
@@ -614,7 +614,7 @@ def _run_evaluate_with_mocked_ev_soc(config_eos, ev_soc_percentage: float) -> fl
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"hours": 48},
+            "optimization": {"tail_horizon_hours": 0, "hours": 48},
         }
     )
     config_eos.optimization.genetic.penalties = {

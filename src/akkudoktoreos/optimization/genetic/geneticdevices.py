@@ -1,16 +1,18 @@
 """Genetic optimization algorithm device interfaces/ parameters."""
 
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.config.configabc import TimeWindowSequence
 from akkudoktoreos.devices.devicesabc import (
+    ConsumerDeadlinePolicy,
     ConsumerScheduleMode,
     validate_home_appliance_load_definition,
 )
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
+from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
 
 
 class DeviceParameters(GeneticParametersBaseModel):
@@ -98,6 +100,18 @@ class BaseBatteryParameters(DeviceParameters):
             "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
         },
     )
+    grid_export_rates: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Battery-to-grid export rates as factor of maximum discharge "
+                "power ]0.00 ... 1.00]. Only used with direct marketing. None "
+                "falls back to the configured devices.batteries[0]."
+                "grid_export_rates."
+            ),
+            "examples": [[0.25, 0.5, 0.75, 1.0], [1.0], None],
+        },
+    )
 
 
 class SolarPanelBatteryParameters(BaseBatteryParameters):
@@ -118,7 +132,13 @@ class SolarPanelBatteryParameters(BaseBatteryParameters):
 
 
 class ElectricVehicleParameters(BaseBatteryParameters):
-    """Battery Electric Vehicle Device Simulation Configuration."""
+    """Battery Electric Vehicle Device Simulation Configuration.
+
+    ``min_soc_percentage`` is the charging target. By default it only has to be
+    reached by the end of the optimization horizon; a deadline
+    (``min_soc_deadline_datetime`` and/or ``min_soc_max_duration_h``) moves that
+    requirement forward, for example to the next departure.
+    """
 
     device_id: str = Field(
         json_schema_extra={"description": "ID of electric vehicle", "examples": ["ev1"]}
@@ -127,6 +147,37 @@ class ElectricVehicleParameters(BaseBatteryParameters):
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the current state of charge (SOC) of the battery in percentage."
     )
+    min_soc_deadline_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Absolute moment by which 'min_soc_percentage' has to be "
+                "reached (departure time). A date time without timezone is read "
+                "as local time. None means end of the optimization horizon."
+            ),
+            "examples": [None, "2026-07-16T07:00:00+02:00"],
+        },
+    )
+    min_soc_max_duration_h: Optional[float] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "description": (
+                "Maximum time from the start of the optimization until "
+                "'min_soc_percentage' has to be reached [h]. Combined with "
+                "'min_soc_deadline_datetime' the earlier of the two applies."
+            ),
+            "examples": [None, 6.0],
+        },
+    )
+
+    @field_validator("min_soc_deadline_datetime", mode="before")
+    @classmethod
+    def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
 
 
 class HomeApplianceParameters(DeviceParameters):
@@ -136,6 +187,14 @@ class HomeApplianceParameters(DeviceParameters):
     (``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)
     **or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one
     of the two must be provided.
+
+    *When* the run may happen is constrained by three independent mechanisms that
+    all have to hold at once:
+
+    - ``time_windows``: recurring wall-clock windows ("only between 10:00 and 13:00").
+    - ``earliest_start_datetime``: absolute lower bound ("not before I get home").
+    - ``deadline_datetime``: absolute upper bound; the run must be *finished*
+      before that moment ("clean dishes by 03:00 tonight").
     """
 
     device_id: str = Field(
@@ -207,6 +266,49 @@ class HomeApplianceParameters(DeviceParameters):
             ],
         },
     )
+    earliest_start_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Absolute earliest moment the run may start. Starts before it are "
+                "dropped, in addition to 'time_windows' and the horizon. A date "
+                "time without timezone is read as local time. This bound is never "
+                "relaxed."
+            ),
+            "examples": [None, "2026-07-15T20:00:00+02:00"],
+        },
+    )
+    deadline_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Absolute deadline: the complete run must have *finished* at or "
+                "before this moment (e.g. end of the day, or 03:00 tonight). A "
+                "date time without timezone is read as local time. See "
+                "'deadline_policy' for what happens when no start can meet it."
+            ),
+            "examples": [None, "2026-07-16T03:00:00+02:00"],
+        },
+    )
+    deadline_policy: ConsumerDeadlinePolicy = Field(
+        default=ConsumerDeadlinePolicy.BEST_EFFORT,
+        json_schema_extra={
+            "description": (
+                "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT "
+                "runs as early as possible instead (warning logged), STRICT keeps "
+                "the deadline (a ONCE consumer then fails the optimization)."
+            ),
+            "examples": ["BEST_EFFORT", "STRICT"],
+        },
+    )
+
+    @field_validator("earliest_start_datetime", "deadline_datetime", mode="before")
+    @classmethod
+    def transform_to_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
 
     @model_validator(mode="after")
     def validate_load_definition(self) -> Self:
@@ -217,6 +319,17 @@ class HomeApplianceParameters(DeviceParameters):
             consumption_wh=self.consumption_wh,
             duration_h=self.duration_h,
         )
+        return self
+
+    @model_validator(mode="after")
+    def validate_schedule_bounds(self) -> Self:
+        """Reject an empty scheduling interval."""
+        if self.earliest_start_datetime is not None and self.deadline_datetime is not None:
+            if compare_datetimes(self.deadline_datetime, self.earliest_start_datetime).le:
+                raise ValueError(
+                    f"deadline_datetime {self.deadline_datetime} must be after "
+                    f"earliest_start_datetime {self.earliest_start_datetime}."
+                )
         return self
 
 

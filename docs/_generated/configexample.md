@@ -58,6 +58,12 @@
                        0.9,
                        1.0
                    ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
@@ -83,6 +89,12 @@
                        0.7,
                        0.8,
                        0.9,
+                       1.0
+                   ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
                        1.0
                    ],
                    "min_soc_percentage": 0,
@@ -224,11 +236,14 @@
            ]
        },
        "optimization": {
+           "tail_horizon_hours": 48,
            "horizon_hours": 24,
            "interval": 3600,
            "algorithm": "GENETIC",
            "visualize_pdf": true,
+           "terminal_value_mode": "AUTO",
            "terminal_value_euro_per_kwh": 0.0,
+           "terminal_value_window_hours": 24,
            "genetic": {
                "individuals": 400,
                "generations": 400,
@@ -239,7 +254,7 @@
            }
        },
        "prediction": {
-           "hours": 48,
+           "hours": 72,
            "historic_hours": 48
        },
        "pvforecast": {
@@ -249,7 +264,8 @@
                "PVForecastVrm": null,
                "PVForecastPVNode": null,
                "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+               "PVForecastSolcast": null,
+               "PVForecastAkkudoktorLocal": null
            },
            "planes": [
                {

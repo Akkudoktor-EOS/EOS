@@ -151,7 +151,7 @@ def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout
     mock_get.return_value = mock_response
 
     expected_start = to_datetime("2024-10-26 00:00:00", in_timezone="Europe/Berlin")
-    expected_end = to_datetime("2024-10-28 00:00:00", in_timezone="Europe/Berlin")
+    expected_end = to_datetime("2024-10-29 00:00:00", in_timezone="Europe/Berlin")
     expected_keep = to_datetime("2024-10-24 00:00:00", in_timezone="Europe/Berlin")
 
     # Call the method
@@ -160,7 +160,7 @@ def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout
     provider.update_data()
 
     # Check for correct prediction time window
-    assert provider.config.prediction.hours == 48
+    assert provider.config.prediction.hours == 72
     assert provider.config.prediction.historic_hours == 48
     assert compare_datetimes(provider.ems_start_datetime, expected_start).equal
     assert compare_datetimes(provider.end_datetime, expected_end).equal

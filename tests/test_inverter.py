@@ -15,6 +15,9 @@ def mock_battery() -> Mock:
     mock_battery = Mock()
     mock_battery.charge_energy = Mock(return_value=(0.0, 0.0))
     mock_battery.discharge_energy = Mock(return_value=(0.0, 0.0))
+    # Rated discharge energy of one slot - the reference a grid-export rate is
+    # applied to. Large enough to never bind at the default factor of 1.0.
+    mock_battery.rated_discharge_energy_wh = Mock(return_value=1e9)
     mock_battery.parameters.device_id = "battery1"
     return mock_battery
 
@@ -241,6 +244,26 @@ def test_process_energy_allows_battery_grid_export(inverter, mock_battery):
     assert self_consumption == 100.0
     mock_battery.discharge_energy.assert_has_calls([call(100.0, 12), call(200.0, 12)])
     inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_not_called()
+
+
+def test_process_energy_grid_export_rate_limits_export(inverter, mock_battery):
+    """An export rate caps the export at that share of the rated discharge power."""
+    mock_battery.max_charge_power_w = 300.0
+    mock_battery.remaining_discharge_energy_wh.return_value = 200.0
+    mock_battery.rated_discharge_energy_wh.return_value = 300.0
+    mock_battery.discharge_energy.side_effect = [(100.0, 0.0), (150.0, 0.0)]
+
+    grid_export, grid_import, losses, self_consumption = inverter.process_energy(
+        generation=0.0,
+        consumption=100.0,
+        hour=12,
+        allow_battery_grid_export=True,
+        battery_grid_export_factor=0.5,
+    )
+
+    # 0.5 * 300 Wh rated = 150 Wh, below the 200 Wh the battery could still give.
+    assert grid_export == pytest.approx(150.0)
+    mock_battery.discharge_energy.assert_has_calls([call(100.0, 12), call(150.0, 12)])
 
 
 def test_process_energy_battery_empty(inverter, mock_battery):

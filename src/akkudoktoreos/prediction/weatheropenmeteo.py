@@ -38,9 +38,9 @@ WeatherDataOpenMeteoMapping: List[Tuple[str, Optional[str], Optional[Union[str, 
     ("wind_direction_10m", "Wind Direction (°)", 1),
     ("wind_gusts_10m", "Wind Gust Speed (kmph)", 3.6),  # m/s to km/h
     ("shortwave_radiation", "Global Horizontal Irradiance (W/m2)", 1),
-    ("direct_radiation", "Direct Normal Irradiance (W/m2)", 1),
+    ("direct_radiation", None, None),  # beam on the horizontal plane, not DNI
     ("diffuse_radiation", "Diffuse Horizontal Irradiance (W/m2)", 1),
-    ("direct_normal_irradiance", None, None),
+    ("direct_normal_irradiance", "Direct Normal Irradiance (W/m2)", 1),
     ("global_tilted_irradiance", None, None),
     ("terrestrial_radiation", None, None),
     ("shortwave_radiation_instant", None, None),
@@ -148,7 +148,7 @@ class WeatherOpenMeteo(WeatherProvider):
                 "wind_direction_10m",
                 "wind_gusts_10m",
                 "shortwave_radiation",  # GHI
-                "direct_radiation",  # DNI
+                "direct_normal_irradiance",  # DNI
                 "diffuse_radiation",  # DHI
                 "dew_point_2m",
                 "apparent_temperature",
@@ -157,6 +157,9 @@ class WeatherOpenMeteo(WeatherProvider):
                 "sunshine_duration",
             ],
             "timezone": self.config.general.timezone,
+            # The mapping table converts m/s -> km/h, so ask for m/s explicitly instead
+            # of Open-Meteo's km/h default.
+            "wind_speed_unit": "ms",
         }
 
         # Calculate the number of days between start and end
