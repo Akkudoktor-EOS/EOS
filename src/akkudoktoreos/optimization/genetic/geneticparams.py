@@ -31,7 +31,19 @@ from akkudoktoreos.optimization.genetic.geneticdevices import (
 from akkudoktoreos.utils.datetimeutil import to_duration
 
 MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS = frozenset(
-    {"FeedInTariffAkkudoktor", "FeedInTariffEnergyCharts", "FeedInTariffTibber"}
+    {
+        "FeedInTariffAkkudoktor",
+        "FeedInTariffEnergyCharts",
+        "FeedInTariffTibber",
+        # FeedInTariffImport carries operator-pushed market revenues (external
+        # EMS bridges import the resolved per-slot feed-in here). Without it,
+        # direct marketing silently replaced the imported revenue series with
+        # elecprice_marketprice_wh — for bridges that push the resolved
+        # END-CUSTOMER import price there, the GA then saw feed-in == import
+        # price in every slot, a world where battery arbitrage can never pay,
+        # and correctly converged to never cycling the battery.
+        "FeedInTariffImport",
+    }
 )
 
 # Do not import directly from akkudoktoreos.core.coreabc
@@ -317,6 +329,11 @@ class GeneticOptimizationParameters(
                 cls.config.feedintariff.direct_marketing_enabled
                 and cls.config.feedintariff.provider not in MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS
             ):
+                logger.warning(
+                    "Direct marketing: provider {} is not a market-price feed-in provider - "
+                    "falling back to elecprice_marketprice_wh as feed-in revenue.",
+                    cls.config.feedintariff.provider,
+                )
                 feed_in_tariff_wh = list(elecprice_marketprice_wh)
             else:
                 feed_in_tariff_wh = forecast("feed_in_tariff_wh")

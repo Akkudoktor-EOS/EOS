@@ -19,6 +19,7 @@ from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
 from akkudoktoreos.devices.genetic.inverter import Inverter
 from akkudoktoreos.optimization.genetic.geneticparams import (
+    MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS,
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
@@ -26,7 +27,10 @@ from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
     GeneticSolution,
 )
-from akkudoktoreos.optimization.genetic.tailvalue import TailValueCurve, build_tail_value_curve
+from akkudoktoreos.optimization.genetic.tailvalue import (
+    TailValueCurve,
+    build_tail_value_curve,
+)
 from akkudoktoreos.optimization.genetic.terminalvalue import (
     TailDiagnostics,
     TerminalValueCurve,
@@ -1240,6 +1244,11 @@ class GeneticOptimization(OptimizationBase):
     ) -> GeneticOptimizationParameters:
         """Apply configuration-derived parameter overrides before optimization."""
         if not self._direct_marketing_enabled():
+            return parameters
+
+        # Provider revenues are authoritative even when every slot has the same
+        # value (including zero or a negative price).
+        if self.config.feedintariff.provider in MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS:
             return parameters
 
         feed_in_tariff = parameters.ems.einspeiseverguetung_euro_pro_wh
