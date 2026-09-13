@@ -97,7 +97,7 @@ requires-dist = [
     { name = "docutils", marker = "extra == 'dev'", specifier = "==0.21.2" },
     { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = "==0.141.1" },
     { name = "fastapi-cli", specifier = "==0.0.32" },
-    { name = "gitpython", marker = "extra == 'dev'", specifier = "==3.1.61" },
+    { name = "gitpython", marker = "extra == 'dev'", specifier = "==3.1.62" },
     { name = "linkify-it-py", specifier = "==2.2.0" },
     { name = "lmdb", specifier = "==2.3.0" },
     { name = "loguru", specifier = "==0.7.3" },
@@ -126,7 +126,7 @@ requires-dist = [
     { name = "pytest-xprocess", marker = "extra == 'dev'", specifier = "==1.0.2" },
     { name = "python-fasthtml", specifier = "==0.14.13" },
     { name = "requests", specifier = "==2.34.2" },
-    { name = "rich-toolkit", specifier = "==0.20.4" },
+    { name = "rich-toolkit", specifier = "==0.20.5" },
     { name = "scipy", specifier = "==1.17.1" },
     { name = "scipy-stubs", marker = "extra == 'dev'", specifier = "==1.17.1.5" },
     { name = "sphinx", marker = "extra == 'dev'", specifier = "==9.0.4" },
@@ -1191,14 +1191,14 @@ wheels = [
 
 [[package]]
 name = "gitpython"
-version = "3.1.61"
+version = "3.1.62"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitdb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6f/61/3285044215fb596bf093e39ccb96ece0a1076a8ca57a61e069a6a33cdb1b/gitpython-3.1.61.tar.gz", hash = "sha256:f51c24d8c0f733a195447385f5774a5dfe8767f5acfd7994a33755644c6ecc95", size = 231680, upload-time = "2026-08-28T11:01:13.761Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/db/3ca813cbacb23ab6fe46ff38a9b5ef8e73e970c8051f2ce903aacafe0446/gitpython-3.1.62.tar.gz", hash = "sha256:1791de66309bc0c7cfca40bf8d2e3de7ca091cbf94e6051be1ad0722c61062af", size = 231728, upload-time = "2026-09-07T02:57:21.155Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6f/5e/49cc172da4d0578644ba37cec5cb365b1fefc603b26edea9bcac1c7f830a/gitpython-3.1.61-py3-none-any.whl", hash = "sha256:8ab28c9da863cdd9e7d7694ec46cf3e6c9a12d8a30a1acd3447aec11975d530c", size = 222118, upload-time = "2026-08-28T11:01:12.262Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/0b/29d7965215f8ef830a7ca1f42997fe13e5693d85e9edb18f938d063ef5f2/gitpython-3.1.62-py3-none-any.whl", hash = "sha256:7002251225e10e29d2e1f49e6532613fe5d5d9f0b6f1f02997a52b38fe56899e", size = 222753, upload-time = "2026-09-07T02:57:19.762Z" },
 ]
 
 [[package]]
@@ -3071,16 +3071,16 @@ wheels = [
 
 [[package]]
 name = "rich-toolkit"
-version = "0.20.4"
+version = "0.20.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/43/38341021d2741c580415884f74b94dbd32844c8529a50c92a94c58b096f3/rich_toolkit-0.20.4.tar.gz", hash = "sha256:88f1b225e360e13c53d643ab52efaf59ef7bf4da282614c8ba5afb72bc63ddc2", size = 206075, upload-time = "2026-09-04T10:39:12.557Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/1c/f134352beb393cc17e6241ecf0bf4dd41a6759e2e3971a69a6ad185b87a2/rich_toolkit-0.20.5.tar.gz", hash = "sha256:0c9e1c414ffb0720be26285d472e263d1e704b71d31a7e13274b9996db4969e1", size = 213207, upload-time = "2026-09-08T16:13:12.007Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/89/510df1a48e886f5e786a525c0a2a6002fb9b4b2d997db3deacff84282fd1/rich_toolkit-0.20.4-py3-none-any.whl", hash = "sha256:ea37e9d364e7a6a59af9d96c5b18de3f6046f17affa8b4bc07f3bfad7a597ec5", size = 36290, upload-time = "2026-09-04T10:39:11.524Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/5f/ee8c39750ed9837f54021a8a0eb96f971cd788c1a7d40931867d6d0518bd/rich_toolkit-0.20.5-py3-none-any.whl", hash = "sha256:e21fd616db9c0539d3c50f3433fb1173db95c19d3cbf215615e224182fad6c18", size = 39370, upload-time = "2026-09-08T16:13:10.885Z" },
 ]
 
 [[package]]
