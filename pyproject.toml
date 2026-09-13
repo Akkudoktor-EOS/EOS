@@ -36,7 +36,7 @@ dependencies = [
     "requests==2.34.2",
     "pandas==3.0.5",
     "pendulum==3.2.0",
-    "platformdirs==4.11.7",
+    "platformdirs==4.11.8",
     "psutil==7.2.2",
     "pvlib==0.15.2",
     "pydantic==2.13.5",
@@ -61,11 +61,11 @@ dev = [
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
     "pre-commit==4.6.2",
     "mypy==2.3.1",
-    "types-requests==2.33.0.20260712", # for mypy
+    "types-requests==2.33.0.20260906", # for mypy
     "pandas-stubs==3.0.5.260730", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.23.0.20260827", # for mypy
-    "types-PyYaml==6.0.12.20260815", # for mypy
+    "types-PyYaml==6.0.12.20260906", # for mypy
     "scipy-stubs==1.17.1.5", # for mypy
     "types-psutil==7.2.2.20260906", # for mypy
     "commitizen==4.18.0",
@@ -78,7 +78,7 @@ dev = [
     "GitPython==3.1.61",
     "myst-parser==5.1.0",
     "docutils==0.21.2",
-    "sphinxcontrib-mermaid==2.1.0   ",
+    "sphinxcontrib-mermaid==2.1.1   ",
 
     # Pytest
     "pytest==9.1.1",
@@ -86,7 +86,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-xprocess==1.0.2",
     "coverage==7.16.0",
-    "pypdf==6.17.0",
+    "pypdf==6.18.0",
 ]
 
 [project.urls]
