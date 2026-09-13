@@ -717,7 +717,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             logger.debug("Config init called again with parameters {} {}", args, kwargs)
             return
         logger.debug("Config init with parameters {} {}", args, kwargs)
-        self._setup(self, *args, **kwargs)
+        # Do not pass self - the first positional argument of pydantic_settings.BaseSettings
+        # is _case_sensitive, which would make environment variable lookup case sensitive.
+        self._setup(*args, **kwargs)
 
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""

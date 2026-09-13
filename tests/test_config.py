@@ -649,13 +649,32 @@ def test_reset_settings_drops_runtime_settings(config_eos_file):
 
 def test_set_nested_value_survives_merge(config_eos_file):
     """Granular updates are not lost by a later bulk update."""
-    write_config_file(config_eos_file, {"optimization": {"genetic": {"individuals": 200}}})
+    write_config_file(
+        config_eos_file,
+        {
+            "general": {"latitude": 48.0},
+            "optimization": {"genetic": {"individuals": 200}},
+            "pvforecast": {
+                "planes": [
+                    {"surface_tilt": 30.0, "surface_azimuth": azimuth, "peakpower": 5.0}
+                    for azimuth in (0.0, 90.0)
+                ]
+            },
+        },
+    )
 
     config_eos_file.set_nested_value("optimization/genetic/individuals", 400)
-    assert config_eos_file.optimization.genetic.individuals == 400
+    # A list index can not be expressed by the settings dictionary
+    config_eos_file.set_nested_value("pvforecast/planes/1/peakpower", 9.9)
+    # Clearing a value must not be reverted by the config file either
+    config_eos_file.set_nested_value("general/latitude", None)
 
-    config_eos_file.merge_settings_from_dict({"general": {"latitude": 51.1657}})
+    config_eos_file.merge_settings_from_dict({"server": {"port": 8600}})
+
+    assert config_eos_file.server.port == 8600
     assert config_eos_file.optimization.genetic.individuals == 400
+    assert config_eos_file.pvforecast.planes[1].peakpower == 9.9
+    assert config_eos_file.general.latitude is None
 
 
 def test_revert_settings_restores_backup(config_eos_file):
@@ -678,3 +697,13 @@ def test_revert_settings_restores_backup(config_eos_file):
     config_eos_file.revert_settings("backup")
 
     assert config_eos_file.optimization.genetic.individuals == 500
+
+
+def test_config_from_env_on_first_init(config_eos, config_default_dirs, monkeypatch):
+    """Environment variables are applied on the first configuration build."""
+    config_eos.reset_instance()
+
+    monkeypatch.setenv("EOS_CONFIG_DIR", str(config_default_dirs[0]))
+    monkeypatch.setenv("EOS_SERVER__PORT", "8553")
+
+    assert ConfigEOS().server.port == 8553
