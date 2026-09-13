@@ -65,7 +65,7 @@ dev = [
     "pandas-stubs==3.0.5.260730", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.23.0.20260827", # for mypy
-    "types-PyYaml==6.0.12.20260815", # for mypy
+    "types-PyYaml==6.0.12.20260906", # for mypy
     "scipy-stubs==1.17.1.5", # for mypy
     "types-psutil==7.2.2.20260906", # for mypy
     "commitizen==4.18.0",
