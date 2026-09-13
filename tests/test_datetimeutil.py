@@ -1209,9 +1209,24 @@ def test_to_datetime(
             assert compare.equal == True
 
 
+@pytest.mark.parametrize("zone", ["America/Chicago", "UTC", "Europe/Berlin"])
+@pytest.mark.parametrize("date_factory", [datetime.date, pendulum.date])
+@pytest.mark.parametrize("to_maxtime", [False, True])
+def test_calendar_date_keeps_its_day_in_target_timezone(zone, date_factory, to_maxtime):
+    """Date-only input denotes a local calendar day, not midnight UTC."""
+    result = to_datetime(date_factory(2026, 9, 13), in_timezone=zone, to_maxtime=to_maxtime)
+    assert result.to_date_string() == "2026-09-13"
+    assert result.timezone_name == zone
+    assert result.hour == (23 if to_maxtime else 0)
+    assert result.minute == (59 if to_maxtime else 0)
+    assert result.second == (59 if to_maxtime else 0)
+    assert result.microsecond == (999999 if to_maxtime else 0)
+
+
 # -----------------------------
 # to_duration
 # -----------------------------
+
 
 class TestToDuration:
     # ------------------------------------------------------------------

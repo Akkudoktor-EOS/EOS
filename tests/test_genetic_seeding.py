@@ -175,7 +175,7 @@ def test_mutated_warm_start_neighbors_stay_within_control_horizon(config_eos: Co
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=10)
-    start_solution = [0] * opt.control_slots
+    start_solution = [0.0] * opt.control_slots
 
     neighbors = opt._mutated_warm_start_neighbors(start_solution, count=5)
 
@@ -193,7 +193,7 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
-    start_solution = [5] * opt.control_slots
+    start_solution = [5.0] * opt.control_slots
     warm_neighbors = [[6] * opt.control_slots for _ in range(50)]
     educated = [[7] * opt.control_slots for _ in range(100)]
     captured: dict[str, object] = {}
@@ -221,8 +221,9 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
         opt.optimize(start_solution=start_solution, ngen=1)
 
     population = captured["population"]
-    first_genes = [individual[0] for individual in population]  # type: ignore[union-attr]
-    assert len(population) == 300  # type: ignore[arg-type]
+    assert isinstance(population, list)
+    first_genes = [individual[0] for individual in population]
+    assert len(population) == 300
     assert first_genes.count(5) == 10
     assert first_genes.count(6) == 50
     assert first_genes.count(7) == 100
@@ -237,7 +238,7 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
-    start_solution = [5] * opt.control_slots
+    start_solution = [5.0] * opt.control_slots
     captured: dict[str, object] = {}
 
     def warm_neighbors(_solution, count):
@@ -271,8 +272,9 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
         opt.optimize(start_solution=start_solution, ngen=1)
 
     population = captured["population"]
-    first_genes = [individual[0] for individual in population]  # type: ignore[union-attr]
-    assert len(population) == 100  # type: ignore[arg-type]
+    assert isinstance(population, list)
+    first_genes = [individual[0] for individual in population]
+    assert len(population) == 100
     assert first_genes.count(5) == 10
     assert first_genes.count(6) == 20
     assert first_genes.count(7) == 40

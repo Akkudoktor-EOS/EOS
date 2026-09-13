@@ -51,9 +51,9 @@ from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
-from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
@@ -111,39 +111,37 @@ weather_openmeteo = WeatherOpenMeteo()
 weather_import = WeatherImport()
 
 
-def prediction_providers() -> (
-    list[
-        Union[
-            ElecPriceAkkudoktor,
-            ElecPriceEnergyCharts,
-            ElecPriceSMARD,
-            ElecPriceTibber,
-            ElecPriceFixed,
-            ElecPriceImport,
-            FeedInTariffEnergyCharts,
-            FeedInTariffAkkudoktor,
-            FeedInTariffFixed,
-            FeedInTariffImport,
-            FeedInTariffSMARD,
-            FeedInTariffTibber,
-            LoadAkkudoktor,
-            LoadAkkudoktorAdjusted,
-            LoadVrm,
-            LoadImport,
-            PVForecastAkkudoktor,
-            PVForecastVrm,
-            PVForecastPVNode,
-            PVForecastForecastSolar,
-            PVForecastSolcast,
-            PVForecastImport,
-            PVForecastAkkudoktorLocal,
-            WeatherBrightSky,
-            WeatherClearOutside,
-            WeatherOpenMeteo,
-            WeatherImport,
-        ]
+def prediction_providers() -> list[
+    Union[
+        ElecPriceAkkudoktor,
+        ElecPriceEnergyCharts,
+        ElecPriceSMARD,
+        ElecPriceTibber,
+        ElecPriceFixed,
+        ElecPriceImport,
+        FeedInTariffEnergyCharts,
+        FeedInTariffAkkudoktor,
+        FeedInTariffFixed,
+        FeedInTariffImport,
+        FeedInTariffSMARD,
+        FeedInTariffTibber,
+        LoadAkkudoktor,
+        LoadAkkudoktorAdjusted,
+        LoadVrm,
+        LoadImport,
+        PVForecastAkkudoktor,
+        PVForecastVrm,
+        PVForecastPVNode,
+        PVForecastForecastSolar,
+        PVForecastSolcast,
+        PVForecastImport,
+        PVForecastAkkudoktorLocal,
+        WeatherBrightSky,
+        WeatherClearOutside,
+        WeatherOpenMeteo,
+        WeatherImport,
     ]
-):
+]:
     """Return list of prediction providers.
 
     Factory for prediction container.

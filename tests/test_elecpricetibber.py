@@ -10,9 +10,9 @@ import pytest
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.elecpricetibber import (
+    TIBBER_PRICE_QUERY_QUARTER_HOURLY,
     ElecPriceTibber,
     ElecPriceTibberCommonSettings,
-    TIBBER_PRICE_QUERY_QUARTER_HOURLY,
     TibberGraphQLResponse,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime

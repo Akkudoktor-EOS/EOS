@@ -826,6 +826,10 @@ class GeneticOptimization(OptimizationBase):
 
         deadline = ev_parameters.min_soc_deadline_datetime
         if deadline is not None:
+            if self._slot0_datetime is None:
+                raise ValueError(
+                    "The optimization slot grid must be initialized before EV deadlines."
+                )
             seconds = (
                 deadline.in_timezone(self._slot0_datetime.timezone) - self._slot0_datetime
             ).total_seconds()
@@ -1310,8 +1314,12 @@ class GeneticOptimization(OptimizationBase):
                 energy=False,
             )
         else:
-            normalized_feed_in_tariff = [float(feed_in_tariff)] * (
-                self._control_start_slot() + self.prediction_slots
+            # A scalar describes the same input horizon as the purchase prices.
+            # Apply the same resampling and midnight-prefix trimming as a series.
+            normalized_feed_in_tariff = normalize(
+                [float(feed_in_tariff)] * len(ems.strompreis_euro_pro_wh),
+                "einspeiseverguetung_euro_pro_wh",
+                energy=False,
             )
 
         normalized_ems = ems.model_copy(
@@ -1795,9 +1803,10 @@ class GeneticOptimization(OptimizationBase):
 
         start_slot = self._control_start_slot()
         end_slot = max(start_slot, self.control_end_slot - self.fixed_eauto_hours)
-        if getattr(self, "_ev_soc_deadline_slot", None) is not None:
+        deadline_slot = getattr(self, "_ev_soc_deadline_slot", None)
+        if deadline_slot is not None:
             # Charging after the deadline does not help to reach the target.
-            end_slot = max(start_slot, min(end_slot, self._ev_soc_deadline_slot))
+            end_slot = max(start_slot, min(end_slot, deadline_slot))
         prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
         feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
         pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)

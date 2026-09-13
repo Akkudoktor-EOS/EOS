@@ -253,7 +253,8 @@ of energy falls between two whole slots.
 The exported energy of one slot is bounded by
 
 ```{math}
-E_{export} \le \min\bigl(P_{inv,free}\,\Delta t,\; E_{bat,remaining},\; r\,P_{bat,rated}\,\Delta t\bigr)
+E_{export} \le \min\bigl(P_{inv,free}\,\Delta t,\;
+E_{bat,remaining},\; r\,P_{bat,rated}\,\Delta t\bigr)
 ```
 
 where `r` is the selected rate. The rate applies to the *rated* discharge power, so it stays a plain

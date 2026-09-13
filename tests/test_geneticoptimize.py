@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -212,7 +212,9 @@ def test_optimize(
         pass
 
     # Fake energy management run start datetime
-    ems_eos.set_start_datetime(to_datetime("2025-01-15T10:00:00+01:00"))
+    ems_eos.set_start_datetime(
+        to_datetime("2025-01-15", in_timezone=config_eos.general.timezone).set(hour=fixed_start_hour)
+    )
 
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()
@@ -332,11 +334,7 @@ def test_ev_soc_penalty_reads_the_deadline_slot(config_eos: ConfigEOS):
     optimization = GeneticOptimization(fixed_seed=1)
     simulation_result = {"EAuto_SoC_pro_Stunde": [20.0, 35.0, 50.0, 80.0]}
 
-    class _Ev:
-        def current_soc_percentage(self):
-            return 80.0
-
-    optimization.simulation.ev = _Ev()
+    optimization.simulation.ev = Mock(current_soc_percentage=Mock(return_value=80.0))
 
     # Without a deadline the final SoC counts.
     optimization._ev_soc_deadline_slot = None
@@ -458,7 +456,9 @@ def test_terminal_value_auto_keeps_energy_that_fixed_zero_throws_away(config_eos
 def test_terminal_value_curve_is_concave_and_reported(config_eos: ConfigEOS):
     """The reported curve is what the credit was read from."""
     solution = _terminal_value_run(config_eos, "AUTO")
+    assert solution.terminal_value is not None
     curve = solution.terminal_value.curve
+    assert curve is not None
 
     assert curve.window_slots == 24
     assert len(curve.energy_wh) == len(curve.value_euro)
@@ -480,9 +480,11 @@ def test_terminal_value_reports_why_it_fell_back_to_fixed(config_eos: ConfigEOS)
     hours = 48
     solution = _terminal_value_run(config_eos, "AUTO", prices=[0.0] * hours)
 
+    assert solution.terminal_value is not None
     assert solution.terminal_value.mode == "FIXED"
     assert solution.terminal_value.curve is None
     assert "no priced residual load" in solution.terminal_value.reason
 
     configured = _terminal_value_run(config_eos, "FIXED")
+    assert configured.terminal_value is not None
     assert configured.terminal_value.reason == "terminal_value_mode is FIXED"

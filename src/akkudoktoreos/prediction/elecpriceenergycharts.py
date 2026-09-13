@@ -178,7 +178,9 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         constant_charges_kwh = self.config.elecprice.charges_kwh or 0.0
         component_charges_kwh = sum(self.config.elecprice.charge_components_kwh.values())
         network_fees = self.config.elecprice.network_fees_kwh
-        network_fee_kwh = network_fees.get_value_for_datetime(to_datetime(date_time))
+        network_fee_kwh = network_fees.get_value_for_datetime(
+            to_datetime(date_time, in_timezone=self.config.general.timezone)
+        )
         return constant_charges_kwh + component_charges_kwh + network_fee_kwh
 
     def _price_with_charges(self, market_price_wh: float, date_time: datetime) -> float:
@@ -277,7 +279,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
         if needs_update:
             logger.info(
-                "Update {} is needed, last in history: {}, " "force_update={}, history_refresh={}",
+                "Update {} is needed, last in history: {}, force_update={}, history_refresh={}",
                 self.provider_id(),
                 self.highest_orig_datetime,
                 bool(force_update),
@@ -285,7 +287,9 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             )
             # Set start_date try to take data from 5 weeks back for prediction
             start_date = to_datetime(
-                self.ems_start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
+                self.ems_start_datetime - to_duration(f"{past_days} days"),
+                in_timezone=self.config.general.timezone,
+                as_string="YYYY-MM-DD",
             )
             try:
                 # Get Energy-Charts electricity price data

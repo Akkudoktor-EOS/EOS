@@ -33,4 +33,5 @@ async def test_strompreis_endpoint_averages_quarter_hour_prices(monkeypatch, con
 
     assert result[:3] == [4.0, 16.0, 16.0]
     assert len(result) == 48
+    assert prediction.key_to_series_kwargs is not None
     assert prediction.key_to_series_kwargs["key"] == "elecprice_marketprice_wh"

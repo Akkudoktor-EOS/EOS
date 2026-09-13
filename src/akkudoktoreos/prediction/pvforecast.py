@@ -7,11 +7,13 @@ from pydantic import Field, computed_field, field_validator, model_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
+    PVForecastAkkudoktorLocalCommonSettings,
+)
 from akkudoktoreos.prediction.pvforecastforecastsolar import (
     PVForecastForecastSolarCommonSettings,
 )
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
-from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocalCommonSettings
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNodeCommonSettings
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcastCommonSettings
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings

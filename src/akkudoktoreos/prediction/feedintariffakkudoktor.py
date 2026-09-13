@@ -62,9 +62,7 @@ class FeedInTariffAkkudoktor(FeedInTariffProvider):
         )
         end_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         timezone = self.config.general.timezone
-        url = (
-            "https://api.akkudoktor.net/prices" f"?start={start_date}&end={end_date}&tz={timezone}"
-        )
+        url = f"https://api.akkudoktor.net/prices?start={start_date}&end={end_date}&tz={timezone}"
 
         max_attempts = 3
         last_exc: Optional[Exception] = None

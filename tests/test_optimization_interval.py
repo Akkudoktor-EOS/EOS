@@ -129,6 +129,8 @@ def test_hourly_api_input_is_normalized_to_quarter_hour_slots(config_eos: Config
     assert len(normalized.ems.pv_prognose_wh) == 192
     assert len(normalized.ems.gesamtlast) == 192
     assert len(normalized.ems.strompreis_euro_pro_wh) == 192
+    assert isinstance(normalized.ems.einspeiseverguetung_euro_pro_wh, list)
+    assert isinstance(parameters.ems.einspeiseverguetung_euro_pro_wh, list)
     assert len(normalized.ems.einspeiseverguetung_euro_pro_wh) == 192
     assert sum(normalized.ems.pv_prognose_wh[:4]) == pytest.approx(parameters.ems.pv_prognose_wh[0])
     assert sum(normalized.ems.gesamtlast[:4]) == pytest.approx(parameters.ems.gesamtlast[0])
@@ -139,6 +141,38 @@ def test_hourly_api_input_is_normalized_to_quarter_hour_slots(config_eos: Config
         normalized.ems.einspeiseverguetung_euro_pro_wh[:4]
         == [parameters.ems.einspeiseverguetung_euro_pro_wh[0]] * 4
     )
+
+
+@pytest.mark.parametrize("interval", [3600, 900])
+@pytest.mark.parametrize("start_hour", [0, 10])
+@pytest.mark.parametrize("tariff", [0.00007, 0.0, -0.00005])
+def test_scalar_feed_in_tariff_matches_explicit_series(config_eos, interval, start_hour, tariff):
+    """Constant tariffs use the same trimmed forecast grid as explicit tariffs."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 38, "interval": interval},
+        }
+    )
+    ems_eos.set_start_datetime(to_datetime("2025-01-15").set(hour=start_hour))
+    parameters = load_hourly_parameters()
+    parameters.ems.einspeiseverguetung_euro_pro_wh = tariff
+    explicit = parameters.model_copy(deep=True)
+    explicit.ems.einspeiseverguetung_euro_pro_wh = [tariff] * len(
+        parameters.ems.strompreis_euro_pro_wh
+    )
+    opt = GeneticOptimization(fixed_seed=42)
+
+    normalized = opt._parameters_for_slot_grid(parameters)
+    expected = opt._parameters_for_slot_grid(explicit)
+
+    assert normalized.ems.einspeiseverguetung_euro_pro_wh == (
+        expected.ems.einspeiseverguetung_euro_pro_wh
+    )
+    assert normalized.ems.einspeiseverguetung_euro_pro_wh == [tariff] * len(
+        normalized.ems.gesamtlast
+    )
+    assert parameters.ems.einspeiseverguetung_euro_pro_wh == tariff
 
 
 def test_native_quarter_hour_input_is_not_resampled(config_eos: ConfigEOS):
@@ -224,7 +258,7 @@ def test_hourly_start_solution_is_expanded_to_slots(config_eos: ConfigEOS):
     )
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
-    hourly = list(range(48))
+    hourly = [float(hour) for hour in range(48)]
 
     migrated = opt._start_solution_for_slot_grid(hourly)
 

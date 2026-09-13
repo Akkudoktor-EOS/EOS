@@ -975,12 +975,10 @@ def to_datetime(
     elif isinstance(date_input, datetime.datetime):
         dt = pendulum.instance(date_input)
     elif isinstance(date_input, datetime.date):
-        dt = pendulum.instance(
-            datetime.datetime.combine(
-                date_input,
-                datetime.datetime.max.time() if to_maxtime else datetime.datetime.min.time(),
-            )
-        )
+        # A calendar date has no UTC instant: interpret it in the target zone.
+        dt = pendulum.datetime(date_input.year, date_input.month, date_input.day, tz=in_timezone)
+        if to_maxtime:
+            dt = dt.end_of("day")
     elif isinstance(date_input, (int, float)):
         dt = pendulum.from_timestamp(date_input, tz="UTC")
     else:

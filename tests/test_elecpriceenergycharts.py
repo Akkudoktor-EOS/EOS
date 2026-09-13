@@ -8,8 +8,8 @@ import pytest
 import requests
 from loguru import logger
 
-from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.config.configabc import ValueTimeWindowSequence
+from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPrice,
@@ -165,8 +165,11 @@ def test_update_data_keeps_quarter_hour_resolution(provider):
     assert result.index.to_series().diff().dropna().dt.total_seconds().unique().tolist() == [900.0]
 
 
-def test_update_data_repairs_short_quarter_hour_history(provider):
+@pytest.mark.parametrize("local_timezone", ["UTC", "America/Chicago"])
+def test_update_data_repairs_short_quarter_hour_history(provider, set_other_timezone, local_timezone):
     """A previously retained 48-hour series is replaced with the full ETS history."""
+    set_other_timezone(local_timezone)
+    provider.config.merge_settings_from_dict({"general": {"latitude": 52.52, "longitude": 13.405}})
     start = to_datetime("2026-08-01 00:00:00", in_timezone="Europe/Berlin")
     get_ems().set_start_datetime(start)
     provider.highest_orig_datetime = start.add(hours=24)
@@ -212,8 +215,13 @@ def test_update_data_repairs_short_quarter_hour_history(provider):
     assert predict.call_args.kwargs["seasonal_periods"] == 168 * 4
 
 
-def test_parse_data_adds_constant_charges_variable_network_fees_and_vat(provider):
+@pytest.mark.parametrize("local_timezone", ["UTC", "America/Chicago"])
+def test_parse_data_adds_constant_charges_variable_network_fees_and_vat(
+    provider, set_other_timezone, local_timezone
+):
     """Build the gross retail price from market price and the matching Module 3 fee."""
+    set_other_timezone(local_timezone)
+    provider.config.merge_settings_from_dict({"general": {"latitude": 52.52, "longitude": 13.405}})
     provider.config.elecprice.charges_kwh = None
     provider.config.elecprice.charge_components_kwh = {
         "electricity_tax": 0.0205,

@@ -25,9 +25,9 @@ from akkudoktoreos.prediction.prediction import (
     PredictionCommonSettings,
 )
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
-from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
