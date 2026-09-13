@@ -86,7 +86,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-xprocess==1.0.2",
     "coverage==7.16.0",
-    "pypdf==6.17.0",
+    "pypdf==6.18.0",
 ]
 
 [project.urls]
