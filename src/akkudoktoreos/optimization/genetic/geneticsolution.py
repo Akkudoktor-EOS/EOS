@@ -237,6 +237,17 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
         },
     )
+    start_solution_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Start of the slot that gene 0 of 'start_solution' controls. Send it "
+                "back together with 'start_solution' so the next run can shift the "
+                "warm start by the slots that have elapsed since."
+            ),
+            "examples": [None, "2026-09-14T07:45:00+02:00"],
+        },
+    )
     washingstart: Optional[int] = Field(
         default=None,
         json_schema_extra={
@@ -275,6 +286,14 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     )
     def convert_numpy(cls, field: Any) -> Any:
         return NumpyEncoder.convert_numpy(field)[0]
+
+    @field_validator("start_solution_datetime", mode="before")
+    @classmethod
+    def transform_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
 
     @field_validator(
         "eauto_obj",

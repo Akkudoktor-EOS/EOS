@@ -5385,6 +5385,23 @@
             ],
             "title": "Start Solution",
             "description": "Can be `null` or contain a previous solution (if available)."
+          },
+          "start_solution_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution Datetime",
+            "description": "Start of the slot that gene 0 of 'start_solution' controls, as returned with the previous solution. The warm start is shifted by the slots that have elapsed until this run. Without it, a 'start_solution' identical to the last solution of this server uses that solution's start; any other one is used unshifted.",
+            "examples": [
+              null,
+              "2026-09-14T07:45:00+02:00"
+            ]
           }
         },
         "additionalProperties": false,
@@ -5649,6 +5666,23 @@
             ],
             "title": "Start Solution",
             "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
+          },
+          "start_solution_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution Datetime",
+            "description": "Start of the slot that gene 0 of 'start_solution' controls. Send it back together with 'start_solution' so the next run can shift the warm start by the slots that have elapsed since.",
+            "examples": [
+              null,
+              "2026-09-14T07:45:00+02:00"
+            ]
           },
           "washingstart": {
             "anyOf": [
