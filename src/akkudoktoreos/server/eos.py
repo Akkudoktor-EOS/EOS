@@ -993,7 +993,7 @@ def fastapi_prediction_import_provider(
     if not provider.enabled() and not force_enable:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not enabled.")
     try:
-        provider.import_from_json(json_str=json.dumps(data))
+        provider.import_from_json(json_str=data.model_dump_json() if hasattr(data, "model_dump_json") else json.dumps(data))
         provider.update_datetime = to_datetime(in_timezone=get_config().general.timezone)
     except Exception as e:
         raise HTTPException(
