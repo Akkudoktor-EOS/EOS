@@ -35,6 +35,7 @@ from akkudoktoreos.optimization.genetic.terminalvalue import (
     trailing_window,
 )
 from akkudoktoreos.optimization.optimizationabc import OptimizationBase
+from akkudoktoreos.utils.datetimeutil import DateTime
 
 
 @dataclass
@@ -1368,6 +1369,85 @@ class GeneticOptimization(OptimizationBase):
             expected_length,
         )
         return migrated
+
+    def _resolve_start_solution_datetime(
+        self, parameters: GeneticOptimizationParameters
+    ) -> Optional[DateTime]:
+        """Start of the slot that gene 0 of the supplied warm start controls.
+
+        An explicit ``start_solution_datetime`` wins. Clients that only echo
+        ``start_solution`` get the start of this server's last solution when the
+        genomes are identical; for any other genome the start is unknown.
+        """
+        if parameters.start_solution_datetime is not None:
+            return parameters.start_solution_datetime
+        if parameters.start_solution is None:
+            return None
+        last_solution = self.ems.genetic_solution()
+        if (
+            last_solution is not None
+            and last_solution.start_solution is not None
+            and list(last_solution.start_solution) == list(parameters.start_solution)
+        ):
+            return last_solution.start_solution_datetime
+        return None
+
+    def _start_solution_for_run_start(
+        self,
+        start_solution: Optional[list[float]],
+        start_solution_datetime: Optional[DateTime],
+    ) -> Optional[list[float]]:
+        """Align a warm start from an earlier run with the slot this run starts in.
+
+        Genomes are run-relative, so a solution returned one slot ago describes
+        every battery and EV decision one slot too late. Reused unchanged, a
+        search that keeps the seed postpones each planned action by one slot per
+        run. The battery and EV blocks therefore drop the elapsed slots and
+        repeat their last gene to refill the horizon.
+
+        Appliance genes index into per-run lists of allowed start slots that
+        cannot be rebuilt for the earlier run; they are kept and validated
+        against the current layout as before.
+        """
+        if (
+            start_solution is None
+            or start_solution_datetime is None
+            or self._slot0_datetime is None
+        ):
+            return start_solution
+        start_solution = self._start_solution_for_slot_grid(start_solution)
+        blocks = 2 if self.optimize_ev else 1
+        if len(start_solution) != self.control_end_slot * blocks + self.appliance_layout.n_genes:
+            # optimize() rejects the length and logs why.
+            return start_solution
+
+        elapsed_s = (self._slot0_datetime - start_solution_datetime).total_seconds()
+        if elapsed_s < 0:
+            logger.warning(
+                "Ignoring start_solution from {}: it starts after this run ({}).",
+                start_solution_datetime,
+                self._slot0_datetime,
+            )
+            return None
+        elapsed_slots = int(elapsed_s // (self.slot_duration_h * 3600))
+        if elapsed_slots == 0:
+            return start_solution
+        if elapsed_slots >= self.control_slots:
+            logger.info(
+                "Ignoring start_solution from {}: all {} control slots have elapsed.",
+                start_solution_datetime,
+                self.control_slots,
+            )
+            return None
+
+        aligned = list(start_solution)
+        for block in range(blocks):
+            begin = self._control_start_slot() + block * self.control_end_slot
+            end = begin + self.control_slots
+            genes = aligned[begin:end]
+            aligned[begin:end] = genes[elapsed_slots:] + [genes[-1]] * elapsed_slots
+        logger.debug("Shifted start_solution by {} elapsed slots.", elapsed_slots)
+        return aligned
 
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
@@ -3340,8 +3420,9 @@ class GeneticOptimization(OptimizationBase):
         )
 
         start_time = time.time()
+        start_solution_datetime = self._resolve_start_solution_datetime(parameters)
         start_solution, extra_data = self.optimize(
-            parameters.start_solution,
+            self._start_solution_for_run_start(parameters.start_solution, start_solution_datetime),
             ngen=generations,
             individuals=individuals,
         )
@@ -3459,6 +3540,7 @@ class GeneticOptimization(OptimizationBase):
                 "result": GeneticSimulationResult(**simulation_result),
                 "eauto_obj": self.simulation.ev,
                 "start_solution": start_solution,
+                "start_solution_datetime": self._slot0_datetime,
                 "washingstart": washingstart_int,
                 "appliance_starts": appliance_starts,
                 "appliance_deadline_missed": appliance_deadline_missed,

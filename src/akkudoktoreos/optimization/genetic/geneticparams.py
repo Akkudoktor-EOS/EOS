@@ -8,7 +8,7 @@ It also provides a method to assemble these parameters from predictions,
 forecasts, and fallback defaults, preparing them for optimization runs.
 """
 
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from loguru import logger
 from pydantic import Field, field_validator, model_validator
@@ -28,7 +28,7 @@ from akkudoktoreos.optimization.genetic.geneticdevices import (
     InverterParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.utils.datetimeutil import to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 
 MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS = frozenset(
     {"FeedInTariffAkkudoktor", "FeedInTariffEnergyCharts", "FeedInTariffTibber"}
@@ -133,6 +133,27 @@ class GeneticOptimizationParameters(
             "description": "Can be `null` or contain a previous solution (if available)."
         },
     )
+    start_solution_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Start of the slot that gene 0 of 'start_solution' controls, as "
+                "returned with the previous solution. The warm start is shifted by "
+                "the slots that have elapsed until this run. Without it, a "
+                "'start_solution' identical to the last solution of this server "
+                "uses that solution's start; any other one is used unshifted."
+            ),
+            "examples": [None, "2026-09-14T07:45:00+02:00"],
+        },
+    )
+
+    @field_validator("start_solution_datetime", mode="before")
+    @classmethod
+    def transform_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
@@ -271,9 +292,11 @@ class GeneticOptimizationParameters(
 
         # Get start solution from last run
         start_solution = None
+        start_solution_datetime = None
         last_solution = ems.genetic_solution()
         if last_solution and last_solution.start_solution:
             start_solution = last_solution.start_solution
+            start_solution_datetime = last_solution.start_solution_datetime
 
         # Add forecast and device data
         interval = to_duration(cls.config.optimization.interval)
@@ -545,6 +568,7 @@ class GeneticOptimizationParameters(
                     inverter=inverter_params,
                     home_appliances=home_appliance_params,
                     start_solution=start_solution,
+                    start_solution_datetime=start_solution_datetime,
                 )
             except:
                 logger.info(
