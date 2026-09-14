@@ -940,7 +940,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     )
                 running = energy > 0.0
                 if last_state is None or running != last_state:
-                    operation_mode = (
+                    appliance_operation_mode = (
                         ApplianceOperationMode.RUN if running else ApplianceOperationMode.OFF
                     )
                     execution_time = start_datetime.add(seconds=interval_s * hours)
@@ -949,7 +949,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                             resource_id=resource_id,
                             execution_time=execution_time,
                             actuator_id=resource_id,
-                            operation_mode_id=operation_mode,
+                            operation_mode_id=appliance_operation_mode,
                             operation_mode_factor=1.0,
                         )
                     )

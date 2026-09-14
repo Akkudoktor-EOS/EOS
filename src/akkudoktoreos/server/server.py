@@ -5,6 +5,8 @@ import os
 import re
 import socket
 import time
+from importlib import import_module
+from types import ModuleType
 from typing import Optional
 
 import psutil
@@ -15,8 +17,8 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_config
 
 try:
-    import grp
-    import pwd
+    grp: Optional[ModuleType] = import_module("grp")
+    pwd: Optional[ModuleType] = import_module("pwd")
 except ModuleNotFoundError:
     grp = None
     pwd = None

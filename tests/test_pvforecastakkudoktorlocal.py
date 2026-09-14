@@ -424,8 +424,9 @@ def test_azimuth_calibration_is_interpolated_smoothly():
 
     assert corrected.loc[1, "ac_power"] == pytest.approx(500.0)
     assert corrected.loc[4, "ac_power"] == pytest.approx(1000.0)
-    assert abs(corrected.loc[2, "ac_power"] - corrected.loc[0, "ac_power"]) < 2.0
-    assert abs(corrected.loc[5, "ac_power"] - corrected.loc[3, "ac_power"]) < 2.0
+    ac_power = corrected["ac_power"].to_numpy(dtype=float)
+    assert abs(ac_power[2] - ac_power[0]) < 2.0
+    assert abs(ac_power[5] - ac_power[3]) < 2.0
 
 
 def test_azimuth_shape_preserves_each_days_global_energy():

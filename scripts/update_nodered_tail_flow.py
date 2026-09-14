@@ -7,7 +7,6 @@ import json
 import re
 from pathlib import Path
 
-
 PREDICTION_FUNCTION = r'''const BASE_URL = "http://192.168.1.151:8503";
 const PREDICTION_HOURS = 72;
 const SLOT_MINUTES = 15;

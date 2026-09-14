@@ -170,8 +170,8 @@ forecasting by combining real-time market data with historical price trends.
 Charges and VAT
 
 - If constant charges or a matching `network_fees_kwh` window is greater than 0, the electricity
-  price is calculated as: `(market price + charges_kwh + sum(charge components) + network fee)
-  * vat_rate` where
+  price is calculated as:
+  `(market price + charges_kwh + sum(charge components) + network fee) * vat_rate` where
   `vat_rate` is configurable (default: 1.19 for 19% VAT).
 - If all constant charges and network-fee windows are empty or zero, the electricity price is
   simply `market_price` (no VAT applied, preserving the existing raw-market-price behaviour).
@@ -770,8 +770,10 @@ The `PVForecastAkkudoktorLocal` provider does not call a PV forecast service at 
 irradiance and weather from [Open-Meteo](https://open-meteo.com) and runs the whole modelling
 chain locally with `pvlib`:
 
-    solar position -> horizon shading -> transposition to the module plane ->
-    incidence-angle modifier -> cell temperature -> PVWatts DC -> inverter AC
+```text
+solar position -> horizon shading -> transposition to the module plane ->
+incidence-angle modifier -> cell temperature -> PVWatts DC -> inverter AC
+```
 
 Three properties make it the right default for long-horizon optimization:
 

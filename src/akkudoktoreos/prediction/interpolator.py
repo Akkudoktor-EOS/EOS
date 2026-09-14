@@ -68,7 +68,7 @@ class SelfConsumptionProbabilityInterpolator:
         This method is retained for API compatibility. Its result is the
         probability that the minute load is no greater than ``pv_power_w``;
         it is not an energy self-consumption ratio. New energy-flow code must
-        use :meth:`calculate_expected_direct_consumption`.
+        use ``calculate_expected_direct_consumption``.
 
         The results are cached until the start of the next energy management run/ optimization.
 

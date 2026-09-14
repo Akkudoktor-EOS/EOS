@@ -16,7 +16,9 @@ from akkudoktoreos.optimization.genetic.geneticdevices import (
     InverterParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import GeneticOptimizationParameters
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticOptimizationParameters,
+)
 from akkudoktoreos.optimization.genetic.tailvalue import build_tail_value_curve
 from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueCurve
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
@@ -328,7 +330,9 @@ def test_missing_price_inside_tail_stops_at_first_gap(config_eos):
 
 
 def test_ev_genome_and_output_are_control_only(config_eos):
-    from akkudoktoreos.optimization.genetic.geneticdevices import ElectricVehicleParameters
+    from akkudoktoreos.optimization.genetic.geneticdevices import (
+        ElectricVehicleParameters,
+    )
 
     opt, params = setup_run(config_eos, interval=900, start_hour=10, hours=82)
     params.eauto = ElectricVehicleParameters(

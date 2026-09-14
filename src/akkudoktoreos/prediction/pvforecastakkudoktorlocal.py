@@ -31,6 +31,7 @@ Note also that ``direct_radiation`` in the Open-Meteo API is beam irradiance on 
 
 import math
 import time
+from collections.abc import Iterable
 from typing import Any, Optional
 
 import numpy as np
@@ -401,6 +402,8 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
                 )
                 time.sleep(2 * attempt)
 
+        if response is None:
+            raise RuntimeError("Open-Meteo request completed without a response.")
         data = response.json()
         if block not in data:
             raise ValueError(
@@ -632,7 +635,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
         # Open-Meteo stamps an interval mean with the interval end, so the sun position
         # that produced it sits half an interval earlier.
         interval = pd.Timedelta(minutes=settings.resolution_minutes)
-        solar_times = weather.index - interval / 2
+        solar_times = pd.DatetimeIndex(weather.index) - interval / 2
 
         solpos_solar = location.get_solarposition(solar_times)
         solpos = solpos_solar.set_axis(weather.index)
@@ -665,7 +668,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
         # Relabel from Open-Meteo's interval-end stamps to the interval-start stamps
         # that EOS records use.
         if settings.shift_to_interval_start:
-            frame.index = frame.index - interval
+            frame.index = pd.DatetimeIndex(frame.index) - interval
 
         if calibrate:
             # The fit needs the raw model to compare against, which is exactly `frame`.
@@ -916,7 +919,11 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
         # intervals must not be learned as a permanent model loss. Detect this at day
         # level, because individual cloudy hours are much too noisy for a reliable
         # availability decision.
-        local_days = samples_frame.index.tz_convert(self.config.general.timezone).normalize()
+        local_days = (
+            pd.DatetimeIndex(samples_frame.index)
+            .tz_convert(self.config.general.timezone)
+            .normalize()
+        )
         fit_start = pd.Timestamp(
             end.subtract(days=settings.calibration_days)
             .in_timezone(self.config.general.timezone)
@@ -1087,6 +1094,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
         # calibrated total (apart from the physical inverter cap applied below).
         if global_factor is not None and len(frame) > 0:
             ac_power = frame["ac_power"].to_numpy(dtype=float)
+            group_indices: Iterable[np.ndarray]
             if isinstance(frame.index, pd.DatetimeIndex):
                 day_index = frame.index
                 if timezone is not None and day_index.tz is not None:
@@ -1155,6 +1163,8 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             return
 
         for timestamp, row in frame.iterrows():
+            if not isinstance(timestamp, pd.Timestamp):
+                raise TypeError("PV forecast rows must have timestamp indices.")
             self.update_value(
                 to_datetime(timestamp.to_pydatetime()),
                 {

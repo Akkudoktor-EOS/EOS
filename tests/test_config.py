@@ -93,6 +93,8 @@ def test_config_from_env(monkeypatch, config_eos):
 
 def test_config_ipaddress(monkeypatch, config_eos):
     """Test configuration for IP adresses."""
+    # Validate hostname configuration without depending on public DNS availability.
+    monkeypatch.setattr("socket.gethostbyname", lambda hostname: "192.0.2.1")
     assert config_eos.server.host == "127.0.0.1"
 
     monkeypatch.setenv("EOS_SERVER__HOST", "0.0.0.0")

@@ -294,7 +294,7 @@ class TestCacheFileStore:
         assert ttl_duration == ttl_duration_expected
 
         # Test with until_date as date
-        until_date = date.today() + timedelta(days=1)
+        until_date = to_datetime().add(days=1).date()
         result, ttl_duration = cache_file_store._until_datetime_by_options(until_date=until_date)
         assert compare_datetimes(result, until_datetime_expected).equal
         assert ttl_duration == ttl_duration_expected

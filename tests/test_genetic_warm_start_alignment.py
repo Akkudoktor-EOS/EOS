@@ -131,7 +131,7 @@ def test_parameters_accept_iso_start_solution_datetime(config_eos: ConfigEOS):
         inverter=None,
         eauto=None,
         start_solution=[1.0, 2.0],
-        start_solution_datetime="2026-09-14T07:45:00+02:00",  # type: ignore[arg-type]
+        start_solution_datetime="2026-09-14T07:45:00+02:00",
     )
 
     assert parameters.start_solution_datetime is not None

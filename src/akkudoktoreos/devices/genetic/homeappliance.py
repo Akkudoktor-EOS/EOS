@@ -2,7 +2,7 @@
 
 A consumer is described by the energy of a **single complete run** resampled onto
 the optimization slot grid. The optimizer decides, per run, at which slot the run
-starts; :meth:`HomeAppliance.build_load_curve` then places the resampled run
+starts; ``HomeAppliance.build_load_curve`` then places the resampled run
 energy at the chosen start(s). Several runs (DAILY mode) and several devices may
 overlap; their energies simply add up.
 """
@@ -14,7 +14,10 @@ import numpy as np
 from loguru import logger
 
 from akkudoktoreos.config.configabc import TimeWindowSequence
-from akkudoktoreos.devices.devicesabc import ConsumerDeadlinePolicy, ConsumerScheduleMode
+from akkudoktoreos.devices.devicesabc import (
+    ConsumerDeadlinePolicy,
+    ConsumerScheduleMode,
+)
 from akkudoktoreos.optimization.genetic.geneticdevices import HomeApplianceParameters
 from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
@@ -119,6 +122,8 @@ class HomeAppliance:
             # identically. Power [W] = energy per hour = consumption_wh / duration_h.
             duration_h = self.parameters.duration_h
             consumption_wh = self.parameters.consumption_wh
+            if duration_h is None or consumption_wh is None:
+                raise ValueError("Flat appliance loads require duration_h and consumption_wh.")
             power = [consumption_wh / duration_h]
             input_interval = duration_h * 3600
 

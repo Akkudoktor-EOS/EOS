@@ -126,7 +126,7 @@ def validate_home_appliance_load_definition(
             "not both."
         )
 
-    if not profile_given:
+    if load_profile_power_w is None:
         if not fallback_given:
             raise ValueError(
                 "Incomplete home appliance load definition: provide a full "
@@ -144,8 +144,7 @@ def validate_home_appliance_load_definition(
     for value in load_profile_power_w:
         if value is None or math.isnan(value) or math.isinf(value):
             raise ValueError(
-                "load_profile_power_w must contain only finite values "
-                "(no NaN or infinity)."
+                "load_profile_power_w must contain only finite values (no NaN or infinity)."
             )
         if value < 0:
             raise ValueError("load_profile_power_w must not contain negative values.")

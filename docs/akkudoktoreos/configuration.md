@@ -109,4 +109,5 @@ Some of the `configuration keys` have default values by definition. For most of 
 :relative-images:
 ```
 
-See [Control horizon and battery lookahead](optimization_horizons.md) for horizon validation, forecast availability and control-array indexing.
+See [Control horizon and battery lookahead](optimization_horizons.md) for horizon validation,
+forecast availability and control-array indexing.

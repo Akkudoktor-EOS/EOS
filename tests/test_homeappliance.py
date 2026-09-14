@@ -19,7 +19,9 @@ from akkudoktoreos.devices.genetic.homeappliance import (
 )
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticdevices import HomeApplianceParameters
-from akkudoktoreos.optimization.genetic.geneticparams import GeneticOptimizationParameters
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticOptimizationParameters,
+)
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
 
 ems_eos = get_ems(init=True)

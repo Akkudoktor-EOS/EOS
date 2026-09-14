@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 import requests
 from loguru import logger
@@ -112,11 +113,11 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             series_data.at[orig_datetime] = price_eur_per_mwh / 1_000_000
         return series_data
 
-    def _predict_prices(self, history, slots: int, slots_per_hour: int):
+    def _predict_prices(self, history: np.ndarray, slots: int, slots_per_hour: int) -> np.ndarray:
         energycharts = ElecPriceEnergyCharts()
         if len(history) > 800 * slots_per_hour:
             logger.info(
-                "Using weekly seasonal ETS forecast for {} " "with {} historical values.",
+                "Using weekly seasonal ETS forecast for {} with {} historical values.",
                 self.provider_id(),
                 len(history),
             )
@@ -125,7 +126,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             )
         if len(history) > 168 * slots_per_hour:
             logger.info(
-                "Using daily seasonal ETS forecast for {} " "with {} historical values.",
+                "Using daily seasonal ETS forecast for {} with {} historical values.",
                 self.provider_id(),
                 len(history),
             )
@@ -134,7 +135,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             )
         if len(history) > 0:
             logger.warning(
-                "Using constant median fallback for {} " "with only {} historical values.",
+                "Using constant median fallback for {} with only {} historical values.",
                 self.provider_id(),
                 len(history),
             )
@@ -181,7 +182,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
         if needs_update:
             logger.info(
-                "Update {} is needed, last in history: {}, " "force_update={}, history_refresh={}",
+                "Update {} is needed, last in history: {}, force_update={}, history_refresh={}",
                 self.provider_id(),
                 self.highest_orig_datetime,
                 bool(force_update),
@@ -194,7 +195,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             try:
                 energy_charts_data = self._request_forecast(
                     start_date=start_date, force_update=force_update
-                )
+                )  # type: ignore[call-arg]  # force_update is consumed by cache_in_file.
                 series_data = self._parse_data(energy_charts_data)
                 if series_data.empty:
                     raise ValueError("No Energy-Charts feed-in tariff data available")

@@ -10,8 +10,10 @@ from pydantic import PrivateAttr
 
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.inverter import Inverter
-from akkudoktoreos.optimization.genetic.terminalvalue import TailPlanSlot, TerminalValueCurve
-
+from akkudoktoreos.optimization.genetic.terminalvalue import (
+    TailPlanSlot,
+    TerminalValueCurve,
+)
 
 TailAction = tuple[int, int, float, float]
 
