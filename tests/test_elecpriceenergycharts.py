@@ -157,9 +157,66 @@ class TestElecPriceEnergyCharts:
         )
         assert len(np_price_array) == provider.total_hours
 
+    @pytest.mark.parametrize(
+        ("old_interval_minutes", "recent_intervals_minutes", "expected_seconds"),
+        [
+            pytest.param(60, [15, 15, 15, 15], 900, id="hourly-to-quarter-hourly"),
+            pytest.param(15, [60, 60, 60, 60], 3600, id="quarter-hourly-to-hourly"),
+            pytest.param(60, [15, 15, 60, 15, 15], 900, id="quarter-hourly-with-gap"),
+            pytest.param(15, [60, 60, 120, 60, 60], 3600, id="hourly-with-gap"),
+            pytest.param(60, [15, 15, 15, 15, 60], 900, id="quarter-hourly-with-last-gap"),
+            pytest.param(15, [60, 60, 60, 60, 15], 3600, id="hourly-with-last-outlier"),
+            pytest.param(60, [15, 15, 15], 3600, id="insufficient-quarter-hourly-run"),
+            pytest.param(15, [60, 60, 60], 900, id="insufficient-hourly-run"),
+            pytest.param(60, [15, 60, 15, 60, 15], 3600, id="ambiguous-latest-intervals"),
+        ],
+    )
+    def test_coverage_resolution_recognizes_recent_cadence(
+        self,
+        provider: ElecPriceEnergyCharts,
+        old_interval_minutes: int,
+        recent_intervals_minutes: list[int],
+        expected_seconds: int,
+    ) -> None:
+        """A supported recent cadence survives one outlier; ambiguous samples use the median."""
+        transition = pd.Timestamp("2026-01-15 18:00:00", tz="Europe/Berlin")
+        older_index = pd.date_range(
+            start=transition - pd.Timedelta(days=1),
+            end=transition,
+            freq=f"{old_interval_minutes}min",
+        )
+        recent_index = transition + pd.to_timedelta(np.cumsum(recent_intervals_minutes), unit="min")
+        source = pd.Series(0.0001, index=older_index.append(recent_index))
+
+        assert provider._coverage_resolution_seconds(source) == expected_seconds
+
+    @pytest.mark.parametrize(
+        ("offsets_minutes", "expected_seconds"),
+        [
+            pytest.param([], 3600, id="empty"),
+            pytest.param([0], 3600, id="one-timestamp"),
+            pytest.param([0, 0], 3600, id="duplicate-only"),
+            pytest.param([0, 15], 900, id="two-timestamps"),
+            pytest.param([60, 15, 0, 45, 30, 30], 900, id="unordered-and-duplicated"),
+            pytest.param([0, 45, 90, 135, 180], 3600, id="unsupported-interval"),
+        ],
+    )
+    def test_coverage_resolution_handles_sparse_or_irregular_source(
+        self,
+        provider: ElecPriceEnergyCharts,
+        offsets_minutes: list[int],
+        expected_seconds: int,
+    ) -> None:
+        """Normalize source ordering and retain the shared helper's sparse-data fallback."""
+        start = pd.Timestamp("2026-01-15 00:00:00", tz="Europe/Berlin")
+        source = pd.Series(0.0001, index=start + pd.to_timedelta(offsets_minutes, unit="min"))
+
+        assert provider._coverage_resolution_seconds(source) == expected_seconds
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
     @pytest.mark.parametrize("history_interval_minutes", [15, 60])
+    @pytest.mark.parametrize("recent_source_points", [None, 5])
     @pytest.mark.parametrize(
         ("now", "last_price", "interval_minutes", "needs_update"),
         [
@@ -182,6 +239,7 @@ class TestElecPriceEnergyCharts:
         set_other_timezone: Callable[[str], str],
         host_timezone: str,
         history_interval_minutes: int,
+        recent_source_points: int | None,
         now: str,
         last_price: str,
         interval_minutes: int,
@@ -198,16 +256,19 @@ class TestElecPriceEnergyCharts:
             pd.Timestamp(last_price, tz="Europe/Berlin"), in_timezone="Europe/Berlin"
         )
         get_ems().set_start_datetime(start)
-        history_index = pd.date_range(
-            start=start.subtract(days=35),
-            end=start,
-            freq=f"{history_interval_minutes}min",
-            inclusive="left",
+        source_start = (
+            start
+            if recent_source_points is None
+            else last_original.subtract(minutes=(recent_source_points - 1) * interval_minutes)
         )
         source_index = pd.date_range(
-            start=start,
-            end=last_original,
-            freq=f"{interval_minutes}min",
+            start=source_start, end=last_original, freq=f"{interval_minutes}min"
+        )
+        history_index = pd.date_range(
+            start=start.subtract(days=35),
+            end=source_index[0],
+            freq=f"{history_interval_minutes}min",
+            inclusive="left",
         )
         await provider.key_from_series(
             "elecprice_marketprice_raw_wh",
@@ -270,6 +331,125 @@ class TestElecPriceEnergyCharts:
         else:
             request.assert_not_called()
             assert provider.highest_orig_datetime == last_original
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        (
+            "history_days",
+            "history_end_days_ago",
+            "force_update",
+            "complete_horizon",
+            "fetch_fails",
+            "needs_update",
+        ),
+        [
+            pytest.param(35, 0, False, True, False, False, id="unchanged"),
+            pytest.param(35, 0, False, False, False, True, id="successful-refresh"),
+            pytest.param(35, 0, False, False, True, True, id="failed-refresh"),
+            pytest.param(35, 0, True, True, False, True, id="forced-refresh"),
+            pytest.param(0, 0, False, True, False, True, id="missing-history"),
+            pytest.param(2, 0, False, True, False, True, id="insufficient-history"),
+            pytest.param(14, 0, False, True, False, True, id="history-threshold"),
+            pytest.param(15, 0, False, True, False, False, id="sufficient-history"),
+            pytest.param(35, 35, False, True, False, True, id="history-outside-window"),
+        ],
+    )
+    async def test_update_data_reuses_source_snapshot_until_successful_fetch(
+        self,
+        provider: ElecPriceEnergyCharts,
+        set_other_timezone: Callable[[str], str],
+        history_days: int,
+        history_end_days_ago: int,
+        force_update: bool,
+        complete_horizon: bool,
+        fetch_fails: bool,
+        needs_update: bool,
+    ) -> None:
+        """Retain history repair and fallback while rereading source data only after a fetch."""
+        set_other_timezone("Europe/Berlin")
+        provider.config.merge_settings_from_dict(
+            {"general": {"latitude": 52.52, "longitude": 13.405}}
+        )
+        start = to_datetime("2026-01-15 00:00:00", in_timezone="Europe/Berlin")
+        fixed_now = pd.Timestamp("2026-01-15 13:59:59", tz="Europe/Berlin")
+        get_ems().set_start_datetime(start)
+        last_original = start.add(hours=23 if complete_horizon else 22)
+        history_end = start.subtract(days=history_end_days_ago)
+        history_index = pd.date_range(
+            start=history_end.subtract(days=history_days), periods=history_days * 24, freq="1h"
+        )
+        source_index = pd.date_range(start=start, end=last_original, freq="1h")
+        await provider.key_from_series(
+            "elecprice_marketprice_raw_wh",
+            pd.Series(0.0001, index=history_index.append(source_index)),
+        )
+        provider.highest_orig_datetime = last_original
+        predicted_index = pd.date_range(
+            start=last_original.add(minutes=15), periods=120, freq="15min"
+        )
+        await provider.key_from_series(
+            "elecprice_marketprice_raw_wh", pd.Series(0.00005, index=predicted_index)
+        )
+
+        repair_history = history_days <= 14 or history_end_days_ago > 0 or force_update
+        fetch_start = start.subtract(days=35) if repair_history else start
+        response_index = pd.date_range(
+            start=fetch_start, end=start.add(days=1), freq="1h", inclusive="left"
+        )
+        response = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(timestamp.timestamp()) for timestamp in response_index],
+            price=[200.0] * len(response_index),
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+
+        def predict(history: np.ndarray, hours: int, slots_per_hour: int = 1) -> np.ndarray:
+            return np.full(hours, 0.00005)
+
+        # Isolate source lookups from resampling and gross-price derivation, which
+        # perform their own raw-series reads for different purposes.
+        with (
+            patch("akkudoktoreos.prediction.elecpriceenergycharts.pd", wraps=pd) as pandas,
+            patch.object(
+                provider,
+                "_request_forecast",
+                return_value=response,
+                side_effect=requests.exceptions.ReadTimeout("unavailable") if fetch_fails else None,
+            ) as request,
+            patch.object(
+                ElecPriceEnergyCharts, "key_to_raw_series", wraps=provider.key_to_raw_series
+            ) as raw_reads,
+            patch.object(ElecPriceEnergyCharts, "key_to_array", return_value=np.full(48, 0.0001)),
+            patch.object(provider, "_store_gross_series"),
+            patch.object(provider, "_resolution_seconds", wraps=provider._resolution_seconds)
+            as resolution,
+            patch.object(provider, "_predict", side_effect=predict) as prediction,
+        ):
+            pandas.Timestamp.now.return_value = fixed_now
+            await provider._update_data(force_update=force_update)
+
+        if needs_update:
+            request.assert_called_once_with(
+                start_date=fetch_start.format("YYYY-MM-DD"), force_update=force_update
+            )
+        else:
+            request.assert_not_called()
+
+        fetched = needs_update and not fetch_fails
+        assert raw_reads.await_count == (2 if fetched else 1)
+        assert raw_reads.await_args_list[0].kwargs["end_datetime"] == last_original.add(seconds=1)
+        last_source = to_datetime(response_index[-1]) if fetched else last_original
+        assert provider.highest_orig_datetime == last_source
+        if fetched:
+            assert raw_reads.await_args_list[1].kwargs["end_datetime"] == last_source.add(seconds=1)
+
+        # Forecast resolution must use the refreshed snapshot after success and
+        # retain the original one when a request fails, without predicted points.
+        forecast_source = resolution.call_args.args[0]
+        assert forecast_source.index.max() == pd.Timestamp(last_source)
+        assert forecast_source.iloc[-1] == pytest.approx(0.0002 if fetched else 0.0001)
+        prediction.assert_called_once()
 
     @pytest.mark.asyncio
     @patch("requests.get")
