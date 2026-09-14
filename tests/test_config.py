@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -547,3 +548,162 @@ def test_merge_settings_empty(config_eos):
     config_eos.merge_settings_from_dict({})  # No changes
 
     assert config_eos.general.latitude == original_latitude  # Should remain unchanged
+
+
+# ------------------------------------
+# Runtime settings priority (issue #1303)
+# ------------------------------------
+
+
+@pytest.fixture
+def config_eos_file(config_eos_factory) -> ConfigEOS:
+    """ConfigEOS with the EOS configuration file as an active settings source."""
+    return config_eos_factory(
+        init={
+            "with_init_settings": True,
+            "with_env_settings": True,
+            "with_dotenv_settings": False,
+            "with_file_settings": True,
+            "with_file_secret_settings": False,
+        }
+    )
+
+
+def write_config_file(config_eos: ConfigEOS, settings: dict[str, Any]) -> None:
+    """Write settings to the EOS configuration file and load them."""
+    settings = {"general": {"version": config_eos.general.version}, **settings}
+    config_file_path = config_eos.general.config_file_path
+    assert config_file_path is not None
+    config_file_path.write_text(json.dumps(settings), encoding="utf-8")
+    config_eos.reset_settings()
+
+
+def test_merge_settings_overrides_config_file(config_eos_file):
+    """Runtime settings take precedence over the EOS configuration file."""
+    write_config_file(
+        config_eos_file,
+        {
+            "optimization": {"genetic": {"individuals": 200}},
+            "pvforecast": {
+                "planes": [
+                    {"surface_tilt": 30.0, "surface_azimuth": azimuth, "peakpower": 5.0}
+                    for azimuth in (0.0, 90.0, 180.0, 270.0)
+                ]
+            },
+        },
+    )
+    assert config_eos_file.optimization.genetic.individuals == 200
+    assert len(config_eos_file.pvforecast.planes) == 4
+
+    config_eos_file.merge_settings_from_dict(
+        {
+            "optimization": {"genetic": {"individuals": 300}},
+            "pvforecast": {
+                "planes": [{"surface_tilt": 30.0, "surface_azimuth": 180.0, "peakpower": 5.0}]
+            },
+        }
+    )
+
+    assert config_eos_file.optimization.genetic.individuals == 300
+    assert len(config_eos_file.pvforecast.planes) == 1
+
+
+def test_merge_settings_overrides_env(config_eos_file, monkeypatch):
+    """Runtime settings take precedence over environment variables."""
+    monkeypatch.setenv("EOS_OPTIMIZATION__GENETIC__INDIVIDUALS", "150")
+    config_eos_file.reset_settings()
+    assert config_eos_file.optimization.genetic.individuals == 150
+
+    config_eos_file.merge_settings_from_dict({"optimization": {"genetic": {"individuals": 300}}})
+
+    assert config_eos_file.optimization.genetic.individuals == 300
+
+
+def test_env_overrides_config_file_after_merge(config_eos_file, monkeypatch):
+    """Environment variables keep precedence over the config file for untouched keys."""
+    write_config_file(config_eos_file, {"server": {"port": 9000}})
+    monkeypatch.setenv("EOS_SERVER__PORT", "9500")
+    config_eos_file.reset_settings()
+    assert config_eos_file.server.port == 9500
+
+    # A runtime update of an unrelated key must not freeze the env value
+    config_eos_file.merge_settings_from_dict({"general": {"latitude": 51.1657}})
+    assert config_eos_file.general.latitude == 51.1657
+    assert config_eos_file.server.port == 9500
+
+    monkeypatch.setenv("EOS_SERVER__PORT", "9600")
+    config_eos_file.reset_settings()
+    assert config_eos_file.server.port == 9600
+
+
+def test_reset_settings_drops_runtime_settings(config_eos_file):
+    """Reset drops runtime settings and falls back to the config file."""
+    write_config_file(config_eos_file, {"optimization": {"genetic": {"individuals": 200}}})
+
+    config_eos_file.merge_settings_from_dict({"optimization": {"genetic": {"individuals": 300}}})
+    assert config_eos_file.optimization.genetic.individuals == 300
+
+    config_eos_file.reset_settings()
+    assert config_eos_file.optimization.genetic.individuals == 200
+
+
+def test_set_nested_value_survives_merge(config_eos_file):
+    """Granular updates are not lost by a later bulk update."""
+    write_config_file(
+        config_eos_file,
+        {
+            "general": {"latitude": 48.0},
+            "optimization": {"genetic": {"individuals": 200}},
+            "pvforecast": {
+                "planes": [
+                    {"surface_tilt": 30.0, "surface_azimuth": azimuth, "peakpower": 5.0}
+                    for azimuth in (0.0, 90.0)
+                ]
+            },
+        },
+    )
+
+    config_eos_file.set_nested_value("optimization/genetic/individuals", 400)
+    # A list index can not be expressed by the settings dictionary
+    config_eos_file.set_nested_value("pvforecast/planes/1/peakpower", 9.9)
+    # Clearing a value must not be reverted by the config file either
+    config_eos_file.set_nested_value("general/latitude", None)
+
+    config_eos_file.merge_settings_from_dict({"server": {"port": 8600}})
+
+    assert config_eos_file.server.port == 8600
+    assert config_eos_file.optimization.genetic.individuals == 400
+    assert config_eos_file.pvforecast.planes[1].peakpower == 9.9
+    assert config_eos_file.general.latitude is None
+
+
+def test_revert_settings_restores_backup(config_eos_file):
+    """Revert restores the backup values even if the config file differs."""
+    write_config_file(config_eos_file, {"optimization": {"genetic": {"individuals": 200}}})
+
+    config_file_path = config_eos_file.general.config_file_path
+    assert config_file_path is not None
+    backup_path = config_file_path.with_suffix(".backup")
+    backup_path.write_text(
+        json.dumps(
+            {
+                "general": {"version": config_eos_file.general.version},
+                "optimization": {"genetic": {"individuals": 500}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    config_eos_file.revert_settings("backup")
+
+    assert config_eos_file.optimization.genetic.individuals == 500
+
+
+def test_config_from_env_on_first_init(config_eos, config_default_dirs, monkeypatch):
+    """Environment variables are applied on the first configuration build."""
+    config_eos.reset_instance()
+
+    monkeypatch.setenv("EOS_CONFIG_DIR", str(config_default_dirs[0]))
+    monkeypatch.setenv("EOS_SERVER__PORT", "8553")
+
+    assert ConfigEOS().server.port == 8553
