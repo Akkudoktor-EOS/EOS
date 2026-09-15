@@ -19,7 +19,7 @@ dependencies = [
     "cachebox==6.2.7",
     "numpy==2.4.6",
     "numpydantic==1.10.0",
-    "matplotlib==3.11.1",
+    "matplotlib==3.11.2",
     "contourpy==1.3.3",
     "fastapi[standard-no-fastapi-cloud-cli]==0.141.1",
     "fastapi_cli==0.0.32",
