@@ -793,7 +793,17 @@ def _add_solution_diagnostics(
                 ("battery_discharge_wh", "Battery discharge"),
             ):
                 plt.plot(
-                    mdates.date2num(dates), [getattr(slot, field) for slot in plan], label=label
+                    mdates.date2num(dates),
+                    [getattr(slot, field) for slot in plan],
+                    label=label,
+                    marker="o" if len(plan) == 1 else None,
+                )
+            if len(plan) == 1:
+                # A lone sample otherwise disappears and datetime autoscaling spans years.
+                half_interval = report.interval_seconds / 2
+                plt.xlim(
+                    mdates.date2num(dates[0].subtract(seconds=half_interval)),
+                    mdates.date2num(dates[0].add(seconds=half_interval)),
                 )
             plt.gca().xaxis.set_major_formatter(
                 mdates.DateFormatter("%m-%d %H:%M", tz=start.tzinfo)

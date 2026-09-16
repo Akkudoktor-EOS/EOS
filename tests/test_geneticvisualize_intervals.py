@@ -180,6 +180,10 @@ def test_tail_chart_starts_after_control_horizon(config_eos, report_solution):
         expected = mdates.date2num(start.add(hours=1))
         assert np.asarray(axis.lines[0].get_xdata()).tolist() == [expected]
         assert np.asarray(axis.lines[3].get_ydata()).tolist() == [100]
+        assert all(line.get_marker() == "o" for line in axis.lines)
+        left, right = axis.get_xlim()
+        assert left < expected < right
+        assert (right - left) * 86400 == pytest.approx(900)
         assert "Not Executable" in axis.get_title()
         assert report_solution.discharge_allowed == [0, 0, 1, 1]
     finally:
