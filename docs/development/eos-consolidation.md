@@ -8,10 +8,10 @@ the complete feature consolidation remains open.
 
 ## Pinned sources
 
-- Official main: `7ebe6d714be5a8e265c0b5e411de4ed609391f28` (refreshed after initial checkpoint).
+- Official main: `4a3724424f98b5ce814d0340ddf3b6b5f1364752` (refreshed after initial checkpoint).
 - Feature branch: `d2e2d58237339454dd8bb226f92677c5987f8b27`.
 - PR #1256: `6ebd343047b87819b57778359784a616452b5f76`, open, conflicts.
-- PR #1305: `6fb84765c4b6d2c032fdf83effcb2ea6597f18f9`, open, main target.
+- PR #1305: `60b77f6da2da3a0f59518873fe7fbe9a92e733f4`, open, main target. Latest added commit is formatting only.
 - PR #1224: `0b12a34c11685822d97c3bc9f56c6292774cd930`, open, feature target.
 - PR #1304: `4b4b49f29902579a8deb34999d71eb2142c0620d`, open, feature target.
 - PR #1190 merged into main: GENETIC0 retained separately.
@@ -118,8 +118,10 @@ The current GENETIC orchestration is still the main-era optimizer with the newly
 ported device physics. It must NOT be described as the complete feature optimizer.
 Next port `optimization/genetic/genetic.py`, its parameter preparation and solution
 model together, carrying feature d2e2d58 warmstart and #1304 revenue fixes. Translate
-old top-level optimization settings to `optimization.genetic` and main's `_amt_kwh`
-prediction keys with explicit /1000 conversion. Use #1256 `to_genetic_*` converters
+old top-level optimization settings to `optimization.genetic`. Check the actual
+prediction record units: current `elecprice_marketprice_wh` and `feed_in_tariff_wh`
+arrays already contain amount/Wh; only amount/kWh configuration is divided by 1000.
+Do not apply a second conversion to the existing *_wh arrays. Use #1256 `to_genetic_*` converters
 instead of reintroducing parallel settings. Reconcile flexible profiles/deadlines
 with #1256 per-cycle windows/completed cycles before exposing the combined API.
 Both porting sides must retain their regression cases. Follow with local PV and
@@ -210,3 +212,14 @@ The other integration/measurement branches were not pushed. The PR is conflict-f
 not merged; GitHub CI was started and is being checked. Original HEAD and all 102
 backup hashes were rechecked unchanged. Earlier notes saying all packages are
 unpublished are historical checkpoints; this section supersedes them for this fix.
+
+
+## Parallel package preparation and compatibility
+
+On the user's explicit request, independent PV and tariff ports and Optimize-mode
+compatibility coverage are being prepared in separate worktrees. The main/integration
+configuration prerequisite was refreshed to main4a37244 and PR1305head60b77f6;
+285 configuration/migration/Pydantic tests pass. The latest 1305 change only formats
+three files. See [PR integration matrix](pr-integration-matrix.md) for the seven
+remaining functional packages, existing upstream prerequisites, and combined
+Optimize acceptance gates. Parallel work is not authorization to publish every lane.

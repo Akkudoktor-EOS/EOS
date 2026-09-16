@@ -2,7 +2,7 @@
 
 2026-09-16 — intermediate integration only; do not deploy or switch HA dependency yet.
 
-Source branch: `integration/eos-consolidation-20260916` on main `afb7bcb8`.
+Source branch: `integration/eos-consolidation-20260916` on main `4a37244`.
 See eos-consolidation.md for source commits, tests, backup, and remaining work.
 
 - Configuration collections `devices.batteries`, `electric_vehicles`, `inverters`,
@@ -34,3 +34,9 @@ See eos-consolidation.md for source commits, tests, backup, and remaining work.
 No HA repository changes, lab deployment, real device control or production config
 were performed. Retire the private HA core only after its differences are audited
 and a final EOS commit passes the full feature/API acceptance scenarios.
+
+
+The current main/integration preparation still forces GENETIC to hourly intervals,
+and EMS floors the start time to the hour. The locally ported 15-minute device
+physics is not an accepted quarter-hour API implementation. Track the combined
+acceptance gates in pr-integration-matrix.md before changing HA requests or modes.
