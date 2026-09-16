@@ -2,8 +2,9 @@
 
 Target: `Akkudoktor-EOS/EOS:main`.
 Local branch: `fix/measurement-json-reload`.
-Local head: `dba0c9c` (based on main `7ebe6d7`).
-Status: locally ready for review; not pushed or published.
+Local head: `bdc754d` (rebased onto main `4a37244`).
+Status: published with explicit user approval as [PR #1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322).
+One commit, two files; published head and diff verified. CI started; not merged.
 
 ## Proposed PR body
 
@@ -31,5 +32,5 @@ GENETIC port.
 - `tests/test_measurement_file_restore.py`
 
 Only these two files differ from the pinned main. Do not publish the integration
-branch as part of this PR. After explicit publication approval, push this named
-branch and open a PR against main; inspect CI before any merge.
+branch as part of this PR. Publication approval was received on 2026-09-16. Only this named branch was pushed.
+Inspect CI and review before any merge; merging was not part of this publication request.

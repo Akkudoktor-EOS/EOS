@@ -196,3 +196,17 @@ passed. Full pinned Linux/Python 3.13 CI remains outstanding.
 All original 102 saved file hashes and original feature HEAD were checked unchanged.
 Both PR worktrees are clean, locally committed, and unpublished. This enables small
 independent PRs now; it does not complete the still-open optimizer/PV/output port.
+
+
+## First upstream PR published, 2026-09-16
+
+Explicit user approval received for publishing the standalone JSON restore fix.
+Fetched main `4a37244` (dependency update #1321) and rebased the standalone branch;
+its new head is `bdc754d12fd08e0da18d3156642c695f4bf67bd2`. All 49 measurement tests,
+source Ruff and formatting checks passed again. Pushed only
+`fix/measurement-json-reload` and created https://github.com/Akkudoktor-EOS/EOS/pull/1322
+against main. Verified the remote head and PR patch: one commit, exactly two files.
+The other integration/measurement branches were not pushed. The PR is conflict-free,
+not merged; GitHub CI was started and is being checked. Original HEAD and all 102
+backup hashes were rechecked unchanged. Earlier notes saying all packages are
+unpublished are historical checkpoints; this section supersedes them for this fix.

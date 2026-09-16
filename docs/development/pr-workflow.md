@@ -1,12 +1,14 @@
 # EOS: Arbeitsstand und Weg zu kleinen PRs
 
-Stand: 16.09.2026. Offizielles main: `7ebe6d7`.
+Stand: 16.09.2026. Offizielles main für PR #1322: `4a37244`.
+Die übrige Integration steht weiterhin auf dem zuvor geprüften `7ebe6d7`.
 
 ## Was jetzt möglich ist
 
-Ein unabhängiger, lokal getesteter PR ist vorbereitet: `fix/measurement-json-reload`
+Ein unabhängiger, lokal getesteter PR ist veröffentlicht: `fix/measurement-json-reload`
 auf aktuellem main. Sein Worktree ist `../EOS-pr-measurement-json`; er enthält nur
-zwei geänderte Dateien. Der PR-Text steht in
+zwei geänderte Dateien. Der veröffentlichte [PR #1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322)
+enthält Commit `bdc754d`. Der PR-Text steht in
 [measurement-json-reload.md](pr-drafts/measurement-json-reload.md).
 
 Das ist ein konkreter Einstieg in den PR-Workflow. Die vollständige Übernahme aller
@@ -16,7 +18,7 @@ Funktionen aus dem alten Feature-Branch ist noch NICHT abgeschlossen.
 
 | Branch | Zweck | Freigabezustand |
 | --- | --- | --- |
-| `fix/measurement-json-reload` | Kleiner JSON-Ladefehler direkt auf main | Lokal geprüft, Veröffentlichung ausstehend |
+| `fix/measurement-json-reload` | Kleiner JSON-Ladefehler direkt auf main | Veröffentlicht als #1322; CI läuft, noch nicht gemergt |
 | `feat/config-integration-base` | Zusammengeführte #1256/#1305 plus Integrationskorrekturen | Lokale Abhängigkeitsbasis; kein konkurrierender Sammel-PR |
 | `feat/measurement-energy-quality-capacity` | Messdatenfunktionen ohne neue Optimiererphysik | Getestet; wartet für main auf Konfigurationsbasis |
 | `integration/eos-consolidation-20260916` | Zusammenführung und Prüfung aller Portierungspakete | Unvollständig; kein Gesamt-PR und kein HA-Release |
@@ -55,7 +57,7 @@ Ein Worktree ist nur ein Arbeitsverzeichnis; Gegenstand eines PRs ist der Branch
 
 ## PR-Reihenfolge
 
-1. Den unabhängigen JSON-Fix nach Veröffentlichungsfreigabe gegen main einreichen.
+1. JSON-Fix als PR #1322 veröffentlicht: CI und Review prüfen, danach über Merge entscheiden.
 2. #1256/#1305 über ihre vorhandenen PRs zusammenführen; lokale Korrekturen dort
    zuordnen. Keine pauschale Veröffentlichung der kombinierten Integrationsbasis.
 3. Das isolierte Messdatenpaket auf diesen main-Stand setzen, Diff prüfen und
@@ -77,7 +79,8 @@ alten großen Feature-Branch oder die Integrationsbasis stapeln.
 Unabhängige Fehlerkorrekturen und neue Funktionen können ab jetzt in Themenbranches
 auf main erfolgen. Für Entwicklung, die den vollständigen neuen GENETIC oder die
 noch fehlenden Funktionen benötigt, ist der Integrationsstand noch nicht abgenommen.
-Die ursprüngliche Arbeitskopie bleibt erhalten; nichts wurde deployt oder veröffentlicht.
+Die ursprüngliche Arbeitskopie bleibt erhalten. Nur der JSON-Fix wurde als PR #1322
+veröffentlicht; nichts wurde gemergt oder deployt.
 
 ## HA-Übergabe
 
@@ -93,7 +96,7 @@ Das isolierte Messdatenpaket: 453 bestandene Tests plus 5 Dokumentationstests;
 74 Tests nach Übernahme der Fixture-Isolation nochmals erfolgreich.
 XML-Protokolle liegen in der privaten Sicherung `eos-20260916-120324`.
 Linux/Python 3.13, alle gepinnten Abhängigkeiten und die vollständige CI sind damit
-nicht bestätigt. Die PRs sind lokal vorbereitet, noch nicht auf GitHub veröffentlicht.
+nicht bestätigt. PR #1322 ist veröffentlicht; das abhängige Messdatenpaket bleibt lokal.
 
 
 Zusätzlicher Integrationslauf: 764 Tests bestanden, 3 übersprungen; zwei zunächst
