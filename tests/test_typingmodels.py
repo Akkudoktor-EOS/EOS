@@ -165,7 +165,7 @@ async def test_energy_calculation_requires_resolvable_record_times(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     measurement = Measurement()
-    measurement.records = [MeasurementDataRecord()]
+    monkeypatch.setattr(measurement, "records", [MeasurementDataRecord()])
     monkeypatch.setattr(Measurement, "min_datetime", AsyncMock(return_value=None))
     monkeypatch.setattr(Measurement, "max_datetime", AsyncMock(return_value=None))
     with pytest.raises(ValueError, match="Start and end datetimes are required"):
