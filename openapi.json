@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609161038708598"
+    "version": "v0.3.0.dev2609161181236195"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {

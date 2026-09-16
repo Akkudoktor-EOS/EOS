@@ -14,7 +14,7 @@ use keyed device identities and remain separate from the configured active capac
 storing an estimate requires an explicit request and preserves runtime config updates.
 
 Expose `/v1/measurement/samples`, `/v1/measurement/energy`,
-`/v1/measurement/household` and `/v1/measurement/battery-capacity/{device_id}`.
+`/v1/measurement/household` and `/v1/measurement/battery-capacity/{battery_id}`.
 Regenerate the configuration and OpenAPI contracts. Use synthetic data only.
 
 Validation: 453 configuration/measurement/device simulation tests and 5 documentation
