@@ -27,10 +27,10 @@ def setup_measurement(config_eos):
 
     def configure(topology="direct", inputs=None, channels=None):
         inputs = inputs or [dict(key="site", branch="house", role="site")]
-        config_eos.measurement = MeasurementCommonSettings(
+        config_eos.measurement = MeasurementCommonSettings.model_validate(dict(
             channels=channels or {item["key"]: POWER for item in inputs},
             household=dict(topology=topology, inputs=inputs),
-        )
+        ))
         return measurement
 
     yield configure
@@ -339,7 +339,7 @@ async def test_quality_merge_keeps_other_channels(setup_measurement):
     (await write(m, "site", [(0, 800, {"status": "estimated"})]))
     (await write(m, "ev", [(0, None, {"status": "unavailable"})]))
     (await m.insert_by_datetime(
-        MeasurementDataRecord(date_time=START, sample_quality={"site": {"status": "measured"}})
+        MeasurementDataRecord.model_validate(dict(date_time=START, sample_quality={"site": {"status": "measured"}}))
     ))
     assert m.records[0].sample_quality["site"].status == "measured"
     assert m.records[0].sample_quality["ev"].status == "unavailable"

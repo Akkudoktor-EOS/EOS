@@ -1,4 +1,5 @@
 import pytest_asyncio
+
 """Capacity fits must preserve energy direction, coverage and independent anchors."""
 
 # ruff: noqa: S101
@@ -32,13 +33,13 @@ def fit(
     quality=None,
     max_gap=3600,
 ):
-    request = BatteryCapacityRequest(
+    request = BatteryCapacityRequest.model_validate(dict(
         start=START,
         end=START + timedelta(seconds=end_seconds),
         start_soc_percentage=start_soc,
         end_soc_percentage=end_soc,
         soc_reference="voltage_current_anchor",
-    )
+    ))
     settings = BatteryCapacityEstimationSettings(power_key="dc", positive_power=polarity)
     channel = MeasurementChannelSettings(
         quantity="power",
@@ -148,12 +149,12 @@ def test_hidden_saturation_cannot_be_fixed_by_end_point_fitting():
 
 def test_model_soc_is_not_an_accepted_reference():
     with pytest.raises(ValidationError):
-        BatteryCapacityRequest(
+        BatteryCapacityRequest.model_validate(dict(
             start=START,
             end=START + timedelta(hours=1),
             start_soc_percentage=20,
             soc_reference="calculated_soc",
-        )
+        ))
 
 
 @pytest_asyncio.fixture
@@ -206,6 +207,7 @@ async def database_case(config_eos):
 
 def test_http_reads_database_and_stores_only_explicit_estimate(database_case):
     from fastapi.testclient import TestClient
+
     from akkudoktoreos.server.eos import app
 
     client = TestClient(app)
@@ -224,10 +226,13 @@ def test_http_reads_database_and_stores_only_explicit_estimate(database_case):
     body["store_estimate"] = True
     response = client.post("/v1/measurement/battery-capacity/battery", json=body)
     assert response.status_code == 200, response.text
+    battery = database_case.devices.batteries["battery"]
+    assert battery.capacity_estimate is not None
     assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(10000)
     assert battery.capacity_wh == 12000
     database_case.merge_settings_from_dict({"optimization": {"genetic": {"individuals": 100}}})
     battery = database_case.devices.batteries["battery"]
+    assert battery.capacity_estimate is not None
     assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(10000)
     assert battery.capacity_wh == 12000
 

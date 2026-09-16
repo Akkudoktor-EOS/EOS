@@ -3,19 +3,20 @@
 # ruff: noqa: S101
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
-from zoneinfo import ZoneInfo
 
 from akkudoktoreos.measurement.energy import energy_intervals
 from akkudoktoreos.measurement.measurement import MeasurementChannelSettings
-
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 START = datetime(2026, 9, 10, tzinfo=timezone.utc)
 
 
 def channel(quantity="power", **kwargs):
-    defaults = {
+    defaults: dict[str, dict[str, Any]] = {
         "power": dict(unit="W", integration_method="hold", max_gap_seconds=900),
         "cumulative_energy": dict(unit="kWh"),
         "interval_energy": dict(unit="Wh", interval_seconds=900, timestamp_reference="start"),
@@ -79,7 +80,8 @@ def test_reset_does_not_create_negative_consumption():
 
 def test_hour_allocation_conserves_energy_and_is_labelled():
     result = convert([(0, 1000)], channel("interval_energy", interval_seconds=3600), 3600)
-    assert sum(r.energy_wh for r in result) == 1000
+    assert all(r.energy_wh is not None for r in result)
+    assert sum(r.energy_wh for r in result if r.energy_wh is not None) == 1000
     assert all("allocated_energy" in r.methods for r in result)
 
 
@@ -106,7 +108,8 @@ def test_dst_calendar_day(month, day, hours):
     end = start + timedelta(days=1)
     result = energy_intervals([(start, 0), (end, hours)], channel("cumulative_energy"), start, end)
     assert len(result) == hours * 4
-    assert sum(r.energy_wh for r in result) == pytest.approx(hours * 1000)
+    assert all(r.energy_wh is not None for r in result)
+    assert sum(r.energy_wh for r in result if r.energy_wh is not None) == pytest.approx(hours * 1000)
 
 
 @pytest.mark.asyncio
@@ -121,9 +124,9 @@ async def test_measurement_wrapper_preserves_asynchronous_channels(config_eos):
             channels={"p": channel(), "other": channel()}
         )
         measurement._db_reset_state()
-        (await measurement.update_value(START, "p", 800))
-        (await measurement.update_value(START + timedelta(seconds=450), "other", 1))
-        (await measurement.update_value(START + timedelta(seconds=900), "p", 800))
+        (await measurement.update_value(to_datetime(START), "p", 800))
+        (await measurement.update_value(to_datetime(START + timedelta(seconds=450)), "other", 1))
+        (await measurement.update_value(to_datetime(START + timedelta(seconds=900)), "p", 800))
         result = (await measurement.energy_intervals("p", START, START + timedelta(seconds=900)))
         assert result[0].energy_wh == 200
     finally:
