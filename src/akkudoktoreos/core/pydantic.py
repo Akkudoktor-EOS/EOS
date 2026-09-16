@@ -65,6 +65,37 @@ from akkudoktoreos.utils.datetimeutil import (
 _model_private_state: "weakref.WeakKeyDictionary[Union[PydanticBaseModel, PydanticModelNestedValueMixin], Dict[str, Any]]" = weakref.WeakKeyDictionary()
 
 
+def deep_merge(source_data: Any, update_data: Any) -> Any:
+    """Merge two data structures recursively.
+
+    Values in update_data (including None) override source values.
+    Nested dictionaries are merged recursively.
+    Lists in update_data replace source lists entirely.
+
+    Args:
+        source_data (Any): Data to merge into.
+        update_data (Any): Data to merge from.
+
+    Returns:
+        Any: The merged data.
+    """
+    if isinstance(source_data, dict) and isinstance(update_data, dict):
+        merged = dict(source_data)
+        for key, update_value in update_data.items():
+            if key in merged:
+                merged[key] = deep_merge(merged[key], update_value)
+            else:
+                merged[key] = update_value
+        return merged
+
+    # If both are lists, replace source list with update list
+    if isinstance(source_data, list) and isinstance(update_data, list):
+        return update_data
+
+    # For other types or if update_data is None, override source_data
+    return update_data
+
+
 def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, Any]:
     """Merge a Pydantic model instance with an update dictionary.
 
@@ -82,23 +113,6 @@ def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, An
     Returns:
         dict[str, Any]: Merged dictionary representing combined model data.
     """
-
-    def deep_merge(source_data: Any, update_data: Any) -> Any:
-        if isinstance(source_data, dict) and isinstance(update_data, dict):
-            merged = dict(source_data)
-            for key, update_value in update_data.items():
-                if key in merged:
-                    merged[key] = deep_merge(merged[key], update_value)
-                else:
-                    merged[key] = update_value
-            return merged
-
-        # If both are lists, replace source list with update list
-        if isinstance(source_data, list) and isinstance(update_data, list):
-            return update_data
-
-        # For other types or if update_data is None, override source_data
-        return update_data
 
     source_dict = source.model_dump(
         exclude_unset=True,

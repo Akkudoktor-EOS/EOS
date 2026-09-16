@@ -370,8 +370,8 @@ def config_eos_factory(
         assert not config_file_cwd.exists()
 
         config_eos = get_config(init=init)
-        # Ensure newly created configurations are respected
-        # Note: Workaround for pydantic_settings and pytest
+        # Ensure newly created configurations are respected and runtime settings of
+        # previous tests are dropped
         config_eos.reset_settings()
 
         # Check user data directory pathes (config_default_dirs[-1] == data_default_dir_user)
