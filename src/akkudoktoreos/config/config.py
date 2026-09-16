@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Optional, Type, Union
 
@@ -38,7 +39,7 @@ from akkudoktoreos.core.emsettings import (
 )
 from akkudoktoreos.core.logabc import LOGGING_LEVELS
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
-from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, merge_models
+from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, deep_merge
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
@@ -396,6 +397,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     }
     _config_file_path: ClassVar[Optional[Path]] = None
     _config_autosave: ClassVar[str] = ""
+    # Settings provided at runtime, e.g. by the REST interface. Highest priority after CLI.
+    _runtime_settings: ClassVar[dict[str, Any]] = {}
     _force_documentation_mode = False
 
     def __hash__(self) -> int:
@@ -518,6 +521,14 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 logger.debug(f"CLI arg: server.reload set to {args.reload}")
 
             return settings
+
+        def lazy_runtime_settings() -> dict:
+            """Runtime settings.
+
+            Settings provided during runtime, e.g. by the REST interface. They supersede any
+            setting from the environment or the configuration file until they are reset.
+            """
+            return deepcopy(cls._runtime_settings)
 
         def lazy_config_file_settings() -> dict:
             """Config file settings.
@@ -668,6 +679,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         # runtime configuration.
         setting_sources = [
             lazy_config_cli_settings,  # Prio high
+            lazy_runtime_settings,  # settings provided during runtime
             lazy_env_settings,
             lazy_dotenv_settings,
             lazy_config_file_settings,  # resolves/creates config file path
@@ -705,7 +717,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             logger.debug("Config init called again with parameters {} {}", args, kwargs)
             return
         logger.debug("Config init with parameters {} {}", args, kwargs)
-        self._setup(self, *args, **kwargs)
+        # Do not pass self - the first positional argument of pydantic_settings.BaseSettings
+        # is _case_sensitive, which would make environment variable lookup case sensitive.
+        self._setup(*args, **kwargs)
 
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""
@@ -741,11 +755,10 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         )
 
     def merge_settings_from_dict(self, data: dict) -> None:
-        """Merges the provided dictionary data into the current instance.
+        """Merges the provided dictionary data into the runtime settings.
 
-        Creates a new settings instance, then applies the dictionary data through validation,
-        and finally merges the validated settings into the current instance. None values
-        are not merged.
+        The data is added to the runtime settings, which have priority over the environment and
+        the EOS configuration file. All configuration sources are re-evaluated afterwards.
 
         Args:
             data (dict): Dictionary containing field values to merge into the
@@ -762,18 +775,56 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 config.merge_settings_from_dict(new_data)
 
         """
-        merged = merge_models(
-            self,
-            data,
-        )
+        previous_settings = ConfigEOS._runtime_settings
+        ConfigEOS._runtime_settings = deep_merge(previous_settings, deepcopy(data))
+        try:
+            self._setup()
+        except Exception:
+            # Keep the runtime settings in sync with the actual configuration
+            ConfigEOS._runtime_settings = previous_settings
+            raise
 
-        self._setup(**merged)
+    def set_nested_value(self, path: str, value: Any) -> None:
+        """Set a nested configuration value and remember it as runtime setting.
+
+        Args:
+            path (str): A '/'-separated path to the nested attribute (e.g. "server/port").
+            value (Any): The new value to set.
+        """
+        super().set_nested_value(path, value)
+
+        # Remember as runtime setting to survive re-evaluation of the configuration sources.
+        # List indices can not be expressed by the settings dictionary - remember the whole list.
+        keys = []
+        for key in path.strip("/").split("/"):
+            if key.isdigit():
+                break
+            keys.append(key)
+        setting = self.get_nested_value("/".join(keys))
+        if isinstance(setting, SettingsBaseModel):
+            setting = setting.model_dump(
+                exclude_none=True, exclude_unset=True, exclude_computed_fields=True
+            )
+        elif isinstance(setting, list):
+            setting = [
+                item.model_dump(exclude_none=True, exclude_unset=True, exclude_computed_fields=True)
+                if isinstance(item, SettingsBaseModel)
+                else item
+                for item in setting
+            ]
+        runtime_setting: dict[str, Any] = {}
+        node = runtime_setting
+        for key in keys[:-1]:
+            node = node.setdefault(key, {})
+        node[keys[-1]] = setting
+        ConfigEOS._runtime_settings = deep_merge(ConfigEOS._runtime_settings, runtime_setting)
 
     def reset_settings(self) -> None:
         """Reset all changed settings to environment/config file defaults.
 
         This functions basically deletes the settings provided before.
         """
+        ConfigEOS._runtime_settings = {}
         self._setup()
 
     def revert_settings(self, backup_id: str) -> None:
@@ -812,7 +863,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             backup_data: dict[str, Any] = json.load(f)
         backup_settings = migrate_config_data(backup_data)
 
-        self._setup(**backup_settings.model_dump(exclude_none=True, exclude_unset=True))
+        # Backup settings are runtime settings - they supersede environment and config file.
+        ConfigEOS._runtime_settings = backup_settings.model_dump(
+            exclude_none=True, exclude_defaults=True, exclude_computed_fields=True
+        )
+        self._setup()
 
     def list_backups(self) -> dict[str, dict[str, Any]]:
         """List available configuration backup files and extract metadata.
@@ -1094,11 +1149,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         """Updates all configuration fields.
 
         This method updates all configuration fields using the following order for value retrieval:
-            1. Current settings.
+            1. Runtime settings.
             2. Environment variables.
             3. EOS configuration file.
             4. Field default constants.
 
         The first non None value in priority order is taken.
         """
-        self._setup(**self.model_dump())
+        self._setup()
