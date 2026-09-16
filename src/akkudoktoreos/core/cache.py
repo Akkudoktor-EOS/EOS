@@ -228,6 +228,9 @@ def cache_energy_management(
 
     cached_wrapper = cachebox.cached(
         cache=CacheEnergyManagementStore().cache,
+        # This store is shared by all decorated callables, including methods
+        # on the same instance. Arguments alone cannot identify their results.
+        key_maker=lambda *args, **kwargs: cachebox.make_key(func, *args, **kwargs),
         callback=cache_energy_management_store_callback,
     )(wrapper)
 
