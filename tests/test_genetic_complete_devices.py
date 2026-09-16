@@ -115,7 +115,7 @@ def test_cycle_and_shared_windows_intersect_after_completed_cycle() -> None:
     )
     device = HomeAppliance(settings.to_genetic_param(), 48, 192, 0.25)
     device.set_completed_cycles(1)
-    zero = to_datetime("2026-09-16T00:00:00+02:00")
+    zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
     assert device.remaining_cycle_indices == [1]
     assert device.allowed_start_slots(
         slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96, cycle_index=1
@@ -148,7 +148,7 @@ def test_touching_cycle_windows_preserve_union() -> None:
         }
     )
     assert device.allowed_start_slots(
-        slot0_datetime=to_datetime("2026-09-16T00:00:00+02:00"),
+        slot0_datetime=to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin"),
         earliest_slot=0,
         horizon_end_slot=96,
         cycle_index=0,
@@ -161,7 +161,7 @@ def test_absolute_bounds_round_inward_on_quarter_hour_grid() -> None:
         deadline_datetime="2026-09-16T09:01:00+02:00",
         deadline_policy="STRICT",
     )
-    zero = to_datetime("2026-09-16T00:00:00+02:00")
+    zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
     assert device.allowed_start_slots(
         slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96
     ) == [33, 34]
@@ -174,7 +174,7 @@ def test_best_effort_relaxes_only_deadline_not_window_or_earliest() -> None:
         deadline_datetime="2026-09-16T08:00:00+02:00",
         shared_time_windows={"windows": [{"start_time": "09:00", "duration": "1 hour"}]},
     )
-    zero = to_datetime("2026-09-16T00:00:00+02:00")
+    zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
     assert device.allowed_start_slots(
         slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96
     ) == [36]
@@ -199,7 +199,7 @@ def test_overnight_window_uses_opening_date_and_weekday() -> None:
             ]
         }
     )
-    zero = to_datetime("2026-09-16T00:00:00+02:00")
+    zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
     assert device.allowed_start_slots(
         slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96
     ) == list(range(7))
@@ -237,7 +237,7 @@ def test_ev_deadlines_roundtrip_without_changing_slot_physics() -> None:
     params = settings.to_genetic_ev_bat_param()
     assert params.min_soc_max_duration_h == 2.5
     assert params.min_soc_deadline_datetime is not None
-    assert params.min_soc_deadline_datetime.hour == 7
+    assert params.min_soc_deadline_datetime.in_timezone("Europe/Berlin").hour == 7
     battery = Battery(params, prediction_hours=16, slot_duration_h=0.25)
     battery.charge_array[0] = 1
     charged, losses = battery.charge_energy(2000, hour=0)
@@ -273,10 +273,21 @@ def test_best_effort_multiple_cycles_retain_room_for_joint_gap_repair() -> None:
         deadline_datetime="2026-09-16T08:00:00+02:00",
         shared_time_windows={"windows": [{"start_time": "09:00", "duration": "3 hours"}]},
     )
-    zero = to_datetime("2026-09-16T00:00:00+02:00")
+    zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
     assert device.allowed_start_slots(
         slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96, cycle_index=0
     ) == list(range(36, 47))
     assert device.deadline_relaxed
     device.build_load_curve([36, 42])
     assert device.get_load_curve().sum() == pytest.approx(700)
+
+
+@pytest.mark.parametrize("deadline", ["2026-09-16T07:00:00Z", "2026-09-16T09:00:00+02:00"])
+def test_absolute_deadline_offsets_describe_same_instant(deadline: str) -> None:
+    device = appliance(deadline_datetime=deadline, deadline_policy="STRICT")
+    zero = to_datetime("2026-09-16T08:00:00+02:00", in_timezone="Europe/Berlin")
+    assert device.allowed_start_slots(
+        slot0_datetime=zero, earliest_slot=0, horizon_end_slot=16
+    ) == [0, 1, 2]
+    assert not device.deadline_missed([2], zero)
+    assert device.deadline_missed([3], zero)

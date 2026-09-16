@@ -1,6 +1,6 @@
 """Real small optimizer runs covering device contracts across the public result."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 import numpy as np
@@ -17,7 +17,17 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+
+
+@pytest.fixture(autouse=True, params=["UTC", "Europe/Berlin"])
+def local_clock(request: pytest.FixtureRequest, set_other_timezone: Callable[[str], str]) -> None:
+    """Run the same local-wall-clock schedules in UTC and a DST-observing zone.
+
+    Scenario dates intentionally have no fixed offset: each names local midnight,
+    a local time window or a local departure in the selected timezone.
+    """
+    set_other_timezone(request.param)
 
 
 @pytest_asyncio.fixture
@@ -35,14 +45,14 @@ def configure(
     config: ConfigEOS,
     *,
     hours: int = 4,
-    start: str = "2026-09-16T00:00:00+02:00",
+    start: str = "2026-09-16T00:00:00",
     marketing: bool = False,
 ) -> None:
     config.merge_settings_from_dict(
         {
-            "general": {"timezone": "Europe/Berlin"},
             "prediction": {"hours": max(48, hours)},
             "optimization": {
+                "algorithm": "GENETIC",
                 "genetic": {
                     "horizon_hours": hours,
                     "tail_horizon_hours": 0,
@@ -50,7 +60,7 @@ def configure(
                     "individuals": 12,
                     "generations": 10,
                     "terminal_value_mode": "FIXED",
-                }
+                },
             },
             "feedintariff": {"direct_marketing_enabled": marketing},
         }
@@ -87,6 +97,13 @@ def run(params: GeneticOptimizationParameters) -> tuple[GeneticOptimization, Gen
     return optimizer, solution
 
 
+def run_local_starts(solution: GeneticSolution) -> list[DateTime]:
+    """Compare scheduled instants in the run zone, independently of output zone."""
+    timezone = get_ems().start_datetime.timezone_name
+    assert timezone is not None
+    return [moment.in_timezone(timezone) for moment in solution.appliance_starts["washer"]]
+
+
 def profile(**kwargs: Any) -> dict[str, Any]:
     return {
         "device_id": "washer",
@@ -108,7 +125,7 @@ def test_real_optimizer_keeps_reverse_cycle_window_identity(config_eos: ConfigEO
         },
     )
     _, solution = run(parameters(consumers=[consumer]))
-    assert [value.hour for value in solution.appliance_starts["washer"]] == [1, 2]
+    assert [value.hour for value in run_local_starts(solution)] == [1, 2]
     assert sum(solution.result.home_appliance_energy_wh["washer"]) == pytest.approx(700.0)
     assert sum(solution.result.grid_consumption_wh_per_hour) == pytest.approx(700.0)
     assert solution.result.total_costs == pytest.approx(0.21)
@@ -130,7 +147,7 @@ def test_real_daily_optimizer_skips_completed_cycles_only_on_first_day(
         },
     )
     _, solution = run(parameters(hours=28, consumers=[consumer]))
-    assert [(value.day, value.hour) for value in solution.appliance_starts["washer"]] == [
+    assert [(value.day, value.hour) for value in run_local_starts(solution)] == [
         (16, 2),
         (17, 1),
         (17, 2),
@@ -142,13 +159,11 @@ def test_real_best_effort_multicycle_prioritizes_delay_over_cheaper_prices(
     config_eos: ConfigEOS,
 ) -> None:
     configure(config_eos)
-    consumer = profile(
-        num_cycles=2, min_cycle_gap_h=1, deadline_datetime="2026-09-15T23:00:00+02:00"
-    )
+    consumer = profile(num_cycles=2, min_cycle_gap_h=1, deadline_datetime="2026-09-15T23:00:00")
     params = parameters(consumers=[consumer])
     params.ems.electricity_price_per_wh = [0.001] * 8 + [-0.001] * 8
     _, solution = run(params)
-    assert [(value.hour, value.minute) for value in solution.appliance_starts["washer"]] == [
+    assert [(value.hour, value.minute) for value in run_local_starts(solution)] == [
         (0, 0),
         (1, 30),
     ]
@@ -162,7 +177,7 @@ def test_real_mixed_best_effort_cycle_status_survives_later_strict_cycle(
     configure(config_eos)
     consumer = profile(
         num_cycles=2,
-        deadline_datetime="2026-09-16T01:00:00+02:00",
+        deadline_datetime="2026-09-16T01:00:00",
         time_windows={
             "windows": [
                 {"start_time": "02:00", "duration": "2 hours", "value": 0},
@@ -173,7 +188,7 @@ def test_real_mixed_best_effort_cycle_status_survives_later_strict_cycle(
     params = parameters(consumers=[consumer])
     params.ems.electricity_price_per_wh = [0.001] * 12 + [-0.001] * 4
     _, solution = run(params)
-    assert [(value.hour, value.minute) for value in solution.appliance_starts["washer"]] == [
+    assert [(value.hour, value.minute) for value in run_local_starts(solution)] == [
         (0, 0),
         (2, 0),
     ]
@@ -200,13 +215,13 @@ def test_real_warm_start_handles_changed_completed_cycle_layout(config_eos: Conf
     )
     second = optimizer.optimize_ems(followup, ngen=1, individuals=12)
     assert len(second.appliance_starts["washer"]) == 1
-    assert second.appliance_starts["washer"][0].hour == 2
+    assert run_local_starts(second)[0].hour == 2
     assert sum(second.result.home_appliance_energy_wh["washer"]) == pytest.approx(350.0)
     assert first.start_solution is not None and second.start_solution is not None
     assert len(second.start_solution) == len(first.start_solution) - 1
 
 
-@pytest.mark.parametrize("deadline", ["2026-09-15T23:00:00+02:00", "2026-09-16T00:01:00+02:00"])
+@pytest.mark.parametrize("deadline", ["2026-09-15T23:00:00", "2026-09-16T00:01:00"])
 def test_real_ev_does_not_credit_energy_delivered_after_departure(
     config_eos: ConfigEOS, deadline: str
 ) -> None:
@@ -232,7 +247,7 @@ def test_real_ev_does_not_credit_energy_delivered_after_departure(
 
 
 def test_real_ev_target_across_midnight_uses_elapsed_slots(config_eos: ConfigEOS) -> None:
-    configure(config_eos, start="2026-09-16T23:30:00+02:00")
+    configure(config_eos, start="2026-09-16T23:30:00")
     params = parameters(
         ev={
             "device_id": "car",
@@ -242,7 +257,7 @@ def test_real_ev_target_across_midnight_uses_elapsed_slots(config_eos: ConfigEOS
             "charging_efficiency": 1.0,
             "max_charge_power_w": 4000,
             "charge_rates": [0.0, 1.0],
-            "min_soc_deadline_datetime": "2026-09-17T00:00:00+02:00",
+            "min_soc_deadline_datetime": "2026-09-17T00:00:00",
         }
     )
     params.ems.electricity_price_per_wh[-16:] = [0.001] * 2 + [0.00001] * 14
@@ -344,7 +359,7 @@ async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
     assert prepared.home_appliances is not None
     assert prepared.home_appliances[0].completed_cycles == 1
     _, solution = run(prepared)
-    assert [start.hour for start in solution.appliance_starts["washer"]] == [2]
+    assert [start.hour for start in run_local_starts(solution)] == [2]
     assert sum(solution.result.home_appliance_energy_wh["washer"]) == pytest.approx(350.0)
 
 
