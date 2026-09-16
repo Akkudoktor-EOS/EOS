@@ -81,8 +81,7 @@ def validate_ip_or_hostname(value: str) -> str:
         raise ValueError(f"Not a valid hostname: {value}")
 
     hostname_regex = re.compile(
-        r"^(?=.{1,253}$)(?!-)[A-Z\d-]{1,63}(?<!-)"
-        r"(?:\.(?!-)[A-Z\d-]{1,63}(?<!-))*\.?$",
+        r"^(?=.{1,253}$)(?!-)[A-Z\d-]{1,63}(?<!-)" r"(?:\.(?!-)[A-Z\d-]{1,63}(?<!-))*\.?$",
         re.IGNORECASE,
     )
     if not bool(hostname_regex.fullmatch(value)):
