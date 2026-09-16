@@ -8,7 +8,7 @@ Die übrige Integration steht weiterhin auf dem zuvor geprüften `7ebe6d7`.
 Ein unabhängiger, lokal getesteter PR ist veröffentlicht: `fix/measurement-json-reload`
 auf aktuellem main. Sein Worktree ist `../EOS-pr-measurement-json`; er enthält nur
 zwei geänderte Dateien. Der veröffentlichte [PR #1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322)
-enthält Commit `bdc754d`. Der PR-Text steht in
+enthält zwei Commits bis `ce132ea`. Der PR-Text steht in
 [measurement-json-reload.md](pr-drafts/measurement-json-reload.md).
 
 Das ist ein konkreter Einstieg in den PR-Workflow. Die vollständige Übernahme aller

@@ -2,9 +2,12 @@
 
 Target: `Akkudoktor-EOS/EOS:main`.
 Local branch: `fix/measurement-json-reload`.
-Local head: `bdc754d` (rebased onto main `4a37244`).
+Local head: `ce132ea` (based on main `4a37244`).
 Status: published with explicit user approval as [PR #1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322).
-One commit, two files; published head and diff verified. CI started; not merged.
+Two commits, two files; published head and diff verified. Not merged.
+The second commit adds an explicit non-null timestamp assertion after CI mypy
+flagged the test. All 49 local tests still pass. Pre-commit (including mypy),
+CodeQL and Docker build passed on ce132ea; full CI pytest is still running.
 
 ## Proposed PR body
 
