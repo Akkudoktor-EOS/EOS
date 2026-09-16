@@ -35,7 +35,11 @@ async def test_json_roundtrip_restores_records_into_existing_singleton(file_meas
     assert await measurement.load()
     assert get_measurement() is measurement
     assert [record["meter"] for record in measurement.records] == [123.5, 124.0]
-    assert [record.date_time.in_timezone("UTC").hour for record in measurement.records] == [8, 9]
+    restored_hours = []
+    for record in measurement.records:
+        assert record.date_time is not None
+        restored_hours.append(record.date_time.in_timezone("UTC").hour)
+    assert restored_hours == [8, 9]
     # Reloading must update matching timestamps, without duplicating them.
     assert await measurement.load()
     assert len(measurement.records) == 2
