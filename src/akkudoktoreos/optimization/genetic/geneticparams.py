@@ -10,6 +10,7 @@ forecasts, and fallback defaults, preparing them for optimization runs.
 
 from typing import Optional, Union
 
+import numpy as np
 from loguru import logger
 from pydantic import (
     AliasChoices,
@@ -516,8 +517,29 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
+                # Prediction records already contain amount/Wh; only fixed-provider
+                # configuration is expressed in amount/kWh. Preserve signs and units.
+                if cls.config.feedintariff.provider == "FeedInTariffImport":
+                    if array.ndim != 1 or len(array) != len(pvforecast_ac_power):
+                        raise ValueError(
+                            "Imported feed-in tariff length does not match the forecast horizon"
+                        )
+                    if not np.isfinite(array).all():
+                        raise ValueError(
+                            "Imported feed-in tariff contains missing or non-finite values"
+                        )
                 feed_in_tariff_wh = array.tolist()
             except Exception as e:
+                if cls.config.feedintariff.provider == "FeedInTariffImport":
+                    # An external EMS supplies the resolved sale revenue. Replacing
+                    # missing imports with demo or purchase prices changes the economics.
+                    logger.error(
+                        "Cannot prepare GENETIC parameters: FeedInTariffImport revenue is "
+                        "unavailable or invalid; keeping the configured provider and "
+                        "canceling optimization: {}",
+                        e,
+                    )
+                    return None
                 logger.info(
                     "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
