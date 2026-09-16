@@ -94,3 +94,9 @@ Das isolierte Messdatenpaket: 453 bestandene Tests plus 5 Dokumentationstests;
 XML-Protokolle liegen in der privaten Sicherung `eos-20260916-120324`.
 Linux/Python 3.13, alle gepinnten Abhängigkeiten und die vollständige CI sind damit
 nicht bestätigt. Die PRs sind lokal vorbereitet, noch nicht auf GitHub veröffentlicht.
+
+
+Zusätzlicher Integrationslauf: 764 Tests bestanden, 3 übersprungen; zwei zunächst
+fehlgeschlagene Dokumentationsvergleiche betrafen ausschließlich die Versionsangabe.
+Nach Neugenerierung bestanden alle 5 Dokumentationstests. Darunter sind außerdem
+128 bestandene Energy-Charts-Regressionen zum neuen main-Commit dokumentiert.

@@ -170,3 +170,29 @@ This is a tested partial integration checkpoint, NOT completion of the consolida
 The source packages are locally committed; release, full feature acceptance and
 upstream submission remain pending. Do not move active development or HA deployment
 here until the remaining optimizer/prognosis/output/request packages are integrated.
+
+
+## PR-readiness verification, 2026-09-16
+
+Current main `7ebe6d7` is incorporated. Two reviewable local packages now exist:
+`fix/measurement-json-reload` (`dba0c9c`, independently based on main) and
+`feat/measurement-energy-quality-capacity` (`ea3383e`, depends on the configuration
+integration base `d546f08`). The latter excludes the new optimizer/device physics.
+See [PR workflow](pr-workflow.md) and its concrete draft descriptions.
+
+The expanded integration run completed with 764 passed, 3 skipped and 2 documentation
+failures in 453.99 seconds. Both failures were solely stale generated OpenAPI version
+metadata, not schema or functional differences. Regenerated the two files; the focused
+rerun of all 5 documentation tests passed. No remaining failure from that selection.
+The complete expanded selection was not rerun after this documentation-only correction.
+Three skips: the two existing long --finalize optimizer cases and the development-only
+Energy-Charts forecast case. All 128 active Energy-Charts regressions passed.
+
+Independent package checks: JSON fix 49 tests; isolated measurement package 453 tests
+plus 5 documentation tests; capacity fixture isolation followed by 74 passing tests.
+Ruff and source formatting passed for the independent fix; measurement source Ruff
+passed. Full pinned Linux/Python 3.13 CI remains outstanding.
+
+All original 102 saved file hashes and original feature HEAD were checked unchanged.
+Both PR worktrees are clean, locally committed, and unpublished. This enables small
+independent PRs now; it does not complete the still-open optimizer/PV/output port.
