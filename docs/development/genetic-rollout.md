@@ -48,7 +48,8 @@ Stored results and warmstarts retain explicit timezones and absolute instants.
 `POST /v1/optimize` runs GENETIC from configuration. An empty JSON object uses the
 configured forecasts and fresh measurements. Runtime input may contain `soc`,
 `forecasts`, `start_solution` and `start_solution_datetime`. Hardware overrides in
-this body are rejected. For example, with a configured device ID `storage`:
+this body and query-string overrides are rejected. For example, with a configured
+device ID `storage`:
 
 ```json
 {"soc": {"storage": 42}}

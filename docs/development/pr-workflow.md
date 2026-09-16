@@ -1,5 +1,11 @@
 # EOS: Arbeitsstand und Weg zu kleinen PRs
 
+Historischer Zwischenstand. Die damals offenen GENETIC-Pakete sind inzwischen
+implementiert. Maßgeblich sind [Review-Handoff](review-handoff.md) für die acht PRs,
+Abhängigkeiten und Merge-Reihenfolge sowie [GENETIC-Rollout](genetic-rollout.md)
+für Konfiguration und manuelle Abnahme. Die Statusangaben unten dokumentieren
+frühere Arbeitsschritte.
+
 Stand: 16.09.2026. Offizielles main für PR #1322: `4a37244`.
 Die lokale Integration enthält ebenfalls diesen main-Stand und den aktualisierten
 Stand von #1305 (`60b77f6`).

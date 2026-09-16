@@ -282,6 +282,18 @@ def test_http_empty_body_is_configuration_request_and_failure_cannot_return_cach
     assert run.await_count == 1
 
 
+@pytest.mark.parametrize("query", ["start_hour=4", "ngen=1", "interval=3600", "unknown="])
+def test_http_configuration_request_rejects_query_overrides(monkeypatch, query):
+    from akkudoktoreos.server import eos
+
+    run = AsyncMock()
+    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(run=run))
+    response = TestClient(eos.app).post(f"/v1/optimize?{query}", json={})
+    assert response.status_code == 422
+    assert "query overrides are not supported" in response.text
+    run.assert_not_awaited()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("automatic", [False, True])
 async def test_real_ems_returns_coherent_quarter_hour_solution_and_plan(

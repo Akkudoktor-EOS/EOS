@@ -2209,15 +2209,22 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
 @app.post("/v1/optimize", tags=["optimize"])
 async def fastapi_optimize_config(
+    request: Request,
     parameters: ConfigOptimizationRequest = Body(default_factory=ConfigOptimizationRequest),
 ) -> GeneticSolution:
     """Optimize GENETIC using configured devices and optional fresh runtime inputs.
 
-    Static settings belong in configuration. Forecast arrays start at local
+    Static settings belong in configuration; query overrides are rejected.
+    Forecast arrays start at local
     midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
     An empty body uses configured providers and fresh measured states of charge.
     The deprecated /optimize endpoint continues to run hourly GENETIC0.
     """
+    if request.query_params:
+        raise HTTPException(
+            status_code=422,
+            detail="Configure optimization settings; query overrides are not supported.",
+        )
     solution = await get_ems().run(
         mode=EnergyManagementMode.OPTIMIZATION,
         algorithm=OptimizationAlgorithm.GENETIC,
