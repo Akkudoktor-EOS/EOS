@@ -2200,7 +2200,7 @@ async def fastapi_optimize(
         start_datetime = to_datetime().set(hour=start_hour)
 
     # Ensure there is only one optimization/ energy management run at a time
-    await get_ems().run(
+    solution = await get_ems().run(
         start_datetime=start_datetime,
         mode=EnergyManagementMode.OPTIMIZATION,
         algorithm=OptimizationAlgorithm.GENETIC0,
@@ -2208,7 +2208,6 @@ async def fastapi_optimize(
         genetic0_generations=ngen,
     )
 
-    solution = get_ems().genetic0_solution()
     if solution is None:
         raise EOSProblem(
             status=404,
