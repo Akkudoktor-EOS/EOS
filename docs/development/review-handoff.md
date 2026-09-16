@@ -1,84 +1,63 @@
-# EOS review handoff — 2026-09-16
+# EOS review and merge handoff
 
-The user authorized publication of all prepared packages and requested completed
-checks before manual review. No upstream merge, HA change or deployment is authorized
-by this handoff. The original feature working copy remains the preserved reference.
+The consolidation implements the remaining GENETIC optimizer, configuration-owned
+Optimize request and result/PDF output. See [GENETIC rollout](genetic-rollout.md)
+for configuration and manual acceptance. Historical planning documents in this
+directory describe earlier checkpoints; this handoff supersedes their pending-work lists.
 
-## Published packages
+## PR dependencies
 
-| PR | Scope | Review base | Expected merge prerequisite |
+| PR | Scope | Review base | Merge prerequisite |
 | --- | --- | --- | --- |
-| [#1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322) | Restore JSON measurement records into the singleton | main | Independent |
-| [#1323](https://github.com/Akkudoktor-EOS/EOS/pull/1323) | Return only this successful Optimize run; publish consistent results | main | Independent |
-| [#1324](https://github.com/Akkudoktor-EOS/EOS/pull/1324) | Reject invalid imported tariffs without replacing the provider | main | Independent |
-| [#1325](https://github.com/Akkudoktor-EOS/EOS/pull/1325) | Local calibrated Akkudoktor PV backend | main | Independent |
-| [#1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326) | Typed measurements, quality, energy, household and capacity APIs | feat/config-integration-base | #1256, #1305, configuration corrections, #1322 |
-| [#1327](https://github.com/Akkudoktor-EOS/EOS/pull/1327) | Slot-aware devices, export limits, interpolation and cache identity | feat/config-integration-base | #1256, #1305, configuration corrections |
+| [#1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322) | Restore JSON measurements | main | Independent |
+| [#1323](https://github.com/Akkudoktor-EOS/EOS/pull/1323) | Atomic Optimize result publication | main | Independent |
+| [#1324](https://github.com/Akkudoktor-EOS/EOS/pull/1324) | Preserve imported sale tariffs | main | Independent |
+| [#1325](https://github.com/Akkudoktor-EOS/EOS/pull/1325) | Local calibrated Akkudoktor PV | main | Independent |
+| [#1328](https://github.com/Akkudoktor-EOS/EOS/pull/1328) | Device/configuration foundation | main | Includes #1256/#1305 |
+| [#1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326) | Measurement and quality APIs | feat/config-foundation-main | #1328, #1322 |
+| [#1327](https://github.com/Akkudoktor-EOS/EOS/pull/1327) | Slot-aware devices and export | feat/config-foundation-main | #1328 |
+| `feat/genetic-complete` | Complete GENETIC, requests and reports | integration/genetic-prerequisites | All above |
 
-`feat/config-integration-base` at `9038b65` is a published comparison/dependency
-branch. It preserves existing contributor history rather than replacing #1256/#1305
-with another competing PR. Its complete pinned mypy check passes (231 files), as
-do 257 configuration/device tests and five generated-documentation tests.
+Merge the independent packages and #1328 first. The foundation preserves the original
+#1256/#1305 contribution histories and adds compatibility corrections; do not merge
+those original PRs again as extra prerequisites. After their dependencies reach main,
+retarget/rebase #1326/#1327 onto main and rerun CI. Then retarget/rebase the complete
+GENETIC PR onto main and rerun combined CI. Squash merges can require removing already
+landed commits when rebasing. Do not release by merging into a comparison branch.
 
-Do not merge #1326/#1327 into this comparison branch as if that released them to
-main. After the prerequisites land, rebase/retarget them onto main, remove overlaps
-such as #1322, and repeat combined CI. CodeQL is configured to run only for PRs
-targeting main; it is not an expected check on these two stacked PRs yet.
+The final comparison branch is the union of the seven published prerequisite heads.
+Its ancestry is attached without changing the combined, tested feature tree.
+CodeQL currently runs for PRs targeting main, so it becomes applicable to stacked
+PRs after retargeting. Other checks run on the stacked branches already.
 
-## Review focus
+## Review and validation
 
-- #1323: a failed optimizer/conversion must never return stale HTTP success; native
-  and generic results and the execution plan must remain consistent for both algorithms.
-- #1324: sale revenue stays amount/Wh, including zero and negative prices; invalid
-  imports cancel preparation. Forward-fill does not establish raw forecast freshness.
-- #1325: public provider ID stays PVForecastAkkudoktor, remote remains the default;
-  local configuration is explicit, migration preserves current values, power stays W.
-- #1326: missing measurements remain distinct from zero; time support and quality
-  determine coverage. A capacity estimate never silently replaces active capacity.
-- #1327: energy/efficiency and export constraints hold at both slot lengths; the
-  unchanged GENETIC0 implementation retains its separate interpolator and legacy API.
+- Optimize: preparation or conversion failure never returns a previous successful
+  result; native result, generic solution and execution plan publish atomically.
+- Forecasts: provider power is converted from W to slot Wh exactly once. Raw missing
+  records stay missing, control coverage is mandatory, and a shorter tail is clipped.
+- Economics: explicit/imported sale prices remain authoritative, including zero and
+  negative values. Battery export is opt-in; terminal value is separate from LCOS.
+- Time: 15/60-minute slots, repeated DST hours, local-midnight forecast origins and
+  non-integer timezone offsets are covered. Old GENETIC reports use saved timestamps.
+- Devices: EV deadlines, flexible power profiles, crossed per-cycle windows, completed
+  cycles and minimum gaps are tested through the optimizer and result conversion.
+- Compatibility: GENETIC0 keeps its legacy request and device implementation. Both
+  algorithms retain finite solution validity and existing persistent plan instructions.
 
-## Remaining feature work
+Exact workflow results belong to each PR's current head; superseded green heads do
+not prove a later revision. The combined checks cover pinned mypy, generated OpenAPI
+and configuration, physics, native HTTP, automatic preparation, PDF generation and
+the 400-generation optimizer regression.
 
-These six PRs do not complete the old feature branch's full new GENETIC. Quarter-hour
-orchestration, warmstart alignment, EV deadlines/flexible profiles, forecast-tail
-integration, the config-owned `/v1/optimize` request, and corresponding result/PDF
-output still require implementation and acceptance. Main's current preparation
-still enforces hourly GENETIC slots. Local slot-physics tests alone are not an
-end-to-end quarter-hour Optimize acceptance.
+Local Windows server-PID tests and Docker builds have known environment failures
+that also reproduce on unchanged main. Linux CI remains the full-suite gate. Local
+PDF pixel comparison needs an optional converter; report semantics and PDF bytes
+are tested independently. Production HA/device behavior still needs manual acceptance.
 
-## Final check results
+## Preservation and release boundary
 
-All six PRs were freshly verified open and unmerged on their listed commits.
-Every applicable GitHub workflow completed successfully on 2026-09-16.
-
-| PR | Verified head | Full pytest | Other applicable checks |
-| --- | --- | --- | --- |
-| #1322 | ce132ea | 1,884 passed, 16 skipped | Pre-commit/mypy, CodeQL, Docker passed |
-| #1323 | ef8d913 | 1,908 passed, 16 skipped | Pre-commit/mypy, CodeQL, Docker passed |
-| #1324 | 2a3b961 | 1,921 passed, 16 skipped | Pre-commit/mypy, CodeQL, Docker passed |
-| #1325 | f0a560b | 1,916 passed, 16 skipped | Pre-commit/mypy, CodeQL, Docker passed |
-| #1326 | 635ff2d | 2,046 passed, 16 skipped | Pre-commit/mypy and Docker passed |
-| #1327 | 8292ea1 | 1,994 passed, 16 skipped | Pre-commit/mypy and Docker passed |
-
-The local full combined suite completed with 2,191 passed, 18 skipped, six failures
-and 18 setup errors. Three failures reproduce on unchanged main: the Windows CEC
-file-timestamp test and two Docker tests without a reachable local engine. The
-server PID failure and setup errors also reproduce on unchanged main: Windows
-virtualenv launchers have a different PID from their healthy child servers. The
-remaining failures concern missing Sphinx executable discovery (corrected test
-environment for the rerun) and the already corrected docstring markup. Complete
-locked mypy now passes across all 253 combined source/test files. The follow-up
-tail-value, terminal-value, file-restore, Optimize compatibility and generated-doc
-checks passed all 37 cases after the corrections. The full Sphinx HTML build also
-passed after activating the isolated environment and correcting UTF-8 encoding in
-the local handoff documents (11m29s). No green result
-should be inferred for a superseded head. The initial #1323 Linux run exposed a
-test's local timezone
-assumption; the replacement explicitly checks UTC and Europe/Berlin. #1327's
-docstring reference was corrected to syntax accepted by the repository checker.
-
-The original HEAD and all 102 files recorded in the preservation manifest were
-verified unchanged. All six published PR worktrees and their configuration base
-are clean. Full logs, baseline reproductions and the final workflow snapshot are
-retained in the private backup `eos-20260916-120324`.
+The original feature working copy is read-only. Its original HEAD and 102 saved files
+are checked against the private preservation manifest. Runtime configuration, secrets
+and real measurements are excluded from the PRs. No remote PR is merged and no HA
+configuration, production server or physical device is changed by this preparation.

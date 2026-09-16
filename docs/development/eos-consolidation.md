@@ -1,6 +1,8 @@
 # EOS consolidation — integration record
 
-Status: in progress, not a completed optimizer port. Updated 2026-09-16.
+Historical integration record, updated 2026-09-16. The completed optimizer port and
+current merge instructions are in [review handoff](review-handoff.md). Pending-work
+statements below describe earlier checkpoints.
 
 Current PR-ready packages, dependency order and development guidance:
 [PR workflow](pr-workflow.md). The first independent fix is ready locally on main;

@@ -1,5 +1,8 @@
 # Remaining EOS packages and Optimize compatibility
 
+Historical planning snapshot. The remaining packages below are now implemented;
+see [review handoff](review-handoff.md) for current dependencies and acceptance.
+
 Snapshot: 2026-09-16. Official main: `4a37244`. Feature source: `d2e2d58`, plus
 separately backed-up local work. This is a functional package estimate, not a claim
 that every differing commit requires its own PR.
