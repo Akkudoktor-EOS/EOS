@@ -98,7 +98,9 @@ async def test_optimize(
         input_data = GeneticOptimizationParameters(**json.load(f_in))
 
     # Fake energy management run start datetime
-    ems_eos.set_start_datetime(to_datetime("2026-09-16T10:00:00+02:00"))
+    ems_eos.set_start_datetime(
+        to_datetime("2026-09-16T10:00:00+02:00", in_timezone="Europe/Berlin")
+    )
 
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()

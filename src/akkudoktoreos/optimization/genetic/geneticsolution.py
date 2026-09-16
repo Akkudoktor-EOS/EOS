@@ -473,9 +473,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     @classmethod
     def transform_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
         """Accept the usual date time representations, naive input is local time."""
-        if value is None:
-            return None
-        return to_datetime(value)
+        return GeneticOptimizationParameters.transform_start_solution_datetime(value)
 
     def _battery_device_id(self) -> str:
         """Get battery device id."""

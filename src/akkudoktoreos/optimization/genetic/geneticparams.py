@@ -8,6 +8,7 @@ It also provides a method to assemble these parameters from predictions,
 forecasts, and fallback defaults, preparing them for optimization runs.
 """
 
+from datetime import datetime
 from typing import Any, Optional, Union
 
 from loguru import logger
@@ -192,6 +193,16 @@ class GeneticOptimizationParameters(
         """Accept the usual date time representations, naive input is local time."""
         if value is None:
             return None
+        # A stored run must retain its timezone/fold even when the server host
+        # uses another local timezone. ISO offsets survive JSON round trips.
+        aware = value
+        if isinstance(value, str):
+            try:
+                aware = datetime.fromisoformat(value)
+            except ValueError:
+                pass
+        if isinstance(aware, datetime) and aware.tzinfo is not None:
+            return DateTime.instance(aware)
         return to_datetime(value)
 
     @model_validator(mode="after")

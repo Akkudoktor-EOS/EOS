@@ -21,7 +21,7 @@ from akkudoktoreos.utils.datetimeutil import to_datetime
 async def test_native_result_retains_dst_grid_and_owned_inputs(config_eos, timestamp):
     config_eos.merge_settings_from_dict(
         {
-            "general": {"timezone": "Europe/Berlin"},
+            "general": {"latitude": 52.52, "longitude": 13.405},
             "prediction": {"hours": 24},
             "optimization": {
                 "genetic": {
@@ -100,7 +100,9 @@ def test_native_quarter_hour_temperatures_average_when_coarsened(config_eos):
     config_eos.merge_settings_from_dict(
         {"optimization": {"genetic": {"interval_sec": 3600, "horizon_hours": 1}}}
     )
-    get_ems(init=True).set_start_datetime(to_datetime("2026-09-16T00:00:00+02:00"))
+    get_ems(init=True).set_start_datetime(
+        to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
+    )
     parameters = GeneticOptimizationParameters.model_validate(
         {
             "forecast_interval_seconds": 900,
@@ -121,3 +123,43 @@ def test_native_quarter_hour_temperatures_average_when_coarsened(config_eos):
     assert normalized.temperature_forecast == [13.0]
     assert normalized.ems.pv_forecast_wh == [100.0]
     assert normalized.ems.total_load == [200.0]
+
+
+@pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
+@pytest.mark.parametrize("offset", ["+02:00", "+01:00"])
+@pytest.mark.parametrize("as_json_string", [False, True])
+def test_snapshot_and_warm_start_preserve_aware_instants(
+    config_eos, set_other_timezone, host_timezone, offset, as_json_string
+):
+    import json
+    from pathlib import Path
+
+    from akkudoktoreos.optimization.genetic.configrequest import (
+        ConfigOptimizationRequest,
+    )
+    from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+
+    set_other_timezone(host_timezone)
+    expected = to_datetime(f"2026-10-25T02:30:00{offset}", in_timezone="Europe/Berlin")
+    supplied = expected.to_iso8601_string() if as_json_string else expected
+    payload = json.loads(
+        (Path(__file__).parent / "testdata/genetic/optimize_result_1.json").read_text()
+    )
+    payload["start_solution_datetime"] = supplied
+    native = GeneticSolution.model_validate(payload)
+    parameters = GeneticOptimizationParameters.model_validate(
+        native.parameters.model_dump() | {"start_solution_datetime": supplied}
+    )
+    request = ConfigOptimizationRequest.model_validate({"start_solution_datetime": supplied})
+    for model in (native, parameters, request):
+        value = model.start_solution_datetime
+        assert value is not None
+        assert value.timestamp() == expected.timestamp()
+        assert value.utcoffset() == expected.utcoffset()
+        if not as_json_string:
+            assert value.timezone_name == "Europe/Berlin"
+            assert value.fold == expected.fold
+        restored = type(model).model_validate_json(model.model_dump_json())
+        assert restored.start_solution_datetime is not None
+        assert restored.start_solution_datetime.timestamp() == expected.timestamp()
+        assert restored.start_solution_datetime.utcoffset() == expected.utcoffset()

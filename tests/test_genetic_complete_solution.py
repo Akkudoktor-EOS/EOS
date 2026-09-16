@@ -141,7 +141,9 @@ def test_disjoint_cycle_masks_keep_feasible_non_deadline_order(config_eos):
             }
         }
     )
-    get_ems(init=True).set_start_datetime(to_datetime("2026-09-16T00:00:00+02:00"))
+    get_ems(init=True).set_start_datetime(
+        to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
+    )
     params = GeneticOptimizationParameters.model_validate(
         {
             "ems": {
