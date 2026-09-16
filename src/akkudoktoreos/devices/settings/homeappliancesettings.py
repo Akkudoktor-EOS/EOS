@@ -245,7 +245,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
 
         return Genetic0HomeApplianceParameters(
             device_id=self.device_id,
-            consumption_wh=float(self.consumption_wh),
+            consumption_wh=self.consumption_wh,
             duration_h=self.duration_h,
             time_windows=self.cycle_time_windows,
         )
