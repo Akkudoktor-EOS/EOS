@@ -13,6 +13,8 @@ from akkudoktoreos.core.emplan import ResourceStatus
 from akkudoktoreos.core.pydantic import ConfigDict, PydanticBaseModel
 from akkudoktoreos.devices.settings.batterysettings import (
     BATTERY_DEFAULT_CHARGE_RATES as BATTERY_DEFAULT_CHARGE_RATES,
+)
+from akkudoktoreos.devices.settings.batterysettings import (
     BatteriesCommonSettings,
 )
 from akkudoktoreos.devices.settings.homeappliancesettings import (
@@ -116,7 +118,9 @@ class DevicesCommonSettings(SettingsBaseModel):
         },
     )
 
-    @field_validator("batteries", "electric_vehicles", "inverters", "home_appliances", mode="before")
+    @field_validator(
+        "batteries", "electric_vehicles", "inverters", "home_appliances", mode="before"
+    )
     @classmethod
     def validate_device_ids(cls, value: Any) -> Any:
         """Keep map keys and device identities consistent without mutating callers."""
@@ -147,7 +151,7 @@ class DevicesCommonSettings(SettingsBaseModel):
             self.home_appliances,
         ]:
             for device in (device_dict or {}).values():
-                keys.extend(device.measurement_keys)
+                keys.extend(device.measurement_keys or [])
         return keys
 
 

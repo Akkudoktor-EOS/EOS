@@ -352,6 +352,8 @@ class InverterCommonSettings(DevicesBaseSettings):
         """Return InverterParameters for the GENETIC optimizer."""
         from akkudoktoreos.devices.genetic.inverter import InverterParameters
 
+        if self.max_power_w is None:
+            raise ValueError("Inverter max_power_w is required for optimization")
         return InverterParameters(
             device_id=self.device_id,
             max_power_wh=self.max_power_w,
@@ -371,6 +373,8 @@ class InverterCommonSettings(DevicesBaseSettings):
             Genetic0InverterParameters,
         )
 
+        if self.max_power_w is None:
+            raise ValueError("Inverter max_power_w is required for optimization")
         return Genetic0InverterParameters(
             device_id=self.device_id,
             max_power_wh=self.max_power_w,
