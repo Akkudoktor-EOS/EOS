@@ -1,13 +1,16 @@
 """Real small optimizer runs covering device contracts across the public result."""
 
+from collections.abc import AsyncGenerator
 from typing import Any
 
 import numpy as np
 import pytest
+import pytest_asyncio
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_ems, get_measurement
 from akkudoktoreos.core.emplan import DDBCInstruction
+from akkudoktoreos.measurement.measurement import Measurement
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticparams import (
@@ -15,6 +18,17 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.utils.datetimeutil import to_datetime
+
+
+@pytest_asyncio.fixture
+async def isolated_measurement(config_eos: ConfigEOS) -> AsyncGenerator[Measurement, None]:
+    """Keep synthetic records out of the process-wide measurement singleton."""
+    measurement = get_measurement()
+    await measurement.delete_by_datetime(None, None)
+    try:
+        yield measurement
+    finally:
+        await measurement.delete_by_datetime(None, None)
 
 
 def configure(
@@ -278,7 +292,7 @@ def test_real_export_respects_marketing_gate_and_storage_cost(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("custom_key", [None, "washer.completed_today"])
 async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
-    config_eos: ConfigEOS, custom_key: str | None
+    config_eos: ConfigEOS, custom_key: str | None, isolated_measurement: Measurement
 ) -> None:
     configure(config_eos)
     config_eos.merge_settings_from_dict(
@@ -308,8 +322,7 @@ async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
     )
     key = custom_key or "washer.cycles_completed"
     assert key in config_eos.devices.measurement_keys
-    measurement = get_measurement()
-    await measurement.delete_by_datetime(None, None)
+    measurement = isolated_measurement
     zero = get_ems().start_datetime
     await measurement.update_value(zero.subtract(days=1), key, 2.0)
     await measurement.update_value(zero, key, 1.0)
