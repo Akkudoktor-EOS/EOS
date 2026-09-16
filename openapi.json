@@ -8,9 +8,328 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609161092365525"
+    "version": "v0.3.0.dev2609161171339820"
   },
   "paths": {
+    "/v1/measurement/battery-capacity/{battery_id}": {
+      "post": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Post Battery Capacity",
+        "description": "Estimate capacity from independent SoC anchors and configured DC power.\n\nstore_estimate writes the separate capacity_estimate config field in memory.\nPersistence follows the regular EOS configuration save mechanism.\nThe active capacity_wh and raw measurements are never changed here.",
+        "operationId": "post_battery_capacity_v1_measurement_battery_capacity__battery_id__post",
+        "parameters": [
+          {
+            "name": "battery_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Battery Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatteryCapacityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryCapacityEstimate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/samples": {
+      "put": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Put Samples",
+        "description": "Upsert raw values and their quality; legacy value/series payloads remain valid.",
+        "operationId": "put_samples_v1_measurement_samples_put",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MeasurementSample"
+                },
+                "maxItems": 10000,
+                "title": "Samples"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Put Samples V1 Measurement Samples Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Get Samples",
+        "description": "Read raw samples including quality, in a bounded half-open range.",
+        "operationId": "get_samples_v1_measurement_samples_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeasurementSample"
+                  },
+                  "title": "Response Get Samples V1 Measurement Samples Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/energy": {
+      "get": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Get Energy",
+        "description": "Energy in Wh, with temporal coverage and quality; no missing-to-zero filling.",
+        "operationId": "get_energy_v1_measurement_energy_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "interval_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 900,
+              "title": "Interval Seconds"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EnergyInterval"
+                  },
+                  "title": "Response Get Energy V1 Measurement Energy Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/household": {
+      "get": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Get Household",
+        "description": "Site, household without EV, and base without separately measured devices.",
+        "operationId": "get_household_v1_measurement_household_get",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "interval_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 900,
+              "title": "Interval Seconds"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/EnergyInterval"
+                    }
+                  },
+                  "title": "Response Get Household V1 Measurement Household Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/cache/clear": {
       "post": {
         "tags": [
@@ -2886,6 +3205,27 @@
               "dishwasher"
             ]
           },
+          "capacity_estimation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimationSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capacity_estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
+          },
           "capacity_wh": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -3038,6 +3378,27 @@
               "inverter1",
               "dishwasher"
             ]
+          },
+          "capacity_estimation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimationSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capacity_estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
           },
           "capacity_wh": {
             "type": "integer",
@@ -3225,6 +3586,225 @@
         ],
         "title": "BatteriesCommonSettings",
         "description": "Battery and electric vehicle device settings.\n\nUsed for both stationary batteries and EV battery packs.\n\nNote: Used for the GENETIC and GENETIC0 algorithm."
+      },
+      "BatteryCapacityEstimate": {
+        "properties": {
+          "battery_id": {
+            "type": "string",
+            "title": "Battery Id"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "soc_reference": {
+            "type": "string",
+            "title": "Soc Reference"
+          },
+          "start_soc_percentage": {
+            "type": "number",
+            "title": "Start Soc Percentage"
+          },
+          "end_soc_percentage": {
+            "type": "number",
+            "title": "End Soc Percentage"
+          },
+          "estimated_capacity_wh": {
+            "type": "number",
+            "title": "Estimated Capacity Wh"
+          },
+          "configured_capacity_wh": {
+            "type": "number",
+            "title": "Configured Capacity Wh"
+          },
+          "capacity_change_percentage": {
+            "type": "number",
+            "title": "Capacity Change Percentage"
+          },
+          "model_end_soc_percentage_unclipped": {
+            "type": "number",
+            "title": "Model End Soc Percentage Unclipped"
+          },
+          "model_soc_error_percentage_points": {
+            "type": "number",
+            "title": "Model Soc Error Percentage Points"
+          },
+          "charge_energy_wh": {
+            "type": "number",
+            "title": "Charge Energy Wh"
+          },
+          "discharge_energy_wh": {
+            "type": "number",
+            "title": "Discharge Energy Wh"
+          },
+          "stored_energy_change_wh": {
+            "type": "number",
+            "title": "Stored Energy Change Wh"
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "title": "Charging Efficiency"
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "title": "Discharging Efficiency"
+          },
+          "power_key": {
+            "type": "string",
+            "title": "Power Key"
+          },
+          "positive_power": {
+            "type": "string",
+            "title": "Positive Power"
+          },
+          "integration_method": {
+            "type": "string",
+            "title": "Integration Method"
+          },
+          "coverage_seconds": {
+            "type": "number",
+            "title": "Coverage Seconds"
+          },
+          "samples_used": {
+            "type": "integer",
+            "title": "Samples Used"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "battery_id",
+          "start",
+          "end",
+          "soc_reference",
+          "start_soc_percentage",
+          "end_soc_percentage",
+          "estimated_capacity_wh",
+          "configured_capacity_wh",
+          "capacity_change_percentage",
+          "model_end_soc_percentage_unclipped",
+          "model_soc_error_percentage_points",
+          "charge_energy_wh",
+          "discharge_energy_wh",
+          "stored_energy_change_wh",
+          "charging_efficiency",
+          "discharging_efficiency",
+          "power_key",
+          "positive_power",
+          "integration_method",
+          "coverage_seconds",
+          "samples_used",
+          "warnings"
+        ],
+        "title": "BatteryCapacityEstimate"
+      },
+      "BatteryCapacityEstimationSettings": {
+        "properties": {
+          "power_key": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Power Key"
+          },
+          "positive_power": {
+            "type": "string",
+            "enum": [
+              "charging",
+              "discharging"
+            ],
+            "title": "Positive Power"
+          },
+          "measurement_boundary": {
+            "type": "string",
+            "const": "battery_dc",
+            "title": "Measurement Boundary",
+            "default": "battery_dc"
+          },
+          "min_soc_change_percentage": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Min Soc Change Percentage",
+            "default": 20
+          },
+          "max_duration_hours": {
+            "type": "number",
+            "maximum": 744.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Max Duration Hours",
+            "default": 168
+          }
+        },
+        "type": "object",
+        "required": [
+          "power_key",
+          "positive_power"
+        ],
+        "title": "BatteryCapacityEstimationSettings",
+        "description": "Only a battery-terminal DC power channel is supported, not inverter AC."
+      },
+      "BatteryCapacityRequest": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "start_soc_percentage": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Start Soc Percentage"
+          },
+          "end_soc_percentage": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "End Soc Percentage",
+            "default": 100
+          },
+          "soc_reference": {
+            "type": "string",
+            "enum": [
+              "bms",
+              "external_calibration",
+              "voltage_current_anchor"
+            ],
+            "title": "Soc Reference"
+          },
+          "store_estimate": {
+            "type": "boolean",
+            "title": "Store Estimate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "start_soc_percentage",
+          "soc_reference"
+        ],
+        "title": "BatteryCapacityRequest",
+        "description": "Caller attests both anchors are independent of the capacity being fitted.\n\nEnd is the first confirmed full point when using the default end SoC.\nVoltage/current anchors must be independently established for the chemistry."
       },
       "CacheCommonSettings": {
         "properties": {
@@ -4914,6 +5494,103 @@
         ],
         "title": "EnergyChartsBiddingZones",
         "description": "Energy Charts Bidding Zones."
+      },
+      "EnergyInterval": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "energy_wh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy Wh"
+          },
+          "observed_energy_wh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Energy Wh"
+          },
+          "coverage_seconds": {
+            "type": "number",
+            "title": "Coverage Seconds"
+          },
+          "coverage_status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "missing",
+              "invalid"
+            ],
+            "title": "Coverage Status"
+          },
+          "methods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Methods"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "coverage_ranges": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Coverage Ranges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "energy_wh",
+          "observed_energy_wh",
+          "coverage_seconds",
+          "coverage_status",
+          "methods",
+          "flags",
+          "coverage_ranges"
+        ],
+        "title": "EnergyInterval",
+        "description": "Energy and actual temporal support; missing energy is never zero-filled."
       },
       "EnergyManagementCommonSettings-Input": {
         "properties": {
@@ -9412,6 +10089,79 @@
         "title": "HomeAssistantAdapterCommonSettings",
         "description": "Common settings for the home assistant adapter."
       },
+      "HouseholdInput": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "branch": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Branch"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "site",
+              "grid",
+              "pv",
+              "battery",
+              "inverter",
+              "ev",
+              "device"
+            ],
+            "title": "Role"
+          },
+          "polarity": {
+            "type": "integer",
+            "enum": [
+              -1,
+              1
+            ],
+            "title": "Polarity",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "branch",
+          "role"
+        ],
+        "title": "HouseholdInput",
+        "description": "A non-overlapping AC branch; polarity normalizes the sensor's sign."
+      },
+      "HouseholdSettings": {
+        "properties": {
+          "topology": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "separate_ac",
+              "hybrid_ac"
+            ],
+            "title": "Topology"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/HouseholdInput"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Inputs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "topology",
+          "inputs"
+        ],
+        "title": "HouseholdSettings",
+        "description": "Fixed topology, never user-supplied executable balance expressions.\n\nGrid import, PV production and battery/inverter discharge are positive.\nEV/device inputs are positive consumption, subtracted only from derived loads."
+      },
       "InverterCommonSettings-Input": {
         "properties": {
           "device_id": {
@@ -10643,6 +11393,90 @@
         "title": "LoggingCommonSettings",
         "description": "Logging Configuration."
       },
+      "MeasurementChannelSettings": {
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "enum": [
+              "power",
+              "cumulative_energy",
+              "interval_energy"
+            ],
+            "title": "Quantity"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "W",
+              "kW",
+              "Wh",
+              "kWh"
+            ],
+            "title": "Unit"
+          },
+          "integration_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "hold",
+                  "linear"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integration Method"
+          },
+          "max_gap_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Gap Seconds"
+          },
+          "interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Seconds"
+          },
+          "timestamp_reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "end"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp Reference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quantity",
+          "unit"
+        ],
+        "title": "MeasurementChannelSettings",
+        "description": "Meaning of a raw measurement channel; no conversion is performed on storage."
+      },
       "MeasurementCommonSettings-Input": {
         "properties": {
           "historic_hours": {
@@ -10661,6 +11495,35 @@
             "examples": [
               17520
             ]
+          },
+          "channels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MeasurementChannelSettings"
+            },
+            "type": "object",
+            "title": "Channels",
+            "description": "Typed raw measurement channels keyed by measurement key."
+          },
+          "household": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HouseholdSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional household energy balance definition.",
+            "examples": [
+              null
+            ]
+          },
+          "energy_context_seconds": {
+            "type": "integer",
+            "maximum": 604800.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Energy Context Seconds",
+            "default": 86400
           },
           "load_emr_keys": {
             "anyOf": [
@@ -10766,6 +11629,35 @@
               17520
             ]
           },
+          "channels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MeasurementChannelSettings"
+            },
+            "type": "object",
+            "title": "Channels",
+            "description": "Typed raw measurement channels keyed by measurement key."
+          },
+          "household": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HouseholdSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional household energy balance definition.",
+            "examples": [
+              null
+            ]
+          },
+          "energy_context_seconds": {
+            "type": "integer",
+            "maximum": 604800.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Energy Context Seconds",
+            "default": 86400
+          },
           "load_emr_keys": {
             "anyOf": [
               {
@@ -10862,6 +11754,42 @@
         ],
         "title": "MeasurementCommonSettings",
         "description": "Measurement Configuration."
+      },
+      "MeasurementSample": {
+        "properties": {
+          "date_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date Time"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/SampleQuality"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date_time",
+          "key",
+          "value"
+        ],
+        "title": "MeasurementSample",
+        "description": "Complete replacement of one key/timestamp, including its quality."
       },
       "NodeREDAdapterCommonSettings": {
         "properties": {
@@ -12648,6 +13576,42 @@
         ],
         "title": "PydanticDateTimeSeries",
         "description": "Pydantic model for validating pandas Series with datetime index in JSON format.\n\nThis model handles Series data serialized with orient='index', where the keys are\ndatetime strings and values are the series values. Provides validation and\nconversion between JSON and pandas Series with datetime index.\n\nAttributes:\n    data (Dict[str, Any]): Dictionary mapping datetime strings to values.\n    dtype (str): The data type of the series values.\n    tz (str | None): Timezone name if the datetime index is timezone-aware."
+      },
+      "SampleQuality": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "estimated",
+              "invalid",
+              "unavailable"
+            ],
+            "title": "Status",
+            "default": "measured"
+          },
+          "reset": {
+            "type": "boolean",
+            "title": "Reset",
+            "default": false
+          },
+          "generation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SampleQuality",
+        "description": "Reset marks the first reading after a reset; generation identifies a meter."
       },
       "SeriesProcessing": {
         "type": "string",
