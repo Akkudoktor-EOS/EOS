@@ -275,6 +275,10 @@ class EnergyManagement(
             # None leads to current time as start datetime
             if algorithm is None:
                 algorithm = self.config.optimization.algorithm
+            if start_datetime is None and algorithm == OptimizationAlgorithm.GENETIC:
+                # Consumer windows and midnight-based forecasts use the site clock,
+                # which can differ from the server's local timezone.
+                start_datetime = to_datetime(in_timezone=self.config.general.timezone)
             self.set_start_datetime(
                 start_datetime,
                 interval_seconds=(
