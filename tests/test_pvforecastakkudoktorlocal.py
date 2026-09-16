@@ -652,6 +652,7 @@ def test_feature_settings_migrate_without_loss_or_input_mutation(
     config_eos, through_file_migration
 ):
     import copy
+
     from akkudoktoreos.config.configmigrate import migrate_config_data
     from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 
