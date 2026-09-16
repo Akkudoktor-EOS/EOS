@@ -39,6 +39,10 @@ Old feature settings such as `optimization.interval` and flat terminal-value fie
 migrate into `optimization.genetic`; explicit nested settings win. Check the saved
 configuration after migration. GENETIC0 retains its separate settings and `/optimize` API.
 
+Automatic GENETIC runs use the site's timezone derived from its coordinates, even
+when the server runs in UTC. An explicitly supplied run start retains its timezone.
+Stored results and warmstarts retain explicit timezones and absolute instants.
+
 ## Requests and measurements
 
 `POST /v1/optimize` runs GENETIC from configuration. An empty JSON object uses the

@@ -17,7 +17,7 @@ directory describe earlier checkpoints; this handoff supersedes their pending-wo
 | [#1328](https://github.com/Akkudoktor-EOS/EOS/pull/1328) | Device/configuration foundation | main | Includes #1256/#1305 |
 | [#1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326) | Measurement and quality APIs | feat/config-foundation-main | #1328, #1322 |
 | [#1327](https://github.com/Akkudoktor-EOS/EOS/pull/1327) | Slot-aware devices and export | feat/config-foundation-main | #1328 |
-| `feat/genetic-complete` | Complete GENETIC, requests and reports | integration/genetic-prerequisites | All above |
+| [#1329](https://github.com/Akkudoktor-EOS/EOS/pull/1329) | Complete GENETIC, requests and reports | integration/genetic-prerequisites | All above |
 <!-- pyml enable line-length -->
 
 Merge the independent packages and #1328 first. The foundation preserves the original
@@ -26,6 +26,13 @@ those original PRs again as extra prerequisites. After their dependencies reach 
 retarget/rebase #1326/#1327 onto main and rerun CI. Then retarget/rebase the complete
 GENETIC PR onto main and rerun combined CI. Squash merges can require removing already
 landed commits when rebasing. Do not release by merging into a comparison branch.
+
+The sequential merge rehearsal reproduced the complete tested tree. Small conflict
+resolutions are needed: for #1328/#1327/#1329, select the newer version line in
+`docs/_generated/openapi.md` and `openapi.json`, keeping the automatically combined
+schemas. For #1326, retain both the `bisect_left`/`bisect_right` and
+`datetime`/`timedelta` imports in `measurement.py`. Do not replace entire schema
+files with one side of a merge conflict.
 
 The final comparison branch is the union of the seven published prerequisite heads.
 Its ancestry is attached without changing the combined, tested feature tree.
