@@ -11,6 +11,7 @@ from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
+from akkudoktoreos.measurement.batterycapacity import BatteryCapacityEstimate, BatteryCapacityEstimationSettings
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.genetic0.genetic0battery import (
@@ -37,6 +38,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
 
     Note: Used for the GENETIC and GENETIC0 algorithm.
     """
+
+    capacity_estimation: Optional[BatteryCapacityEstimationSettings] = None
+    capacity_estimate: Optional[BatteryCapacityEstimate] = Field(
+        default=None,
+        description="Last explicitly stored capacity estimate; does not override capacity_wh.",
+    )
 
     capacity_wh: int = Field(
         default=8000,

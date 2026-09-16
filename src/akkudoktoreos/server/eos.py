@@ -75,6 +75,7 @@ from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.pvforecastpvlib import _cec_inverters, _cec_modules
 from akkudoktoreos.server.container_healthcheck import publish_port
+from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.server.rest.error import (
     EOSProblem,
     create_error_page,
@@ -260,6 +261,8 @@ The genetic optimization API fields were renamed from German to English. For bac
 # ----------------------
 # Application generic exception handling
 # ----------------------
+
+app.include_router(measurement_router)
 
 register_problem_handlers(app)
 
