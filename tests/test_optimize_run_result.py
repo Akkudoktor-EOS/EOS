@@ -2,6 +2,7 @@
 
 from asyncio import Lock
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -76,7 +77,7 @@ async def test_optimization_routes_only_selected_algorithm(
         monkeypatch.setattr(
             getattr(ems_module, prefix + "OptimizationParameters"), "prepare", prepare
         )
-    kwargs = {"start_datetime": to_datetime("2026-09-16T10:00:00+02:00")}
+    kwargs: dict[str, Any] = {"start_datetime": to_datetime("2026-09-16T10:00:00+02:00")}
     if selection == "configured":
         offline_ems.config.optimization.algorithm = algorithm
     else:
@@ -265,10 +266,11 @@ async def test_conversion_failure_preserves_consistent_previous_results(
     constructor = Mock()
     constructor.return_value.optimize_ems.return_value = solution
     monkeypatch.setattr(ems_module, prefix + "Optimization", constructor)
+    supplied_parameters: dict[str, Any] = {suffix + "_parameters": object()}
     result = await cls.run(
         offline_ems,
         algorithm=OptimizationAlgorithm(prefix.upper()),
-        **{suffix + "_parameters": object()},
+        **supplied_parameters,
     )
     assert result is None
     conversion.assert_awaited_once_with()
