@@ -7,7 +7,9 @@ Status: published with explicit user approval as [PR #1322](https://github.com/A
 Two commits, two files; published head and diff verified. Not merged.
 The second commit adds an explicit non-null timestamp assertion after CI mypy
 flagged the test. All 49 local tests still pass. Pre-commit (including mypy),
-CodeQL and Docker build passed on ce132ea; full CI pytest is still running.
+CodeQL and Docker build passed on ce132ea. Full pinned Linux/Python 3.13 CI pytest
+also passed: 1,884 passed, 16 skipped, including --finalize and config side-effect
+checks (run 35118801197). PR remains open and mergeable; no merge performed.
 
 ## Proposed PR body
 
@@ -23,8 +25,8 @@ With the fix, all 49 measurement tests pass.
 
 Validation: `python -m pytest tests/test_measurement_file_restore.py tests/test_measurement.py -q`;
 Ruff check and format check of the changed source; `git diff --check`.
-Run locally on Windows/Python 3.11.9. The repository's Linux/Python 3.13 pinned CI
-and complete test suite have not run for this branch yet.
+Run locally on Windows/Python 3.11.9, followed by successful pinned Linux/Python 3.13
+CI and its complete test suite as recorded above.
 
 No settings or API schema changes. This fix is independent of #1256, #1305 and the
 GENETIC port.

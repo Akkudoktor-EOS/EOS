@@ -223,3 +223,20 @@ configuration prerequisite was refreshed to main4a37244 and PR1305head60b77f6;
 three files. See [PR integration matrix](pr-integration-matrix.md) for the seven
 remaining functional packages, existing upstream prerequisites, and combined
 Optimize acceptance gates. Parallel work is not authorization to publish every lane.
+
+## Completed parallel checkpoint and first green CI
+
+Source checkpoint b684748 now combines local PV, imported tariff protection,
+device physics/cache corrections and the confirmed Optimize failure-path fix.
+The combined selection passed 277 tests (3 regular skips); measurement APIs and
+persistence then passed 132 tests; regenerated documentation passed all 5 checks.
+These are targeted local checks, not a full integration CI run. The complete new
+GENETIC orchestration, config-owned request and result/PDF port remain outstanding.
+See the updated integration matrix for exact dependencies and limitations.
+
+PR #1322 now has two commits through ce132ea. Its initial mypy error in a test's
+optional timestamp assertion was fixed; all current checks are green: 1,884 passed,
+16 skipped in pinned Linux/Python 3.13 pytest, plus pre-commit/mypy, CodeQL and
+Docker build. PR remains open and mergeable. Only this branch has been published;
+no merge or HA deployment occurred. The finite CI follow-up was paused after
+verification. Original feature HEAD and all 102 backed-up file hashes remain intact.

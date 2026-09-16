@@ -1,7 +1,8 @@
 # EOS: Arbeitsstand und Weg zu kleinen PRs
 
 Stand: 16.09.2026. Offizielles main für PR #1322: `4a37244`.
-Die übrige Integration steht weiterhin auf dem zuvor geprüften `7ebe6d7`.
+Die lokale Integration enthält ebenfalls diesen main-Stand und den aktualisierten
+Stand von #1305 (`60b77f6`).
 
 ## Was jetzt möglich ist
 
@@ -18,9 +19,13 @@ Funktionen aus dem alten Feature-Branch ist noch NICHT abgeschlossen.
 
 | Branch | Zweck | Freigabezustand |
 | --- | --- | --- |
-| `fix/measurement-json-reload` | Kleiner JSON-Ladefehler direkt auf main | Veröffentlicht als #1322; CI läuft, noch nicht gemergt |
+| `fix/measurement-json-reload` | Kleiner JSON-Ladefehler direkt auf main | Veröffentlicht als #1322; gesamte CI grün, noch nicht gemergt |
 | `feat/config-integration-base` | Zusammengeführte #1256/#1305 plus Integrationskorrekturen | Lokale Abhängigkeitsbasis; kein konkurrierender Sammel-PR |
 | `feat/measurement-energy-quality-capacity` | Messdatenfunktionen ohne neue Optimiererphysik | Getestet; wartet für main auf Konfigurationsbasis |
+| `fix/imported-feedin-main` | Importierte Einspeisetarife erhalten und prüfen | Lokal vorbereitet auf main |
+| `feat/local-pv-main-port` | Lokale PV-Prognose und Kalibrierung | Lokal vorbereitet auf main |
+| `feat/slot-device-physics` | Slotphysik und getrennte Cache-Methoden | Lokal vorbereitet auf Konfigurationsbasis |
+| `fix/optimize-run-result` | Nur das Ergebnis des erfolgreichen aktuellen Laufs zurückgeben | Lokal vorbereitet auf main |
 | `integration/eos-consolidation-20260916` | Zusammenführung und Prüfung aller Portierungspakete | Unvollständig; kein Gesamt-PR und kein HA-Release |
 | `feat/direct-marketing-battery-grid-export` | Ursprüngliche Entwicklung mit lokalen Änderungen | Unverändert erhalten und gesichert |
 
@@ -48,10 +53,10 @@ Ein Worktree ist nur ein Arbeitsverzeichnis; Gegenstand eines PRs ist der Branch
    #1256 verbinden. Beide vorhandenen Funktionssätze müssen erhalten bleiben.
 3. Horizont, Prognoselücken, Nachlauf und Restwert mit Optimierer und Ergebnissen
    verdrahten; bisher sind nur die Bausteine übernommen.
-4. Tarifschutz aus #1224/#1304 und seine Regressionstests auf den neuen
-   asynchronen Vorbereitungsweg übertragen.
-5. Lokale kalibrierte PV-Prognose, algorithmusspezifische PDF-Ausgabe und die lokale
-   Konfigurationslern-Anfrage integrieren.
+4. Den bereits portierten Tarifschutz auch in der neuen GENETIC-Parametervorbereitung
+   erhalten; dort Prognosegrenzen und Lücken verbindlich prüfen.
+5. Algorithmusspezifische PDF-Ausgabe und die lokale Konfigurationslern-Anfrage
+   integrieren. Die lokale kalibrierte PV-Prognose ist inzwischen portiert.
 6. Gesamtabnahme einschließlich API-Weg des neuen GENETIC und gepinnter CI.
    Danach erst Übergabe eines festen EOS-Commits an HA und Release-Arbeiten.
 
@@ -95,11 +100,20 @@ Der JSON-PR: 49 bestandene Tests, Ruff und Formatprüfung.
 Das isolierte Messdatenpaket: 453 bestandene Tests plus 5 Dokumentationstests;
 74 Tests nach Übernahme der Fixture-Isolation nochmals erfolgreich.
 XML-Protokolle liegen in der privaten Sicherung `eos-20260916-120324`.
-Linux/Python 3.13, alle gepinnten Abhängigkeiten und die vollständige CI sind damit
-nicht bestätigt. PR #1322 ist veröffentlicht; das abhängige Messdatenpaket bleibt lokal.
+Für PR #1322 ist die gepinnte Linux/Python-3.13-CI inzwischen bestätigt:
+1.884 Tests bestanden, 16 übersprungen; Pre-commit/Mypy, CodeQL und Docker-Build
+erfolgreich auf `ce132ea`. Für die übrigen lokalen Pakete steht diese CI noch aus.
 
 
 Zusätzlicher Integrationslauf: 764 Tests bestanden, 3 übersprungen; zwei zunächst
 fehlgeschlagene Dokumentationsvergleiche betrafen ausschließlich die Versionsangabe.
 Nach Neugenerierung bestanden alle 5 Dokumentationstests. Darunter sind außerdem
 128 bestandene Energy-Charts-Regressionen zum neuen main-Commit dokumentiert.
+
+Neuester gemeinsamer Source-Stand `b684748`: 277 Tests bestanden, 3 regulär
+übersprungen, für PV, Tarifschutz, Gerätephysik, Cache, Konfiguration und beide
+bisherigen Optimierer einschließlich API-Fehlerbehandlung. Anschließend bestanden
+alle 132 Messdaten-/Haushalts-/Kapazitätsprüfungen auf diesem gemeinsamen Stand.
+Die vollständige neue GENETIC-Orchestrierung bleibt offen. Pakete und
+Kompatibilitätsbedingungen stehen in [pr-integration-matrix.md](pr-integration-matrix.md).
+Die neu generierte gemeinsame Dokumentation besteht ebenfalls alle fünf Prüfungen.

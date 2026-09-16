@@ -8,10 +8,10 @@ that every differing commit requires its own PR.
 
 | Package | Missing behavior relative to feature/local work | Local state | Dependency |
 | --- | --- | --- | --- |
-| Device physics | Slot-duration-aware battery/inverter flows, export control, efficiency and limits | Already ported/tested in integration; needs isolated review branch | #1256 device settings/converters |
+| Device physics | Slot-duration-aware battery/inverter flows, export control, efficiency and limits | Isolated branch feat/slot-device-physics prepared and combined in integration | #1256 device settings/converters |
 | Complete GENETIC | Quarter-hour orchestration, adaptive evolution, export states, warmstart alignment, forecast tail/terminal value, EV deadlines and flexible consumer profiles | Physics and primitives exist; orchestration/parameter/output integration remains open | Device physics, #1256, tariff contract |
-| Imported tariff protection | Preserve supplied/imported revenue; avoid silent demo or market-price replacement | Independent main adaptation in progress; feature-specific override still required inside GENETIC port | Main patch independently possible; second part belongs with GENETIC |
-| Local calibrated PV | Local Akkudoktor PV calculation, measurement calibration and outage handling under existing provider ID | Independent main port in progress | Provider-specific settings; combined forecast/optimizer acceptance later |
+| Imported tariff protection | Preserve supplied/imported revenue; avoid silent demo or market-price replacement | Independent main adaptation prepared and combined in integration; feature-specific override still required inside GENETIC port | Main patch independently possible; second part belongs with GENETIC |
+| Local calibrated PV | Local Akkudoktor PV calculation, measurement calibration and outage handling under existing provider ID | Independent main port prepared and combined in integration | Provider-specific settings; combined forecast/optimizer acceptance later |
 | Measurement APIs | Typed channels, quality, energy integration, household balance and capacity estimate APIs | Isolated tested local branch exists | #1256, #1305, configuration corrections; JSON fix #1322 |
 | Config-owned Optimize request | Local ConfigOptimizationRequest, /v1/optimize, runtime observations and common parameter resolver | Backed up; async/maps/converters adaptation pending | New GENETIC and #1305 |
 | Result/PDF output | Quarter-hour, flexible-consumer, export, tail/rest-value diagnostics in main's on-demand algorithm-specific output | Pending | Final GENETIC result contract |
@@ -24,6 +24,11 @@ parts of the tariff work against the old feature branch; preserve/reconcile thos
 contributions rather than count duplicate implementations as separate deliverables.
 PR #1322 is already published and is additional to this remaining-work table.
 
+One additional standalone defect fix is now prepared as fix/optimize-run-result:
+an explicit Optimize request must return only its own completed result. Cache
+method identity was also corrected as a prerequisite within the device package;
+it does not currently add another planned feature PR.
+
 Local helper scripts and private HA-core divergence are not silently included in this
 count. They remain separately secured/to be audited. Changelog/release work follows
 acceptance; it is not another optimizer implementation.
@@ -32,6 +37,9 @@ acceptance; it is not another optimizer implementation.
 
 - Local PV: `feat/local-pv-main-port`, sibling worktree `EOS-pr-local-pv`.
 - Tariff preparation: `fix/imported-feedin-main`, sibling `EOS-pr-feedin-main`.
+- Device physics: `feat/slot-device-physics`, sibling `EOS-pr-device-physics`.
+- Optimize failure correction: `fix/optimize-run-result`, sibling
+  `EOS-reference-optimize-main` (now a named review branch).
 - Optimize compatibility tests: `test/optimize-pr-contracts`, sibling
   `EOS-pr-optimize-contracts`. These are shared acceptance coverage, not necessarily
   an extra standalone public PR.
@@ -62,10 +70,13 @@ alignment floors to the hour. Fifteen-minute device tests do not prove quarter-h
 Optimize-mode support. The core package must change preparation, slot alignment,
 optimization and response metadata together.
 
-A further suspected failure-path defect is being verified: after a failed explicit
-optimization, the HTTP route may return a previous stored solution. Until confirmed
-on unchanged main, treat this as an audit finding, not a proven upstream bug. A failed
-new request must never claim an old result as its fresh successful optimization.
+Confirmed on unchanged main 4a37244: after a failed explicit optimization, the HTTP
+route returned the previous stored solution with HTTP 200. Conversion errors could
+also publish a new native result alongside an old generic result/plan. The local
+fix prepares all three before publishing and returns the successful current-run
+result directly to the route. Errors retain the previous coherent trio, restore
+IDLE and do not dispatch controls for that failed optimization. Strict passing
+regression tests replace the initial expected-failure audit cases.
 
 ## Shared acceptance before dependent PRs can land
 
@@ -84,3 +95,20 @@ new request must never claim an old result as its fresh successful optimization.
 A passing individual PR is insufficient: after combining dependent packages, run
 these synthetic end-to-end API cases together with the GENETIC0 regression suite.
 No device control, HA deployment or production configuration is part of this work.
+
+## Completed combined check
+
+Integration source checkpoint b684748 combines tariff b2a4e2f, Optimize fix 8ed65ec,
+device/cache corrections be184a6 and 38eb4ad, and local PV 84abe05, on the refreshed
+configuration base. The combined API failure/algorithm-selection, tariff, cache,
+battery/inverter, PV, configuration/migration and both optimizer test selection
+passed: **277 passed, 3 regular skips**. No expected-failure markers were used to
+hide Optimize defects. XML: private backup integration-parallel-compatibility.xml.
+The complete measurement/channel/energy/household/capacity selection additionally
+passed **132 tests** on this combined source checkpoint, including JSON persistence.
+
+This is local Windows/Python 3.11 verification, not full pinned CI or acceptance of
+the pending new GENETIC. The wider standalone PV suite separately reproduced an
+existing Windows file-timestamp test failure on unchanged main; that test was
+explicitly excluded from its reported 164-passing selection. Forecast retention
+does not establish complete horizon coverage; that remains a core-port gate.

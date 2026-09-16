@@ -1,7 +1,7 @@
 # feat(measurement): add typed energy, quality and capacity APIs
 
 Local branch: `feat/measurement-energy-quality-capacity`.
-Review base: `feat/config-integration-base` (`d546f08`).
+Review base: `feat/config-integration-base` (`c968e4c`).
 Eventual target: official main, after its configuration prerequisites land.
 Status: tested local package, NOT yet an independent main-target PR.
 
