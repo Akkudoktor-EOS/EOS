@@ -91,7 +91,10 @@ class MeasurementCommonSettings(SettingsBaseModel):
         },
     )
 
-    household: Optional[HouseholdSettings] = None
+    household: Optional[HouseholdSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "Optional household energy balance definition.", "examples": [None]},
+    )
     energy_context_seconds: int = Field(default=86400, gt=0, le=604800, strict=True)
 
     @model_validator(mode="after")
