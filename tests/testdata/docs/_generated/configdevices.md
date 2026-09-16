@@ -12,14 +12,14 @@ config path from ``self.device_id`` without needing an external index.
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| batteries | `EOS_DEVICES__BATTERIES` | `dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings] | None` | `rw` | `None` | Stationary battery storage devices, keyed by device_id. |
-| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings] | None` | `rw` | `None` | Electric vehicle battery packs, keyed by device_id. |
+| batteries | `EOS_DEVICES__BATTERIES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Stationary battery storage devices, keyed by device_id. |
+| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Electric vehicle battery packs, keyed by device_id. |
 | home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `dict[str, akkudoktoreos.devices.settings.homeappliancesettings.HomeApplianceCommonSettings]` | `rw` | `required` | Shiftable home appliance devices, keyed by device_id. |
-| inverters | `EOS_DEVICES__INVERTERS` | `dict[str, akkudoktoreos.devices.settings.invertersettings.InverterCommonSettings] | None` | `rw` | `None` | Inverter devices, keyed by device_id. |
-| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `int | None` | `rw` | `None` | Maximum number of batteries allowed. |
-| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `int | None` | `rw` | `None` | Maximum number of EVs allowed. |
-| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `int | None` | `rw` | `None` | Maximum number of home appliances allowed. |
-| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `int | None` | `rw` | `None` | Maximum number of inverters allowed. |
+| inverters | `EOS_DEVICES__INVERTERS` | `Optional[dict[str, akkudoktoreos.devices.settings.invertersettings.InverterCommonSettings]]` | `rw` | `None` | Inverter devices, keyed by device_id. |
+| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `None` | Maximum number of batteries allowed. |
+| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `Optional[int]` | `rw` | `None` | Maximum number of EVs allowed. |
+| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `Optional[int]` | `rw` | `None` | Maximum number of home appliances allowed. |
+| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `Optional[int]` | `rw` | `None` | Maximum number of inverters allowed. |
 | measurement_keys | | `list[str]` | `ro` | `N/A` | All measurement keys across all configured devices. |
 :::
 <!-- pyml enable line-length -->
@@ -35,6 +35,8 @@ config path from ``self.device_id`` without needing an external index.
            "batteries": {
                "bat0": {
                    "device_id": "bat0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -55,13 +57,21 @@ config path from ``self.device_id`` without needing an external index.
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100
+                   "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ]
                }
            },
            "max_batteries": 1,
            "electric_vehicles": {
                "ev0": {
                    "device_id": "ev0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -82,7 +92,13 @@ config path from ``self.device_id`` without needing an external index.
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100
+                   "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ]
                }
            },
            "max_electric_vehicles": 1,
@@ -116,6 +132,8 @@ config path from ``self.device_id`` without needing an external index.
            "batteries": {
                "bat0": {
                    "device_id": "bat0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -137,6 +155,12 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "measurement_key_soc_factor": "bat0-soc-factor",
                    "measurement_key_power_l1_w": "bat0-power-l1-w",
                    "measurement_key_power_l2_w": "bat0-power-l2-w",
@@ -155,6 +179,8 @@ config path from ``self.device_id`` without needing an external index.
            "electric_vehicles": {
                "ev0": {
                    "device_id": "ev0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -176,6 +202,12 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "measurement_key_soc_factor": "ev0-soc-factor",
                    "measurement_key_power_l1_w": "ev0-power-l1-w",
                    "measurement_key_power_l2_w": "ev0-power-l2-w",
