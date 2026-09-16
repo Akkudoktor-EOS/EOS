@@ -2,9 +2,13 @@
 
 Status: in progress, not a completed optimizer port. Updated 2026-09-16.
 
+Current PR-ready packages, dependency order and development guidance:
+[PR workflow](pr-workflow.md). The first independent fix is ready locally on main;
+the complete feature consolidation remains open.
+
 ## Pinned sources
 
-- Official main: `afb7bcb8bc84769ec2febd34e2dea1b1ad44ddbe`.
+- Official main: `7ebe6d714be5a8e265c0b5e411de4ed609391f28` (refreshed after initial checkpoint).
 - Feature branch: `d2e2d58237339454dd8bb226f92677c5987f8b27`.
 - PR #1256: `6ebd343047b87819b57778359784a616452b5f76`, open, conflicts.
 - PR #1305: `6fb84765c4b6d2c032fdf83effcb2ea6597f18f9`, open, main target.
@@ -142,7 +146,7 @@ pytest-asyncio, pytest-xprocess, pytest-cov and pypdf. The private backup contai
 Run from the integration worktree (not the original feature worktree):
 
 ```powershell
-python -m pytest tests/test_typingmodels.py tests/test_config.py tests/test_configabc.py tests/test_configmigrate.py tests/test_configfile.py tests/test_pydantic.py tests/test_consolidation_config.py tests/test_genetichomeappliance.py tests/test_genetic0battery.py tests/test_genetic0inverterefficiency.py tests/test_genetic0simulation.py tests/test_battery.py tests/test_inverter.py tests/test_inverter_efficiency.py tests/test_geneticsimulation.py tests/test_geneticsimulation2.py tests/test_terminalvalue.py tests/test_tailvalue_physics.py tests/test_interpolator.py tests/test_measurement_channels.py tests/test_measurement_energy.py tests/test_measurement_household.py tests/test_battery_capacity.py tests/test_consolidation_file_restore.py tests/test_measurement.py tests/test_genetic0optimize.py tests/test_geneticoptimize.py tests/test_doc.py -q --tb=short
+python -m pytest tests/test_typingmodels.py tests/test_config.py tests/test_configabc.py tests/test_configmigrate.py tests/test_configfile.py tests/test_pydantic.py tests/test_consolidation_config.py tests/test_genetichomeappliance.py tests/test_genetic0battery.py tests/test_genetic0inverterefficiency.py tests/test_genetic0simulation.py tests/test_battery.py tests/test_inverter.py tests/test_inverter_efficiency.py tests/test_geneticsimulation.py tests/test_geneticsimulation2.py tests/test_terminalvalue.py tests/test_tailvalue_physics.py tests/test_interpolator.py tests/test_measurement_channels.py tests/test_measurement_energy.py tests/test_measurement_household.py tests/test_battery_capacity.py tests/test_measurement_file_restore.py tests/test_measurement.py tests/test_genetic0optimize.py tests/test_geneticoptimize.py tests/test_doc.py -q --tb=short
 ```
 
 Do not inherit EOS_DIR/EOS_CONFIG_DIR from documentation generation when running
