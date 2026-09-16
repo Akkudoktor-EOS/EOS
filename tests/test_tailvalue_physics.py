@@ -8,13 +8,13 @@ import pytest
 
 from akkudoktoreos.config.config import SettingsEOSDefaults
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.devices.genetic.battery import Battery
-from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
+from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.devices.genetic.inverter import InverterParameters
-from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
-from akkudoktoreos.optimization.genetic.geneticparams import GeneticOptimizationParameters
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticOptimizationParameters,
+)
 from akkudoktoreos.optimization.genetic.tailvalue import build_tail_value_curve
 from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueCurve
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration

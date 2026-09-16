@@ -1,8 +1,11 @@
 """Verify fallback JSON loading does not lose records through the singleton."""
 from unittest.mock import AsyncMock
+
 import pytest
+
 from akkudoktoreos.core.coreabc import get_measurement
 from akkudoktoreos.core.dataabc import DataSequence
+
 
 @pytest.mark.asyncio
 async def test_measurement_json_roundtrip(config_eos, tmp_path, monkeypatch):

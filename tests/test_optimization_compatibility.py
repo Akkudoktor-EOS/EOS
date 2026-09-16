@@ -5,8 +5,12 @@ from unittest.mock import Mock
 
 import pytest
 
-from akkudoktoreos.optimization.genetic.geneticparams import GeneticEnergyManagementParameters
-from akkudoktoreos.optimization.genetic0.genetic0params import Genetic0EnergyManagementParameters
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0EnergyManagementParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticEnergyManagementParameters,
+)
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 
 
