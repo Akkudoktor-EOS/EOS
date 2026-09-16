@@ -807,9 +807,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             )
         elif isinstance(setting, list):
             setting = [
-                item.model_dump(
-                    exclude_none=True, exclude_unset=True, exclude_computed_fields=True
-                )
+                item.model_dump(exclude_none=True, exclude_unset=True, exclude_computed_fields=True)
                 if isinstance(item, SettingsBaseModel)
                 else item
                 for item in setting
