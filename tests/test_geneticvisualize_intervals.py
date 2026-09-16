@@ -123,13 +123,13 @@ def test_report_preserves_run_timing_energy_and_export_controls(
 def test_short_quarterhour_chart_has_elapsed_fractional_hours(config_eos):
     report = visualize.GeneticVisualizationReport(interval_seconds=900)
     start = pendulum.datetime(2026, 10, 25, 2, 45, tz="Europe/Berlin", fold=0)
-    report.create_line_chart_date(start, [[100, 200, 300, 400]], ylabel="Wh")
+    report.create_line_chart_date(start, [[100.0, 200.0, 300.0, 400.0]], ylabel="Wh")
     fig, axis = plt.subplots()
     try:
         report.current_group[0]()
         dates = mdates.num2date(axis.lines[0].get_xdata())
         assert np.diff([value.timestamp() for value in dates]).tolist() == [900] * 3
-        assert axis.lines[0].get_ydata().tolist() == [100, 200, 300, 400]
+        assert np.asarray(axis.lines[0].get_ydata()).tolist() == [100, 200, 300, 400]
         assert [label.get_text() for label in fig.axes[1].get_xticklabels()] == ["0", "0.25", "0.5", "0.75"]
     finally:
         plt.close(fig)
@@ -141,7 +141,7 @@ def test_empty_and_mismatched_date_series(config_eos):
     report.create_line_chart_date(start, [[]], ylabel="Wh")
     assert report.current_group == []
     with pytest.raises(ValueError, match="same intervals"):
-        report.create_line_chart_date(start, [[1, 2], [1]], ylabel="Wh")
+        report.create_line_chart_date(start, [[1.0, 2.0], [1.0]], ylabel="Wh")
 
 
 def test_existing_hourly_solution_renders_without_terminal_metadata(config_eos, monkeypatch):
@@ -178,8 +178,8 @@ def test_tail_chart_starts_after_control_horizon(config_eos, report_solution):
     try:
         report.groups[-1][0]()
         expected = mdates.date2num(start.add(hours=1))
-        assert axis.lines[0].get_xdata().tolist() == [expected]
-        assert axis.lines[3].get_ydata().tolist() == [100]
+        assert np.asarray(axis.lines[0].get_xdata()).tolist() == [expected]
+        assert np.asarray(axis.lines[3].get_ydata()).tolist() == [100]
         assert "Not Executable" in axis.get_title()
         assert report_solution.discharge_allowed == [0, 0, 1, 1]
     finally:
