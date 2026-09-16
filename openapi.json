@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609101507291966"
+    "version": "v0.3.0.dev2609161616351643"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -10778,6 +10778,267 @@
         "title": "PPBCStartInterruptionInstruction",
         "description": "Represents an instruction to interrupt execution of a running power sequence.\n\nThis model defines a control instruction that interrupts the execution of an\nactive power sequence. It enables dynamic control over sequence execution,\nallowing temporary suspension of a sequence in response to changing system conditions\nor requirements, particularly for sequences marked as interruptible."
       },
+      "PVForecastAkkudoktorLocalCommonSettings": {
+        "properties": {
+          "backend": {
+            "type": "string",
+            "enum": [
+              "remote",
+              "local"
+            ],
+            "title": "Backend",
+            "description": "Akkudoktor forecast backend: remote API or local Open-Meteo/pvlib model.",
+            "default": "remote",
+            "examples": [
+              "remote",
+              "local"
+            ]
+          },
+          "resolution_minutes": {
+            "type": "integer",
+            "title": "Resolution Minutes",
+            "description": "Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block.",
+            "default": 15,
+            "examples": [
+              15,
+              60
+            ]
+          },
+          "forecast_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Days",
+            "description": "Forecast horizon in days (1-16). Leave empty to derive it from `prediction.hours`, which is what keeps the optimizer's tail horizon fed.",
+            "examples": [
+              null,
+              7
+            ]
+          },
+          "past_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 92.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Past Days",
+            "description": "Days of past data to request (0-92). Leave empty to derive it from `prediction.historic_hours`.",
+            "examples": [
+              null,
+              3
+            ]
+          },
+          "weather_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Weather Models",
+            "description": "Open-Meteo weather models to request. Listing more than one turns the input into a poor-man's ensemble: the members are averaged per variable, which is the cheapest reliable way to cut irradiance forecast error. Costs no extra API calls.",
+            "default": [
+              "best_match"
+            ],
+            "examples": [
+              [
+                "best_match"
+              ],
+              [
+                "icon_seamless",
+                "ecmwf_ifs025",
+                "gfs_seamless"
+              ]
+            ]
+          },
+          "transposition_model": {
+            "type": "string",
+            "title": "Transposition Model",
+            "description": "pvlib sky-diffuse transposition model: isotropic, klucher, haydavies, reindl, king or perez.",
+            "default": "perez",
+            "examples": [
+              "perez",
+              "haydavies"
+            ]
+          },
+          "albedo": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Albedo",
+            "description": "Ground albedo used for planes that do not set their own.",
+            "default": 0.25,
+            "examples": [
+              0.25,
+              0.2
+            ]
+          },
+          "inverter_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Inverter Efficiency",
+            "description": "Nominal inverter efficiency (PVWatts eta_inv_nom).",
+            "default": 0.96,
+            "examples": [
+              0.96,
+              0.94
+            ]
+          },
+          "temperature_coefficient": {
+            "type": "number",
+            "title": "Temperature Coefficient",
+            "description": "Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses.",
+            "default": -0.36,
+            "examples": [
+              -0.36,
+              -0.29
+            ]
+          },
+          "apply_iam": {
+            "type": "boolean",
+            "title": "Apply Iam",
+            "description": "Apply the ASHRAE incidence-angle modifier to the beam component.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "shift_to_interval_start": {
+            "type": "boolean",
+            "title": "Shift To Interval Start",
+            "description": "Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_enabled": {
+            "type": "boolean",
+            "title": "Calibration Enabled",
+            "description": "Correct systematic model error against measured PV production. Requires `measurement.pv_production_emr_keys` to be configured and fed. Fits a global scale factor plus per-solar-azimuth factors, which is what catches near-field shading the horizon profile misses.",
+            "default": false,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 1.0,
+            "title": "Calibration Days",
+            "description": "Length of the measurement window used to fit the correction.",
+            "default": 30,
+            "examples": [
+              30,
+              14
+            ]
+          },
+          "calibration_reference_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 3.0,
+            "title": "Calibration Reference Days",
+            "description": "Lookback used to distinguish healthy production from outages or curtailment. If the calibration window contains too few healthy days, the most recent healthy days from this reference window are used.",
+            "default": 30,
+            "examples": [
+              30,
+              14
+            ]
+          },
+          "calibration_outage_filter_enabled": {
+            "type": "boolean",
+            "title": "Calibration Outage Filter Enabled",
+            "description": "Exclude days whose measured production is far below the recent healthy plant level. This prevents inverter, battery and curtailment events from being learned as permanent PV model losses.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_outage_threshold": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Outage Threshold",
+            "description": "A day is treated as unavailable when its measured/modelled energy ratio is below this fraction of the robust healthy reference ratio.",
+            "default": 0.55,
+            "examples": [
+              0.55,
+              0.5
+            ]
+          },
+          "calibration_min_healthy_days": {
+            "type": "integer",
+            "maximum": 31.0,
+            "minimum": 1.0,
+            "title": "Calibration Min Healthy Days",
+            "description": "Minimum number of healthy days used for a fit. Older healthy days from the reference window are added when the recent window contains fewer.",
+            "default": 3,
+            "examples": [
+              3
+            ]
+          },
+          "calibration_azimuth_bin_degrees": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 0.0,
+            "title": "Calibration Azimuth Bin Degrees",
+            "description": "Width of the solar-azimuth bins for the correction. 0 fits a single global factor only.",
+            "default": 45,
+            "examples": [
+              45,
+              30,
+              15,
+              0
+            ]
+          },
+          "calibration_prior_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Calibration Prior Kwh",
+            "description": "Shrinkage strength: a bin needs this much modelled energy before its own factor outweighs the global one. Higher is more conservative.",
+            "default": 5.0,
+            "examples": [
+              5.0,
+              20.0
+            ]
+          },
+          "calibration_min_factor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Min Factor",
+            "description": "Lower clamp on any fitted correction factor.",
+            "default": 0.5,
+            "examples": [
+              0.5
+            ]
+          },
+          "calibration_max_factor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Max Factor",
+            "description": "Upper clamp on any fitted correction factor.",
+            "default": 1.5,
+            "examples": [
+              1.5
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastAkkudoktorLocalCommonSettings",
+        "description": "Common settings for the local (pvlib) PV forecast provider."
+      },
       "PVForecastCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -10794,6 +11055,10 @@
             "examples": [
               "PVForecastAkkudoktor"
             ]
+          },
+          "akkudoktor": {
+            "$ref": "#/components/schemas/PVForecastAkkudoktorLocalCommonSettings",
+            "description": "Akkudoktor forecast backend and local calibration settings"
           },
           "pvforecastimport": {
             "$ref": "#/components/schemas/PVForecastImportCommonSettings",
@@ -10919,6 +11184,10 @@
             "examples": [
               "PVForecastAkkudoktor"
             ]
+          },
+          "akkudoktor": {
+            "$ref": "#/components/schemas/PVForecastAkkudoktorLocalCommonSettings",
+            "description": "Akkudoktor forecast backend and local calibration settings"
           },
           "pvforecastimport": {
             "$ref": "#/components/schemas/PVForecastImportCommonSettings",
