@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
+from akkudoktoreos.devices.devices import BatteriesCommonSettings
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
 
 
@@ -294,3 +296,90 @@ def test_car_and_pv_battery_discharge_and_max_charge_power(setup_pv_battery, set
     assert car_battery.parameters.max_charge_power_w == 7000, (
         "Car battery max charge power should remain as defined"
     )
+
+
+def test_quarter_hour_charge_calls_share_one_power_budget():
+    params = SolarPanelBatteryParameters(
+        device_id="battery1",
+        capacity_wh=10_000,
+        initial_soc_percentage=0,
+        min_soc_percentage=0,
+        max_soc_percentage=100,
+        max_charge_power_w=1_000,
+        charging_efficiency=1.0,
+        discharging_efficiency=1.0,
+    )
+    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery.set_charge_per_hour(np.ones(4))
+
+    first_stored, _ = battery.charge_energy(200.0, 0)
+    second_stored, _ = battery.charge_energy(200.0, 0)
+
+    assert first_stored == pytest.approx(200.0)
+    assert second_stored == pytest.approx(50.0)
+    assert battery.soc_wh == pytest.approx(250.0)
+
+
+def test_quarter_hour_discharge_calls_share_one_power_budget():
+    params = SolarPanelBatteryParameters(
+        device_id="battery1",
+        capacity_wh=10_000,
+        initial_soc_percentage=100,
+        min_soc_percentage=0,
+        max_soc_percentage=100,
+        max_charge_power_w=1_000,
+        charging_efficiency=1.0,
+        discharging_efficiency=1.0,
+    )
+    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery.set_discharge_per_hour(np.ones(4))
+
+    first_delivered, _ = battery.discharge_energy(200.0, 0)
+    second_delivered, _ = battery.discharge_energy(200.0, 0)
+
+    assert first_delivered == pytest.approx(200.0)
+    assert second_delivered == pytest.approx(50.0)
+    assert battery.discharged_energy_wh(0) == pytest.approx(250.0)
+    assert battery.soc_wh == pytest.approx(9_750.0)
+
+    battery.reset()
+
+    assert battery.discharged_energy_wh(0) == 0.0
+
+
+def test_grid_export_rates_are_sorted_and_deduplicated():
+    """Export rates are normalized like the charge rates."""
+    settings = BatteriesCommonSettings(
+        device_id="battery1", grid_export_rates=[1.0, 0.5, 0.5, 0.25]
+    )
+    assert list(settings.grid_export_rates) == [0.25, 0.5, 1.0]
+
+
+def test_grid_export_rates_default_and_override():
+    """None falls back to the defaults; [1.0] restores all-or-nothing export."""
+    assert list(BatteriesCommonSettings(device_id="battery1").grid_export_rates) == [
+        0.25,
+        0.5,
+        0.75,
+        1.0,
+    ]
+    assert list(
+        BatteriesCommonSettings(device_id="battery1", grid_export_rates=None).grid_export_rates
+    ) == [0.25, 0.5, 0.75, 1.0]
+    assert list(
+        BatteriesCommonSettings(device_id="battery1", grid_export_rates=[1.0]).grid_export_rates
+    ) == [1.0]
+
+
+@pytest.mark.parametrize("rates", [[0.0, 0.5], [1.5], [-0.25], []])
+def test_grid_export_rates_reject_invalid_values(rates):
+    """0.0 is not an export level, and rates above the rated power are rejected."""
+    with pytest.raises(ValidationError):
+        BatteriesCommonSettings(device_id="battery1", grid_export_rates=rates)
+
+
+def test_rated_discharge_energy_scales_with_slot_duration(setup_pv_battery):
+    """The rate reference is the rated discharge energy of one slot."""
+    battery = setup_pv_battery
+    expected = battery.max_charge_power_w * battery.slot_duration_h * battery.discharging_efficiency
+    assert battery.rated_discharge_energy_wh() == pytest.approx(expected)
