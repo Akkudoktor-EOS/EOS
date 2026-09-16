@@ -7,6 +7,10 @@ from pydantic import Field, computed_field, field_validator, model_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
+    PVForecastAkkudoktorLocalCommonSettings,
+    normalize_akkudoktor_settings,
+)
 from akkudoktoreos.prediction.pvforecastforecastsolar import (
     PVForecastForecastSolarCommonSettings,
 )
@@ -202,6 +206,13 @@ class PVForecastCommonSettings(SettingsBaseModel):
         },
     )
 
+    akkudoktor: PVForecastAkkudoktorLocalCommonSettings = Field(
+        default_factory=PVForecastAkkudoktorLocalCommonSettings,
+        json_schema_extra={
+            "description": "Akkudoktor forecast backend and local calibration settings",
+        },
+    )
+
     pvforecastimport: PVForecastImportCommonSettings = Field(
         default_factory=PVForecastImportCommonSettings,
         json_schema_extra={"description": "PV forecast import provider settings"},
@@ -300,6 +311,12 @@ class PVForecastCommonSettings(SettingsBaseModel):
         return pvforecast_provider_ids()
 
     # Validators
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_local_akkudoktor_settings(cls, data: Any) -> Any:
+        """Accept the feature branch's local backend configuration."""
+        return normalize_akkudoktor_settings(data)
+
     @field_validator("provider", mode="after")
     @classmethod
     def validate_provider(cls, value: Optional[str]) -> Optional[str]:
