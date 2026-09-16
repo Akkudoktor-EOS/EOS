@@ -11,9 +11,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
-from akkudoktoreos.optimization.genetic.geneticdevices import InverterParameters
 from akkudoktoreos.optimization.genetic.geneticparams import GeneticOptimizationParameters
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffDataRecord
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -99,7 +98,7 @@ async def test_provider_revenues_survive_preparation_and_simulation(
     # No battery or household load is needed to expose tariff substitution/unit bugs.
     inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=10000))
     inverter.self_consumption_predictor = Mock()
-    inverter.self_consumption_predictor.calculate_self_consumption.return_value = 1.0
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.return_value = 0.0
     simulation = GeneticSimulation()
     simulation.prepare(
         parameters.ems, optimization_hours=24, prediction_hours=24, inverter=inverter
