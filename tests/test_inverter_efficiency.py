@@ -17,13 +17,10 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
+from akkudoktoreos.devices.genetic.battery import Battery
+from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.devices.genetic.battery import (
-    Battery,
     SolarPanelBatteryParameters,
-)
-from akkudoktoreos.devices.genetic.inverter import (
-    Inverter,
-    InverterParameters,
 )
 
 # ---------------------------------------------------------------------------
@@ -40,7 +37,7 @@ def _make_inverter(
 ) -> Inverter:
     """Create an Inverter with custom efficiency parameters and a mock battery."""
     mock_self_consumption_predictor = Mock()
-    mock_self_consumption_predictor.calculate_self_consumption.return_value = 1.0
+    mock_self_consumption_predictor.calculate_expected_direct_consumption.side_effect = min
 
     params = InverterParameters(
         device_id="inv1",
@@ -167,12 +164,14 @@ class TestDcToAcEfficiency:
         assert losses == pytest.approx(10.0, rel=1e-5)  # Only battery losses
 
     def test_discharge_surplus_path_with_efficiency(self, mock_battery):
-        """When generation > consumption but SCR < 1, discharge goes through inverter."""
-        mock_battery.discharge_energy.return_value = (50.0, 5.0)
+        """A probabilistic load gap discharges through the inverter."""
+        mock_battery.discharge_energy.return_value = (30.0 / 0.90, 5.0)
         mock_battery.charge_energy.return_value = (100.0, 10.0)
 
         inv = _make_inverter(dc_to_ac_efficiency=0.90, mock_battery=mock_battery)
-        cast(Mock, inv.self_consumption_predictor).calculate_self_consumption.return_value = 0.90
+        predictor = cast(Mock, inv.self_consumption_predictor)
+        predictor.calculate_expected_direct_consumption.side_effect = None
+        predictor.calculate_expected_direct_consumption.return_value = 170.0
 
         generation = 500.0
         consumption = 200.0
@@ -182,18 +181,23 @@ class TestDcToAcEfficiency:
             generation, consumption, hour
         )
 
-        # surplus = 300, remaining_power = 300*0.9 = 270, remaining_load_evq = 300*0.1 = 30
-        # DC request for discharge = 30 / 0.90 = 33.333
+        # Expected direct PV is 170 Wh, leaving 30 Wh of load gap and
+        # 330 Wh of PV surplus within different sub-periods of the slot.
+        # DC request for discharge = 30 / 0.90 = 33.333 Wh.
         expected_dc_request = 30.0 / 0.90
         mock_battery.discharge_energy.assert_called_once_with(
             pytest.approx(expected_dc_request, rel=1e-3), hour
         )
 
-        # Battery delivers 50 Wh DC → 45 Wh AC
-        from_battery_ac = 50.0 * 0.90  # 45 Wh
-        inverter_discharge_loss = 50.0 - from_battery_ac  # 5 Wh
+        # Battery delivers 33.333 Wh DC -> 30 Wh AC.
+        from_battery_dc = 30.0 / 0.90
+        from_battery_ac = from_battery_dc * 0.90
+        inverter_discharge_loss = from_battery_dc - from_battery_ac
 
-        assert self_consumption == pytest.approx(consumption + from_battery_ac, rel=1e-5)
+        assert self_consumption == pytest.approx(170.0 + from_battery_ac, rel=1e-5)
+        assert grid_import == pytest.approx(0.0)
+        assert grid_export == pytest.approx(220.0)
+        assert losses == pytest.approx(5.0 + inverter_discharge_loss + 10.0)
 
 
 # ===================================================================
