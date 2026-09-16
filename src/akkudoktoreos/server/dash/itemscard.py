@@ -445,9 +445,11 @@ def ConfigItemsCard(
     description = config["description"]
 
     item_model = resolve_item_model(hint)
+    if item_model is None:
+        raise ValueError(f"Hint for {config_name} needs item_model to be listed. Got {hint}")
     item_path = hint.item_path  # e.g. "pvforecast.planes"
     if item_path is None:
-        raise ValueError(f"Hint needs item_path to be listed. Got {hint}")
+        raise ValueError(f"Hint for {config_name} needs item_path to be listed. Got {hint}")
     path_parts = item_path.split(".")  # e.g. ["pvforecast", "planes"]
 
     items_list = json.loads(value) or []

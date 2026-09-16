@@ -83,11 +83,11 @@ async def test_optimize(
             },
             "devices": {
                 "max_electric_vehicles": 1,
-                "electric_vehicles": [
+                "electric_vehicles": { "ev1":
                     {
                         "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
                     }
-                ],
+                },
              }
          }
     )
