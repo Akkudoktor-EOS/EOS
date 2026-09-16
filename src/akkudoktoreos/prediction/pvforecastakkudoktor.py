@@ -87,10 +87,8 @@ from pydantic import Field, ValidationError, computed_field, field_validator
 from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
-from akkudoktoreos.prediction.pvforecastabc import (
-    PVForecastDataRecord,
-    PVForecastProvider,
-)
+from akkudoktoreos.prediction.pvforecastabc import PVForecastDataRecord
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 
 
@@ -188,7 +186,7 @@ class PVForecastAkkudoktorDataRecord(PVForecastDataRecord):
             return self.pvforecast_ac_power
 
 
-class PVForecastAkkudoktor(PVForecastProvider[PVForecastAkkudoktorDataRecord]):
+class PVForecastAkkudoktor(PVForecastAkkudoktorLocal[PVForecastAkkudoktorDataRecord]):
     """Fetch and process PV forecast data from akkudoktor.net.
 
     PVForecastAkkudoktor is a singleton-based class that retrieves weather forecast data
@@ -385,6 +383,10 @@ class PVForecastAkkudoktor(PVForecastProvider[PVForecastAkkudoktorDataRecord]):
         # Get Akkudoktor PV Forecast data for the given configuration.
         if force_update:
             logger.info("[PVForecastAkkudoktor] force update.")
+        if self.config.pvforecast.akkudoktor.backend == "local":
+            await self._update_local_data(force_update=force_update)
+            return
+
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
 
         # Timezone of the PV system
