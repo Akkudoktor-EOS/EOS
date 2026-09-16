@@ -12,14 +12,14 @@ config path from ``self.device_id`` without needing an external index.
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| batteries | `EOS_DEVICES__BATTERIES` | `dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings] | None` | `rw` | `None` | Stationary battery storage devices, keyed by device_id. |
-| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings] | None` | `rw` | `None` | Electric vehicle battery packs, keyed by device_id. |
+| batteries | `EOS_DEVICES__BATTERIES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Stationary battery storage devices, keyed by device_id. |
+| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Electric vehicle battery packs, keyed by device_id. |
 | home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `dict[str, akkudoktoreos.devices.settings.homeappliancesettings.HomeApplianceCommonSettings]` | `rw` | `required` | Shiftable home appliance devices, keyed by device_id. |
-| inverters | `EOS_DEVICES__INVERTERS` | `dict[str, akkudoktoreos.devices.settings.invertersettings.InverterCommonSettings] | None` | `rw` | `None` | Inverter devices, keyed by device_id. |
-| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `int | None` | `rw` | `None` | Maximum number of batteries allowed. |
-| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `int | None` | `rw` | `None` | Maximum number of EVs allowed. |
-| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `int | None` | `rw` | `None` | Maximum number of home appliances allowed. |
-| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `int | None` | `rw` | `None` | Maximum number of inverters allowed. |
+| inverters | `EOS_DEVICES__INVERTERS` | `Optional[dict[str, akkudoktoreos.devices.settings.invertersettings.InverterCommonSettings]]` | `rw` | `None` | Inverter devices, keyed by device_id. |
+| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `None` | Maximum number of batteries allowed. |
+| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `Optional[int]` | `rw` | `None` | Maximum number of EVs allowed. |
+| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `Optional[int]` | `rw` | `None` | Maximum number of home appliances allowed. |
+| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `Optional[int]` | `rw` | `None` | Maximum number of inverters allowed. |
 | measurement_keys | | `list[str]` | `ro` | `N/A` | All measurement keys across all configured devices. |
 :::
 <!-- pyml enable line-length -->
