@@ -22,7 +22,7 @@ Funktionen aus dem alten Feature-Branch ist noch NICHT abgeschlossen.
 | `fix/measurement-json-reload` | Kleiner JSON-Ladefehler direkt auf main | Veröffentlicht als #1322; gesamte CI grün, noch nicht gemergt |
 | `feat/config-integration-base` | Zusammengeführte #1256/#1305 plus Integrationskorrekturen | Lokale Abhängigkeitsbasis; kein konkurrierender Sammel-PR |
 | `feat/measurement-energy-quality-capacity` | Messdatenfunktionen ohne neue Optimiererphysik | Getestet; wartet für main auf Konfigurationsbasis |
-| `fix/imported-feedin-main` | Importierte Einspeisetarife erhalten und prüfen | Lokal vorbereitet auf main |
+| `fix/imported-feedin-main` | Importierte Einspeisetarife erhalten und prüfen | Veröffentlicht als #1324; CI läuft |
 | `feat/local-pv-main-port` | Lokale PV-Prognose und Kalibrierung | Lokal vorbereitet auf main |
 | `feat/slot-device-physics` | Slotphysik und getrennte Cache-Methoden | Lokal vorbereitet auf Konfigurationsbasis |
 | `fix/optimize-run-result` | Nur das Ergebnis des erfolgreichen aktuellen Laufs zurückgeben | Veröffentlicht als #1323; CI läuft |
@@ -84,8 +84,8 @@ alten großen Feature-Branch oder die Integrationsbasis stapeln.
 Unabhängige Fehlerkorrekturen und neue Funktionen können ab jetzt in Themenbranches
 auf main erfolgen. Für Entwicklung, die den vollständigen neuen GENETIC oder die
 noch fehlenden Funktionen benötigt, ist der Integrationsstand noch nicht abgenommen.
-Die ursprüngliche Arbeitskopie bleibt erhalten. JSON-Fix #1322 und Optimize-Fix
-#1323 sind veröffentlicht; nichts wurde gemergt oder deployt.
+Die ursprüngliche Arbeitskopie bleibt erhalten. JSON-Fix #1322, Optimize-Fix #1323
+und Tarifschutz #1324 sind veröffentlicht; nichts wurde gemergt oder deployt.
 
 ## HA-Übergabe
 

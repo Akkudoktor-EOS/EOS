@@ -10,7 +10,7 @@ that every differing commit requires its own PR.
 | --- | --- | --- | --- |
 | Device physics | Slot-duration-aware battery/inverter flows, export control, efficiency and limits | Isolated branch feat/slot-device-physics prepared and combined in integration | #1256 device settings/converters |
 | Complete GENETIC | Quarter-hour orchestration, adaptive evolution, export states, warmstart alignment, forecast tail/terminal value, EV deadlines and flexible consumer profiles | Physics and primitives exist; orchestration/parameter/output integration remains open | Device physics, #1256, tariff contract |
-| Imported tariff protection | Preserve supplied/imported revenue; avoid silent demo or market-price replacement | Independent main adaptation prepared and combined in integration; feature-specific override still required inside GENETIC port | Main patch independently possible; second part belongs with GENETIC |
+| Imported tariff protection | Preserve supplied/imported revenue; avoid silent demo or market-price replacement | Published as #1324 and combined in integration; feature-specific override still required inside GENETIC port | Main patch independent; second part belongs with GENETIC |
 | Local calibrated PV | Local Akkudoktor PV calculation, measurement calibration and outage handling under existing provider ID | Independent main port prepared and combined in integration | Provider-specific settings; combined forecast/optimizer acceptance later |
 | Measurement APIs | Typed channels, quality, energy integration, household balance and capacity estimate APIs | Isolated tested local branch exists | #1256, #1305, configuration corrections; JSON fix #1322 |
 | Config-owned Optimize request | Local ConfigOptimizationRequest, /v1/optimize, runtime observations and common parameter resolver | Backed up; async/maps/converters adaptation pending | New GENETIC and #1305 |
@@ -52,7 +52,8 @@ port; the core port must keep its regression cases. PV keeps the public
 PVForecastAkkudoktor ID and existing remote behavior unless explicitly selected.
 Parallel preparation does not imply parallel unreviewed merges or publishing all
 branches. The JSON fix #1322 and subsequently the Optimize fix #1323 have publication
-approval; other branches remain local.
+approval. Tariff fix #1324 was subsequently authorized and published; other branches
+remain local.
 
 ## Three different Optimize contracts
 
