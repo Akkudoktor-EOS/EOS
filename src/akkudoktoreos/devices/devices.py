@@ -4,7 +4,7 @@ import json
 from typing import Any, Optional, TextIO, cast
 
 from loguru import logger
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import ConfigScope, SettingsBaseModel
 from akkudoktoreos.core.cache import CacheFileStore
@@ -112,6 +112,25 @@ class DevicesCommonSettings(SettingsBaseModel):
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
+
+    @field_validator("batteries", "electric_vehicles", "inverters", "home_appliances", mode="before")
+    @classmethod
+    def validate_device_ids(cls, value: Any) -> Any:
+        """Keep map keys and device identities consistent without mutating callers."""
+        if not isinstance(value, dict):
+            return value
+        result = {}
+        for key, device in value.items():
+            if isinstance(device, dict):
+                device = dict(device)
+                device.setdefault("device_id", key)
+                device_id = device["device_id"]
+            else:
+                device_id = device.device_id
+            if device_id != key:
+                raise ValueError(f"device_id {device_id!r} must match map key {key!r}")
+            result[key] = device
+        return result
 
     @computed_field  # type: ignore[prop-decorator]
     @property

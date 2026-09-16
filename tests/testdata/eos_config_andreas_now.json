@@ -19,8 +19,8 @@
             }
         },
         "electric_vehicles": {
-            "0": {
-                "device_id": "__ANY__",
+            "ev0": {
+                "device_id": "ev0",
                 "charge_rates": [
                     0.0,
                     0.375,

@@ -47,15 +47,20 @@ def _list_to_device_dict(
     """
 
     def _transform(value: Any) -> Any:
-        if not isinstance(value, list):
-            return value  # already a dict or something unexpected – leave as-is
+        if not isinstance(value, (list, dict)):
+            return value
         result: Dict[str, Any] = {}
-        for i, item in enumerate(value):
-            if not isinstance(item, dict):
-                continue
-            key = item.get("device_id") or f"{prefix}{i}"
-            # Ensure device_id is stored inside the dict so Pydantic can validate it
+        entries = enumerate(value) if isinstance(value, list) else value.items()
+        for index, original in entries:
+            if not isinstance(original, dict):
+                raise ValueError("Device settings must be an object")
+            item = dict(original)
+            key = (item.get("device_id") or f"{prefix}{index}") if isinstance(value, list) else index
+            if key in result:
+                raise ValueError(f"Duplicate device_id: {key!r}")
             item.setdefault("device_id", key)
+            if "levelized_cost_of_storage_kwh" in item:
+                item.setdefault("levelized_cost_of_storage_amt_kwh", item.pop("levelized_cost_of_storage_kwh"))
             result[key] = item
         return result
 
@@ -190,7 +195,7 @@ MIGRATION_MAP: Dict[
     "optimization/interval": None,
     "optimization/horizon_hours": "optimization/genetic0/horizon_hours",
     "optimization/ev_available_charge_rates_percent": (
-        "devices/electric_vehicles/0/charge_rates",
+        "devices/electric_vehicles/ev0/charge_rates",
         lambda v: [x / 100 for x in v],
     ),
     "optimization/hours": "optimization/genetic0/horizon_hours",
@@ -288,6 +293,16 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
         try:
             if transform:
                 old_value = transform(old_value)
+            if old_path == "optimization/ev_available_charge_rates_percent":
+                from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
+
+                vehicles = new_config.devices.electric_vehicles
+                if not vehicles:
+                    new_config.devices.electric_vehicles = {
+                        "ev0": BatteriesCommonSettings(device_id="ev0")
+                    }
+                device_id = next(iter(new_config.devices.electric_vehicles))
+                new_path = f"devices/electric_vehicles/{device_id}/charge_rates"
             new_config.set_nested_value(new_path, old_value)
             migrated_source_paths.add(old_path.strip("/"))
             mapped_count += 1
