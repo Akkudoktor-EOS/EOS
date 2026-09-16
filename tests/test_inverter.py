@@ -3,11 +3,11 @@ from unittest.mock import Mock, call, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic.battery import Battery
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.devices.genetic.battery import (
+    Battery,
     SolarPanelBatteryParameters,
 )
+from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 
 
 @pytest.fixture

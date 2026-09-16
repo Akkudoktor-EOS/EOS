@@ -149,9 +149,9 @@ async def test_optimize(
     assert len(result.grid_consumption_wh_per_hour) == expected_slots
     assert len(result.grid_feed_in_wh_per_hour) == expected_slots
     prices = np.asarray(genetic_solution.parameters.ems.electricity_price_per_wh)[fixed_start_hour:]
-    tariffs = genetic_solution.parameters.ems.feed_in_tariff_per_wh
-    if isinstance(tariffs, list):
-        tariffs = np.asarray(tariffs)[fixed_start_hour:]
+    tariffs = np.asarray(genetic_solution.parameters.ems.feed_in_tariff_per_wh)
+    if tariffs.ndim > 0:
+        tariffs = tariffs[fixed_start_hour:]
     expected_costs = np.asarray(result.grid_consumption_wh_per_hour) * prices
     expected_revenues = np.asarray(result.grid_feed_in_wh_per_hour) * tariffs
     np.testing.assert_allclose(result.costs_per_hour, expected_costs)

@@ -352,23 +352,21 @@ def test_grid_export_rates_are_sorted_and_deduplicated():
     settings = BatteriesCommonSettings(
         device_id="battery1", grid_export_rates=[1.0, 0.5, 0.5, 0.25]
     )
-    assert list(settings.grid_export_rates) == [0.25, 0.5, 1.0]
+    assert settings.grid_export_rates == [0.25, 0.5, 1.0]
 
 
 def test_grid_export_rates_default_and_override():
     """None falls back to the defaults; [1.0] restores all-or-nothing export."""
-    assert list(BatteriesCommonSettings(device_id="battery1").grid_export_rates) == [
+    assert BatteriesCommonSettings(device_id="battery1").grid_export_rates == [
         0.25,
         0.5,
         0.75,
         1.0,
     ]
-    assert list(
-        BatteriesCommonSettings(device_id="battery1", grid_export_rates=None).grid_export_rates
-    ) == [0.25, 0.5, 0.75, 1.0]
-    assert list(
-        BatteriesCommonSettings(device_id="battery1", grid_export_rates=[1.0]).grid_export_rates
-    ) == [1.0]
+    fallback = BatteriesCommonSettings(device_id="battery1", grid_export_rates=None)
+    assert fallback.grid_export_rates == [0.25, 0.5, 0.75, 1.0]
+    full_export = BatteriesCommonSettings(device_id="battery1", grid_export_rates=[1.0])
+    assert full_export.grid_export_rates == [1.0]
 
 
 @pytest.mark.parametrize("rates", [[0.0, 0.5], [1.5], [-0.25], [], [np.nan], [np.inf], [[0.5]], 0.5])
