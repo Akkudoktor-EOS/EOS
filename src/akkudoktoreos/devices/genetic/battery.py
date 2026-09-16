@@ -80,11 +80,34 @@ class BaseBatteryParameters(DeviceParameters):
             "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
         },
     )
+    grid_export_rates: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Battery-to-grid export rates as factor of maximum discharge "
+                "power ]0.00 ... 1.00]. These levels are available to algorithms "
+                "that explicitly enable battery-to-grid export. None leaves the "
+                "choice of export levels to the caller."
+            ),
+            "examples": [[0.25, 0.5, 0.75, 1.0], [1.0], None],
+        },
+    )
 
 
 class SolarPanelBatteryParameters(BaseBatteryParameters):
     """PV battery device simulation configuration."""
 
+    levelized_cost_of_storage_kwh: float = Field(
+        default=0.0,
+        ge=0.0,
+        json_schema_extra={
+            "description": (
+                "Levelized cost of storage applied once to each kWh delivered "
+                "by the battery [EUR/kWh]."
+            ),
+            "examples": [0.12],
+        },
+    )
     max_charge_power_w: Optional[float] = max_charging_power_field()
 
 
@@ -103,9 +126,20 @@ class ElectricVehicleParameters(BaseBatteryParameters):
 class Battery:
     """Represents a battery device with methods to simulate energy charging and discharging."""
 
-    def __init__(self, parameters: BaseBatteryParameters, prediction_hours: int):
+    def __init__(
+        self,
+        parameters: BaseBatteryParameters,
+        prediction_hours: int,
+        slot_duration_h: float = 1.0,
+    ):
+        # `prediction_hours` is the number of optimization slots, not hours. At
+        # the default optimization interval of 3600 s, slot_duration_h is 1.0 and
+        # the slot count equals the hour count, so existing callers are
+        # unaffected. At 900 s (15 min) slot_duration_h is 0.25 and there are 4x
+        # as many slots, each able to move a quarter of the hourly energy.
         self.parameters = parameters
         self.prediction_hours = prediction_hours
+        self.slot_duration_h = slot_duration_h
         self._setup()
 
     def _setup(self) -> None:
@@ -114,6 +148,11 @@ class Battery:
         self.initial_soc_percentage = self.parameters.initial_soc_percentage
         self.charging_efficiency = self.parameters.charging_efficiency
         self.discharging_efficiency = self.parameters.discharging_efficiency
+        self.levelized_cost_of_storage_kwh = (
+            self.parameters.levelized_cost_of_storage_kwh
+            if isinstance(self.parameters, SolarPanelBatteryParameters)
+            else 0.0
+        )
 
         # Charge rates, in case of None use default
         self.charge_rates = np.array(BATTERY_DEFAULT_CHARGE_RATES, dtype=float)
@@ -138,6 +177,8 @@ class Battery:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
+        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.min_soc_wh = (self.min_soc_percentage / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percentage / 100) * self.capacity_wh
@@ -181,6 +222,30 @@ class Battery:
         self.soc_wh = min(self.soc_wh, self.max_soc_wh)  # Only clamp to max
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
+        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+
+    def rated_discharge_energy_wh(self) -> float:
+        """Return the DC energy one full-power discharge slot delivers.
+
+        This is the reference a grid-export rate is applied to: a rate of 0.5
+        exports at most half the battery's rated discharge power, independent of
+        how much of the slot budget self-consumption already used.
+        """
+        return self.max_charge_power_w * self.slot_duration_h * self.discharging_efficiency
+
+    def remaining_discharge_energy_wh(self, hour: int) -> float:
+        """Return DC energy still deliverable within one optimization slot."""
+        raw_power_budget_wh = self.max_charge_power_w * self.slot_duration_h
+        raw_power_remaining_wh = max(
+            raw_power_budget_wh - self._discharged_raw_wh_per_slot[hour], 0.0
+        )
+        raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
+        return min(raw_power_remaining_wh, raw_soc_available_wh) * self.discharging_efficiency
+
+    def discharged_energy_wh(self, hour: int) -> float:
+        """Return DC energy delivered by the battery in one optimization slot."""
+        return self._discharged_raw_wh_per_slot[hour] * self.discharging_efficiency
 
     def set_discharge_per_hour(self, discharge_array: np.ndarray) -> None:
         """Sets the discharge values for each hour."""
@@ -228,8 +293,13 @@ class Battery:
         # Raw extractable energy above minimum SoC
         raw_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
 
-        # Maximum raw discharge due to power limit
-        max_raw_wh = self.max_charge_power_w  # TODO rename to max_discharge_power_w
+        # Maximum raw discharge due to power limit, scaled to the slot duration.
+        # max_charge_power_w is a power [W]; energy movable in one slot is
+        # power x slot_duration_h.
+        max_raw_wh = max(
+            self.max_charge_power_w * self.slot_duration_h - self._discharged_raw_wh_per_slot[hour],
+            0.0,
+        )  # TODO rename to max_discharge_power_w
 
         # Actual raw withdrawal (internal)
         raw_withdrawal_wh = min(raw_available_wh, max_raw_wh)
@@ -246,6 +316,7 @@ class Battery:
         # Update SoC
         self.soc_wh -= raw_used_wh
         self.soc_wh = max(self.soc_wh, self.min_soc_wh)
+        self._discharged_raw_wh_per_slot[hour] += raw_used_wh
 
         # Losses
         losses_wh = raw_used_wh - delivered_wh
@@ -320,7 +391,12 @@ class Battery:
 
         # Provide fast (3x..5x) local read access (vs. self.xxx) for repetitive read access
         soc_wh_fast = self.soc_wh
-        max_charge_power_w_fast = self.max_charge_power_w
+        # Scale the power cap [W] to a per-slot energy cap [Wh] (W x slot hours).
+        # At slot_duration_h=1.0 (hourly) this equals the legacy power value.
+        max_charge_per_slot_wh_fast = max(
+            self.max_charge_power_w * self.slot_duration_h - self._charged_raw_wh_per_slot[hour],
+            0.0,
+        )
         charging_efficiency_fast = self.charging_efficiency
 
         # Decide mode & determine raw_request_wh and raw_charge_wh
@@ -328,13 +404,13 @@ class Battery:
             raw_request_wh = wh
             raw_charge_wh = max(self.max_soc_wh - soc_wh_fast, 0.0) / charging_efficiency_fast
         elif wh is None and charge_factor > 0.0:  # mode 2
-            raw_request_wh = max_charge_power_w_fast * charge_factor
+            raw_request_wh = max_charge_per_slot_wh_fast * charge_factor
             raw_charge_wh = max(self.max_soc_wh - soc_wh_fast, 0.0) / charging_efficiency_fast
             if raw_request_wh > raw_charge_wh:
                 # Use a lower charge factor
                 lower_charge_factors = self._lower_charge_rates_desc(charge_factor)
                 for charge_factor in lower_charge_factors:
-                    raw_request_wh = max_charge_power_w_fast * charge_factor
+                    raw_request_wh = max_charge_per_slot_wh_fast * charge_factor
                     if raw_request_wh <= raw_charge_wh:
                         self.charge_array[hour] = charge_factor
                         break
@@ -349,7 +425,7 @@ class Battery:
             )
 
         # Remaining capacity
-        max_raw_wh = min(raw_charge_wh, max_charge_power_w_fast)
+        max_raw_wh = min(raw_charge_wh, max_charge_per_slot_wh_fast)
 
         # Actual raw intake
         raw_input_wh = raw_request_wh if raw_request_wh < max_raw_wh else max_raw_wh
@@ -364,6 +440,7 @@ class Battery:
             )
 
         self.soc_wh = new_soc
+        self._charged_raw_wh_per_slot[hour] += raw_input_wh
         losses_wh = raw_input_wh - stored_wh
 
         return stored_wh, losses_wh
