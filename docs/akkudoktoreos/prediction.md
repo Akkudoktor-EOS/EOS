@@ -839,6 +839,62 @@ Example:
 }
 ```
 
+#### Local Open-Meteo/pvlib backend
+
+`PVForecastAkkudoktor` keeps the remote API as its default backend. To calculate
+PV output locally, keep the same public provider ID and set:
+
+```json
+{
+  "pvforecast": {
+    "provider": "PVForecastAkkudoktor",
+    "akkudoktor": {
+      "backend": "local",
+      "resolution_minutes": 15,
+      "calibration_enabled": false
+    }
+  }
+}
+```
+
+Configure `general.latitude`, `general.longitude` and `pvforecast.planes` as
+usual. The local PVWatts model uses plane peak power, tilt, azimuth, horizon,
+tracking, mounting, losses and inverter power. It does not use the CEC module
+and inverter names required by `PVForecastPVLib`; that provider remains a
+separate option backed by the selected weather provider.
+
+The local backend requests irradiance and weather directly from Open-Meteo,
+then computes DC and AC power with pvlib. Both prediction keys retain their
+units of **W**. Fifteen-minute power samples represent 0.25 hours when converted
+to Wh by an optimizer. Hourly consumers obtain the hourly mean power. Neither
+backend selects or changes the optimization algorithm or the legacy `/optimize`
+request schema.
+
+Open-Meteo radiation timestamps label the preceding interval. By default EOS
+shifts them to interval starts and uses the interval midpoint for solar position.
+Native 15-minute weather is available in Central Europe and North America;
+elsewhere Open-Meteo interpolates hourly weather. See the
+[Open-Meteo API documentation](https://open-meteo.com/en/docs).
+
+Set `calibration_enabled` to true and configure cumulative PV production meter
+keys in `measurement.pv_production_emr_keys` to fit the model against measurements.
+Calibration preserves daily energy while optionally correcting the intraday
+azimuth shape, clamps correction factors and respects inverter capacity.
+Hourly meters are fitted hourly; native quarter-hour meters retain their cadence.
+Probable outage or curtailment days are excluded by default. Without sufficient
+usable measurements the uncalibrated physical model is used.
+
+Transient weather errors are retried. If an update still fails, existing usable
+AC forecasts are retained; a cold start or expired-only forecast reports the
+error. Retention does not extend the available forecast horizon. Calibration and
+forecast settings are listed in the generated PV configuration reference.
+
+Feature-branch configurations using `PVForecastAkkudoktorLocal` and
+`provider_settings.PVForecastAkkudoktorLocal` migrate to the public provider ID
+and `akkudoktor.backend = "local"`. Explicit current `akkudoktor` values take
+precedence over legacy values. Invalid local settings fail validation instead
+of being silently dropped during file migration.
+
 ### PVForecastVrm Provider
 
 The `PVForecastVrm` provider retrieves pv power forecast data from the Victron Remote Management
