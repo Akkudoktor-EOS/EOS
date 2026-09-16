@@ -402,5 +402,4 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     @property
     def measurement_keys(self) -> Optional[list[str]]:
         """Measurement keys for the home appliance stati that are measurements."""
-        keys: list[str] = []
-        return keys
+        return [self.cycles_completed_measurement_key or f"{self.device_id}.cycles_completed"]
