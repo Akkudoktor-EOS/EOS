@@ -22,6 +22,7 @@ def offline_ems(monkeypatch):
     cls = ems_module.EnergyManagement
     for name in (
         "_start_datetime",
+        "_observation_datetime",
         "_last_run_datetime",
         "_plan",
         "_optimization_solution",
@@ -37,7 +38,7 @@ def offline_ems(monkeypatch):
             ems=SimpleNamespace(mode=EnergyManagementMode.OPTIMIZATION),
             optimization=SimpleNamespace(
                 algorithm=OptimizationAlgorithm.GENETIC,
-                genetic=SimpleNamespace(generations=3, seed=17),
+                genetic=SimpleNamespace(generations=3, seed=17, interval_sec=3600, individuals=31),
                 genetic0=SimpleNamespace(generations=5, seed=29),
             ),
             server=SimpleNamespace(verbose=False),
@@ -90,6 +91,8 @@ async def test_optimization_routes_only_selected_algorithm(
         kwargs[suffix + "_parameters"] = sentinel_parameters
         kwargs[suffix + "_generations"] = 7
         kwargs[suffix + "_seed"] = 43
+        if algorithm == OptimizationAlgorithm.GENETIC:
+            kwargs["genetic_individuals"] = 11
     run_result = await ems_module.EnergyManagement.run(offline_ems, **kwargs)
     assert run_result is solution
     selected = constructors[selected_name]
@@ -97,11 +100,14 @@ async def test_optimization_routes_only_selected_algorithm(
     selected.assert_called_once_with(
         verbose=False, fixed_seed=43 if supplied else expected_config.seed
     )
-    selected.return_value.optimize_ems.assert_called_once_with(
-        start_hour=expected_hour,
-        parameters=sentinel_parameters,
-        ngen=7 if supplied else expected_config.generations,
-    )
+    expected_arguments: dict[str, Any] = {
+        "start_hour": expected_hour,
+        "parameters": sentinel_parameters,
+        "ngen": 7 if supplied else expected_config.generations,
+    }
+    if algorithm == OptimizationAlgorithm.GENETIC:
+        expected_arguments["individuals"] = 11 if supplied else None
+    selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
     other_name = "Genetic0" if selected_name == "Genetic" else "Genetic"
     constructors[other_name].assert_not_called()
     preparers[other_name].assert_not_awaited()
