@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609162099399438"
+    "version": "v0.3.0.dev2609162059048192"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -3024,7 +3024,7 @@
           "optimize"
         ],
         "summary": "Fastapi Optimize Config",
-        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration. Forecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers and fresh measured states of charge.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
+        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers and fresh measured states of charge.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
         "operationId": "fastapi_optimize_config_v1_optimize_post",
         "requestBody": {
           "content": {

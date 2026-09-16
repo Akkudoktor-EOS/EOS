@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2609162099399438`
+**Version**: `v0.3.0.dev2609162059048192`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -1382,7 +1382,8 @@ Fastapi Optimize Config
 """
 Optimize GENETIC using configured devices and optional fresh runtime inputs.
 
-Static settings belong in configuration. Forecast arrays start at local
+Static settings belong in configuration; query overrides are rejected.
+Forecast arrays start at local
 midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
 An empty body uses configured providers and fresh measured states of charge.
 The deprecated /optimize endpoint continues to run hourly GENETIC0.
