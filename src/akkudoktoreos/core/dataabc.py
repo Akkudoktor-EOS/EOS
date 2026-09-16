@@ -1137,7 +1137,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecordT], Generic[Da
         async for record in self.db_iterate_records(start_timestamp, end_timestamp):
             if (
                 record.date_time is None
-                or (getattr(record, key, None) is None)  # key is not in record
+                or not hasattr(record, key)  # key is not in record
                 or (dropna and pd.isna(getattr(record, key, None)))
             ):
                 continue
