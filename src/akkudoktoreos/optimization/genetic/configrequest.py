@@ -18,7 +18,7 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
 
 class RuntimeForecasts(GeneticParametersBaseModel):
@@ -58,8 +58,8 @@ class ConfigOptimizationRequest(
     @field_validator("start_solution_datetime", mode="before")
     @classmethod
     def validate_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
-        """Parse an explicit previous-plan timestamp."""
-        return to_datetime(value) if value is not None else None
+        """Parse a previous-plan timestamp while retaining its explicit timezone."""
+        return GeneticOptimizationParameters.transform_start_solution_datetime(value)
 
     async def resolve(self) -> GeneticOptimizationParameters:
         """Resolve inside the EMS lock after its slot start has been established."""

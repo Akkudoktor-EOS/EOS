@@ -98,6 +98,22 @@ def test_static_http_overrides_are_rejected(field):
         ConfigOptimizationRequest.model_validate({field: {}})
 
 
+@pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
+def test_warmstart_timestamp_retains_explicit_zone_and_json_instant(
+    set_other_timezone, host_timezone
+):
+    set_other_timezone(host_timezone)
+    previous = to_datetime("2026-10-25T02:30:00+01:00", in_timezone="Europe/Berlin")
+    request = ConfigOptimizationRequest(start_solution_datetime=previous)
+    assert request.start_solution_datetime is not None
+    assert request.start_solution_datetime.timezone_name == "Europe/Berlin"
+    assert request.start_solution_datetime.timestamp() == previous.timestamp()
+    restored = ConfigOptimizationRequest.model_validate_json(request.model_dump_json())
+    assert restored.start_solution_datetime is not None
+    assert restored.start_solution_datetime.timestamp() == previous.timestamp()
+    assert restored.start_solution_datetime.utcoffset() == previous.utcoffset()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("age,value", [(301, 0.45), (-1, 0.45), (1, None), (1, np.nan), (1, 1.1)])
 async def test_missing_stale_future_or_invalid_soc_never_becomes_zero(
