@@ -1,5 +1,7 @@
 """Tests for the concave terminal value of the energy left in the battery."""
 
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -11,7 +13,7 @@ from akkudoktoreos.optimization.genetic.terminalvalue import (
 
 def _curve(**overrides):
     """Two expensive slots, one cheap one, no PV, 10 kWh of usable battery."""
-    params = dict(
+    params: dict[str, Any] = dict(
         prices_euro_per_wh=np.array([0.0004, 0.0003, 0.0001]),
         load_wh=np.array([1000.0, 1000.0, 1000.0]),
         pv_wh=np.array([0.0, 0.0, 0.0]),

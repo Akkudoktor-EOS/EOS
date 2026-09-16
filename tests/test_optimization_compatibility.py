@@ -88,6 +88,9 @@ def test_device_maps_feed_algorithm_specific_converters(algorithm):
             },
         }
     )
+    assert settings.batteries is not None
+    assert settings.electric_vehicles is not None
+    assert settings.inverters is not None
     battery = getattr(settings.batteries["storage"], "to_" + algorithm + "_pv_bat_param")()
     ev = getattr(settings.electric_vehicles["car"], "to_" + algorithm + "_ev_bat_param")()
     inverter = getattr(settings.inverters["inverter"], "to_" + algorithm + "_param")()

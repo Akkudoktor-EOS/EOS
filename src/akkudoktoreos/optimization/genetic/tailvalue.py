@@ -257,7 +257,7 @@ def build_tail_value_curve(
             next_states = np.empty(len(states))
             rewards = np.empty(len(states))
             for i, energy in enumerate(states):
-                result = _simulate_action(
+                action_result = _simulate_action(
                     bat=bat,
                     inv=inv,
                     energy_wh=energy,
@@ -268,8 +268,8 @@ def build_tail_value_curve(
                     tariff=tariff,
                     direct_marketing=direct_marketing,
                 )
-                rewards[i] = result["reward_euro"]
-                next_states[i] = result["next_state_wh"]
+                rewards[i] = action_result["reward_euro"]
+                next_states[i] = action_result["next_state_wh"]
             candidate_operating = rewards + np.interp(next_states, states, operating_values)
             candidate_continuation = np.interp(next_states, states, continuation_values)
             candidate = candidate_operating + candidate_continuation
