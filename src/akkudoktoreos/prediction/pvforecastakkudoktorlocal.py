@@ -45,7 +45,10 @@ from pydantic import Field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
-from akkudoktoreos.prediction.pvforecastabc import PVForecastDataRecordT, PVForecastProvider
+from akkudoktoreos.prediction.pvforecastabc import (
+    PVForecastDataRecordT,
+    PVForecastProvider,
+)
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 OPENMETEO_URL = "https://api.open-meteo.com/v1/forecast"
