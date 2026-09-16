@@ -1,10 +1,44 @@
+from typing import Optional
+
 import numpy as np
+from pydantic import Field
 
 from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
-from akkudoktoreos.optimization.genetic0.genetic0devices import (
-    Genetic0HomeApplianceParameters,
-)
+from akkudoktoreos.optimization.genetic0.genetic0devices import Genetic0DeviceParameters
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
+
+
+class Genetic0HomeApplianceParameters(Genetic0DeviceParameters):
+    """Home Appliance Device Simulation Configuration."""
+
+    device_id: str = Field(
+        json_schema_extra={"description": "ID of home appliance", "examples": ["dishwasher"]}
+    )
+    consumption_wh: int = Field(
+        gt=0,
+        json_schema_extra={
+            "description": "An integer representing the energy consumption of a household device in watt-hours.",
+            "examples": [2000],
+        },
+    )
+    duration_h: int = Field(
+        gt=0,
+        json_schema_extra={
+            "description": "An integer representing the usage duration of a household device in hours.",
+            "examples": [3],
+        },
+    )
+    time_windows: Optional[TimeWindowSequence] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+                [
+                    {"start_time": "10:00", "duration": "3 hours"},
+                ],
+            ],
+        },
+    )
 
 
 class Genetic0HomeAppliance:

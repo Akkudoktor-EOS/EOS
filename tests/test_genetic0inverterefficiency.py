@@ -17,17 +17,17 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
-from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0Inverter
-from akkudoktoreos.optimization.genetic0.genetic0 import (
-    Genetic0Simulation,
-)
-from akkudoktoreos.optimization.genetic0.genetic0devices import (
-    Genetic0InverterParameters,
+from akkudoktoreos.devices.genetic0.genetic0battery import (
+    Genetic0Battery,
     Genetic0SolarPanelBatteryParameters,
 )
-from akkudoktoreos.optimization.genetic0.genetic0params import (
+from akkudoktoreos.devices.genetic0.genetic0inverter import (
+    Genetic0Inverter,
+    Genetic0InverterParameters,
+)
+from akkudoktoreos.optimization.genetic0.genetic0 import (
     Genetic0EnergyManagementParameters,
+    Genetic0Simulation,
 )
 
 # ---------------------------------------------------------------------------
