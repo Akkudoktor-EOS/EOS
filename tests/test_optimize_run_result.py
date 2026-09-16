@@ -52,8 +52,9 @@ def offline_ems(monkeypatch):
 @pytest.mark.parametrize("algorithm", list(OptimizationAlgorithm))
 @pytest.mark.parametrize("selection", ["configured", "explicit"])
 @pytest.mark.parametrize("supplied", [False, True])
+@pytest.mark.parametrize("timezone, expected_hour", [("UTC", 8), ("Europe/Berlin", 10)])
 async def test_optimization_routes_only_selected_algorithm(
-    monkeypatch, offline_ems, algorithm, selection, supplied
+    monkeypatch, offline_ems, algorithm, selection, supplied, timezone, expected_hour
 ):
     """Configuration selection and explicit overrides retain isolated async paths."""
     selected_name = "Genetic" if algorithm == OptimizationAlgorithm.GENETIC else "Genetic0"
@@ -77,7 +78,9 @@ async def test_optimization_routes_only_selected_algorithm(
         monkeypatch.setattr(
             getattr(ems_module, prefix + "OptimizationParameters"), "prepare", prepare
         )
-    kwargs: dict[str, Any] = {"start_datetime": to_datetime("2026-09-16T10:00:00+02:00")}
+    kwargs: dict[str, Any] = {
+        "start_datetime": to_datetime("2026-09-16T10:00:00+02:00", in_timezone=timezone)
+    }
     if selection == "configured":
         offline_ems.config.optimization.algorithm = algorithm
     else:
@@ -95,7 +98,7 @@ async def test_optimization_routes_only_selected_algorithm(
         verbose=False, fixed_seed=43 if supplied else expected_config.seed
     )
     selected.return_value.optimize_ems.assert_called_once_with(
-        start_hour=10,
+        start_hour=expected_hour,
         parameters=sentinel_parameters,
         ngen=7 if supplied else expected_config.generations,
     )
