@@ -100,11 +100,14 @@ class ConfigOptimizationRequest(
                     dropna=False,
                 )
                 samples = [
-                    (date, value) for date, value in zip(dates, values) if date <= observation_time
+                    (date, value)
+                    for date, value in zip(dates, values)
+                    if date.timestamp() <= observation_time.timestamp()
                 ]
-                date, value = max(samples, key=lambda sample: sample[0])
+                date, value = max(samples, key=lambda sample: sample[0].timestamp())
                 if (
-                    (observation_time - date).total_seconds() > settings.measurement_max_age_seconds
+                    observation_time.timestamp() - date.timestamp()
+                    > settings.measurement_max_age_seconds
                     or value is None
                     or not math.isfinite(value)
                     or not 0 <= value <= 1
@@ -147,11 +150,13 @@ class ConfigOptimizationRequest(
             except KeyError:
                 continue
             samples = [
-                (date, count) for date, count in zip(dates, counts) if date <= observation_time
+                (date, count)
+                for date, count in zip(dates, counts)
+                if date.timestamp() <= observation_time.timestamp()
             ]
             if not samples:
                 continue
-            count = max(samples, key=lambda item: item[0])[1]
+            count = max(samples, key=lambda item: item[0].timestamp())[1]
             if (
                 count is None
                 or not math.isfinite(count)

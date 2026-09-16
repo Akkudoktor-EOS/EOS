@@ -131,6 +131,19 @@ async def test_soc_freshness_uses_actual_run_time_inside_quarter_hour(configured
 
 
 @pytest.mark.asyncio
+async def test_future_soc_in_repeated_hour_is_rejected(configured_request):
+    _, ems, measurement, data = configured_request
+    data["soc"] = {}
+    ems.observation_datetime = to_datetime("2026-10-25T02:45:00+02:00", in_timezone="Europe/Berlin")
+    measurement.key_to_lists.return_value = (
+        [to_datetime("2026-10-25T02:15:00+01:00", in_timezone="Europe/Berlin")],
+        [0.8],
+    )
+    with pytest.raises(ValueError, match="Fresh SoC missing"):
+        await ConfigOptimizationRequest.model_validate(data).resolve()
+
+
+@pytest.mark.asyncio
 async def test_unknown_soc_and_mismatched_device_link_are_rejected(configured_request):
     config, _, _, data = configured_request
     request = ConfigOptimizationRequest.model_validate(data)
@@ -205,6 +218,17 @@ def test_slot_alignment_preserves_dst_fold(config_eos, stamp, interval, expected
     aligned = EnergyManagement.set_start_datetime(time, interval_seconds=interval)
     assert aligned == to_datetime(expected, in_timezone="Europe/Berlin")
     assert aligned.utcoffset() == to_datetime(expected, in_timezone="Europe/Berlin").utcoffset()
+
+
+@pytest.mark.parametrize("timezone", ["Asia/Kolkata", "Asia/Kathmandu"])
+@pytest.mark.parametrize("interval,minute", [(900, 30), (3600, 0)])
+def test_slot_alignment_uses_local_midnight(config_eos, timezone, interval, minute):
+    time = to_datetime("2026-09-12T10:40:00", in_timezone=timezone)
+    aligned = EnergyManagement.set_start_datetime(time, interval_seconds=interval)
+    assert aligned.hour == 10
+    assert aligned.minute == minute
+    assert aligned.timezone_name == timezone
+    assert EnergyManagement().observation_datetime == time
 
 
 def test_old_feature_config_migrates_without_changing_explicit_nested_values(config_eos):

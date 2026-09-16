@@ -138,8 +138,10 @@ class EnergyManagement(
             )
         if interval_seconds not in (900, 3600):
             raise ValueError("Optimization slots must be 900 or 3600 seconds.")
+        midnight = start_datetime.start_of("day").int_timestamp
+        elapsed = start_datetime.int_timestamp - midnight
         cls._start_datetime = to_datetime(
-            (start_datetime.int_timestamp // interval_seconds) * interval_seconds,
+            midnight + (elapsed // interval_seconds) * interval_seconds,
             in_timezone=start_datetime.timezone_name,
         )
         return cls._start_datetime
