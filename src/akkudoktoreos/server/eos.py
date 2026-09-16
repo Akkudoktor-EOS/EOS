@@ -66,6 +66,9 @@ from akkudoktoreos.optimization.genetic0.genetic0visualize import (
 )
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticvisualize import (
+    genetic_prepare_visualize,
+)
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
@@ -1866,6 +1869,35 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
         )
 
     return solution
+
+
+@app.get(
+    "/v1/energy-management/optimization/solution/GENETIC/pdf",
+    tags=["energy-management"],
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> Response:
+    """Render the retained GENETIC result without rerunning optimization.
+
+    Rendering runs outside the event loop. Copy the result before offloading;
+    its recorded timestamp, interval and inputs own the report's time grid.
+    The legacy /visualization_results.pdf route continues to serve GENETIC0.
+    """
+    retained = get_ems().genetic_solution()
+    if retained is None:
+        raise EOSProblem(
+            status=404,
+            title="Optimization solution report retrieval failed",
+            detail="Can not get the 'GENETIC' optimization solution.",
+        )
+    snapshot = retained.model_copy(deep=True)
+    pdf = await asyncio.to_thread(genetic_prepare_visualize, solution=snapshot)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="optimization-genetic.pdf"'},
+    )
 
 
 @app.get("/v1/energy-management/plan", tags=["energy-management"])
