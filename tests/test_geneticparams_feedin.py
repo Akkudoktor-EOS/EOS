@@ -14,7 +14,9 @@ import pytest
 from akkudoktoreos.devices.genetic.inverter import Inverter
 from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
 from akkudoktoreos.optimization.genetic.geneticdevices import InverterParameters
-from akkudoktoreos.optimization.genetic.geneticparams import GeneticOptimizationParameters
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticOptimizationParameters,
+)
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffDataRecord
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
 from akkudoktoreos.utils.datetimeutil import to_datetime
