@@ -17,6 +17,7 @@ Funktionen aus dem alten Feature-Branch ist noch NICHT abgeschlossen.
 
 ## Branches und ihre Aufgaben
 
+<!-- pyml disable line-length -->
 | Branch | Zweck | Freigabezustand |
 | --- | --- | --- |
 | `fix/measurement-json-reload` | Kleiner JSON-Ladefehler direkt auf main | Veröffentlicht als #1322; gesamte CI grün, noch nicht gemergt |
@@ -28,6 +29,7 @@ Funktionen aus dem alten Feature-Branch ist noch NICHT abgeschlossen.
 | `fix/optimize-run-result` | Nur das Ergebnis des erfolgreichen aktuellen Laufs zurückgeben | Veröffentlicht als #1323; CI läuft |
 | `integration/eos-consolidation-20260916` | Zusammenführung und Prüfung aller Portierungspakete | Unvollständig; kein Gesamt-PR und kein HA-Release |
 | `feat/direct-marketing-battery-grid-export` | Ursprüngliche Entwicklung mit lokalen Änderungen | Unverändert erhalten und gesichert |
+<!-- pyml enable line-length -->
 
 Der Worktree `../EOS-pr-measurement` gehört zum Messdatenpaket.
 `../EOS-integration-20260916` bleibt der zeitlich begrenzte Portierungsarbeitsplatz.
@@ -50,7 +52,7 @@ Ein Worktree ist nur ein Arbeitsverzeichnis; Gegenstand eines PRs ist der Branch
 1. Neues GENETIC vollständig auf main-Strukturen anpassen: Viertelstundenplanung,
    Exportzustände, adaptive Evolution und zeitlich korrekter Warmstart.
 2. Flexible Lastprofile/EV-Fristen mit den Mehrfachzyklen und Zeitfenstern aus
-   #1256 verbinden. Beide vorhandenen Funktionssätze müssen erhalten bleiben.
+   `#1256` verbinden. Beide vorhandenen Funktionssätze müssen erhalten bleiben.
 3. Horizont, Prognoselücken, Nachlauf und Restwert mit Optimierer und Ergebnissen
    verdrahten; bisher sind nur die Bausteine übernommen.
 4. Den bereits portierten Tarifschutz auch in der neuen GENETIC-Parametervorbereitung
@@ -63,7 +65,7 @@ Ein Worktree ist nur ein Arbeitsverzeichnis; Gegenstand eines PRs ist der Branch
 ## PR-Reihenfolge
 
 1. JSON-Fix als PR #1322 veröffentlicht: CI und Review prüfen, danach über Merge entscheiden.
-2. #1256/#1305 über ihre vorhandenen PRs zusammenführen; lokale Korrekturen dort
+2. `#1256/#1305` über ihre vorhandenen PRs zusammenführen; lokale Korrekturen dort
    zuordnen. Keine pauschale Veröffentlichung der kombinierten Integrationsbasis.
 3. Das isolierte Messdatenpaket auf diesen main-Stand setzen, Diff prüfen und
    nochmals testen; dann als eigenen PR einreichen.
@@ -105,7 +107,6 @@ XML-Protokolle liegen in der privaten Sicherung `eos-20260916-120324`.
 Für PR #1322 ist die gepinnte Linux/Python-3.13-CI inzwischen bestätigt:
 1.884 Tests bestanden, 16 übersprungen; Pre-commit/Mypy, CodeQL und Docker-Build
 erfolgreich auf `ce132ea`. Die aktuellen CI-Ergebnisse aller sechs PRs stehen im Review-Handoff.
-
 
 Zusätzlicher Integrationslauf: 764 Tests bestanden, 3 übersprungen; zwei zunächst
 fehlgeschlagene Dokumentationsvergleiche betrafen ausschließlich die Versionsangabe.

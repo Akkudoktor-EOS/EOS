@@ -11,7 +11,8 @@ amount/Wh revenues remain unchanged. Other providers keep their fallback behavio
 
 Publication check: 68 passed, 2 regular long-running tests skipped; source Ruff,
 format and diff checks passed. Scoped mypy passed for the two changed files with
-transitive imports/untyped dependency diagnostics excluded. Full pinned Linux CI: 1921 passed, 16 skipped; pre-commit including full mypy, CodeQL and Docker passed.
+transitive imports/untyped dependency diagnostics excluded. Full pinned Linux CI: 1921 passed, 16 skipped;
+pre-commit including full mypy, CodeQL and Docker passed.
 Regression coverage includes seven provider identities, simulation arithmetic and
 actual timestamped imports. Eleven invalid-input regressions fail on unchanged main.
 

@@ -12,7 +12,7 @@ See eos-consolidation.md for source commits, tests, backup, and remaining work.
 - Algorithm settings are separate under `optimization.genetic` / `genetic0`.
   Existing main configuration uses `interval_sec` and `horizon_hours` there.
   Do not send feature-branch top-level interval/horizon settings without migration.
-- #1305 runtime bulk/granular changes are retained above file/environment sources;
+- `#1305` runtime bulk/granular changes are retained above file/environment sources;
   config persistence is still an explicit existing save operation.
 - New measurement routes: PUT/GET `/v1/measurement/samples`, GET
   `/v1/measurement/energy`, GET `/v1/measurement/household`, POST
@@ -34,7 +34,6 @@ See eos-consolidation.md for source commits, tests, backup, and remaining work.
 No HA repository changes, lab deployment, real device control or production config
 were performed. Retire the private HA core only after its differences are audited
 and a final EOS commit passes the full feature/API acceptance scenarios.
-
 
 The current main/integration preparation still forces GENETIC to hourly intervals,
 and EMS floors the start time to the hour. The locally ported 15-minute device

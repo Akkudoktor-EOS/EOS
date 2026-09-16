@@ -7,6 +7,7 @@ directory describe earlier checkpoints; this handoff supersedes their pending-wo
 
 ## PR dependencies
 
+<!-- pyml disable line-length -->
 | PR | Scope | Review base | Merge prerequisite |
 | --- | --- | --- | --- |
 | [#1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322) | Restore JSON measurements | main | Independent |
@@ -17,9 +18,10 @@ directory describe earlier checkpoints; this handoff supersedes their pending-wo
 | [#1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326) | Measurement and quality APIs | feat/config-foundation-main | #1328, #1322 |
 | [#1327](https://github.com/Akkudoktor-EOS/EOS/pull/1327) | Slot-aware devices and export | feat/config-foundation-main | #1328 |
 | `feat/genetic-complete` | Complete GENETIC, requests and reports | integration/genetic-prerequisites | All above |
+<!-- pyml enable line-length -->
 
 Merge the independent packages and #1328 first. The foundation preserves the original
-#1256/#1305 contribution histories and adds compatibility corrections; do not merge
+`#1256/#1305` contribution histories and adds compatibility corrections; do not merge
 those original PRs again as extra prerequisites. After their dependencies reach main,
 retarget/rebase #1326/#1327 onto main and rerun CI. Then retarget/rebase the complete
 GENETIC PR onto main and rerun combined CI. Squash merges can require removing already

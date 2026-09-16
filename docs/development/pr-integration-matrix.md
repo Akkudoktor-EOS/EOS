@@ -9,6 +9,7 @@ that every differing commit requires its own PR.
 
 ## What is still missing on main
 
+<!-- pyml disable line-length -->
 | Package | Missing behavior relative to feature/local work | Local state | Dependency |
 | --- | --- | --- | --- |
 | Device physics | Slot-duration-aware battery/inverter flows, export control, efficiency and limits | Published as #1327 against the configuration prerequisite branch; combined in integration | #1256 device settings/converters |
@@ -18,6 +19,7 @@ that every differing commit requires its own PR.
 | Measurement APIs | Typed channels, quality, energy integration, household balance and capacity estimate APIs | Published as #1326 against the configuration prerequisite branch | #1256, #1305, configuration corrections; JSON fix #1322 |
 | Config-owned Optimize request | Local ConfigOptimizationRequest, /v1/optimize, runtime observations and common parameter resolver | Backed up; async/maps/converters adaptation pending | New GENETIC and #1305 |
 | Result/PDF output | Quarter-hour, flexible-consumer, export, tail/rest-value diagnostics in main's on-demand algorithm-specific output | Pending | Final GENETIC result contract |
+<!-- pyml enable line-length -->
 
 Four of the seven feature packages are now published as #1324–#1327. Three broader
 packages remain unported: complete GENETIC, the config-owned Optimize API, and result/PDF
@@ -57,7 +59,7 @@ Parallel preparation does not imply parallel unreviewed merges or publishing all
 branches. The JSON fix #1322 and subsequently the Optimize fix #1323 have publication
 approval. Tariff fix #1324 was subsequently authorized and published. The user then
 authorized all prepared packages: PV #1325, measurement #1326 and device physics
-#1327 are also published. The latter two target the explicit configuration comparison
+`#1327` are also published. The latter two target the explicit configuration comparison
 branch 9038b65 pending their prerequisites. No upstream merges were performed.
 
 ## Three different Optimize contracts
@@ -87,6 +89,7 @@ regression tests replace the initial expected-failure audit cases.
 
 ## Shared acceptance before dependent PRs can land
 
+<!-- pyml disable line-length -->
 | Area | Required combined check |
 | --- | --- |
 | Routing | Legacy /optimize remains GENETIC0; automatic mode selects the configured algorithm; the new explicit API selects GENETIC deliberately |
@@ -98,6 +101,7 @@ regression tests replace the initial expected-failure audit cases.
 | Consumers | Feature profiles/deadlines and #1256 per-cycle windows/gaps both preserved; impossible schedules fail explicitly |
 | Results | Raw algorithm result, generic optimization solution, execution plan and on-demand PDF agree on slots and device IDs |
 | Errors | Failed preparation/optimization produces no new control dispatch and no misleading fresh-success response using old results |
+<!-- pyml enable line-length -->
 
 A passing individual PR is insufficient: after combining dependent packages, run
 these synthetic end-to-end API cases together with the GENETIC0 regression suite.

@@ -18,7 +18,7 @@ the complete feature consolidation remains open.
 - PR #1304: `4b4b49f29902579a8deb34999d71eb2142c0620d`, open, feature target.
 - PR #1190 merged into main: GENETIC0 retained separately.
 
-Sources: https://github.com/Akkudoktor-EOS/EOS/issues/1192 and linked PRs.
+Sources: [issue #1192](https://github.com/Akkudoktor-EOS/EOS/issues/1192) and linked PRs.
 Issue body, all issue comments (none), and PR metadata were retrieved from the GitHub API.
 Use `refs/remotes/origin/main`: local `refs/heads/origin/main` is ambiguous.
 
@@ -39,6 +39,7 @@ Only explicitly reviewed source/test/document paths are staged for new commits.
 
 ## Functional matrix
 
+<!-- pyml disable line-length -->
 | Area | Evidence | Integration state |
 | --- | --- | --- |
 | Providers, SMARD, fee model | #1192 checked; main prediction modules and #1235 | Keep main implementation; provider equivalence not yet established |
@@ -57,6 +58,7 @@ Only explicitly reviewed source/test/document paths are staged for new commits.
 | Measurement channels/energy/quality/capacity/household | Original uncommitted source + five new tests | Ported in 7338baf to async storage and keyed devices; 127 related tests passed |
 | Request configuration learning | Original uncommitted `genetic/configrequest.py` | Secured only; pending |
 | HA-private core differences | Separate private repo | Not ported; no HA files modified, no deployment |
+<!-- pyml enable line-length -->
 
 ## Completed packages and tests
 
@@ -88,19 +90,18 @@ separate; `/optimize` uses GENETIC0 and cannot demonstrate the new GENETIC port.
 Pin a final tested commit for HA only after all remaining packages and end-to-end
 API/forecast/output tests. No public push, PR, comment or main update is authorized.
 
-
-4. `c0796e1`: slot-duration-aware battery/inverter simulation, bounded per-slot
+1. `c0796e1`: slot-duration-aware battery/inverter simulation, bounded per-slot
    discharge/export, probabilistic direct-use energy model and GENETIC converter
    support for LCOS/export levels. Original author co-authorship retained.
    Fixed monetary goldens from the previous model are intentionally replaced with
    independent grid-flow repricing. Original simulation test passed on unchanged
    main; the changed result is not labelled a baseline failure.
-5. `f70a786`: bounded forecast reader, concave terminal value and deterministic
+2. `f70a786`: bounded forecast reader, concave terminal value and deterministic
    forecast-tail primitives. 22 direct primitive tests passed. Does NOT activate
    the new optimization algorithm, warmstart, horizon handling or diagnostic API.
-6. `d9c434f`: keep main's charge-rate ndarray contract and exported constant after
-   #1256. The first broad collection found this missed overlap.
-7. `7338baf`: typed measurement channels, sample quality, energy integration,
+3. `d9c434f`: keep main's charge-rate ndarray contract and exported constant after
+   `#1256`. The first broad collection found this missed overlap.
+4. `7338baf`: typed measurement channels, sample quality, energy integration,
    household accounting and battery capacity estimation. Adapt all storage calls
    and endpoints to main's async API; map battery IDs through device collections.
    Capacity estimates survive subsequent runtime config updates and never change
@@ -108,7 +109,7 @@ API/forecast/output tests. No public push, PR, comment or main update is authori
    JSON/SQLite/LMDB restart, partial coverage and real FastAPI routes with no lifespan.
    JSON measurement reload regression reproduced on unchanged afb7bcb (0 records
    after reload); applying the previously local singleton fix resolves it.
-8. `876756b`: replace stochastic GENETIC output equality with schema, independent
+5. `876756b`: replace stochastic GENETIC output equality with schema, independent
    per-slot cost/revenue accounting and physical-range assertions. GENETIC0 goldens
    remain unchanged. Short optimizer/PDF runs: 4 GENETIC0 and 4 GENETIC pass; one
    400-generation case for each algorithm skipped by the existing --finalize rule.
@@ -141,7 +142,6 @@ An independent clone of repository.bundle at the original feature HEAD was resto
 using the backup files. All 102 restored SHA256 hashes match. The original worktree
 HEAD and all 102 file hashes were also rechecked unchanged after the source ports.
 
-
 ## Reproducing the focused acceptance run
 
 Use a disposable environment with the repository dependencies plus pytest,
@@ -150,14 +150,43 @@ pytest-asyncio, pytest-xprocess, pytest-cov and pypdf. The private backup contai
 Run from the integration worktree (not the original feature worktree):
 
 ```powershell
-python -m pytest tests/test_typingmodels.py tests/test_config.py tests/test_configabc.py tests/test_configmigrate.py tests/test_configfile.py tests/test_pydantic.py tests/test_consolidation_config.py tests/test_genetichomeappliance.py tests/test_genetic0battery.py tests/test_genetic0inverterefficiency.py tests/test_genetic0simulation.py tests/test_battery.py tests/test_inverter.py tests/test_inverter_efficiency.py tests/test_geneticsimulation.py tests/test_geneticsimulation2.py tests/test_terminalvalue.py tests/test_tailvalue_physics.py tests/test_interpolator.py tests/test_measurement_channels.py tests/test_measurement_energy.py tests/test_measurement_household.py tests/test_battery_capacity.py tests/test_measurement_file_restore.py tests/test_measurement.py tests/test_genetic0optimize.py tests/test_geneticoptimize.py tests/test_doc.py -q --tb=short
+python -m pytest `
+  tests/test_typingmodels.py `
+  tests/test_config.py `
+  tests/test_configabc.py `
+  tests/test_configmigrate.py `
+  tests/test_configfile.py `
+  tests/test_pydantic.py `
+  tests/test_consolidation_config.py `
+  tests/test_genetichomeappliance.py `
+  tests/test_genetic0battery.py `
+  tests/test_genetic0inverterefficiency.py `
+  tests/test_genetic0simulation.py `
+  tests/test_battery.py `
+  tests/test_inverter.py `
+  tests/test_inverter_efficiency.py `
+  tests/test_geneticsimulation.py `
+  tests/test_geneticsimulation2.py `
+  tests/test_terminalvalue.py `
+  tests/test_tailvalue_physics.py `
+  tests/test_interpolator.py `
+  tests/test_measurement_channels.py `
+  tests/test_measurement_energy.py `
+  tests/test_measurement_household.py `
+  tests/test_battery_capacity.py `
+  tests/test_measurement_file_restore.py `
+  tests/test_measurement.py `
+  tests/test_genetic0optimize.py `
+  tests/test_geneticoptimize.py `
+  tests/test_doc.py `
+  -q `
+  --tb=short
 ```
 
 Do not inherit EOS_DIR/EOS_CONFIG_DIR from documentation generation when running
 pytest: these conflict with fixture-controlled temporary config directories.
 Generate OpenAPI after committing source changes; source-dirty version timestamps
 otherwise make exact documentation comparisons nondeterministic.
-
 
 ## Final verified checkpoint for this work session
 
@@ -174,7 +203,6 @@ This is a tested partial integration checkpoint, NOT completion of the consolida
 The source packages are locally committed; release, full feature acceptance and
 upstream submission remain pending. Do not move active development or HA deployment
 here until the remaining optimizer/prognosis/output/request packages are integrated.
-
 
 ## PR-readiness verification, 2026-09-16
 
@@ -201,20 +229,18 @@ All original 102 saved file hashes and original feature HEAD were checked unchan
 Both PR worktrees are clean, locally committed, and unpublished. This enables small
 independent PRs now; it does not complete the still-open optimizer/PV/output port.
 
-
 ## First upstream PR published, 2026-09-16
 
 Explicit user approval received for publishing the standalone JSON restore fix.
 Fetched main `4a37244` (dependency update #1321) and rebased the standalone branch;
 its new head is `bdc754d12fd08e0da18d3156642c695f4bf67bd2`. All 49 measurement tests,
 source Ruff and formatting checks passed again. Pushed only
-`fix/measurement-json-reload` and created https://github.com/Akkudoktor-EOS/EOS/pull/1322
+`fix/measurement-json-reload` and created [PR #1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322)
 against main. Verified the remote head and PR patch: one commit, exactly two files.
 The other integration/measurement branches were not pushed. The PR is conflict-free,
 not merged; GitHub CI was started and is being checked. Original HEAD and all 102
 backup hashes were rechecked unchanged. Earlier notes saying all packages are
 unpublished are historical checkpoints; this section supersedes them for this fix.
-
 
 ## Parallel package preparation and compatibility
 

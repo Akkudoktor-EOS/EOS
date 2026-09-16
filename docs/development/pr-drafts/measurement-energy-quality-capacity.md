@@ -3,7 +3,8 @@
 Local branch: `feat/measurement-energy-quality-capacity`.
 Review base: `feat/config-integration-base` (`9038b65`).
 Eventual target: official main, after its configuration prerequisites land.
-Status: published as [PR #1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326), head `635ff2d`, against the prerequisite branch.
+Status: published as [PR #1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326), head `635ff2d`, against the
+prerequisite branch.
 
 ## Proposed PR body
 
@@ -20,7 +21,8 @@ Regenerate the configuration and OpenAPI contracts. Use synthetic data only.
 Validation: 453 configuration/measurement/device simulation tests and 5 documentation
 tests pass. A further 74 measurement/capacity tests pass after carrying over fixture
 isolation. Ruff passes for measurement source and the measurement REST module.
-Final pinned Linux/Python 3.13 CI: 2046 passed, 16 skipped; pre-commit with full mypy and Docker passed. CodeQL becomes applicable after retargeting to main.
+Final pinned Linux/Python 3.13 CI: 2046 passed, 16 skipped; pre-commit with full mypy and Docker passed.
+CodeQL becomes applicable after retargeting to main.
 
 Depends on the device maps/converters in #1256, runtime configuration in #1305 and
 local fixes for stable device IDs, LCOS migration and charge-rate compatibility.

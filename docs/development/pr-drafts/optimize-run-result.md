@@ -16,8 +16,9 @@ Validation: 38 tests passed, 2 regular long-running tests skipped. All 22 new
 regression cases passed again after typing dynamic test keyword arguments. Source
 Ruff, formatting and diff checks passed. Scoped mypy passed for all three changed
 files (transitive imports/untyped dependency diagnostics excluded locally).
-Pinned Linux CI: 1908 passed, 16 skipped; pre-commit including full mypy, CodeQL and Docker passed. Thirty regressions also passed separately in UTC and Europe/Berlin; timezone expectations are now explicit.
+Pinned Linux CI: 1908 passed, 16 skipped; pre-commit including full mypy, CodeQL and Docker passed. Thirty
+regressions also passed separately in UTC and Europe/Berlin; timezone expectations are now explicit.
 
 The fix is already combined with PV, tariff and device packages in the integration
 branch. Integration also carries the test annotation correction. Independent of
-#1322, #1256 and #1305. Original working copy remains untouched.
+`#1322`, #1256 and #1305. Original working copy remains untouched.
