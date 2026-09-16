@@ -161,6 +161,7 @@ async def database_case(config_eos):
     from akkudoktoreos.core.coreabc import get_measurement
     from akkudoktoreos.measurement.quality import MeasurementSample
 
+    get_measurement()._db_reset_state()
     config_eos.merge_settings_from_dict(
         {
             "devices": {
@@ -197,7 +198,10 @@ async def database_case(config_eos):
             for t in (0, 1800, 3600)
         ]
     ))
-    return config_eos
+    try:
+        yield config_eos
+    finally:
+        get_measurement()._db_reset_state()
 
 
 def test_http_reads_database_and_stores_only_explicit_estimate(database_case):
