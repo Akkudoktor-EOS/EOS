@@ -39,6 +39,8 @@
            "batteries": {
                "bat0": {
                    "device_id": "bat0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -66,6 +68,8 @@
            "electric_vehicles": {
                "ev0": {
                    "device_id": "ev0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -205,6 +209,9 @@
        },
        "measurement": {
            "historic_hours": 17520,
+           "channels": {},
+           "household": null,
+           "energy_context_seconds": 86400,
            "load_emr_keys": [
                "load0_emr"
            ],

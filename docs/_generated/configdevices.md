@@ -35,6 +35,8 @@ config path from ``self.device_id`` without needing an external index.
            "batteries": {
                "bat0": {
                    "device_id": "bat0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -62,6 +64,8 @@ config path from ``self.device_id`` without needing an external index.
            "electric_vehicles": {
                "ev0": {
                    "device_id": "ev0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -116,6 +120,8 @@ config path from ``self.device_id`` without needing an external index.
            "batteries": {
                "bat0": {
                    "device_id": "bat0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -155,6 +161,8 @@ config path from ``self.device_id`` without needing an external index.
            "electric_vehicles": {
                "ev0": {
                    "device_id": "ev0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
