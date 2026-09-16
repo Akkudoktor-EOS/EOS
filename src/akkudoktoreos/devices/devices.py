@@ -11,7 +11,10 @@ from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
 from akkudoktoreos.core.emplan import ResourceStatus
 from akkudoktoreos.core.pydantic import ConfigDict, PydanticBaseModel
-from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
+from akkudoktoreos.devices.settings.batterysettings import (
+    BATTERY_DEFAULT_CHARGE_RATES as BATTERY_DEFAULT_CHARGE_RATES,
+    BatteriesCommonSettings,
+)
 from akkudoktoreos.devices.settings.homeappliancesettings import (
     HomeApplianceCommonSettings,
 )

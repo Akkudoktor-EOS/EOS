@@ -190,7 +190,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def validate_and_sort_charge_rates(cls, v: Any) -> NDArray[Shape["*"], float]:
         # None means fallback to default values
         if v is None:
-            return BATTERY_DEFAULT_CHARGE_RATES.copy()
+            return np.asarray(BATTERY_DEFAULT_CHARGE_RATES, dtype=float).copy()
 
         # Convert to numpy array
         if isinstance(v, str):
