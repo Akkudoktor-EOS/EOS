@@ -75,12 +75,12 @@ from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.pvforecastpvlib import _cec_inverters, _cec_modules
 from akkudoktoreos.server.container_healthcheck import publish_port
-from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.server.rest.error import (
     EOSProblem,
     create_error_page,
     register_problem_handlers,
 )
+from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
