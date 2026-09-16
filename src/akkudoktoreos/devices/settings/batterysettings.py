@@ -128,19 +128,18 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         json_schema_extra={
             "description": (
                 "Battery-to-grid export rates as factor of maximum discharge "
-                "power ]0.00 ... 1.00]. Only used with direct marketing "
-                "(feedintariff.direct_marketing_enabled). Each rate is one "
-                "additional optimizer state; [1.0] restores all-or-nothing "
-                "export. None triggers fallback to default export-rates."
+                "power ]0.00 ... 1.00]. Available to algorithms that explicitly "
+                "enable battery-to-grid export; configuring rates alone does not "
+                "enable export. [1.0] selects full-power export. None uses the "
+                "default export rates."
             ),
             "examples": [[0.25, 0.5, 0.75, 1.0], [1.0], None],
         },
     )
 
-
     @field_validator("grid_export_rates", mode="before")
-    def validate_and_sort_grid_export_rates(cls, v: Any) -> NDArray[Shape["*"], float]:
-        """Normalize the export rates to a sorted, duplicate-free array in ]0, 1]."""
+    def validate_and_sort_grid_export_rates(cls, v: Any) -> list[float]:
+        """Normalize export rates to a finite, sorted, duplicate-free list in ]0, 1]."""
         # None means fallback to default values
         if v is None:
             return BATTERY_DEFAULT_GRID_EXPORT_RATES.copy()
@@ -151,8 +150,10 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         else:
             arr = np.array(v, dtype=float)
 
-        if arr.size == 0:
-            raise ValueError("grid_export_rates must contain at least one value.")
+        if arr.ndim != 1 or arr.size == 0:
+            raise ValueError("grid_export_rates must be a nonempty one-dimensional list.")
+        if not np.isfinite(arr).all():
+            raise ValueError("grid_export_rates must contain finite values.")
 
         # A rate of 0.0 is not an export level - "no export" is expressed by the
         # other battery states - so the lower bound is exclusive.
@@ -162,8 +163,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         arr = np.unique(arr)
         arr.sort()
 
-        return arr
-
+        return arr.tolist()
 
     def to_genetic_pv_bat_param(self) -> "SolarPanelBatteryParameters":
         """Return SolarPanelBatteryParameters for the GENETIC optimizer."""
