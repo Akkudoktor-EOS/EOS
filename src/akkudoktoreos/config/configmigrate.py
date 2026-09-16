@@ -255,8 +255,26 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     skipped_paths = []
 
     from akkudoktoreos.config.config import SettingsEOSDefaults
+    from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
+        PVForecastAkkudoktorLocalCommonSettings,
+        normalize_akkudoktor_settings,
+    )
+
+    # Normalize this provider before the generic field-by-field transfer. Validate
+    # coupled bounds together so a transient intermediate default cannot lose them.
+    config_data = dict(config_data)
+    pv_settings = normalize_akkudoktor_settings(config_data.get("pvforecast"))
+    if isinstance(pv_settings, dict):
+        config_data["pvforecast"] = pv_settings
 
     new_config = SettingsEOSDefaults()
+    if isinstance(pv_settings, dict) and "akkudoktor" in pv_settings:
+        local_settings = PVForecastAkkudoktorLocalCommonSettings.model_validate(
+            pv_settings["akkudoktor"]
+        )
+        new_config.set_nested_value("pvforecast/akkudoktor", local_settings)
+        migrated_source_paths.add("pvforecast/akkudoktor")
+        mapped_count += 1
 
     # 1) Apply explicit migration map
     for old_path, mapping in MIGRATION_MAP.items():
