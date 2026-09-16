@@ -21,12 +21,12 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
 from akkudoktoreos.core.databaseabc import DatabaseTimestamp
-from akkudoktoreos.measurement.energy import EnergyInterval
 from akkudoktoreos.measurement.batterycapacity import (
     BatteryCapacityEstimate,
     BatteryCapacityRequest,
     estimate_capacity,
 )
+from akkudoktoreos.measurement.energy import EnergyInterval
 from akkudoktoreos.measurement.household import HouseholdSettings, household_intervals
 from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
 from akkudoktoreos.utils.datetimeutil import (
@@ -93,7 +93,10 @@ class MeasurementCommonSettings(SettingsBaseModel):
 
     household: Optional[HouseholdSettings] = Field(
         default=None,
-        json_schema_extra={"description": "Optional household energy balance definition.", "examples": [None]},
+        json_schema_extra={
+            "description": "Optional household energy balance definition.",
+            "examples": [None],
+        },
     )
     energy_context_seconds: int = Field(default=86400, gt=0, le=604800, strict=True)
 
@@ -259,7 +262,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             record.sample_quality[sample.key] = sample.quality.model_copy(deep=True)
             await self.db_mark_dirty_record(record)
 
-    async def insert_by_datetime(self, record: DataRecord) -> None:
+    async def insert_by_datetime(self, record: MeasurementDataRecord) -> None:
         """Merge quality by channel as well as the ordinary measurement fields."""
         await super().insert_by_datetime(record)
         if (
@@ -298,7 +301,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             raise ValueError("Energy queries require a positive range of at most 31 days.")
         channels = {key: self._energy_channel(key) for key in keys}
         context = self.config.measurement.energy_context_seconds
-        records = [record async for record in self.db_iterate_records(
+        records = [
+            record
+            async for record in self.db_iterate_records(
                 DatabaseTimestamp.from_datetime(to_datetime(start) - timedelta(seconds=context)),
                 DatabaseTimestamp.from_datetime(
                     to_datetime(end) + timedelta(seconds=context, microseconds=1)
@@ -381,7 +386,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         self, battery_id: str, request: BatteryCapacityRequest
     ) -> BatteryCapacityEstimate:
         """Read signed DC samples without mutating raw data or the active capacity."""
-        batteries = [b for b in (self.config.devices.batteries or {}).values() if b.device_id == battery_id]
+        batteries = [
+            b for b in (self.config.devices.batteries or {}).values() if b.device_id == battery_id
+        ]
         if len(batteries) != 1:
             raise ValueError("Require exactly one configured battery with this device_id.")
         battery = batteries[0]
@@ -394,23 +401,33 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         if channel.quantity != "power":
             raise ValueError("Capacity estimation requires a battery DC power channel.")
         context = channel.max_gap_seconds
-        samples = []
+        if context is None:
+            raise ValueError("Capacity estimation requires a bounded power channel gap.")
+        samples: list[tuple[datetime, Optional[float], SampleQuality]] = []
         async for record in self.db_iterate_records(
-            DatabaseTimestamp.from_datetime(to_datetime(request.start) - timedelta(seconds=context)),
+            DatabaseTimestamp.from_datetime(
+                to_datetime(request.start) - timedelta(seconds=context)
+            ),
             DatabaseTimestamp.from_datetime(
                 to_datetime(request.end) + timedelta(seconds=context, microseconds=1)
             ),
         ):
             if record.date_time is not None and settings.power_key in record.configured_data:
-                samples.append((
-                    record.date_time,
-                    record.configured_data[settings.power_key],
-                    record.sample_quality.get(settings.power_key, SampleQuality()),
-                ))
+                samples.append(
+                    (
+                        record.date_time,
+                        record.configured_data[settings.power_key],
+                        record.sample_quality.get(settings.power_key, SampleQuality()),
+                    )
+                )
                 if len(samples) > 250000:
                     raise ValueError("More than 250000 power samples; request a shorter period.")
         return estimate_capacity(
-            request, settings, channel, samples, battery_id=battery.device_id,
+            request,
+            settings,
+            channel,
+            samples,
+            battery_id=battery.device_id,
             capacity_wh=battery.capacity_wh,
             charging_efficiency=battery.charging_efficiency,
             discharging_efficiency=battery.discharging_efficiency,

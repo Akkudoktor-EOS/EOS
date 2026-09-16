@@ -6,8 +6,11 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import AwareDatetime
 
 from akkudoktoreos.core.coreabc import get_config, get_measurement
-from akkudoktoreos.measurement.batterycapacity import BatteryCapacityEstimate, BatteryCapacityRequest
 from akkudoktoreos.core.databaseabc import DatabaseTimestamp
+from akkudoktoreos.measurement.batterycapacity import (
+    BatteryCapacityEstimate,
+    BatteryCapacityRequest,
+)
 from akkudoktoreos.measurement.energy import EnergyInterval
 from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -16,7 +19,9 @@ router = APIRouter(prefix="/v1/measurement", tags=["measurement"])
 
 
 @router.post("/battery-capacity/{battery_id}", response_model=BatteryCapacityEstimate)
-async def post_battery_capacity(battery_id: str, request: BatteryCapacityRequest) -> BatteryCapacityEstimate:
+async def post_battery_capacity(
+    battery_id: str, request: BatteryCapacityRequest
+) -> BatteryCapacityEstimate:
     """Estimate capacity from independent SoC anchors and configured DC power.
 
     store_estimate writes the separate capacity_estimate config field in memory.
@@ -26,7 +31,11 @@ async def post_battery_capacity(battery_id: str, request: BatteryCapacityRequest
     try:
         estimate = await get_measurement().estimate_battery_capacity(battery_id, request)
         if request.store_estimate:
-            batteries = [b for b in (get_config().devices.batteries or {}).values() if b.device_id == battery_id]
+            batteries = [
+                b
+                for b in (get_config().devices.batteries or {}).values()
+                if b.device_id == battery_id
+            ]
             if len(batteries) != 1:
                 raise ValueError("Battery configuration changed during estimation; retry.")
             get_config().set_nested_value(
@@ -50,7 +59,9 @@ async def put_samples(
 
 
 @router.get("/samples", response_model=list[MeasurementSample])
-async def get_samples(key: str, start: AwareDatetime, end: AwareDatetime) -> list[MeasurementSample]:
+async def get_samples(
+    key: str, start: AwareDatetime, end: AwareDatetime
+) -> list[MeasurementSample]:
     """Read raw samples including quality, in a bounded half-open range."""
     measurement = get_measurement()
     try:

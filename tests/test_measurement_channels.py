@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock
+
 """Contracts for typed channels sharing the existing measurement storage."""
 
 # ruff: noqa: S101
@@ -12,7 +13,7 @@ from akkudoktoreos.measurement.measurement import (
     MeasurementCommonSettings,
     MeasurementDataRecord,
 )
-
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 CHANNELS = {
     "house_power": dict(quantity="power", unit="W", integration_method="hold", max_gap_seconds=120),
@@ -47,22 +48,22 @@ def test_reject_ambiguous_channel(definition):
     ["load_emr_keys", "grid_import_emr_keys", "grid_export_emr_keys", "pv_production_emr_keys"],
 )
 def test_legacy_keys_keep_meter_semantics(legacy_field):
-    settings = MeasurementCommonSettings(**{legacy_field: ["legacy"]}, channels=CHANNELS)
+    settings = MeasurementCommonSettings.model_validate(dict(**{legacy_field: ["legacy"]}, channels=CHANNELS))
     assert settings.keys == sorted(["legacy", *CHANNELS])
-    compatible = MeasurementCommonSettings(
+    compatible = MeasurementCommonSettings.model_validate(dict(
         **{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_meter"]}
-    )
+    ))
     assert compatible.keys == ["legacy"]
     with pytest.raises(ValidationError, match="must remain"):
-        MeasurementCommonSettings(
+        MeasurementCommonSettings.model_validate(dict(
             **{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_power"]}
-        )
+        ))
 
 
 @pytest.mark.parametrize("key", ["", " x", "date_time", "configured_data", "keys", "_private"])
 def test_reject_reserved_key(key):
     with pytest.raises(ValidationError):
-        MeasurementCommonSettings(channels={key: CHANNELS["house_meter"]})
+        MeasurementCommonSettings.model_validate(dict(channels={key: CHANNELS["house_meter"]}))
 
 
 @pytest.mark.asyncio
@@ -75,12 +76,12 @@ async def test_existing_import_and_file_reload(config_eos, tmp_path, monkeypatch
     previous_records = measurement.records
     previous_folder = config_eos.general.data_folder_path
     try:
-        config_eos.measurement = MeasurementCommonSettings(channels=CHANNELS)
+        config_eos.measurement = MeasurementCommonSettings.model_validate(dict(channels=CHANNELS))
         config_eos.general.data_folder_path = tmp_path
         measurement._db_reset_state()
         values = dict(house_power=800.0, house_meter=12345.6, house_interval=200.0)
         for key, value in values.items():
-            (await measurement.update_value("2026-09-10T18:00:00Z", key, value))
+            (await measurement.update_value(to_datetime("2026-09-10T18:00:00Z"), key, value))
         assert set(values).issubset(measurement.record_keys)
         monkeypatch.setattr(DataSequence, "save", AsyncMock(return_value=False))
         monkeypatch.setattr(DataSequence, "load", AsyncMock(return_value=False))

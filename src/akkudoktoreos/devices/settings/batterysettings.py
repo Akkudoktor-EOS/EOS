@@ -11,7 +11,10 @@ from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
-from akkudoktoreos.measurement.batterycapacity import BatteryCapacityEstimate, BatteryCapacityEstimationSettings
+from akkudoktoreos.measurement.batterycapacity import (
+    BatteryCapacityEstimate,
+    BatteryCapacityEstimationSettings,
+)
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.genetic0.genetic0battery import (

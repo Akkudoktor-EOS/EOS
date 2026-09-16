@@ -42,7 +42,7 @@ class BatteryCapacityRequest(CapacityModel):
     store_estimate: bool = False
 
     @model_validator(mode="after")
-    def ordered(self):
+    def ordered(self) -> "BatteryCapacityRequest":
         if self.end.timestamp() <= self.start.timestamp():
             raise ValueError("end must be after start.")
         return self
@@ -99,6 +99,10 @@ def estimate_capacity(
         )
     if channel.quantity != "power":
         raise ValueError("Capacity estimation requires signed battery DC power in W or kW.")
+    max_gap_seconds = channel.max_gap_seconds
+    integration_method = channel.integration_method
+    if max_gap_seconds is None or integration_method is None:
+        raise ValueError("Power channels require an integration method and maximum sample gap.")
     if not isfinite(capacity_wh) or capacity_wh <= 0:
         raise ValueError("Configured capacity must be positive and finite.")
     if not all(isfinite(e) and 0 < e <= 1 for e in (charging_efficiency, discharging_efficiency)):
@@ -117,16 +121,18 @@ def estimate_capacity(
     charge = discharge = coverage = 0.0
     cumulative_net = 0.0
     minimum_net = maximum_net = 0.0
-    used = set()
+    used: set[float] = set()
     cursor = left
     for (a, va, qa), (b, vb, qb) in zip(points, points[1:]):
         lo, hi = max(left, a), min(right, b)
         if hi <= lo:
             continue
-        if lo > cursor + 1e-6 or b - a > channel.max_gap_seconds:
+        if lo > cursor + 1e-6 or b - a > max_gap_seconds:
             raise ValueError("Incomplete power coverage or sample gap exceeds max_gap_seconds.")
         if (
-            any(v is None or isinstance(v, bool) or not isfinite(v) for v in (va, vb))
+            va is None
+            or vb is None
+            or any(isinstance(v, bool) or not isfinite(v) for v in (va, vb))
             or qa.status != "measured"
             or qb.status != "measured"
         ):
@@ -136,7 +142,7 @@ def estimate_capacity(
         if qb.reset or qa.generation != qb.generation:
             raise ValueError("Power sensor reset or generation change within the period.")
         p, q = va * factor, vb * factor
-        if channel.integration_method == "linear":
+        if integration_method == "linear":
             slope = (q - p) / (b - a)
             p, q = p + slope * (lo - a), p + slope * (hi - a)
         else:
@@ -200,7 +206,7 @@ def estimate_capacity(
         discharging_efficiency=discharging_efficiency,
         power_key=settings.power_key,
         positive_power=settings.positive_power,
-        integration_method=channel.integration_method,
+        integration_method=integration_method,
         coverage_seconds=coverage,
         samples_used=len(used),
         warnings=warnings,
