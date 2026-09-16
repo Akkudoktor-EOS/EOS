@@ -1,0 +1,528 @@
+from unittest.mock import Mock
+
+import numpy as np
+import pytest
+
+from akkudoktoreos.devices.genetic.battery import (
+    Battery,
+    ElectricVehicleParameters,
+    SolarPanelBatteryParameters,
+)
+from akkudoktoreos.devices.genetic.homeappliance import (
+    HomeAppliance,
+    HomeApplianceParameters,
+)
+from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticEnergyManagementParameters,
+)
+
+start_hour = 1
+
+
+# Example initialization of necessary components
+@pytest.fixture
+def genetic_simulation(config_eos) -> GeneticSimulation:
+    """Fixture to create an EnergyManagement instance with given test parameters."""
+    # Assure configuration holds the correct values
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"hours": 24, "genetic": {"tail_horizon_hours": 0}},
+        }
+    )
+    assert config_eos.prediction.hours == 48
+    assert config_eos.optimization.genetic.horizon_hours == 24
+
+    # Initialize the battery and the inverter
+    akku = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=5000,
+            initial_soc_percentage=80,
+            min_soc_percentage=10,
+        ),
+        prediction_hours=config_eos.prediction.hours,
+    )
+    akku.reset()
+
+    inverter = Inverter(
+        InverterParameters(
+            device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id
+        ),
+        battery=akku,
+    )
+
+    # Flexible consumer (fixed start at slot 2 for this deterministic test)
+    home_appliance = HomeAppliance(
+        HomeApplianceParameters(
+            device_id="dishwasher1",
+            consumption_wh=2000,
+            duration_h=2,
+            time_windows=None,
+        ),
+        optimization_hours=config_eos.optimization.genetic.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+    )
+    home_appliance.build_load_curve([2])
+
+    # Example initialization of electric car battery
+    eauto = Battery(
+        ElectricVehicleParameters(
+            device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
+        ),
+        prediction_hours=config_eos.prediction.hours,
+    )
+    eauto.set_charge_per_hour(np.full(config_eos.prediction.hours, 1))
+
+    # Parameters based on previous example data
+    pv_prognose_wh = [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        8.05,
+        352.91,
+        728.51,
+        930.28,
+        1043.25,
+        1106.74,
+        1161.69,
+        6018.82,
+        5519.07,
+        3969.88,
+        3017.96,
+        1943.07,
+        1007.17,
+        319.67,
+        7.88,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        5.04,
+        335.59,
+        705.32,
+        1121.12,
+        1604.79,
+        2157.38,
+        1433.25,
+        5718.49,
+        4553.96,
+        3027.55,
+        2574.46,
+        1720.4,
+        963.4,
+        383.3,
+        0,
+        0,
+        0,
+    ]
+
+    strompreis_euro_pro_wh = [
+        0.0003384,
+        0.0003318,
+        0.0003284,
+        0.0003283,
+        0.0003289,
+        0.0003334,
+        0.0003290,
+        0.0003302,
+        0.0003042,
+        0.0002430,
+        0.0002280,
+        0.0002212,
+        0.0002093,
+        0.0001879,
+        0.0001838,
+        0.0002004,
+        0.0002198,
+        0.0002270,
+        0.0002997,
+        0.0003195,
+        0.0003081,
+        0.0002969,
+        0.0002921,
+        0.0002780,
+        0.0003384,
+        0.0003318,
+        0.0003284,
+        0.0003283,
+        0.0003289,
+        0.0003334,
+        0.0003290,
+        0.0003302,
+        0.0003042,
+        0.0002430,
+        0.0002280,
+        0.0002212,
+        0.0002093,
+        0.0001879,
+        0.0001838,
+        0.0002004,
+        0.0002198,
+        0.0002270,
+        0.0002997,
+        0.0003195,
+        0.0003081,
+        0.0002969,
+        0.0002921,
+        0.0002780,
+    ]
+
+    einspeiseverguetung_euro_pro_wh = 0.00007
+    preis_euro_pro_wh_akku = 0.0001
+
+    gesamtlast = [
+        676.71,
+        876.19,
+        527.13,
+        468.88,
+        531.38,
+        517.95,
+        483.15,
+        472.28,
+        1011.68,
+        995.00,
+        1053.07,
+        1063.91,
+        1320.56,
+        1132.03,
+        1163.67,
+        1176.82,
+        1216.22,
+        1103.78,
+        1129.12,
+        1178.71,
+        1050.98,
+        988.56,
+        912.38,
+        704.61,
+        516.37,
+        868.05,
+        694.34,
+        608.79,
+        556.31,
+        488.89,
+        506.91,
+        804.89,
+        1141.98,
+        1056.97,
+        992.46,
+        1155.99,
+        827.01,
+        1257.98,
+        1232.67,
+        871.26,
+        860.88,
+        1158.03,
+        1222.72,
+        1221.04,
+        949.99,
+        987.01,
+        733.99,
+        592.97,
+    ]
+
+    # Initialize the energy management system with the respective parameters
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters.model_validate(
+            dict(
+                pv_prognose_wh=pv_prognose_wh,
+                strompreis_euro_pro_wh=strompreis_euro_pro_wh,
+                einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+                preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
+                gesamtlast=gesamtlast,
+            )
+        ),
+        optimization_hours=config_eos.optimization.genetic.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+        inverter=inverter,
+        ev=eauto,
+        home_appliances=[home_appliance],
+    )
+
+    # Init for test
+    assert simulation.ac_charge_hours is not None
+    assert simulation.dc_charge_hours is not None
+    assert simulation.bat_discharge_hours is not None
+    assert simulation.bat_grid_export_hours is not None
+    assert simulation.ev_charge_hours is not None
+    simulation.ac_charge_hours[start_hour] = 1.0
+    simulation.dc_charge_hours[start_hour] = 1.0
+    simulation.bat_discharge_hours[start_hour] = 1.0
+    simulation.ev_charge_hours[start_hour] = 1.0
+
+    return simulation
+
+
+def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 1},
+            "optimization": {"genetic": {"tail_horizon_hours": 0, "horizon_hours": 1}},
+        }
+    )
+    ev = Battery(
+        ElectricVehicleParameters(
+            device_id="ev1",
+            capacity_wh=1000,
+            charging_efficiency=0.8,
+            max_charge_power_w=100,
+            initial_soc_percentage=0,
+            min_soc_percentage=0,
+        ),
+        prediction_hours=1,
+    )
+    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters.model_validate(
+            dict(
+                pv_prognose_wh=[0.0],
+                strompreis_euro_pro_wh=[0.001],
+                einspeiseverguetung_euro_pro_wh=[0.0],
+                preis_euro_pro_wh_akku=0.0,
+                gesamtlast=[0.0],
+            )
+        ),
+        optimization_hours=1,
+        prediction_hours=1,
+        inverter=inverter,
+        ev=ev,
+    )
+    simulation.ev_charge_hours = np.array([1.0])
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Last_Wh_pro_Stunde"][0] == pytest.approx(100.0)
+    assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(100.0)
+    assert result["Kosten_Euro_pro_Stunde"][0] == pytest.approx(0.1)
+    assert result["Verluste_Pro_Stunde"][0] == pytest.approx(20.0)
+    assert ev.current_soc_percentage() == pytest.approx(8.0)
+
+
+def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 2},
+            "optimization": {"genetic": {"tail_horizon_hours": 0, "horizon_hours": 2}},
+        }
+    )
+
+    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
+    monkeypatch.setattr(
+        inverter.self_consumption_predictor,
+        "calculate_expected_direct_consumption",
+        Mock(side_effect=min),
+    )
+
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters.model_validate(
+            dict(
+                pv_prognose_wh=[500.0, 500.0],
+                strompreis_euro_pro_wh=[-0.0001, -0.0001],
+                einspeiseverguetung_euro_pro_wh=[-0.0001, -0.0001],
+                preis_euro_pro_wh_akku=0.0,
+                gesamtlast=[0.0, 0.0],
+            )
+        ),
+        optimization_hours=config_eos.optimization.genetic.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+        inverter=inverter,
+        direct_marketing_enabled=True,
+    )
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == 0.0
+    assert result["Einnahmen_Euro_pro_Stunde"][0] == 0.0
+    assert result["Verluste_Pro_Stunde"][0] == pytest.approx(500.0)
+
+
+def _direct_marketing_battery_export_simulation(
+    config_eos,
+    levelized_cost_of_storage_kwh: float = 0.0,
+    dc_to_ac_efficiency: float = 1.0,
+) -> GeneticSimulation:
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 2},
+            "optimization": {"genetic": {"tail_horizon_hours": 0, "horizon_hours": 2}},
+        }
+    )
+
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=1000,
+            initial_soc_percentage=100,
+            min_soc_percentage=0,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            levelized_cost_of_storage_kwh=levelized_cost_of_storage_kwh,
+            max_charge_power_w=500,
+        ),
+        prediction_hours=config_eos.prediction.hours,
+    )
+    inverter = Inverter(
+        InverterParameters(
+            device_id="inverter1",
+            max_power_wh=500.0,
+            battery_id=battery.parameters.device_id,
+            dc_to_ac_efficiency=dc_to_ac_efficiency,
+        ),
+        battery=battery,
+    )
+
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters.model_validate(
+            dict(
+                pv_prognose_wh=[0.0, 0.0],
+                strompreis_euro_pro_wh=[0.0, 0.0],
+                einspeiseverguetung_euro_pro_wh=[0.0002, 0.0002],
+                preis_euro_pro_wh_akku=0.0,
+                gesamtlast=[0.0, 0.0],
+            )
+        ),
+        optimization_hours=config_eos.optimization.genetic.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+        inverter=inverter,
+        direct_marketing_enabled=True,
+    )
+    return simulation
+
+
+def test_direct_marketing_discharge_allowed_does_not_export_battery(config_eos):
+    simulation = _direct_marketing_battery_export_simulation(config_eos)
+    assert simulation.bat_discharge_hours is not None
+    simulation.bat_discharge_hours[0] = 1
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == 0.0
+    assert simulation.battery is not None
+    assert simulation.battery.current_soc_percentage() == 100.0
+
+
+def test_direct_marketing_battery_grid_export_uses_separate_signal(config_eos):
+    simulation = _direct_marketing_battery_export_simulation(config_eos)
+    assert simulation.bat_grid_export_hours is not None
+    simulation.bat_grid_export_hours[0] = 1
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == pytest.approx(500.0)
+    assert result["Einnahmen_Euro_pro_Stunde"][0] == pytest.approx(0.1)
+    assert simulation.battery is not None
+    assert simulation.battery.current_soc_percentage() == 50.0
+
+
+def test_direct_marketing_grid_export_rate_limits_exported_energy(config_eos):
+    """A partial export level exports that share of the rated discharge power."""
+    simulation = _direct_marketing_battery_export_simulation(config_eos)
+    assert simulation.bat_grid_export_hours is not None
+    # 500 W rated discharge power over a one hour slot -> 500 Wh at rate 1.0.
+    simulation.bat_grid_export_hours[0] = 0.5
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == pytest.approx(250.0)
+    assert simulation.battery is not None
+    assert simulation.battery.current_soc_percentage() == 75.0
+
+
+def test_battery_lcos_is_charged_once_on_delivered_energy(config_eos):
+    simulation = _direct_marketing_battery_export_simulation(
+        config_eos,
+        levelized_cost_of_storage_kwh=0.12,
+        dc_to_ac_efficiency=0.8,
+    )
+    assert simulation.bat_grid_export_hours is not None
+    simulation.bat_grid_export_hours[0] = 1
+
+    result = simulation.simulate(start_hour=0)
+
+    # The battery delivers 500 Wh DC, so LCOS is 0.5 kWh * 0.12 EUR/kWh
+    # = 0.06 EUR exactly once. After the 80% inverter, 400 Wh AC reaches
+    # the grid and earns 400 Wh * 0.0002 EUR/Wh = 0.08 EUR.
+    assert result["Kosten_Euro_pro_Stunde"][0] == pytest.approx(0.06)
+    assert result["Gesamtkosten_Euro"] == pytest.approx(0.06)
+    assert result["Einnahmen_Euro_pro_Stunde"][0] == pytest.approx(0.08)
+    assert result["Gesamtbilanz_Euro"] == pytest.approx(-0.02)
+
+
+def test_disabled_ac_charging_clears_the_reported_plan(config_eos):
+    """With AC charging off the reported plan must not keep charge commands.
+
+    The simulation ignores the AC charge genes when the inverter forbids grid
+    charging. The solution is read back from the same array, so a controller
+    acting on it would grid-charge the battery although no such charge was ever
+    simulated or paid for.
+    """
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 2},
+            "optimization": {"genetic": {"tail_horizon_hours": 0, "horizon_hours": 2}},
+        }
+    )
+
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=10000,
+            initial_soc_percentage=50,
+            min_soc_percentage=0,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            max_charge_power_w=5000,
+        ),
+        prediction_hours=config_eos.prediction.hours,
+    )
+    inverter = Inverter(
+        InverterParameters(
+            device_id="inverter1",
+            max_power_wh=5000.0,
+            battery_id=battery.parameters.device_id,
+            max_ac_charge_power_w=0,  # Netzladen deaktiviert
+        ),
+        battery=battery,
+    )
+
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters.model_validate(
+            dict(
+                pv_prognose_wh=[0.0, 0.0],
+                strompreis_euro_pro_wh=[0.0003, 0.0003],
+                einspeiseverguetung_euro_pro_wh=[0.0001, 0.0001],
+                preis_euro_pro_wh_akku=0.0,
+                gesamtlast=[0.0, 0.0],
+            )
+        ),
+        optimization_hours=config_eos.optimization.genetic.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+        inverter=inverter,
+    )
+    simulation.ac_charge_hours = np.array([0.8, 0.0])
+
+    soc_before = battery.current_soc_percentage()
+    simulation.simulate(start_hour=0)
+
+    # Nothing was charged ...
+    assert battery.current_soc_percentage() == pytest.approx(soc_before)
+    # ... and the plan says so.
+    assert simulation.ac_charge_hours is not None
+    assert list(simulation.ac_charge_hours) == [0.0, 0.0]

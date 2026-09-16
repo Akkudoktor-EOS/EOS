@@ -1,16 +1,21 @@
 """Genetic algorithm."""
 
+import math
 import random
 import time
+from collections import defaultdict
+from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Optional
 
 import numpy as np
-from deap import algorithms, base, creator, tools
+from deap import base, creator, tools
 from loguru import logger
 from numpydantic import NDArray, Shape
 from pydantic import ConfigDict, Field
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
 from akkudoktoreos.devices.genetic.inverter import Inverter
@@ -22,7 +27,97 @@ from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
     GeneticSolution,
 )
+from akkudoktoreos.optimization.genetic.tailvalue import (
+    TailValueCurve,
+    build_tail_value_curve,
+)
+from akkudoktoreos.optimization.genetic.terminalvalue import (
+    TailDiagnostics,
+    TerminalValueCurve,
+    TerminalValueResult,
+    build_terminal_value_curve,
+    trailing_window,
+)
 from akkudoktoreos.optimization.optimizationabc import OptimizationBase
+from akkudoktoreos.utils.datetimeutil import DateTime
+
+
+@dataclass
+class ApplianceGeneSlot:
+    """One appliance start gene in the genome.
+
+    The gene value is an **index into ``allowed_start_slots``**, not an absolute
+    slot. This guarantees every gene value maps to a genuinely valid start and
+    keeps all allowed starts equally reachable by mutation/crossover.
+    """
+
+    gene_index: int
+    appliance_index: int
+    device_id: str
+    run_index: int
+    # Local calendar date of the run for DAILY appliances; None for ONCE.
+    run_date: Optional[Any]
+    allowed_start_slots: list[int]
+    cycle_index: int = 0
+    deadline_relaxed: bool = False
+
+
+@dataclass
+class ApplianceGeneLayout:
+    """Ordered descriptor of the appliance part of the genome.
+
+    Every genome-building step (create/split/merge/mutate/decode) consumes only
+    this descriptor, so the appliance gene block can vary in length with the
+    number of devices and DAILY run days without any hard-coded gene positions.
+    """
+
+    genes: list[ApplianceGeneSlot] = field(default_factory=list)
+
+    @property
+    def n_genes(self) -> int:
+        """Number of appliance start genes."""
+        return len(self.genes)
+
+    def signature(self) -> tuple:
+        """Stable identity of the layout for start-solution compatibility.
+
+        Two layouts with the same length can still describe different schedules;
+        the signature captures device, run date and the allowed-start list so a
+        cached start solution built for a different layout is not silently
+        reused.
+        """
+        return tuple(
+            (gene.device_id, str(gene.run_date), gene.cycle_index, tuple(gene.allowed_start_slots))
+            for gene in self.genes
+        )
+
+
+@dataclass(frozen=True)
+class FitnessCacheEntry:
+    """One canonical, successful fitness evaluation within an optimization run."""
+
+    genome: tuple[int, ...]
+    fitness: tuple[float]
+    extra_data: tuple[float, float, float]
+
+
+@dataclass(frozen=True)
+class BatteryStateLayout:
+    """Indices of optional battery states appended to the legacy state ranges.
+
+    With graded direct-marketing export there is one state per configured export
+    rate. ``grid_export_states`` holds them in the order of
+    ``bat_possible_grid_export_values`` (full power first), and
+    ``grid_export_state`` is that full-power state - the one every seeding
+    heuristic uses when it wants "export in this slot".
+    """
+
+    total_states: int
+    dc_not_allowed_state: Optional[int] = None
+    dc_allowed_state: Optional[int] = None
+    grid_export_state: Optional[int] = None
+    self_consumption_state: Optional[int] = None
+    grid_export_states: tuple[int, ...] = ()
 
 
 class GeneticSimulation(PydanticBaseModel):
@@ -67,20 +162,26 @@ class GeneticSimulation(PydanticBaseModel):
     elect_price_hourly: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
         json_schema_extra={
-            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
+            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
         },
     )
     elect_revenue_per_hour_arr: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
         json_schema_extra={
-            "description": "An array of floats representing the feed-in compensation per watt-hour."
+            "description": "An array of floats representing the feed-in compensation in euros per watt-hour."
         },
     )
-
+    direct_marketing_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": "Use direct marketing behavior for feed-in/export decisions."
+        },
+    )
     battery: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
     ev: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    home_appliance: Optional[HomeAppliance] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
+    home_appliances: list[HomeAppliance] = Field(
+        default_factory=list,
+        json_schema_extra={"description": "Flexible consumers scheduled by the optimizer."},
     )
     inverter: Optional[Inverter] = Field(default=None, json_schema_extra={"description": "TBD."})
 
@@ -93,16 +194,27 @@ class GeneticSimulation(PydanticBaseModel):
     bat_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
     )
+    bat_grid_export_hours: Optional[NDArray[Shape["*"], float]] = Field(
+        default=None,
+        json_schema_extra={"description": "Hourly permission for battery discharge into the grid."},
+    )
     ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
     )
     ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
     )
-    home_appliance_start_hour: Optional[int] = Field(
-        default=None,
-        json_schema_extra={"description": "Home appliance start hour - None denotes no start."},
-    )
+
+    home_appliance_start_hour: Optional[int] = Field(default=None)
+
+    @property
+    def home_appliance(self) -> Optional[HomeAppliance]:
+        """Deprecated singular device accessor."""
+        return self.home_appliances[0] if self.home_appliances else None
+
+    @home_appliance.setter
+    def home_appliance(self, appliance: Optional[HomeAppliance]) -> None:
+        self.home_appliances = [appliance] if appliance is not None else []
 
     def prepare(
         self,
@@ -112,20 +224,24 @@ class GeneticSimulation(PydanticBaseModel):
         ev: Optional[Battery] = None,
         home_appliance: Optional[HomeAppliance] = None,
         inverter: Optional[Inverter] = None,
+        direct_marketing_enabled: bool = False,
+        home_appliances: Optional[list[HomeAppliance]] = None,
     ) -> None:
         """Prepare simulation runs.
 
         Populate internal arrays and device references used during simulation.
         """
+        self.home_appliance_start_hour = None
         self.optimization_hours = optimization_hours
         self.prediction_hours = prediction_hours
+        self.direct_marketing_enabled = direct_marketing_enabled
 
         # Load arrays from provided EMS parameters
         self.load_energy_array = np.array(parameters.total_load, float)
         self.pv_prediction_wh = np.array(parameters.pv_forecast_wh, float)
         self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
         self.elect_revenue_per_hour_arr = (
-            np.asarray(parameters.feed_in_tariff_per_wh, dtype=float)
+            np.array(parameters.feed_in_tariff_per_wh, float)
             if isinstance(parameters.feed_in_tariff_per_wh, list)
             else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
         )
@@ -136,30 +252,39 @@ class GeneticSimulation(PydanticBaseModel):
         else:
             self.battery = None
         self.ev = ev
-        self.home_appliance = home_appliance
+        if home_appliance is not None and home_appliances is not None:
+            raise ValueError("Use home_appliance or home_appliances, not both.")
+        self.home_appliances = home_appliances or (
+            [home_appliance] if home_appliance is not None else []
+        )
         self.inverter = inverter
 
         # Initialize per-hour action arrays for the prediction horizon
         self.ac_charge_hours = np.full(self.prediction_hours, 0.0)
         self.dc_charge_hours = np.full(self.prediction_hours, 0.0)
         self.bat_discharge_hours = np.full(self.prediction_hours, 0.0)
+        self.bat_grid_export_hours = np.full(self.prediction_hours, 0.0)
         self.ev_charge_hours = np.full(self.prediction_hours, 0.0)
         self.ev_discharge_hours = np.full(self.prediction_hours, 0.0)
-        self.home_appliance_start_hour = None
 
     def reset(self) -> None:
+        self.home_appliance_start_hour = None
         if self.ev:
             self.ev.reset()
         if self.battery:
             self.battery.reset()
-        self.home_appliance_start_hour = None
 
     def simulate(self, start_hour: int) -> dict[str, Any]:
         """Simulate energy usage and costs for the given start hour.
 
-        battery_soc_per_hour begin of the hour, initial hour state!
-        load_wh_per_hour integral of last hour (end state)
+        akku_soc_pro_stunde begin of the hour, initial hour state!
+        last_wh_pro_stunde integral of last hour (end state)
         """
+        # Preserve the singular hourly simulator API. Native schedules are built beforehand.
+        if self.home_appliance is not None and self.home_appliance_start_hour is not None:
+            self.home_appliance_start_hour = self.home_appliance.set_starting_time(
+                self.home_appliance_start_hour, start_hour
+            )
         # Remember start hour
         self.start_hour = start_hour
 
@@ -170,13 +295,15 @@ class GeneticSimulation(PydanticBaseModel):
         ac_charge_hours_fast = self.ac_charge_hours
         dc_charge_hours_fast = self.dc_charge_hours
         bat_discharge_hours_fast = self.bat_discharge_hours
+        bat_grid_export_hours_fast = self.bat_grid_export_hours
         elect_price_hourly_fast = self.elect_price_hourly
         elect_revenue_per_hour_arr_fast = self.elect_revenue_per_hour_arr
         pv_prediction_wh_fast = self.pv_prediction_wh
         battery_fast = self.battery
         ev_fast = self.ev
-        home_appliance_fast = self.home_appliance
+        home_appliances_fast = self.home_appliances
         inverter_fast = self.inverter
+        direct_marketing_enabled_fast = self.direct_marketing_enabled
 
         # Check for simulation integrity (in a way that mypy understands)
         if (
@@ -188,6 +315,7 @@ class GeneticSimulation(PydanticBaseModel):
             or dc_charge_hours_fast is None
             or elect_revenue_per_hour_arr_fast is None
             or bat_discharge_hours_fast is None
+            or bat_grid_export_hours_fast is None
             or ev_discharge_hours_fast is None
         ):
             missing = []
@@ -207,6 +335,8 @@ class GeneticSimulation(PydanticBaseModel):
                 missing.append("Electricity Revenue Per Hour")
             if bat_discharge_hours_fast is None:
                 missing.append("Battery Discharge Hours")
+            if bat_grid_export_hours_fast is None:
+                missing.append("Battery Grid Export Hours")
             if ev_discharge_hours_fast is None:
                 missing.append("EV Discharge Hours")
             msg = ", ".join(missing)
@@ -222,7 +352,9 @@ class GeneticSimulation(PydanticBaseModel):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        end_hour = len(load_energy_array_fast)
+        end_hour = min(
+            len(load_energy_array_fast), self.prediction_hours or len(load_energy_array_fast)
+        )
         total_hours = end_hour - start_hour
 
         # Pre-allocate arrays for the results, optimized for speed
@@ -233,6 +365,7 @@ class GeneticSimulation(PydanticBaseModel):
         revenue_per_hour = np.full((total_hours), np.nan)
         losses_wh_per_hour = np.full((total_hours), np.nan)
         electricity_price_per_hour = np.full((total_hours), np.nan)
+        feed_in_tariff_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
         if battery_fast:
@@ -255,9 +388,13 @@ class GeneticSimulation(PydanticBaseModel):
                 max_ac_charge_w_fast is None or max_ac_charge_w_fast > 0
             )
 
-            # If AC charging is disabled via inverter, zero out AC charge hours
+            # If AC charging is disabled via inverter, zero out AC charge hours.
+            # In place, not by rebinding: the reported plan is read back from
+            # this very array, so a rebind would leave AC charge values in the
+            # solution that the simulation never executed - and a controller
+            # acting on them would grid-charge the battery unplanned.
             if not ac_charging_possible:
-                ac_charge_hours_fast = np.zeros_like(ac_charge_hours_fast)
+                ac_charge_hours_fast[:] = 0.0
 
             # Fill the charge array of the battery
             dc_charge_hours_fast[0:start_hour] = 0
@@ -270,7 +407,18 @@ class GeneticSimulation(PydanticBaseModel):
             # Fill the discharge array of the battery
             bat_discharge_hours_fast[0:start_hour] = 0
             bat_discharge_hours_fast[end_hour:] = 0
-            battery_fast.discharge_array = bat_discharge_hours_fast
+            bat_grid_export_hours_fast[0:start_hour] = 0
+            bat_grid_export_hours_fast[end_hour:] = 0
+            battery_fast.discharge_array = np.where(
+                (bat_discharge_hours_fast > 0)
+                | (
+                    direct_marketing_enabled_fast
+                    & (bat_grid_export_hours_fast > 0)
+                    & (elect_revenue_per_hour_arr_fast[: len(bat_grid_export_hours_fast)] > 0.0)
+                ),
+                1,
+                0,
+            )
         else:
             # Default return if no battery is available
             soc_per_hour = np.full((total_hours), 0)
@@ -296,14 +444,12 @@ class GeneticSimulation(PydanticBaseModel):
             # Default return if no electric vehicle is available
             soc_ev_per_hour = np.full((total_hours), 0)
 
-        if home_appliance_fast and self.home_appliance_start_hour is not None:
+        if home_appliances_fast:
             home_appliance_enabled = True
-            # Pre-allocate arrays for the results, optimized for speed
+            # Pre-allocate the aggregate appliance load array (sum over all
+            # devices). Each appliance already carries its own resampled load
+            # curve, built from the decoded start(s) before this call.
             home_appliance_wh_per_hour = np.full((total_hours), np.nan)
-
-            self.home_appliance_start_hour = home_appliance_fast.set_starting_time(
-                self.home_appliance_start_hour, start_hour
-            )
         else:
             home_appliance_enabled = False
             # Default return if no home appliance is available
@@ -316,9 +462,11 @@ class GeneticSimulation(PydanticBaseModel):
             consumption = load_energy_array_fast[hour]
             losses_wh_per_hour[hour_idx] = 0.0
 
-            # Home appliances
+            # Home appliances (sum the per-slot load of all flexible consumers)
             if home_appliance_enabled:
-                ha_load = home_appliance_fast.get_load_for_hour(hour)  # type: ignore[union-attr]
+                ha_load = 0.0
+                for appliance in home_appliances_fast:
+                    ha_load += appliance.get_load_for_hour(hour)
                 consumption += ha_load
                 home_appliance_wh_per_hour[hour_idx] = ha_load
 
@@ -326,11 +474,13 @@ class GeneticSimulation(PydanticBaseModel):
             if ev_fast:
                 soc_ev_per_hour[hour_idx] = ev_fast.current_soc_percentage()  # save begin state
                 if ev_charge_hours_fast[hour] > 0:
-                    loaded_energy_ev, ev_charge_losses = ev_fast.charge_energy(
+                    stored_energy_ev, verluste_eauto = ev_fast.charge_energy(
                         wh=None, hour=hour, charge_factor=ev_charge_hours_fast[hour]
                     )
-                    consumption += loaded_energy_ev
-                    losses_wh_per_hour[hour_idx] += ev_charge_losses
+                    # The inverter/grid must supply the EV charger's raw input,
+                    # not only the energy stored after charging losses.
+                    consumption += stored_energy_ev + verluste_eauto
+                    losses_wh_per_hour[hour_idx] += verluste_eauto
 
             # Save battery SOC before inverter processing = true begin-of-interval state.
             # Must be recorded here (before DC charge/discharge) so the displayed SOC at
@@ -340,18 +490,36 @@ class GeneticSimulation(PydanticBaseModel):
                 soc_per_hour[hour_idx] = battery_fast.current_soc_percentage()
 
             # Process inverter logic
-            energy_feedin_grid_actual = energy_consumption_grid_actual = losses = (
-                self_consumption
-            ) = 0.0
+            energy_feedin_grid_actual = energy_consumption_grid_actual = losses = eigenverbrauch = (
+                0.0
+            )
 
             if inverter_fast:
                 energy_produced = pv_prediction_wh_fast[hour]
+                hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
+                # bat_grid_export_hours carries the export level per slot:
+                # 0.0 = no export, otherwise the factor of the rated discharge
+                # power the optimizer selected.
+                battery_grid_export_factor = float(bat_grid_export_hours_fast[hour])
+                battery_grid_export_allowed = (
+                    direct_marketing_enabled_fast
+                    and hourly_feed_in_tariff > 0.0
+                    and battery_grid_export_factor > 0.0
+                )
                 (
                     energy_feedin_grid_actual,
                     energy_consumption_grid_actual,
                     losses,
-                    self_consumption,
-                ) = inverter_fast.process_energy(energy_produced, consumption, hour)
+                    eigenverbrauch,
+                ) = inverter_fast.process_energy(
+                    energy_produced,
+                    consumption,
+                    hour,
+                    allow_battery_grid_export=battery_grid_export_allowed,
+                    battery_grid_export_factor=battery_grid_export_factor,
+                )
+            else:
+                hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
 
             # AC PV Battery Charge
             if battery_fast:
@@ -389,18 +557,36 @@ class GeneticSimulation(PydanticBaseModel):
                         )
 
             # Update hourly arrays
+            if (
+                direct_marketing_enabled_fast
+                and hourly_feed_in_tariff < 0.0
+                and energy_feedin_grid_actual > 0.0
+            ):
+                losses_wh_per_hour[hour_idx] += energy_feedin_grid_actual
+                energy_feedin_grid_actual = 0.0
+
             feedin_energy_per_hour[hour_idx] = energy_feedin_grid_actual
             consumption_energy_per_hour[hour_idx] = energy_consumption_grid_actual
             losses_wh_per_hour[hour_idx] += losses
             loads_energy_per_hour[hour_idx] = consumption
             hourly_electricity_price = elect_price_hourly_fast[hour]
             electricity_price_per_hour[hour_idx] = hourly_electricity_price
+            feed_in_tariff_per_hour[hour_idx] = hourly_feed_in_tariff
 
             # Financial calculations
-            costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
-            revenue_per_hour[hour_idx] = (
-                energy_feedin_grid_actual * elect_revenue_per_hour_arr_fast[hour]
-            )
+            grid_cost = energy_consumption_grid_actual * hourly_electricity_price
+            # LCOS is charged exactly once on battery-delivered DC energy. It is
+            # not charged on input energy, internal discharge losses, or the
+            # downstream DC-to-AC inverter loss.
+            battery_lcos_cost = 0.0
+            if battery_fast:
+                battery_lcos_cost = (
+                    battery_fast.discharged_energy_wh(hour)
+                    * battery_fast.levelized_cost_of_storage_kwh
+                    / 1000.0
+                )
+            costs_per_hour[hour_idx] = grid_cost + battery_lcos_cost
+            revenue_per_hour[hour_idx] = energy_feedin_grid_actual * hourly_feed_in_tariff
 
         total_cost = np.nansum(costs_per_hour)
         total_losses = np.nansum(losses_wh_per_hour)
@@ -422,11 +608,94 @@ class GeneticSimulation(PydanticBaseModel):
             "Gesamt_Verluste": total_losses,
             "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
             "Electricity_price": electricity_price_per_hour,
+            "Feed_in_tariff": feed_in_tariff_per_hour,
         }
 
 
 class GeneticOptimization(OptimizationBase):
     """GENETIC algorithm to solve energy optimization."""
+
+    WARM_START_COPIES = 10
+    WARM_START_MUTATIONS = 50
+    EDUCATED_GUESS_TARGET = 100
+    MIN_RANDOM_POPULATION_FRACTION = 0.25
+    WARM_START_COPY_FRACTION = 0.10
+    WARM_START_MUTATION_FRACTION = 0.20
+    EDUCATED_GUESS_FRACTION = 0.40
+    LOCAL_SEARCH_MAX_EVALUATIONS = 96
+    LOCAL_SEARCH_MAX_PASSES = 4
+    EDUCATED_GUESS_EXPORT_QUANTILES = (0.60, 0.75, 0.90)
+    CROSSOVER_PROBABILITY = 0.50
+    MUTATION_PROBABILITY = 0.55
+    STAGNATION_MUTATION_PROBABILITY = 0.80
+    STAGNATION_GENERATIONS = 8
+    SOFT_RESTART_GENERATIONS = 20
+    # The selection keeps SELECTION_DIVERSITY_FLOOR of the population unique, so a
+    # boost threshold at or above that floor would fire in every converged
+    # generation and make the boost the normal operating state instead of an
+    # intervention. Keep it strictly below the floor.
+    SELECTION_DIVERSITY_FLOOR = 0.30
+    DIVERSITY_BOOST_THRESHOLD = 0.25
+    SOFT_RESTART_DIVERSITY_THRESHOLD = 0.10
+    IMMIGRANT_FRACTION = 0.12
+    # Fresh immigrants are the worst individuals in the pool, so a plain
+    # tournament removes them in the generation they are born and their genes
+    # never get a chance to recombine. Keep a bounded number of them for a few
+    # selections so a boost can actually explore.
+    IMMIGRANT_PROTECTION_GENERATIONS = 2
+    IMMIGRANT_PROTECTION_FRACTION = 0.25
+    SOFT_RESTART_SURVIVOR_FRACTION = 0.20
+    POINT_MUTATION_EXPECTED_GENES = 3.0
+
+    # Independent forecast and control durations on the optimization grid.
+    @property
+    def slot_duration_h(self) -> float:
+        """Length of one optimization slot in hours (1.0 hourly, 0.25 at 15 min)."""
+        interval = self.config.optimization.genetic.interval_sec or 3600
+        return interval / 3600
+
+    @property
+    def slots_per_hour(self) -> int:
+        """Number of optimization slots per hour (1 hourly, 4 at 15 min)."""
+        interval = self.config.optimization.genetic.interval_sec or 3600
+        return 3600 // interval
+
+    @property
+    def control_slots(self) -> int:
+        """Number of executable control intervals, measured from now."""
+        return self.config.optimization.genetic.horizon_hours * self.slots_per_hour
+
+    @property
+    def prediction_slots(self) -> int:
+        """Forecast duration, independent of the control genome."""
+        return int(self.config.prediction.hours * self.slots_per_hour)
+
+    @property
+    def tail_slots(self) -> int:
+        """Requested lookahead, bounded by the forecast the configuration budgets.
+
+        A prediction horizon that does not cover control plus tail shortens the
+        tail rather than failing the run, so the shortfall is not reported as
+        missing provider data.
+        """
+        requested = self.config.optimization.genetic.tail_horizon_hours * self.slots_per_hour
+        budget = max(0, self.prediction_slots - self.control_slots)
+        return min(requested, budget)
+
+    @property
+    def control_end_slot(self) -> int:
+        """Exclusive control end in run-relative device arrays."""
+        return self._control_start_slot() + self.control_slots
+
+    def _control_start_slot(self) -> int:
+        """Genomes and device arrays start at now, independently of wall-clock hour."""
+        return 0
+
+    def _start_day_slot(self) -> int:
+        """Offset used only to trim legacy midnight-indexed forecast inputs."""
+        sd = self.ems.start_datetime
+        midnight = sd.set(hour=0, minute=0, second=0, microsecond=0)
+        return int((sd - midnight).total_seconds() // (self.slot_duration_h * 3600))
 
     def __init__(
         self,
@@ -434,18 +703,39 @@ class GeneticOptimization(OptimizationBase):
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
+        if self.config.optimization.genetic.interval_sec not in (900, 3600):
+            logger.warning(
+                "Genetic optimization interval {} seconds is unsupported; using 3600 seconds.",
+                self.config.optimization.genetic.interval_sec,
+            )
+            self.config.optimization.genetic.interval_sec = 3600
         self.opti_param: dict[str, Any] = {}
-        self.fixed_ev_hours = (
-            self.config.prediction.hours - self.config.optimization.genetic.horizon_hours
-        )
+        # EV genes cover precisely the control horizon; no fixed prediction tail.
+        self.fixed_eauto_hours = 0
         self.ev_possible_charge_values: list[float] = [1.0]
         # Separate charge-level list for battery AC charging (independent of EV rates).
         # Populated from parameters.pv_battery.charge_rates in optimize_ems.
         self.bat_possible_charge_values: list[float] = [1.0]
+        # Battery-to-grid export levels (direct marketing), full power first.
+        # Populated from parameters.pv_battery.grid_export_rates in optimize_ems;
+        # the single full-power default keeps the all-or-nothing export.
+        self.bat_possible_grid_export_values: list[float] = [1.0]
+        # Slot by which the EV has to reach its target SoC. None means the SoC is
+        # only required at the end of the horizon (the behaviour without a deadline).
+        self._ev_soc_deadline_slot: Optional[int] = None
+        # Value of the energy left in the battery at the end of the
+        # horizon. None means the fixed scalar terminal value is used instead.
+        self._terminal_value_curve: Optional[TerminalValueCurve] = None
+        self._continuation_value_curve: Optional[TerminalValueCurve] = None
+        self._tail_diagnostics: Optional[TailDiagnostics] = None
+        # Why that is - reported with the solution, because a run that silently
+        # falls back to the scalar looks exactly like a run configured for it.
+        self._terminal_value_reason: str = ""
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
         self.optimize_dc_charge = False
+        self.optimize_battery_grid_export = False
         self.fitness_history: dict[str, Any] = {}
 
         # Set a fixed seed for random operations if provided or in debug mode
@@ -455,13 +745,844 @@ class GeneticOptimization(OptimizationBase):
             self.fix_seed = random.randint(1, 100000000000)  # noqa: S311
             random.seed(self.fix_seed)
 
+        # Per-run cache for the AC-charge break-even penalty (see evaluate()).
+        self._ac_break_even_best_prices: Optional[list[float]] = None
+
+        # Fitness memoization is activated only around optimize(). The cache is
+        # never shared across runs because forecasts, prices and device state may
+        # have changed even when the genome is identical.
+        self._fitness_cache_enabled = False
+        self._fitness_cache: dict[tuple[int, ...], FitnessCacheEntry] = {}
+        self._fitness_cache_hits = 0
+        self._fitness_cache_misses = 0
+
+        # Appliance genome layout, built once per optimization run in
+        # optimize_ems(). Empty by default so setup_deap_environment() can be
+        # exercised standalone (e.g. in tests) without appliances.
+        self.appliance_layout: ApplianceGeneLayout = ApplianceGeneLayout([])
+        # Local datetime of slot index 0 (the run start), needed to
+        # turn decoded start slots into absolute local timestamps.
+        self._slot0_datetime: Optional[Any] = None
+
         # Create Simulation
         self.simulation = GeneticSimulation()
 
+    def _direct_marketing_enabled(self) -> bool:
+        """Return whether direct marketing mode is enabled in configuration."""
+        try:
+            return bool(self.config.feedintariff.direct_marketing_enabled)
+        except Exception:
+            return False
+
+    def _battery_state_layout(self) -> BatteryStateLayout:
+        """Build optional state indices without renumbering legacy warm starts.
+
+        The pre-existing order is retained exactly: base charge/discharge ranges,
+        two optional DC states, then optional grid export.  SELF_CONSUMPTION is
+        appended last so an old export gene never changes its meaning.
+        """
+        next_state = 3 * len(self.bat_possible_charge_values)
+        dc_not_allowed_state: Optional[int] = None
+        dc_allowed_state: Optional[int] = None
+        grid_export_state: Optional[int] = None
+        self_consumption_state: Optional[int] = None
+
+        if self.optimize_dc_charge:
+            dc_not_allowed_state = next_state
+            dc_allowed_state = next_state + 1
+            next_state += 2
+
+        grid_export_states: tuple[int, ...] = ()
+        if self.optimize_battery_grid_export:
+            export_count = max(len(self.bat_possible_grid_export_values), 1)
+            grid_export_states = tuple(range(next_state, next_state + export_count))
+            # The first export state stays the full-power one, so its index does
+            # not move when further rates are configured.
+            grid_export_state = grid_export_states[0]
+            next_state += export_count
+
+        if self.optimize_dc_charge:
+            self_consumption_state = next_state
+            next_state += 1
+
+        return BatteryStateLayout(
+            total_states=next_state,
+            dc_not_allowed_state=dc_not_allowed_state,
+            dc_allowed_state=dc_allowed_state,
+            grid_export_state=grid_export_state,
+            self_consumption_state=self_consumption_state,
+            grid_export_states=grid_export_states,
+        )
+
+    def _appliance_horizon_end_slot(self) -> int:
+        """Exclusive upper slot bound for appliance runs (end of horizon).
+
+        A run must complete within the optimization horizon. The horizon starts
+        at the current slot and lasts ``horizon_hours``; the bound is capped to
+        the total slot grid.
+        """
+        start_slot = self._control_start_slot()
+        horizon_slots = self.config.optimization.genetic.horizon_hours * self.slots_per_hour
+        return min(self.control_end_slot, start_slot + horizon_slots)
+
+    def _ev_deadline_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
+        """Slot index by which the EV has to reach ``min_soc_percentage``.
+
+        The deadline may be given as an absolute datetime, as a maximum duration
+        from the start of the optimization, or both - then the earlier one wins.
+        The returned slot excludes charging intervals that finish after the
+        deadline; a departure inside a slot cannot credit that whole slot.
+
+        Args:
+            parameters: Optimization parameters of this run.
+
+        Returns:
+            Absolute slot index, or None when the target is only required at the
+            end of the horizon (no deadline, or one beyond the horizon).
+        """
+        ev_parameters = parameters.ev
+        if ev_parameters is None:
+            return None
+
+        start_slot = self._control_start_slot()
+        slot_seconds = self.slot_duration_h * 3600
+        candidates: list[int] = []
+
+        deadline = ev_parameters.min_soc_deadline_datetime
+        if deadline is not None:
+            if self._slot0_datetime is None:
+                raise ValueError("EV deadline requires a run start timestamp.")
+            seconds = (
+                deadline.in_timezone(self._slot0_datetime.timezone) - self._slot0_datetime
+            ).total_seconds()
+            candidates.append(math.floor(seconds / slot_seconds + 1e-9))
+
+        duration_h = ev_parameters.min_soc_max_duration_h
+        if duration_h is not None:
+            candidates.append(start_slot + math.floor(duration_h * 3600 / slot_seconds + 1e-9))
+
+        if not candidates:
+            return None
+
+        deadline_slot = min(candidates)
+        if deadline_slot >= self.control_end_slot:
+            # Beyond the horizon: the end-of-horizon requirement already covers it.
+            return None
+        # A deadline in the past means the target is due right now.
+        return max(deadline_slot, start_slot)
+
+    def _validate_forecast_availability(self) -> None:
+        """Use only the contiguous finite forecast prefix after now."""
+        start = self._control_start_slot()
+        required = self.control_end_slot
+        requested = required + self.tail_slots
+        available = requested
+        limiting = []
+        for name, values in (
+            ("load", self.simulation.load_energy_array),
+            ("pv", self.simulation.pv_prediction_wh),
+            ("import price", self.simulation.elect_price_hourly),
+            ("feed-in tariff", self.simulation.elect_revenue_per_hour_arr),
+        ):
+            end = min(len(values), requested) if values is not None else 0
+            if values is not None:
+                missing = np.flatnonzero(~np.isfinite(values[start:end]))
+                if missing.size:
+                    end = start + int(missing[0])
+            if end < required:
+                raise ValueError(
+                    f"Incomplete control forecast: {name} ends at slot {end}; control requires slot {required}."
+                )
+            if end < requested:
+                limiting.append(name)
+            available = min(available, end)
+        self._effective_tail_slots = max(0, available - required)
+        self._forecast_reason = ""
+        if available < requested:
+            self._forecast_reason = (
+                f"Tail forecast shortened: requested {self.config.optimization.genetic.tail_horizon_hours} h, "
+                f"effective {self._effective_tail_slots * self.slot_duration_h:g} h; "
+                f"limited by {', '.join(limiting)}. Continuation starts at slot {available}."
+            )
+            logger.warning(self._forecast_reason)
+
+    def _build_terminal_value_curve(
+        self,
+        battery: Optional[Battery],
+        inverter: Optional[Inverter],
+    ) -> Optional[TerminalValueCurve]:
+        """Build continuation at the effective tail end, then solve the tail.
+
+        Only built in AUTO mode and only with a battery: the curve describes
+        what the energy left in that battery is worth once the horizon ends.
+
+        Args:
+            battery: The house battery of this run, if any.
+            inverter: The inverter, needed for the DC/AC conversion.
+
+        Returns:
+            The curve, or None when the fixed scalar terminal value applies.
+        """
+        if battery is None:
+            self._terminal_value_reason = "no battery in this optimization"
+            return None
+        try:
+            mode = self.config.optimization.genetic.terminal_value_mode
+            window_hours = self.config.optimization.genetic.terminal_value_window_hours
+        except Exception:
+            self._terminal_value_reason = "terminal value configuration unavailable"
+            return None
+        if str(mode) != "AUTO":
+            self._terminal_value_reason = "terminal_value_mode is FIXED"
+            return None
+
+        dc_to_ac = inverter.dc_to_ac_efficiency if inverter else 1.0
+        # A full battery, expressed in the same unit as the curve: AC energy
+        # that can actually leave the house.
+        max_energy_wh = (
+            max(battery.max_soc_wh - battery.min_soc_wh, 0.0)
+            * battery.discharging_efficiency
+            * dc_to_ac
+        )
+        window_slots = max(int(window_hours) * self.slots_per_hour, 1)
+        end_slot = self.control_end_slot + getattr(self, "_effective_tail_slots", 0)
+
+        curve = build_terminal_value_curve(
+            prices_euro_per_wh=trailing_window(
+                self.simulation.elect_price_hourly, end_slot, window_slots
+            ),
+            load_wh=trailing_window(self.simulation.load_energy_array, end_slot, window_slots),
+            pv_wh=trailing_window(self.simulation.pv_prediction_wh, end_slot, window_slots),
+            feed_in_euro_per_wh=trailing_window(
+                self.simulation.elect_revenue_per_hour_arr, end_slot, window_slots
+            ),
+            max_energy_wh=max_energy_wh,
+            lcos_euro_per_kwh=getattr(battery, "levelized_cost_of_storage_kwh", 0.0),
+            dc_to_ac_efficiency=dc_to_ac,
+            grid_export_allowed=self.optimize_battery_grid_export,
+        )
+        self._continuation_value_curve = curve
+        self._tail_diagnostics = None
+        if self.tail_slots and inverter is not None:
+            tail = slice(self.control_end_slot, end_slot)
+            prices = self.simulation.elect_price_hourly
+            loads = self.simulation.load_energy_array
+            pv = self.simulation.pv_prediction_wh
+            tariffs = self.simulation.elect_revenue_per_hour_arr
+            if prices is None or loads is None or pv is None or tariffs is None:
+                raise ValueError("Tail evaluation requires prepared forecasts")
+            tail_prices = prices[tail]
+            tail_tariffs = tariffs[tail]
+            self._tail_diagnostics = TailDiagnostics(
+                slots=len(tail_prices),
+                slot_hours=self.slot_duration_h,
+                soc_grid_points=101,
+                min_import_price_euro_per_kwh=(
+                    float(np.min(tail_prices)) * 1000 if len(tail_prices) else 0.0
+                ),
+                max_import_price_euro_per_kwh=(
+                    float(np.max(tail_prices)) * 1000 if len(tail_prices) else 0.0
+                ),
+                min_feed_in_tariff_euro_per_kwh=(
+                    float(np.min(tail_tariffs)) * 1000 if len(tail_tariffs) else 0.0
+                ),
+                max_feed_in_tariff_euro_per_kwh=(
+                    float(np.max(tail_tariffs)) * 1000 if len(tail_tariffs) else 0.0
+                ),
+                negative_import_price_slots=int(np.count_nonzero(tail_prices < 0.0)),
+                positive_battery_export_slots=(
+                    int(np.count_nonzero(tail_tariffs > 0.0))
+                    if self.optimize_battery_grid_export
+                    else 0
+                ),
+            )
+            return build_tail_value_curve(
+                battery=battery,
+                inverter=inverter,
+                prices_euro_per_wh=prices[tail],
+                load_wh=loads[tail],
+                pv_wh=pv[tail],
+                feed_in_euro_per_wh=tariffs[tail],
+                continuation=curve,
+                charge_rates=self.bat_possible_charge_values,
+                export_rates=self.bat_possible_grid_export_values,
+                direct_marketing=self.optimize_battery_grid_export,
+            )
+        if curve.energy_wh:
+            self._terminal_value_reason = ""
+            logger.debug(
+                "Terminal value curve: {} segments, first {:.3f} EUR/kWh, last {:.3f} EUR/kWh, "
+                "knee at {:.0f} Wh.",
+                len(curve.marginal_euro_per_kwh),
+                curve.marginal_euro_per_kwh[0],
+                curve.marginal_euro_per_kwh[-1],
+                curve.energy_wh[-1],
+            )
+        else:
+            # Almost always an input problem: an all-zero price forecast, or a
+            # window whose load is fully covered by PV. Falling back to the
+            # scalar is quiet, so say it out loud.
+            self._terminal_value_reason = (
+                "AUTO could not derive a curve: the last "
+                f"{window_slots} slots of the horizon carry no priced residual load "
+                "(check the electricity price forecast) - falling back to the fixed value"
+            )
+            logger.warning(self._terminal_value_reason)
+        return curve
+
+    def _terminal_value(
+        self,
+        parameters: GeneticOptimizationParameters,
+        *,
+        include_tail_plan: bool = False,
+    ) -> tuple[float, TerminalValueResult]:
+        """Credit for the energy left in the battery, plus its report.
+
+        Args:
+            parameters: Optimization parameters, holding the fixed scalar value.
+
+        Returns:
+            The credit in EUR and the result object for the solution.
+        """
+        diagnostics = dict(
+            control_horizon_hours=self.config.optimization.genetic.horizon_hours,
+            requested_tail_hours=self.config.optimization.genetic.tail_horizon_hours,
+            effective_tail_hours=0.0,
+            tail_end_hour=float(self.config.optimization.genetic.horizon_hours),
+        )
+        battery = self.simulation.battery
+        if battery is None:
+            return 0.0, TerminalValueResult(
+                mode="FIXED", reason="no battery in this optimization", **diagnostics
+            )
+
+        # Usable DC energy, converted to the AC energy that can serve a load.
+        energy_wh = battery.current_energy_content()
+        if self.simulation.inverter:
+            energy_wh *= self.simulation.inverter.dc_to_ac_efficiency
+
+        curve = getattr(self, "_terminal_value_curve", None)
+        if curve is not None and curve.energy_wh:
+            credit = curve.value(energy_wh)
+            if isinstance(curve, TailValueCurve):
+                tail_operating_euro, continuation_value_euro = curve.component_values(energy_wh)
+                tail_plan = (
+                    curve.diagnostic_plan(
+                        energy_wh, float(self.config.optimization.genetic.horizon_hours)
+                    )
+                    if include_tail_plan
+                    else []
+                )
+            else:
+                tail_operating_euro, continuation_value_euro = 0.0, credit
+                tail_plan = []
+            return credit, TerminalValueResult(
+                mode="TAIL" if isinstance(curve, TailValueCurve) else "AUTO",
+                control_horizon_hours=self.config.optimization.genetic.horizon_hours,
+                requested_tail_hours=self.config.optimization.genetic.tail_horizon_hours,
+                effective_tail_hours=getattr(self, "_effective_tail_slots", 0)
+                * self.slot_duration_h,
+                tail_end_hour=(self.control_end_slot + getattr(self, "_effective_tail_slots", 0))
+                * self.slot_duration_h,
+                continuation_mode="AUTO",
+                reason=getattr(self, "_forecast_reason", ""),
+                battery_energy_wh=energy_wh,
+                credited_euro=credit,
+                tail_operating_euro=tail_operating_euro,
+                continuation_value_euro=continuation_value_euro,
+                curve=curve,
+                continuation_curve=getattr(self, "_continuation_value_curve", None),
+                tail_diagnostics=getattr(self, "_tail_diagnostics", None),
+                tail_plan=tail_plan,
+            )
+
+        credit = energy_wh * parameters.ems.price_per_wh_battery
+        return credit, TerminalValueResult(
+            mode="FIXED",
+            battery_energy_wh=energy_wh,
+            credited_euro=credit,
+            continuation_value_euro=credit,
+            reason=" ".join(
+                filter(
+                    None,
+                    [
+                        getattr(self, "_terminal_value_reason", "")
+                        or "terminal_value_mode is FIXED",
+                        getattr(self, "_forecast_reason", ""),
+                    ],
+                )
+            ),
+            **diagnostics,
+        )
+
+    def _build_appliance_layout(
+        self, appliances: list[HomeAppliance], slot0_datetime: Any
+    ) -> ApplianceGeneLayout:
+        """Keep each cycle's windows, completed cycles and local-day identity."""
+        self._appliance_devices = appliances
+        self._appliance_order_cache: dict[int, list[int]] = {}
+        start_slot = self._control_start_slot()
+        horizon_end_slot = self._appliance_horizon_end_slot()
+        genes: list[ApplianceGeneSlot] = []
+        first_date = slot0_datetime.date()
+        for appliance_index, appliance in enumerate(appliances):
+            cycles = range(appliance.num_cycles)
+            allowed_by_cycle: dict[int, list[int]] = {}
+            relaxed_by_cycle: dict[int, bool] = {}
+            for cycle in cycles:
+                allowed_by_cycle[cycle] = appliance.allowed_start_slots(
+                    slot0_datetime=slot0_datetime,
+                    earliest_slot=start_slot,
+                    horizon_end_slot=horizon_end_slot,
+                    cycle_index=cycle,
+                )
+                relaxed_by_cycle[cycle] = appliance.deadline_relaxed
+            if appliance.schedule_mode == ConsumerScheduleMode.ONCE:
+                groups = [
+                    (None, cycle, allowed_by_cycle[cycle])
+                    for cycle in cycles
+                    if cycle >= appliance.completed_cycles
+                ]
+            else:
+                by_date: dict[Any, dict[int, list[int]]] = {}
+                for cycle, allowed in allowed_by_cycle.items():
+                    for slot in allowed:
+                        date = slot0_datetime.add(
+                            seconds=slot * appliance.slot_interval_seconds
+                        ).date()
+                        if date == first_date and cycle < appliance.completed_cycles:
+                            continue
+                        by_date.setdefault(date, {}).setdefault(cycle, []).append(slot)
+                groups = [
+                    (date, cycle, allowed)
+                    for date, cycle_slots in sorted(by_date.items())
+                    for cycle, allowed in sorted(cycle_slots.items())
+                ]
+                # A partially elapsed first day may have no feasible remaining run;
+                # later complete planning days must retain all configured cycles.
+                for date, cycle_slots in by_date.items():
+                    expected = {
+                        cycle
+                        for cycle in cycles
+                        if date != first_date or cycle >= appliance.completed_cycles
+                    }
+                    if set(cycle_slots) != expected:
+                        raise ValueError(
+                            f"Home appliance '{appliance.device_id}' has no complete cycle schedule on {date}."
+                        )
+            for run_index, (date, cycle, allowed) in enumerate(groups):
+                if not allowed:
+                    raise ValueError(
+                        f"Home appliance '{appliance.device_id}' cycle {cycle} has no valid start within its windows, deadline and control horizon."
+                    )
+                genes.append(
+                    ApplianceGeneSlot(
+                        gene_index=len(genes),
+                        appliance_index=appliance_index,
+                        device_id=appliance.device_id,
+                        run_index=run_index,
+                        run_date=date,
+                        allowed_start_slots=allowed,
+                        cycle_index=cycle,
+                        deadline_relaxed=relaxed_by_cycle[cycle],
+                    )
+                )
+        layout = ApplianceGeneLayout(genes)
+        # Detect impossible cross-cycle gaps before running a population search.
+        previous_layout = self.appliance_layout
+        self.appliance_layout = layout
+        try:
+            self._decode_appliance_starts([0] * layout.n_genes)
+        finally:
+            self.appliance_layout = previous_layout
+        return layout
+
+    def _decode_appliance_starts(self, appliance_gene_values: list[int]) -> dict[int, list[int]]:
+        """Repair requested starts jointly, preserving cycle windows and minimum gaps.
+
+        Backward latest-feasible bounds and a forward nearest-choice pass prevent
+        an unlucky late first gene from making otherwise feasible cycles invalid.
+        The canonical gene values are updated to describe the executed schedule.
+        """
+        starts_per_appliance: dict[int, list[int]] = defaultdict(list)
+        grouped: dict[int, list[tuple[int, ApplianceGeneSlot]]] = defaultdict(list)
+        for position, gene in enumerate(self.appliance_layout.genes):
+            grouped[gene.appliance_index].append((position, gene))
+        for appliance_index, entries in grouped.items():
+            appliances = getattr(self, "_appliance_devices", self.simulation.home_appliances)
+            appliance = appliances[appliance_index]
+            separation = appliance.run_slots + math.ceil(
+                appliance.min_cycle_gap_h / self.slot_duration_h
+            )
+            by_position = dict(entries)
+
+            def requested_start(entry: tuple[int, ApplianceGeneSlot]) -> int:
+                position, gene = entry
+                index = min(
+                    max(int(appliance_gene_values[position]), 0), len(gene.allowed_start_slots) - 1
+                )
+                return gene.allowed_start_slots[0 if gene.deadline_relaxed else index]
+
+            def latest_bounds(order: list[tuple[int, ApplianceGeneSlot]]) -> Optional[list[int]]:
+                bounds: list[int] = []
+                limit = self.control_end_slot
+                for _, gene in reversed(order):
+                    candidates = [slot for slot in gene.allowed_start_slots if slot <= limit]
+                    if not candidates:
+                        return None
+                    last = candidates[-1]
+                    bounds.append(last)
+                    limit = last - separation
+                return list(reversed(bounds))
+
+            # Cycle numbers identify masks; they do not impose temporal order.
+            # Keep every feasible order represented by a candidate genome.
+            entries.sort(key=lambda entry: (requested_start(entry), entry[0]))
+            latest = latest_bounds(entries)
+            if latest is None:
+                if appliance_index not in self._appliance_order_cache:
+
+                    @lru_cache(maxsize=None)
+                    def feasible_order(
+                        remaining: tuple[int, ...], earliest: int
+                    ) -> Optional[tuple[int, ...]]:
+                        if not remaining:
+                            return ()
+                        choices = []
+                        for position in remaining:
+                            allowed = [
+                                slot
+                                for slot in by_position[position].allowed_start_slots
+                                if slot >= earliest
+                            ]
+                            if not allowed:
+                                return None
+                            choices.append((allowed[0], allowed[-1], position))
+                        # For a fixed order the earliest start dominates all later
+                        # starts for feasibility. Search permutations only once
+                        # per run, memoizing impossible remaining-cycle states.
+                        for first, _, position in sorted(choices):
+                            rest = feasible_order(
+                                tuple(index for index in remaining if index != position),
+                                first + separation,
+                            )
+                            if rest is not None:
+                                return (position, *rest)
+                        return None
+
+                    order = feasible_order(tuple(sorted(by_position)), self._control_start_slot())
+                    if order is None:
+                        raise ValueError(
+                            f"Home appliance '{appliance.device_id}' cycles cannot fit their windows and minimum gaps."
+                        )
+                    self._appliance_order_cache[appliance_index] = list(order)
+                entries = [
+                    (position, by_position[position])
+                    for position in self._appliance_order_cache[appliance_index]
+                ]
+                latest = latest_bounds(entries)
+                if latest is None:
+                    raise ValueError(
+                        f"Home appliance '{appliance.device_id}' has no feasible cycle schedule."
+                    )
+            earliest = self._control_start_slot()
+            for (position, gene), last in zip(entries, latest):
+                allowed = gene.allowed_start_slots
+                requested_index = min(
+                    max(int(appliance_gene_values[position]), 0), len(allowed) - 1
+                )
+                requested = allowed[requested_index]
+                candidates = [slot for slot in allowed if earliest <= slot <= last]
+                if not candidates:
+                    raise ValueError(
+                        f"Home appliance '{gene.device_id}' has no feasible cycle start."
+                    )
+                chosen = (
+                    candidates[0]
+                    if gene.deadline_relaxed
+                    else min(candidates, key=lambda slot: (abs(slot - requested), slot))
+                )
+                starts_per_appliance[appliance_index].append(chosen)
+                appliance_gene_values[position] = allowed.index(chosen)
+                earliest = chosen + separation
+        return starts_per_appliance
+
+    def _apply_appliance_starts(self, appliance_gene_values: list[int]) -> None:
+        """Build every appliance's load curve from the decoded starts."""
+        if not self.simulation.home_appliances:
+            return
+        starts_per_appliance = self._decode_appliance_starts(appliance_gene_values)
+        for appliance_index, appliance in enumerate(self.simulation.home_appliances):
+            appliance.build_load_curve(starts_per_appliance.get(appliance_index, []))
+
+    def _start_solution_matches_layout(self, start_solution: list[float]) -> bool:
+        """Check that a start solution's appliance tail fits the current layout.
+
+        A length match alone is insufficient (two different layouts can share a
+        length), so every appliance gene value must be a valid index into its
+        gene's ``allowed_start_slots``.
+        """
+        n_genes = self.appliance_layout.n_genes
+        if n_genes == 0:
+            return True
+        if len(start_solution) < n_genes:
+            return False
+        tail = start_solution[-n_genes:]
+        for value, gene in zip(tail, self.appliance_layout.genes):
+            if not gene.allowed_start_slots:
+                return False
+            if not (0 <= int(value) < len(gene.allowed_start_slots)):
+                return False
+        return True
+
+    def _ac_break_even_prices(
+        self,
+        prices_arr: Any,
+        load_arr: Any,
+        free_ac_wh: float,
+    ) -> list[float]:
+        """Best still-uncovered future price per potential AC-charge slot.
+
+        The AC-charge break-even penalty needs, for every potential charge slot,
+        the highest future price whose load is not already covered by the energy
+        that is in the battery at simulation start. Prices, loads and the free
+        battery energy are constant within one optimization run, so this table
+        is computed once per run and looked up in every fitness evaluation.
+        (Previously the future list was rebuilt and sorted per slot per
+        individual, which dominated the fitness runtime.) The loops replicate
+        the former inline computation exactly, keeping results bit-identical.
+        """
+        n = min(len(prices_arr), self.control_end_slot)
+        best_prices = [0.0] * n
+        for hour in range(n):
+            # Build list of (price, load_wh) for all future hours in the horizon
+            future = [(float(prices_arr[h]), float(load_arr[h])) for h in range(hour + 1, n)]
+            # Sort descending by price so we "use" the most expensive hours first
+            future.sort(key=lambda x: -x[0])
+
+            # Consume free PV energy against the highest-price future hours.
+            # The first uncovered (partially or fully) hour defines the best
+            # price still available for the new AC charge.
+            remaining_free = free_ac_wh
+            best_uncovered_price = 0.0
+            for fp, fl in future:
+                if remaining_free >= fl:
+                    # Entire expensive hour is already covered by free PV energy
+                    remaining_free -= fl
+                else:
+                    # First hour not (fully) covered: this is where new charge goes
+                    best_uncovered_price = fp
+                    break
+            best_prices[hour] = best_uncovered_price
+        return best_prices
+
+    def _parameters_for_config(
+        self, parameters: GeneticOptimizationParameters
+    ) -> GeneticOptimizationParameters:
+        """Keep supplied sale revenues authoritative, including constant imports."""
+        return parameters
+
+    def _parameters_for_slot_grid(
+        self, parameters: GeneticOptimizationParameters
+    ) -> GeneticOptimizationParameters:
+        """Normalize hourly or native-slot EMS input onto the optimization grid.
+
+        API clients historically provide one value per prediction hour. At a
+        sub-hourly interval, energy quantities are distributed across the slots
+        while price quantities are held constant. Inputs already matching the
+        native slot grid are preserved exactly. Short native forecasts must
+        declare their interval; availability is validated separately.
+        """
+
+        def normalize(
+            values: list[float] | list[Optional[float]], name: str, *, energy: bool
+        ) -> list[float]:
+            data = np.asarray(values, dtype=float)
+            # API inputs default to hourly; native callers declare their interval.
+            native = (
+                parameters.forecast_interval_seconds
+                == self.config.optimization.genetic.interval_sec
+            )
+            if parameters.forecast_interval_seconds is None:
+                max_hourly = self.config.prediction.hours + math.ceil(
+                    self._start_day_slot() / self.slots_per_hour
+                )
+                if self.slots_per_hour > 1 and max_hourly < len(data) < self.prediction_slots:
+                    raise ValueError(
+                        f"{name}: ambiguous forecast interval; expected either {self.config.prediction.hours} hourly values or {self.prediction_slots} native values. Set forecast_interval_seconds for shortened native forecasts."
+                    )
+                native = self.slots_per_hour == 1 or len(data) >= self.prediction_slots
+            if parameters.forecast_interval_seconds == 900 and self.slots_per_hour == 1:
+                remainder = len(data) % 4
+                if remainder:
+                    data = np.pad(data, (0, 4 - remainder), constant_values=np.nan)
+                blocks = data.reshape(-1, 4)
+                data = blocks.sum(axis=1) if energy else blocks.mean(axis=1)
+            elif not native:
+                data = np.repeat(data, self.slots_per_hour)
+                if energy:
+                    data /= self.slots_per_hour
+            return data[self._start_day_slot() :].tolist()
+
+        ems = parameters.ems
+        feed_in_tariff = ems.feed_in_tariff_per_wh
+        if isinstance(feed_in_tariff, list):
+            normalized_feed_in_tariff: list[float] | float = normalize(
+                feed_in_tariff,
+                "feed_in_tariff_per_wh",
+                energy=False,
+            )
+        else:
+            normalized_feed_in_tariff = [float(feed_in_tariff)] * (
+                self._control_start_slot() + self.prediction_slots
+            )
+
+        normalized_ems = ems.model_copy(
+            update={
+                "pv_forecast_wh": normalize(ems.pv_forecast_wh, "pv_forecast_wh", energy=True),
+                "total_load": normalize(ems.total_load, "total_load", energy=True),
+                "electricity_price_per_wh": normalize(
+                    ems.electricity_price_per_wh,
+                    "electricity_price_per_wh",
+                    energy=False,
+                ),
+                "feed_in_tariff_per_wh": normalized_feed_in_tariff,
+            },
+            deep=True,
+        )
+        temperature_forecast = (
+            normalize(parameters.temperature_forecast, "temperature_forecast", energy=False)
+            if parameters.temperature_forecast is not None
+            else None
+        )
+        return parameters.model_copy(
+            update={
+                "ems": normalized_ems,
+                "temperature_forecast": temperature_forecast,
+                "forecast_interval_seconds": self.config.optimization.genetic.interval_sec,
+            },
+            deep=True,
+        )
+
+    def _start_solution_for_slot_grid(self, start_solution: list[float]) -> list[float]:
+        """Expand a legacy hourly genome to the configured slot grid when possible.
+
+        Only the battery and EV parts are grid-expanded. The appliance start
+        genes are indices into interval-dependent allowed-start lists, so they
+        are copied verbatim and validated later against the current layout
+        (incompatible tails cause the whole start solution to be discarded).
+        """
+        n_appliance_genes = self.appliance_layout.n_genes
+        expected_length = self.control_end_slot * (2 if self.optimize_ev else 1) + n_appliance_genes
+        hourly_length = (
+            self.config.optimization.genetic.horizon_hours * (2 if self.optimize_ev else 1)
+            + n_appliance_genes
+        )
+
+        if len(start_solution) == expected_length or self.slots_per_hour == 1:
+            return list(start_solution)
+        if len(start_solution) != hourly_length:
+            return list(start_solution)
+
+        battery_end = self.config.optimization.genetic.horizon_hours
+        migrated = np.repeat(start_solution[:battery_end], self.slots_per_hour).tolist()
+        if self.optimize_ev:
+            ev_end = battery_end + self.config.optimization.genetic.horizon_hours
+            migrated.extend(
+                np.repeat(start_solution[battery_end:ev_end], self.slots_per_hour).tolist()
+            )
+        if n_appliance_genes > 0:
+            migrated.extend(list(start_solution[-n_appliance_genes:]))
+        logger.info(
+            "Expanded hourly start_solution from {} to {} slot values.",
+            hourly_length,
+            expected_length,
+        )
+        return migrated
+
+    def _resolve_start_solution_datetime(
+        self, parameters: GeneticOptimizationParameters
+    ) -> Optional[DateTime]:
+        """Start of the slot that gene 0 of the supplied warm start controls.
+
+        An explicit ``start_solution_datetime`` wins. Clients that only echo
+        ``start_solution`` get the start of this server's last solution when the
+        genomes are identical; for any other genome the start is unknown.
+        """
+        if parameters.start_solution_datetime is not None:
+            return parameters.start_solution_datetime
+        if parameters.start_solution is None:
+            return None
+        last_solution = self.ems.genetic_solution()
+        if (
+            last_solution is not None
+            and last_solution.start_solution is not None
+            and list(last_solution.start_solution) == list(parameters.start_solution)
+        ):
+            return last_solution.start_solution_datetime
+        return None
+
+    def _start_solution_for_run_start(
+        self,
+        start_solution: Optional[list[float]],
+        start_solution_datetime: Optional[DateTime],
+    ) -> Optional[list[float]]:
+        """Align a warm start from an earlier run with the slot this run starts in.
+
+        Genomes are run-relative, so a solution returned one slot ago describes
+        every battery and EV decision one slot too late. Reused unchanged, a
+        search that keeps the seed postpones each planned action by one slot per
+        run. The battery and EV blocks therefore drop the elapsed slots and
+        repeat their last gene to refill the horizon.
+
+        Appliance genes index into per-run lists of allowed start slots that
+        cannot be rebuilt for the earlier run; they are kept and validated
+        against the current layout as before.
+        """
+        if (
+            start_solution is None
+            or start_solution_datetime is None
+            or self._slot0_datetime is None
+        ):
+            return start_solution
+        start_solution = self._start_solution_for_slot_grid(start_solution)
+        blocks = 2 if self.optimize_ev else 1
+        if len(start_solution) != self.control_end_slot * blocks + self.appliance_layout.n_genes:
+            # optimize() rejects the length and logs why.
+            return start_solution
+
+        elapsed_s = (self._slot0_datetime - start_solution_datetime).total_seconds()
+        if elapsed_s < 0:
+            logger.warning(
+                "Ignoring start_solution from {}: it starts after this run ({}).",
+                start_solution_datetime,
+                self._slot0_datetime,
+            )
+            return None
+        elapsed_slots = int(elapsed_s // (self.slot_duration_h * 3600))
+        if elapsed_slots == 0:
+            return start_solution
+        if elapsed_slots >= self.control_slots:
+            logger.info(
+                "Ignoring start_solution from {}: all {} control slots have elapsed.",
+                start_solution_datetime,
+                self.control_slots,
+            )
+            return None
+
+        aligned = list(start_solution)
+        for block in range(blocks):
+            begin = self._control_start_slot() + block * self.control_end_slot
+            end = begin + self.control_slots
+            genes = aligned[begin:end]
+            aligned[begin:end] = genes[elapsed_slots:] + [genes[-1]] * elapsed_slots
+        logger.debug("Shifted start_solution by {} elapsed slots.", elapsed_slots)
+        return aligned
+
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Decode the input array into ac_charge, dc_charge, and discharge arrays."""
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Decode the input array into charge, self-consumption discharge and export arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
         # Battery AC charge uses its own charge-level list (bat_possible_charge_values).
         len_bat = len(self.bat_possible_charge_values)
@@ -471,9 +1592,9 @@ class GeneticOptimization(OptimizationBase):
         # Discharge:  len_bat .. 2*len_bat - 1
         # AC Charge:  2*len_bat .. 3*len_bat - 1  (maps to bat_possible_charge_values)
         # DC optional: 3*len_bat (not allowed), 3*len_bat + 1 (allowed)
-
-        # Idle states
-        idle_mask = (discharge_hours_bin_np >= 0) & (discharge_hours_bin_np < len_bat)
+        # Grid export: next state, if direct marketing/export optimization is enabled
+        # Self-consumption: final state, with DC charging and local discharge enabled
+        state_layout = self._battery_state_layout()
 
         # Discharge states
         discharge_mask = (discharge_hours_bin_np >= len_bat) & (
@@ -485,59 +1606,227 @@ class GeneticOptimization(OptimizationBase):
         ac_indices = (discharge_hours_bin_np[ac_mask] - 2 * len_bat).astype(int)
 
         # DC states (if enabled)
-        if self.optimize_dc_charge:
-            dc_not_allowed_state = 3 * len_bat
-            dc_allowed_state = 3 * len_bat + 1
-            dc_charge = np.where(discharge_hours_bin_np == dc_allowed_state, 1, 0)
+        if state_layout.dc_allowed_state is not None:
+            dc_mask = discharge_hours_bin_np == state_layout.dc_allowed_state
+            if state_layout.self_consumption_state is not None:
+                dc_mask |= discharge_hours_bin_np == state_layout.self_consumption_state
+            dc_charge = np.where(dc_mask, 1, 0)
         else:
             dc_charge = np.ones_like(discharge_hours_bin_np, dtype=float)
 
         # Generate the result arrays
         discharge = np.zeros_like(discharge_hours_bin_np, dtype=int)
         discharge[discharge_mask] = 1  # Set Discharge states to 1
+        if state_layout.self_consumption_state is not None:
+            discharge[discharge_hours_bin_np == state_layout.self_consumption_state] = 1
 
         ac_charge = np.zeros_like(discharge_hours_bin_np, dtype=float)
         ac_charge[ac_mask] = [self.bat_possible_charge_values[i] for i in ac_indices]
 
-        # Idle is just 0, already default.
-
-        return ac_charge, dc_charge, discharge
-
-    def mutate(self, individual: list[int]) -> tuple[list[int]]:
-        """Custom mutation function for the individual."""
-        # Calculate the number of states using battery charge levels
-        len_bat = len(self.bat_possible_charge_values)
-        if self.optimize_dc_charge:
-            total_states = 3 * len_bat + 2
-        else:
-            total_states = 3 * len_bat
-
-        # 1. Mutating the charge_discharge part
-        charge_discharge_part = individual[: self.config.prediction.hours]
-        (charge_discharge_mutated,) = self.toolbox.mutate_charge_discharge(charge_discharge_part)
-
-        # Instead of a fixed clamping to 0..8 or 0..6 dynamically:
-        charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, total_states - 1)
-        individual[: self.config.prediction.hours] = charge_discharge_mutated
-
-        # 2. Mutating the EV charge part, if active
-        if self.optimize_ev:
-            ev_charge_part = individual[
-                self.config.prediction.hours : self.config.prediction.hours * 2
-            ]
-            (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-            ev_charge_part_mutated[self.config.prediction.hours - self.fixed_ev_hours :] = [
-                0
-            ] * self.fixed_ev_hours
-            individual[self.config.prediction.hours : self.config.prediction.hours * 2] = (
-                ev_charge_part_mutated
+        # Export rate per slot: 0.0 = no export, otherwise the factor of the
+        # rated discharge power the optimizer picked for that slot.
+        battery_grid_export = np.zeros_like(discharge_hours_bin_np, dtype=float)
+        for index, export_state in enumerate(state_layout.grid_export_states):
+            rate = (
+                self.bat_possible_grid_export_values[index]
+                if index < len(self.bat_possible_grid_export_values)
+                else 1.0
+            )
+            battery_grid_export = np.where(
+                discharge_hours_bin_np == export_state, rate, battery_grid_export
             )
 
-        # 3. Mutating the appliance start time, if applicable
-        if self.opti_param["home_appliance"] > 0:
-            appliance_part = [individual[-1]]
-            (appliance_part_mutated,) = self.toolbox.mutate_hour(appliance_part)
-            individual[-1] = appliance_part_mutated[0]
+        # Idle is just 0, already default.
+
+        return ac_charge, dc_charge, discharge, battery_grid_export
+
+    def _mutate_battery_block(self, individual: list[int]) -> None:
+        """Mutate a short future block to one coherent operating policy."""
+        start_slot = self._control_start_slot()
+        if start_slot >= self.control_end_slot:
+            return
+
+        state_layout = self._battery_state_layout()
+        len_bat = len(self.bat_possible_charge_values)
+        policy_states = [0, len_bat]
+        if state_layout.self_consumption_state is not None:
+            policy_states.append(state_layout.self_consumption_state)
+        if state_layout.dc_allowed_state is not None:
+            policy_states.append(state_layout.dc_allowed_state)
+        # Every export level is a coherent policy for a whole block.
+        policy_states.extend(state_layout.grid_export_states)
+
+        block_start = random.randint(start_slot, self.control_end_slot - 1)  # noqa: S311
+        max_length = min(12, self.control_end_slot - block_start)
+        block_length = random.randint(2, max(2, max_length)) if max_length > 1 else 1  # noqa: S311
+        state = random.choice(policy_states)  # noqa: S311
+        individual[block_start : block_start + block_length] = [state] * block_length
+
+    def _energy_shift_target_slots(
+        self,
+        individual: list[int],
+        source_slot: int,
+    ) -> list[int]:
+        """Return later idle slots where retained battery energy avoids costly import."""
+        try:
+            prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+            feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+            pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+            load = np.asarray(self.simulation.load_energy_array, dtype=float)
+        except Exception:
+            return []
+        if any(values.size < self.control_end_slot for values in (prices, feed_in, pv, load)):
+            return []
+
+        len_bat = len(self.bat_possible_charge_values)
+        source_tariff = float(feed_in[source_slot])
+        candidates = [
+            slot
+            for slot in range(source_slot + 1, self.control_end_slot)
+            if 0 <= int(individual[slot]) < len_bat
+            and load[slot] > pv[slot]
+            and prices[slot] > source_tariff
+        ]
+        return sorted(
+            candidates,
+            key=lambda slot: (float(prices[slot]), float(load[slot] - pv[slot])),
+            reverse=True,
+        )
+
+    def _mutate_energy_shift(self, individual: list[int]) -> bool:
+        """Move battery energy from a weak export into later expensive self-consumption."""
+        state_layout = self._battery_state_layout()
+        export_states = set(state_layout.grid_export_states)
+        self_state = state_layout.self_consumption_state
+        if not export_states or self_state is None:
+            return False
+
+        start_slot = self._control_start_slot()
+        viable: list[tuple[int, list[int]]] = []
+        for source_slot in range(start_slot, self.control_end_slot):
+            if int(individual[source_slot]) not in export_states:
+                continue
+            targets = self._energy_shift_target_slots(individual, source_slot)
+            if targets:
+                viable.append((source_slot, targets))
+        if not viable:
+            return False
+
+        # Prefer later/lower-value exports, but retain random diversity among
+        # the viable tail instead of always producing one identical neighbour.
+        try:
+            feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+            viable.sort(key=lambda item: (float(feed_in[item[0]]), -item[0]))
+        except Exception:
+            viable.sort(key=lambda item: -item[0])
+        source_slot, targets = random.choice(viable[: min(6, len(viable))])  # noqa: S311
+
+        individual[source_slot] = self_state
+        target_count = min(len(targets), random.randint(4, 10))  # noqa: S311
+        len_bat = len(self.bat_possible_charge_values)
+        pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        for target_slot in targets[:target_count]:
+            individual[target_slot] = self_state if pv[target_slot] > 0.0 else len_bat
+        return True
+
+    @staticmethod
+    def _force_segment_change(values: list[int], low: int, up: int) -> bool:
+        """Change one value when probabilistic mutation produced no effective change."""
+        if not values or up <= low:
+            return False
+        position = random.randrange(len(values))  # noqa: S311
+        old_value = int(values[position])
+        replacement = random.randint(low, up - 1)  # noqa: S311
+        if replacement >= old_value:
+            replacement += 1
+        values[position] = replacement
+        return True
+
+    def _mutate_point_controls(self, individual: list[int]) -> bool:
+        """Apply a small point mutation only to controls that can still affect fitness."""
+        changed = False
+        start_slot = self._control_start_slot()
+        total_states = self._battery_state_layout().total_states
+        battery_part = list(individual[start_slot : self.control_end_slot])
+        battery_before = list(battery_part)
+        (battery_part,) = self.toolbox.mutate_charge_discharge(battery_part)
+        if battery_part == battery_before:
+            self._force_segment_change(battery_part, 0, total_states - 1)
+        if battery_part != battery_before:
+            individual[start_slot : self.control_end_slot] = battery_part
+            changed = True
+
+        if self.optimize_ev and random.random() < 0.40:  # noqa: S311
+            ev_start = self.control_end_slot + start_slot
+            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
+            ev_part = list(individual[ev_start:ev_end])
+            ev_before = list(ev_part)
+            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
+            if ev_part == ev_before:
+                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
+            if ev_part != ev_before:
+                individual[ev_start:ev_end] = ev_part
+                changed = True
+
+        return changed
+
+    def _mutate_flexible_controls(self, individual: list[int]) -> bool:
+        """Mutate EV or appliance controls without disturbing a good battery schedule."""
+        changed = False
+        if self.optimize_ev:
+            ev_start = self.control_end_slot + self._control_start_slot()
+            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
+            ev_part = list(individual[ev_start:ev_end])
+            ev_before = list(ev_part)
+            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
+            if ev_part == ev_before:
+                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
+            if ev_part != ev_before:
+                individual[ev_start:ev_end] = ev_part
+                changed = True
+
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            base = len(individual) - n_appliance_genes
+            mutable_positions = [
+                (base + position, len(gene.allowed_start_slots) - 1)
+                for position, gene in enumerate(self.appliance_layout.genes)
+                if len(gene.allowed_start_slots) > 1
+            ]
+            if mutable_positions:
+                position, upper = random.choice(mutable_positions)  # noqa: S311
+                old_value = int(individual[position])
+                replacement = random.randint(0, upper - 1)  # noqa: S311
+                if replacement >= old_value:
+                    replacement += 1
+                individual[position] = replacement
+                changed = True
+        return changed
+
+    def mutate(self, individual: list[int]) -> tuple[list[int]]:
+        """Apply one coherent mutation family instead of stacking destructive changes."""
+        operation = random.random()  # noqa: S311
+        changed = False
+        if operation < 0.50:
+            changed = self._mutate_point_controls(individual)
+        elif operation < 0.70:
+            before = list(individual)
+            self._mutate_battery_block(individual)
+            changed = individual != before
+        elif operation < 0.90:
+            changed = self._mutate_energy_shift(individual)
+        else:
+            changed = self._mutate_flexible_controls(individual)
+
+        # Some specialized moves are unavailable without EV, appliances or a
+        # viable grid-export opportunity. Always return a genuinely changed
+        # future control so an offspring budget is not silently wasted.
+        if not changed:
+            self._mutate_point_controls(individual)
+
+        if self.optimize_ev and self.fixed_eauto_hours > 0:
+            ev_end = self.control_end_slot * 2
+            individual[ev_end - self.fixed_eauto_hours : ev_end] = [0] * self.fixed_eauto_hours
 
         return (individual,)
 
@@ -545,33 +1834,39 @@ class GeneticOptimization(OptimizationBase):
     def create_individual(self) -> list[int]:
         # Start with discharge states for the individual
         individual_components = [
-            self.toolbox.attr_discharge_state() for _ in range(self.config.prediction.hours)
+            self.toolbox.attr_discharge_state() for _ in range(self.control_end_slot)
         ]
 
         # Add EV charge index values if optimize_ev is True
         if self.optimize_ev:
-            individual_components += [
-                self.toolbox.attr_ev_charge_index() for _ in range(self.config.prediction.hours)
+            ev_controls = [
+                self.toolbox.attr_ev_charge_index() for _ in range(self.control_end_slot)
             ]
+            if self.fixed_eauto_hours > 0:
+                ev_controls[-self.fixed_eauto_hours :] = [0] * self.fixed_eauto_hours
+            individual_components += ev_controls
 
-        # Add the start time of the household appliance if it's being optimized
-        if self.opti_param["home_appliance"] > 0:
-            individual_components += [self.toolbox.attr_int()]
+        # Add one appliance start gene per scheduled run (index into that run's
+        # allowed_start_slots). No draws happen when there are no appliances, so
+        # the battery/EV-only genome is unchanged.
+        for gene in self.appliance_layout.genes:
+            individual_components.append(random.randint(0, len(gene.allowed_start_slots) - 1))  # noqa: S311
 
         return creator.Individual(individual_components)
 
     def merge_individual(
         self,
         discharge_hours_bin: np.ndarray,
-        ev_charge_hours_index: Optional[np.ndarray],
-        washingstart_int: Optional[int],
+        eautocharge_hours_index: Optional[np.ndarray],
+        appliance_gene_values: Optional[list[int]],
     ) -> list[int]:
         """Merge the individual components back into a single solution list.
 
         Parameters:
             discharge_hours_bin (np.ndarray): Binary discharge hours.
-            ev_charge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
-            washingstart_int (Optional[int]): Dishwasher start time as integer, or None.
+            eautocharge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
+            appliance_gene_values (Optional[list[int]]): One index per appliance
+                start gene (into the gene's allowed_start_slots), or None.
 
         Returns:
             list[int]: The merged individual solution as a list of integers.
@@ -580,53 +1875,828 @@ class GeneticOptimization(OptimizationBase):
         individual = discharge_hours_bin.tolist()
 
         # Add EV charge hours if applicable
-        if self.optimize_ev and ev_charge_hours_index is not None:
-            individual.extend(ev_charge_hours_index.tolist())
+        if self.optimize_ev and eautocharge_hours_index is not None:
+            individual.extend(eautocharge_hours_index.tolist())
         elif self.optimize_ev:
-            # If optimize_ev is active but no EV data is available, append zeros
-            individual.extend([0] * self.config.prediction.hours)
+            # optimize_ev active but no EV data present: pad with zeros
+            individual.extend([0] * self.control_end_slot)
 
-        # Add dishwasher start time if applicable
-        if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int is not None:
-            individual.append(washingstart_int)
-        elif self.opti_param.get("home_appliance", 0) > 0:
-            # If a home appliance is optimized but no start time is available
-            individual.append(0)
+        # Add appliance start genes (one index per scheduled run).
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            if appliance_gene_values is not None:
+                individual.extend(int(value) for value in appliance_gene_values)
+            else:
+                individual.extend([0] * n_appliance_genes)
 
         return individual
 
     def split_individual(
         self, individual: list[int]
-    ) -> tuple[np.ndarray, Optional[np.ndarray], Optional[int]]:
+    ) -> tuple[np.ndarray, Optional[np.ndarray], list[int]]:
         """Split the individual solution into its components.
 
         Components:
         1. Discharge hours (binary as int NumPy array),
         2. Electric vehicle charge hours (float as int NumPy array, if applicable),
-        3. Dishwasher start time (integer if applicable).
+        3. Appliance start genes (list of indices, one per scheduled run).
         """
         # Discharge hours as a NumPy array of ints
-        discharge_hours_bin = np.array(individual[: self.config.prediction.hours], dtype=int)
+        discharge_hours_bin = np.array(individual[: self.control_end_slot], dtype=int)
 
         # EV charge hours as a NumPy array of ints (if optimize_ev is True)
-        ev_charge_hours_index = (
+        eautocharge_hours_index = (
             # append ev charging states to individual
             np.array(
-                individual[self.config.prediction.hours : self.config.prediction.hours * 2],
+                individual[self.control_end_slot : self.control_end_slot * 2],
                 dtype=int,
             )
             if self.optimize_ev
             else None
         )
 
-        # Washing machine start time as an integer (if applicable)
-        washingstart_int = (
-            int(individual[-1])
-            if self.opti_param and self.opti_param.get("home_appliance", 0) > 0
-            else None
+        # Appliance start genes are the trailing entries of the genome.
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            appliance_gene_values = [int(value) for value in individual[-n_appliance_genes:]]
+        else:
+            appliance_gene_values = []
+
+        return discharge_hours_bin, eautocharge_hours_index, appliance_gene_values
+
+    def _repair_ev_charge_at_full_soc(
+        self,
+        individual: list[int],
+        simulation_result: dict[str, Any],
+    ) -> bool:
+        """Remove EV charging genes in slots that begin at full SoC.
+
+        The repair is deliberately separated from fitness calculation. Callers
+        must re-simulate after a change so the individual's genome, simulation
+        state and assigned fitness always describe the same schedule.
+        """
+        ev_possible_charge_values = getattr(self, "ev_possible_charge_values", None)
+        if not self.optimize_ev or not ev_possible_charge_values:
+            return False
+
+        zero_charge_index = min(
+            range(len(ev_possible_charge_values)),
+            key=lambda index: abs(ev_possible_charge_values[index]),
+        )
+        if abs(ev_possible_charge_values[zero_charge_index]) > 1e-12:
+            return False
+
+        _, ev_charge_indices, _ = self.split_individual(individual)
+        if ev_charge_indices is None:
+            return False
+
+        ev_soc = np.asarray(simulation_result.get("EAuto_SoC_pro_Stunde", []), dtype=float)
+        start_slot = self._control_start_slot()
+        result_slots = min(ev_soc.size, self.control_end_slot - start_slot)
+        if result_slots <= 0:
+            return False
+
+        changed = False
+        for offset in range(result_slots):
+            slot = start_slot + offset
+            charge_index = int(ev_charge_indices[slot])
+            if ev_soc[offset] >= 100.0 - 1e-9 and ev_possible_charge_values[charge_index] > 0.0:
+                ev_charge_indices[slot] = zero_charge_index
+                changed = True
+
+        if changed:
+            battery_genes, _, appliance_genes = self.split_individual(individual)
+            individual[:] = self.merge_individual(
+                battery_genes,
+                ev_charge_indices,
+                appliance_genes,
+            )
+        return changed
+
+    def _heuristic_ev_schedule(self, *, prefer_pv: bool) -> list[int]:
+        """Build a low-cost EV schedule that reaches the configured minimum SoC."""
+        if not self.optimize_ev or not self.ev_possible_charge_values:
+            return []
+
+        zero_index = min(
+            range(len(self.ev_possible_charge_values)),
+            key=lambda index: abs(self.ev_possible_charge_values[index]),
+        )
+        schedule = [zero_index] * self.control_end_slot
+        ev = self.simulation.ev
+        if ev is None:
+            return schedule
+
+        required_stored_wh = max(
+            ev.min_soc_wh - ev.capacity_wh * ev.initial_soc_percentage / 100.0,
+            0.0,
+        )
+        if required_stored_wh <= 0.0:
+            return schedule
+
+        start_slot = self._control_start_slot()
+        end_slot = max(start_slot, self.control_end_slot - self.fixed_eauto_hours)
+        deadline_slot = self._ev_soc_deadline_slot
+        if deadline_slot is not None:
+            # Charging after the deadline does not help to reach the target.
+            end_slot = max(start_slot, min(end_slot, deadline_slot))
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+        pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        load = np.asarray(self.simulation.load_energy_array, dtype=float)
+
+        def marginal_cost(slot: int) -> tuple[float, float]:
+            surplus = pv[slot] - load[slot]
+            if prefer_pv and surplus > 0.0:
+                return (float(feed_in[slot]), -float(surplus))
+            return (float(prices[slot]), -float(surplus))
+
+        candidates = sorted(range(start_slot, end_slot), key=marginal_cost)
+        positive_rates = sorted(
+            (
+                (rate, index)
+                for index, rate in enumerate(self.ev_possible_charge_values)
+                if rate > 0.0
+            ),
+            key=lambda item: item[0],
+        )
+        if not positive_rates:
+            return schedule
+
+        max_stored_wh = ev.max_charge_power_w * self.slot_duration_h * ev.charging_efficiency
+        remaining_wh = required_stored_wh
+        for slot in candidates:
+            required_rate = remaining_wh / max(max_stored_wh, 1e-9)
+            rate, rate_index = next(
+                (item for item in positive_rates if item[0] >= required_rate),
+                positive_rates[-1],
+            )
+            schedule[slot] = rate_index
+            remaining_wh -= max_stored_wh * rate
+            if remaining_wh <= 1e-9:
+                break
+        return schedule
+
+    def _heuristic_appliance_genes(self) -> list[int]:
+        """Choose low-opportunity-cost starts for flexible appliances."""
+        if self.appliance_layout.n_genes == 0:
+            return []
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+        pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        load = np.asarray(self.simulation.load_energy_array, dtype=float)
+        genes: list[int] = []
+        for gene in self.appliance_layout.genes:
+
+            def opportunity_cost(position: int) -> float:
+                slot = gene.allowed_start_slots[position]
+                return float(feed_in[slot] if pv[slot] > load[slot] else prices[slot])
+
+            genes.append(min(range(len(gene.allowed_start_slots)), key=opportunity_cost))
+        return genes
+
+    def _educated_guess_individuals(
+        self,
+        target_count: int = EDUCATED_GUESS_TARGET,
+    ) -> list[list[int]]:
+        """Create a randomized family of domain-informed initial candidates."""
+        if target_count <= 0:
+            return []
+
+        slots = self.control_end_slot
+        start_slot = self._control_start_slot()
+        len_bat = len(self.bat_possible_charge_values)
+        state_layout = self._battery_state_layout()
+        idle_state = 0
+        discharge_state = len_bat
+        ac_charge_state = 3 * len_bat - 1
+        dc_allowed_state = state_layout.dc_allowed_state
+        export_state = state_layout.grid_export_state
+        self_consumption_state = state_layout.self_consumption_state
+
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+        pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        load = np.asarray(self.simulation.load_energy_array, dtype=float)
+        future = slice(start_slot, slots)
+        future_prices = prices[future]
+        future_feed_in = feed_in[future]
+        high_import_price = float(np.quantile(future_prices, 0.70))
+        low_import_price = float(np.quantile(future_prices, 0.25))
+        feed_spread = float(np.ptp(future_feed_in)) if future_feed_in.size else 0.0
+
+        ev_price = self._heuristic_ev_schedule(prefer_pv=False)
+        ev_pv = self._heuristic_ev_schedule(prefer_pv=True)
+        appliance_genes = self._heuristic_appliance_genes()
+
+        def compose(battery_genes: list[int], ev_genes: list[int]) -> list[int]:
+            individual = list(battery_genes)
+            if self.optimize_ev:
+                individual.extend(ev_genes)
+            individual.extend(appliance_genes)
+            return individual
+
+        unique: dict[tuple[int, ...], list[int]] = {}
+
+        def add_guess(battery_genes: list[int], ev_genes: list[int]) -> None:
+            guess = compose(battery_genes, ev_genes)
+            unique.setdefault(tuple(guess), guess)
+
+        def policy_guess(
+            *,
+            import_quantile: float,
+            export_quantile: Optional[float],
+            pv_surplus_ratio: float,
+            allow_ac_arbitrage: bool,
+        ) -> list[int]:
+            import_threshold = float(np.quantile(future_prices, import_quantile))
+            export_threshold = (
+                float(np.quantile(future_feed_in, export_quantile))
+                if export_quantile is not None and future_feed_in.size
+                else float("inf")
+            )
+            low_price_threshold = float(
+                np.quantile(future_prices, max(0.05, 1.0 - import_quantile))
+            )
+            battery_genes = [idle_state] * slots
+            for slot in range(start_slot, slots):
+                high_feed_in = (
+                    export_quantile is not None
+                    and export_state is not None
+                    and feed_spread > 1e-12
+                    and feed_in[slot] > 0.0
+                    and feed_in[slot] >= export_threshold
+                )
+                pv_surplus = pv[slot] > load[slot] * pv_surplus_ratio
+                if high_feed_in and export_state is not None:
+                    battery_genes[slot] = export_state
+                elif self_consumption_state is not None and pv[slot] > 0.0 and load[slot] > 0.0:
+                    # The probabilistic inverter model can see a residual load
+                    # and a PV surplus within the same coarse slot. Normal
+                    # self-consumption must therefore allow both directions.
+                    battery_genes[slot] = self_consumption_state
+                elif dc_allowed_state is not None and pv_surplus:
+                    battery_genes[slot] = dc_allowed_state
+                elif allow_ac_arbitrage and prices[slot] <= low_price_threshold:
+                    battery_genes[slot] = ac_charge_state
+                elif prices[slot] >= import_threshold and load[slot] > pv[slot]:
+                    battery_genes[slot] = discharge_state
+            return battery_genes
+
+        # Baseline and self-consumption candidates are useful even without
+        # direct marketing and anchor the population with feasible schedules.
+        add_guess([idle_state] * slots, ev_price)
+        add_guess(
+            policy_guess(
+                import_quantile=0.70,
+                export_quantile=None,
+                pv_surplus_ratio=1.0,
+                allow_ac_arbitrage=False,
+            ),
+            ev_pv,
         )
 
-        return discharge_hours_bin, ev_charge_hours_index, washingstart_int
+        # Direct marketing candidates export only in the relatively expensive
+        # feed-in slots. At low tariffs PV is preferentially stored instead.
+        if self.optimize_battery_grid_export and future_feed_in.size:
+            for quantile in self.EDUCATED_GUESS_EXPORT_QUANTILES:
+                export_guess = policy_guess(
+                    import_quantile=0.70,
+                    export_quantile=quantile,
+                    pv_surplus_ratio=1.0,
+                    allow_ac_arbitrage=False,
+                )
+                add_guess(
+                    export_guess,
+                    ev_pv,
+                )
+                # Seed coordinated alternatives that retain a weak export and
+                # spend the energy in later expensive import slots.
+                for shifted in self._grid_export_shift_candidates(
+                    export_guess,
+                    max_sources=2,
+                )[:6]:
+                    add_guess(shifted, ev_pv)
+
+        inverter = self.simulation.inverter
+        ac_arbitrage_possible = inverter is not None and (
+            inverter.max_ac_charge_power_w is None or inverter.max_ac_charge_power_w > 0
+        )
+        if ac_arbitrage_possible:
+            price_arbitrage = [idle_state] * slots
+            for slot in range(start_slot, slots):
+                if prices[slot] <= low_import_price:
+                    price_arbitrage[slot] = ac_charge_state
+                elif prices[slot] >= high_import_price:
+                    price_arbitrage[slot] = discharge_state
+            add_guess(price_arbitrage, ev_price)
+
+        # Randomize policy thresholds rather than merely cloning a handful of
+        # templates. Every candidate remains policy-safe: a flat/low-information
+        # feed-in series never acquires export actions through blind mutation.
+        attempts = max(target_count * 20, 100)
+        for _ in range(attempts):
+            export_quantile = (
+                random.uniform(0.50, 0.98)  # noqa: S311
+                if self.optimize_battery_grid_export and feed_spread > 1e-12
+                else None
+            )
+            randomized = policy_guess(
+                import_quantile=random.uniform(0.55, 0.95),  # noqa: S311
+                export_quantile=export_quantile,
+                pv_surplus_ratio=random.uniform(0.80, 1.20),  # noqa: S311
+                allow_ac_arbitrage=ac_arbitrage_possible and random.random() < 0.35,  # noqa: S311
+            )
+
+            # Add small policy-safe local variations. These provide diversity
+            # even when price quantiles collapse to only a few distinct slot
+            # masks. Export is only ever removed here, never introduced into a
+            # slot that the tariff policy did not mark as attractive.
+            future_slots = list(range(start_slot, slots))
+            perturbations = random.randint(1, max(2, len(future_slots) // 12))  # noqa: S311
+            for slot in random.sample(future_slots, min(perturbations, len(future_slots))):  # noqa: S311
+                if randomized[slot] != idle_state:
+                    randomized[slot] = idle_state
+                elif self_consumption_state is not None and pv[slot] > 0.0 and load[slot] > 0.0:
+                    randomized[slot] = self_consumption_state
+                elif dc_allowed_state is not None and pv[slot] > load[slot]:
+                    randomized[slot] = dc_allowed_state
+                elif load[slot] > pv[slot] and prices[slot] >= high_import_price:
+                    randomized[slot] = discharge_state
+
+            if random.random() < 0.5:  # noqa: S311
+                self._mutate_energy_shift(randomized)
+
+            add_guess(
+                randomized,
+                ev_pv if random.random() < 0.5 else ev_price,  # noqa: S311
+            )
+            if len(unique) >= target_count:
+                break
+
+        return list(unique.values())[:target_count]
+
+    def _mutated_warm_start_neighbors(
+        self,
+        start_solution: list[float],
+        count: int,
+    ) -> list[list[int]]:
+        """Create unique local variants while preserving already elapsed slots."""
+        original = [int(value) for value in start_solution]
+        start_slot = self._control_start_slot()
+        seen = {tuple(original)}
+        neighbors: list[list[int]] = []
+        for _ in range(max(count * 10, 1)):
+            neighbor = creator.Individual(original)
+            self.mutate(neighbor)
+            neighbor[:start_slot] = original[:start_slot]
+            if self.optimize_ev:
+                ev_start = self.control_end_slot
+                neighbor[ev_start : ev_start + start_slot] = original[
+                    ev_start : ev_start + start_slot
+                ]
+            key = tuple(int(value) for value in neighbor)
+            if key in seen:
+                continue
+            seen.add(key)
+            neighbors.append(list(key))
+            if len(neighbors) >= count:
+                break
+        return neighbors
+
+    def _grid_export_shift_candidates(
+        self,
+        individual: list[int],
+        *,
+        max_sources: int = 6,
+    ) -> list[list[int]]:
+        """Build deterministic export-to-self-consumption neighbourhood candidates."""
+        state_layout = self._battery_state_layout()
+        export_states = set(state_layout.grid_export_states)
+        self_state = state_layout.self_consumption_state
+        if not export_states or self_state is None:
+            return []
+
+        start_slot = self._control_start_slot()
+        try:
+            feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+            pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        except Exception:
+            return []
+        if feed_in.size < self.control_end_slot or pv.size < self.control_end_slot:
+            return []
+
+        sources = [
+            slot
+            for slot in range(start_slot, self.control_end_slot)
+            if int(individual[slot]) in export_states
+        ]
+        # Search weak and late export decisions first. They are the most likely
+        # to compete with later, more valuable avoided grid imports.
+        sources.sort(key=lambda slot: (float(feed_in[slot]), -slot))
+
+        len_bat = len(self.bat_possible_charge_values)
+        candidates: list[list[int]] = []
+        seen: set[tuple[int, ...]] = set()
+        viable_sources = 0
+        for source_slot in sources:
+            targets = self._energy_shift_target_slots(individual, source_slot)
+            if not targets:
+                continue
+            viable_sources += 1
+            counts = sorted({min(len(targets), count) for count in (2, 4, 6, 8, 10, 12)})
+            for count in counts:
+                candidate = list(individual)
+                candidate[source_slot] = self_state
+                for target_slot in targets[:count]:
+                    candidate[target_slot] = self_state if pv[target_slot] > 0.0 else len_bat
+                key = tuple(int(value) for value in candidate)
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append(candidate)
+            if viable_sources >= max_sources:
+                break
+        return candidates
+
+    def _locally_improve_grid_export(
+        self,
+        individual: list[int],
+        *,
+        max_evaluations: int,
+    ) -> tuple[Any, int, int, float, float]:
+        """Improve the incumbent through bounded, fitness-checked energy shifts."""
+        best = creator.Individual(individual)
+        original_fitness = getattr(individual, "fitness", None)
+        if original_fitness is not None and original_fitness.valid:
+            best.fitness.values = original_fitness.values
+        if hasattr(individual, "extra_data"):
+            best.extra_data = individual.extra_data
+
+        if not hasattr(self.toolbox, "evaluate"):
+            value = float(best.fitness.values[0]) if best.fitness.valid else float("inf")
+            return best, 0, 0, value, value
+        if not best.fitness.valid:
+            best.fitness.values = self.toolbox.evaluate(best)
+
+        initial_value = float(best.fitness.values[0])
+        evaluations = 0
+        improvements = 0
+        for _ in range(self.LOCAL_SEARCH_MAX_PASSES):
+            pass_best = best
+            for genome in self._grid_export_shift_candidates(best):
+                if evaluations >= max_evaluations:
+                    break
+                candidate = creator.Individual(genome)
+                candidate.fitness.values = self.toolbox.evaluate(candidate)
+                evaluations += 1
+                if candidate.fitness.values[0] < pass_best.fitness.values[0] - 1e-9:
+                    pass_best = candidate
+            if pass_best is best:
+                break
+            best = pass_best
+            improvements += 1
+            if evaluations >= max_evaluations:
+                break
+
+        final_value = float(best.fitness.values[0])
+        return best, evaluations, improvements, initial_value, final_value
+
+    def _population_diversity(self, population: list[Any]) -> float:
+        """Return the fraction of fitness-relevant unique genomes."""
+        if not population:
+            return 0.0
+        return len({self._fitness_key(individual) for individual in population}) / len(population)
+
+    def _invalidate_individual(self, individual: Any) -> None:
+        """Invalidate inherited fitness and auxiliary simulation values."""
+        if individual.fitness.valid:
+            del individual.fitness.values
+        if hasattr(individual, "extra_data"):
+            del individual.extra_data
+        # A child of a protected immigrant is an ordinary offspring.
+        if hasattr(individual, "immigrant_protection"):
+            del individual.immigrant_protection
+
+    def _evaluate_invalid(self, population: list[Any]) -> int:
+        """Evaluate invalid individuals and return the number of cache lookups."""
+        invalid = [individual for individual in population if not individual.fitness.valid]
+        fitnesses = self.toolbox.map(self.toolbox.evaluate, invalid)
+        for individual, fitness in zip(invalid, fitnesses):
+            individual.fitness.values = fitness
+        return len(invalid)
+
+    def _fresh_population(self, count: int, *, educated_fraction: float) -> list[Any]:
+        """Create a mixed set of current educated guesses and random immigrants."""
+        if count <= 0:
+            return []
+        educated_target = min(count, int(count * educated_fraction + 0.5))
+        educated = self._educated_guess_individuals(educated_target)
+        fresh = [creator.Individual(genome) for genome in educated[:count]]
+        fresh.extend(self.toolbox.population(n=count - len(fresh)))
+        return fresh
+
+    def _best_unique(self, population: list[Any], count: int) -> list[Any]:
+        """Return the best fitness-relevant unique candidates."""
+        selected: list[Any] = []
+        seen: set[tuple[int, ...]] = set()
+        for candidate in tools.selBest(population, len(population)):
+            key = self._fitness_key(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            selected.append(candidate)
+            if len(selected) >= count:
+                break
+        return selected
+
+    def _reserve_immigrant_slots(
+        self,
+        candidates: list[Any],
+        selected: list[Any],
+        selected_keys: list[tuple[int, ...]],
+        best_key: tuple[int, ...],
+    ) -> bool:
+        """Carry still-protected immigrants into ``selected`` in place.
+
+        The tournament judges immigrants on the fitness they have before any
+        recombination, which they lose. Reserving a bounded share of the seats
+        gives their genes the generations they need to be crossed into the
+        incumbents.
+
+        Returns whether any seat was reassigned.
+        """
+        protected = [
+            candidate
+            for candidate in candidates
+            if getattr(candidate, "immigrant_protection", 0) > 0
+        ]
+        if not protected:
+            return False
+
+        limit = max(1, int(len(selected) * self.IMMIGRANT_PROTECTION_FRACTION))
+        chosen = {id(candidate) for candidate in selected}
+        seated = sum(1 for candidate in protected if id(candidate) in chosen)
+        missing = [candidate for candidate in protected if id(candidate) not in chosen]
+        if seated >= limit or not missing:
+            return False
+
+        # Evict the weakest seats that carry neither the incumbent genome nor a
+        # protection of their own, worst first.
+        evictable = sorted(
+            (
+                index
+                for index, candidate in enumerate(selected)
+                if selected_keys[index] != best_key
+                and getattr(candidate, "immigrant_protection", 0) <= 0
+            ),
+            key=lambda index: selected[index].fitness.values[0],
+            reverse=True,
+        )
+        reassigned = False
+        for immigrant, index in zip(missing[: limit - seated], evictable):
+            selected[index] = immigrant
+            reassigned = True
+        return reassigned
+
+    def _age_immigrant_protection(self, population: list[Any]) -> None:
+        """Spend one generation of the surviving immigrants' protection."""
+        for individual in population:
+            remaining = getattr(individual, "immigrant_protection", 0)
+            if remaining > 0:
+                individual.immigrant_protection = remaining - 1
+
+    def _select_diverse(self, candidates: list[Any], count: int) -> list[Any]:
+        """Tournament-select while repairing only severe duplicate takeover."""
+        if not candidates or count <= 0:
+            return []
+
+        selected = tools.selTournament(candidates, count, tournsize=3)
+        best = tools.selBest(candidates, 1)[0]
+        best_key = self._fitness_key(best)
+        selected_keys = [self._fitness_key(candidate) for candidate in selected]
+        if best_key not in selected_keys:
+            worst_index = max(
+                range(len(selected)),
+                key=lambda index: selected[index].fitness.values[0],
+            )
+            selected[worst_index] = best
+            selected_keys[worst_index] = best_key
+
+        if self._reserve_immigrant_slots(candidates, selected, selected_keys, best_key):
+            selected_keys = [self._fitness_key(candidate) for candidate in selected]
+
+        # Duplicates are useful for exploitation and cache hits. Replace only
+        # enough duplicate selections to keep a minimum search breadth.
+        target_unique = min(
+            count,
+            max(1, int(count * self.SELECTION_DIVERSITY_FLOOR + 0.999999)),
+        )
+        key_counts: dict[tuple[int, ...], int] = defaultdict(int)
+        for key in selected_keys:
+            key_counts[key] += 1
+        if len(key_counts) >= target_unique:
+            return selected
+
+        for candidate in tools.selBest(candidates, len(candidates)):
+            candidate_key = self._fitness_key(candidate)
+            if candidate_key in key_counts:
+                continue
+            replaceable = [index for index, key in enumerate(selected_keys) if key_counts[key] > 1]
+            if not replaceable:
+                break
+            replace_index = max(
+                replaceable,
+                key=lambda index: selected[index].fitness.values[0],
+            )
+            replaced_key = selected_keys[replace_index]
+            key_counts[replaced_key] -= 1
+            selected[replace_index] = candidate
+            selected_keys[replace_index] = candidate_key
+            key_counts[candidate_key] = 1
+            if len(key_counts) >= target_unique:
+                break
+        return selected
+
+    def _make_offspring(
+        self,
+        population: list[Any],
+        count: int,
+        *,
+        mutation_probability: float,
+    ) -> list[Any]:
+        """Create offspring where crossover and mutation can both be applied."""
+        offspring: list[Any] = []
+        for _ in range(count):
+            child = self.toolbox.clone(random.choice(population))  # noqa: S311
+            crossed = False
+            if (
+                len(child) > 1
+                and len(population) > 1
+                and random.random() < self.CROSSOVER_PROBABILITY  # noqa: S311
+            ):
+                partner = self.toolbox.clone(random.choice(population))  # noqa: S311
+                child, _ = self.toolbox.mate(child, partner)
+                crossed = True
+
+            # Non-crossover offspring are always mutated. Crossover children are
+            # independently mutated, preventing identical parents from turning
+            # most of the generation into unchanged copies.
+            if not crossed or random.random() < mutation_probability:  # noqa: S311
+                (child,) = self.toolbox.mutate(child)
+            self._invalidate_individual(child)
+            offspring.append(child)
+        return offspring
+
+    def _evolve_population_adaptive(
+        self,
+        population: list[Any],
+        *,
+        mu: int,
+        lambda_: int,
+        ngen: int,
+        stats: Any,
+        halloffame: Any,
+    ) -> tuple[list[Any], Any]:
+        """Evolve with diversity boosts and incumbent-preserving soft restarts."""
+        logbook = tools.Logbook()
+        logbook.header = [
+            "gen",
+            "nevals",
+            *stats.fields,
+            "diversity",
+            "stagnation",
+            "immigrants",
+            "restart",
+        ]
+
+        nevals = self._evaluate_invalid(population)
+        halloffame.update(population)
+        best_fitness = float(halloffame[0].fitness.values[0])
+        stagnation = 0
+        diversity = self._population_diversity(population)
+        record = stats.compile(population)
+        logbook.record(
+            gen=0,
+            nevals=nevals,
+            diversity=diversity,
+            stagnation=stagnation,
+            immigrants=0,
+            restart=0,
+            **record,
+        )
+        if self.verbose:
+            print(logbook.stream)
+
+        diversity_boost_active = False
+        soft_restarts = 0
+        total_immigrants = 0
+        minimum_diversity = diversity
+        for generation in range(1, ngen + 1):
+            diversity = self._population_diversity(population)
+            soft_restart = (
+                stagnation >= self.SOFT_RESTART_GENERATIONS
+                or diversity < self.SOFT_RESTART_DIVERSITY_THRESHOLD
+            )
+            immigrants = 0
+
+            if soft_restart:
+                survivor_count = max(1, int(mu * self.SOFT_RESTART_SURVIVOR_FRACTION))
+                survivors = self._best_unique(population, survivor_count)
+                immigrants = mu - len(survivors)
+                population = survivors + self._fresh_population(
+                    immigrants,
+                    educated_fraction=0.40,
+                )
+                nevals = self._evaluate_invalid(population)
+                halloffame.update(population)
+                soft_restarts += 1
+                total_immigrants += immigrants
+                stagnation = 0
+                diversity_boost_active = False
+                self._age_immigrant_protection(population)
+                logger.info(
+                    "Genetic soft restart at generation {}: kept {} unique survivors, "
+                    "injected {} immigrants (diversity {:.1%}).",
+                    generation,
+                    len(survivors),
+                    immigrants,
+                    diversity,
+                )
+            else:
+                diversity_boost = (
+                    stagnation >= self.STAGNATION_GENERATIONS
+                    or diversity < self.DIVERSITY_BOOST_THRESHOLD
+                )
+                if diversity_boost and not diversity_boost_active:
+                    logger.info(
+                        "Genetic diversity boost at generation {}: stagnation {}, "
+                        "diversity {:.1%}.",
+                        generation,
+                        stagnation,
+                        diversity,
+                    )
+                elif diversity_boost_active and not diversity_boost:
+                    logger.info(
+                        "Genetic diversity boost ended at generation {}: stagnation {}, "
+                        "diversity {:.1%}.",
+                        generation,
+                        stagnation,
+                        diversity,
+                    )
+                diversity_boost_active = diversity_boost
+                mutation_probability = (
+                    self.STAGNATION_MUTATION_PROBABILITY
+                    if diversity_boost
+                    else self.MUTATION_PROBABILITY
+                )
+                if diversity_boost:
+                    immigrants = max(1, int(lambda_ * self.IMMIGRANT_FRACTION + 0.5))
+                offspring = self._make_offspring(
+                    population,
+                    lambda_ - immigrants,
+                    mutation_probability=mutation_probability,
+                )
+                fresh = self._fresh_population(immigrants, educated_fraction=0.50)
+                for immigrant in fresh:
+                    immigrant.immigrant_protection = self.IMMIGRANT_PROTECTION_GENERATIONS
+                offspring.extend(fresh)
+                nevals = self._evaluate_invalid(offspring)
+                halloffame.update(offspring)
+                population = self._select_diverse(population + offspring, mu)
+                self._age_immigrant_protection(population)
+                total_immigrants += immigrants
+
+            current_best = float(halloffame[0].fitness.values[0])
+            if current_best < best_fitness - 1e-9:
+                best_fitness = current_best
+                stagnation = 0
+            elif not soft_restart:
+                stagnation += 1
+
+            diversity = self._population_diversity(population)
+            minimum_diversity = min(minimum_diversity, diversity)
+            record = stats.compile(population)
+            logbook.record(
+                gen=generation,
+                nevals=nevals,
+                diversity=diversity,
+                stagnation=stagnation,
+                immigrants=immigrants,
+                restart=int(soft_restart),
+                **record,
+            )
+            if self.verbose:
+                print(logbook.stream)
+
+        self._adaptive_evolution_metrics = {
+            "soft_restarts": soft_restarts,
+            "immigrants": total_immigrants,
+            "minimum_diversity": minimum_diversity,
+            "final_diversity": self._population_diversity(population),
+            "final_stagnation": stagnation,
+        }
+        return population, logbook
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
@@ -650,10 +2720,9 @@ class GeneticOptimization(OptimizationBase):
         # Discharge: len_bat states
         # AC-Charge: len_bat states  (maps to bat_possible_charge_values)
         # With DC: + 2 additional states
-        if self.optimize_dc_charge:
-            total_states = 3 * len_bat + 2
-        else:
-            total_states = 3 * len_bat
+        # With battery grid export: + 1 additional state
+        # With DC: + 1 final SELF_CONSUMPTION state
+        total_states = self._battery_state_layout().total_states
 
         # State space: 0 .. (total_states - 1)
         self.toolbox.register("attr_discharge_state", random.randint, 0, total_states - 1)
@@ -667,16 +2736,25 @@ class GeneticOptimization(OptimizationBase):
                 len_ev - 1,
             )
 
-        # Household appliance start time
-        self.toolbox.register("attr_int", random.randint, start_hour, 23)
-
         self.toolbox.register("individual", self.create_individual)
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
 
-        # Mutation operator for battery charge/discharge states
+        # Keep point mutations local enough to refine a mature schedule. The
+        # expected number of changed controls remains close to three regardless
+        # of interval and elapsed slots; coherent block/energy moves are handled
+        # by separate mutation families.
+        active_slots = max(self.control_end_slot - self._control_start_slot(), 1)
+        mutation_probability = min(
+            0.10,
+            self.POINT_MUTATION_EXPECTED_GENES / active_slots,
+        )
         self.toolbox.register(
-            "mutate_charge_discharge", tools.mutUniformInt, low=0, up=total_states - 1, indpb=0.2
+            "mutate_charge_discharge",
+            tools.mutUniformInt,
+            low=0,
+            up=total_states - 1,
+            indpb=mutation_probability,
         )
 
         # Mutation operator for EV states (separate index space)
@@ -685,11 +2763,8 @@ class GeneticOptimization(OptimizationBase):
             tools.mutUniformInt,
             low=0,
             up=len_ev - 1,
-            indpb=0.2,
+            indpb=mutation_probability,
         )
-
-        # Mutation for household appliance
-        self.toolbox.register("mutate_hour", tools.mutUniformInt, low=start_hour, up=23, indpb=0.2)
 
         # Custom mutate function remains unchanged
         self.toolbox.register("mutate", self.mutate)
@@ -701,41 +2776,133 @@ class GeneticOptimization(OptimizationBase):
         This is an internal function.
         """
         self.simulation.reset()
-        discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = self.split_individual(
             individual
         )
 
-        if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int:
-            # Set start hour for appliance
-            self.simulation.home_appliance_start_hour = washingstart_int
+        # Decode the appliance start genes and (re)build each appliance's load
+        # curve for this candidate solution.
+        self._apply_appliance_starts(appliance_gene_values)
+        if appliance_gene_values:
+            individual[-len(appliance_gene_values) :] = appliance_gene_values
 
-        ac_charge_hours, dc_charge_hours, discharge = self.decode_charge_discharge(
-            discharge_hours_bin
+        ac_charge_hours, dc_charge_hours, discharge, battery_grid_export = (
+            self.decode_charge_discharge(discharge_hours_bin)
         )
 
         self.simulation.bat_discharge_hours = discharge
+        self.simulation.bat_grid_export_hours = battery_grid_export
         # Set DC charge hours only if DC optimization is enabled
         if self.optimize_dc_charge:
             self.simulation.dc_charge_hours = dc_charge_hours
         else:
-            self.simulation.dc_charge_hours = np.full(self.config.prediction.hours, 1)
+            self.simulation.dc_charge_hours = np.full(self.control_end_slot, 1)
         self.simulation.ac_charge_hours = ac_charge_hours
 
-        if ev_charge_hours_index is not None:
-            ev_charge_hours_float = np.array(
-                [self.ev_possible_charge_values[i] for i in ev_charge_hours_index],
+        if eautocharge_hours_index is not None:
+            eautocharge_hours_float = np.array(
+                [self.ev_possible_charge_values[i] for i in eautocharge_hours_index],
                 float,
             )
             # discharge is set to 0 by default
-            self.simulation.ev_charge_hours = ev_charge_hours_float
+            self.simulation.ev_charge_hours = eautocharge_hours_float
         else:
             # discharge is set to 0 by default
-            self.simulation.ev_charge_hours = np.full(self.config.prediction.hours, 0)
+            self.simulation.ev_charge_hours = np.full(self.control_end_slot, 0)
 
-        # Do the simulation and return result.
-        return self.simulation.simulate(self.ems.start_datetime.hour)
+        # Do the simulation and return result. simulate()'s argument is a slot
+        # index into the prediction/charge arrays, not an hour-of-day, so pass
+        # the start_day_slot to keep sub-hourly runs aligned.
+        return self.simulation.simulate(self._control_start_slot())
 
     def evaluate(
+        self,
+        individual: list[int],
+        parameters: GeneticOptimizationParameters,
+        start_hour: int,
+        worst_case: bool,
+    ) -> tuple[float]:
+        """Evaluate an individual, using run-local canonical memoization when active."""
+        # Some lightweight callers construct the optimizer without __init__
+        # (for example isolated penalty evaluations). Memoization is opt-in, so
+        # a missing flag must behave exactly like a disabled cache.
+        if not getattr(self, "_fitness_cache_enabled", False):
+            return self._evaluate_uncached(individual, parameters, start_hour, worst_case)
+
+        original_key = self._fitness_key(individual)
+        cached = self._fitness_cache.get(original_key)
+        if cached is not None:
+            individual[:] = cached.genome
+            individual.extra_data = cached.extra_data  # type: ignore[attr-defined]
+            self._fitness_cache_hits += 1
+            return cached.fitness
+
+        self._fitness_cache_misses += 1
+        fitness = self._evaluate_uncached(individual, parameters, start_hour, worst_case)
+        extra_data = getattr(individual, "extra_data", None)
+        if extra_data is None:
+            # Failed evaluations use the sentinel fitness and are intentionally
+            # not cached: an unexpected transient failure must never become a
+            # persistent result for the remainder of the run.
+            return fitness
+
+        canonical_key = self._fitness_key(individual)
+        extra_value1, extra_value2, extra_value3 = extra_data
+        entry = FitnessCacheEntry(
+            genome=tuple(int(value) for value in individual),
+            fitness=fitness,
+            extra_data=(
+                float(extra_value1),
+                float(extra_value2),
+                float(extra_value3),
+            ),
+        )
+        self._fitness_cache[original_key] = entry
+        self._fitness_cache[canonical_key] = entry
+        return fitness
+
+    def _fitness_key(self, individual: list[int]) -> tuple[int, ...]:
+        """Return the fitness-relevant genome, excluding elapsed control slots."""
+        start_slot = self._control_start_slot()
+        relevant = list(individual[start_slot : self.control_end_slot])
+        if self.optimize_ev:
+            ev_start = self.control_end_slot + start_slot
+            relevant.extend(individual[ev_start : self.control_end_slot * 2])
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            relevant.extend(individual[-n_appliance_genes:])
+        return tuple(int(value) for value in relevant)
+
+    def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
+        """EV state of charge the target is checked against [%].
+
+        Without a deadline this is the SoC after the last slot, which is what the
+        penalty always used. With a deadline it is the SoC at the beginning of
+        the deadline slot, i.e. after every charge that completes in time.
+
+        Args:
+            simulation_result: Result of the simulation run for this individual.
+            start_slot: Slot index the result arrays start at.
+
+        Returns:
+            State of charge in percent.
+        """
+        ev = self.simulation.ev
+        if ev is None:
+            return 0.0
+        # Lightweight callers construct the optimizer without __init__ (see
+        # evaluate()); a missing deadline must behave like no deadline.
+        deadline_slot = getattr(self, "_ev_soc_deadline_slot", None)
+        if deadline_slot is None:
+            return ev.current_soc_percentage()
+
+        soc_per_slot = simulation_result.get("EAuto_SoC_pro_Stunde")
+        index = deadline_slot - start_slot
+        if soc_per_slot is None or index >= len(soc_per_slot):
+            return ev.current_soc_percentage()
+        return float(soc_per_slot[max(index, 0)])
+
+    def _evaluate_uncached(
         self,
         individual: list[int],
         parameters: GeneticOptimizationParameters,
@@ -778,43 +2945,15 @@ class GeneticOptimization(OptimizationBase):
         """
         try:
             simulation_result = self.evaluate_inner(individual)
-        except Exception as e:
+            if self._repair_ev_charge_at_full_soc(individual, simulation_result):
+                simulation_result = self.evaluate_inner(individual)
+        except Exception:
             # Return bad fitness score ("FitnessMin") in case of an exception
+            if hasattr(individual, "extra_data"):
+                del individual.extra_data
             return (100000.0,)
 
-        total_balance = simulation_result["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
-
-        # EV 100% & charge not allowed
-        if self.optimize_ev:
-            discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
-                individual
-            )
-
-            ev_soc_per_hour = np.array(
-                simulation_result.get("EAuto_SoC_pro_Stunde", [])
-            )  # Beispielkey
-
-            if ev_soc_per_hour is None or ev_charge_hours_index is None:
-                raise ValueError("ev_soc_per_hour or ev_charge_hours_index is None")
-            min_length = min(ev_soc_per_hour.size, ev_charge_hours_index.size)
-            ev_soc_per_hour_tail = ev_soc_per_hour[-min_length:]
-            ev_charge_hours_index_tail = ev_charge_hours_index[-min_length:]
-
-            # Mask
-            invalid_charge_mask = (ev_soc_per_hour_tail == 100) & (ev_charge_hours_index_tail > 0)
-
-            if np.any(invalid_charge_mask):
-                invalid_indices = np.where(invalid_charge_mask)[0]
-                if len(invalid_indices) > 1:
-                    ev_charge_hours_index_tail[invalid_indices] = 0
-
-                ev_charge_hours_index[-min_length:] = ev_charge_hours_index_tail.tolist()
-
-                adjusted_individual = self.merge_individual(
-                    discharge_hours_bin, ev_charge_hours_index, washingstart_int
-                )
-
-                individual[:] = adjusted_individual
+        gesamtbilanz = simulation_result["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
 
         # New check: Activate discharge when battery SoC is 0
         # battery_soc_per_hour = np.array(
@@ -842,7 +2981,7 @@ class GeneticOptimization(OptimizationBase):
         #     # discharge_hours_bin_tail[zero_soc_mask] = (
         #     # len_ac + 2
         #     # )  # Activate discharge for these hours
-        #     set_to_len_ac_plus_2 = np.random.rand() < 0.5  # True with 50% probability
+        #     set_to_len_ac_plus_2 = np.random.rand() < 0.5  # True mit 50% Wahrscheinlichkeit
 
         #     # Werte setzen basierend auf der zufälligen Entscheidung
         #     value_to_set = len_ac + 2 if set_to_len_ac_plus_2 else 0
@@ -850,7 +2989,7 @@ class GeneticOptimization(OptimizationBase):
 
         #     # Merge the updated discharge_hours_bin back into the individual
         #     adjusted_individual = self.merge_individual(
-        #         discharge_hours_bin, ev_charge_hours_index, washingstart_int
+        #         discharge_hours_bin, eautocharge_hours_index, washingstart_int
         #     )
         #     individual[:] = adjusted_individual
 
@@ -863,15 +3002,13 @@ class GeneticOptimization(OptimizationBase):
             else 0,
         )
 
-        # Adjust total balance with battery value and penalties for unmet SOC
+        # Adjust total balance with battery value and penalties for unmet SOC.
+        # The terminal value is concave in AUTO mode: the first stored kWh
+        # replaces the most expensive hour after the horizon, the last one
+        # replaces nothing. A scalar cannot express that (see terminalvalue.py).
         if self.simulation.battery:
-            battery_energy_content = self.simulation.battery.current_energy_content()
-            # Apply DC→AC inverter efficiency to residual battery value
-            # (stored DC energy must pass through inverter to be usable as AC)
-            if self.simulation.inverter:
-                battery_energy_content *= self.simulation.inverter.dc_to_ac_efficiency
-            battery_residual_value = battery_energy_content * parameters.ems.price_per_wh_battery
-            total_balance += -battery_residual_value
+            restwert_akku, _ = self._terminal_value(parameters)
+            gesamtbilanz += -restwert_akku
 
         # --- AC charging break-even penalty ---
         # Penalise AC charging decisions that cannot be economically justified given the
@@ -889,6 +3026,7 @@ class GeneticOptimization(OptimizationBase):
         if (
             self.simulation.battery
             and self.simulation.inverter
+            and not isinstance(getattr(self, "_terminal_value_curve", None), TailValueCurve)
             and self.simulation.ac_charge_hours is not None
             and self.simulation.elect_price_hourly is not None
             and self.simulation.load_energy_array is not None
@@ -904,11 +3042,21 @@ class GeneticOptimization(OptimizationBase):
                 * inv.dc_to_ac_efficiency
             )
 
-            if round_trip_eff > 0:
+            # Configurable penalty multiplier (default 1 = economic loss in €)
+            try:
+                ac_penalty_factor = float(
+                    self.config.optimization.genetic.penalties["ac_charge_break_even"]
+                )
+            except Exception:
+                ac_penalty_factor = 1.0
+
+            # A factor of 0 multiplies every penalty term to zero - skip the
+            # whole computation in that case.
+            if round_trip_eff > 0 and ac_penalty_factor != 0.0:
                 ac_charge_arr = self.simulation.ac_charge_hours
                 prices_arr = self.simulation.elect_price_hourly
                 load_arr = self.simulation.load_energy_array
-                n = len(prices_arr)
+                n = min(len(prices_arr), self.control_end_slot)
 
                 # Usable AC energy already in battery from prior PV charging (zero grid cost).
                 # This covers the most expensive future hours first, pushing AC charging demand
@@ -920,13 +3068,13 @@ class GeneticOptimization(OptimizationBase):
                     * inv.dc_to_ac_efficiency
                 )
 
-                # Configurable penalty multiplier (default 1 = economic loss in currency units)
-                try:
-                    ac_penalty_factor = float(
-                        self.config.optimization.genetic.penalties["ac_charge_break_even"]
-                    )
-                except Exception:
-                    ac_penalty_factor = 1.0
+                # Prices/loads/free energy are constant within one optimization
+                # run - compute the break-even lookup once, reuse it for every
+                # individual (cache is reset per run in optimize_ems()).
+                best_prices = getattr(self, "_ac_break_even_best_prices", None)
+                if best_prices is None:
+                    best_prices = self._ac_break_even_prices(prices_arr, load_arr, free_ac_wh)
+                    self._ac_break_even_best_prices = best_prices
 
                 for hour in range(start_hour, min(len(ac_charge_arr), n)):
                     ac_factor = ac_charge_arr[hour]
@@ -937,75 +3085,68 @@ class GeneticOptimization(OptimizationBase):
                     if charge_price <= 0:
                         continue
 
-                    # Price that a future discharge hour must reach to break even
-                    break_even_price = charge_price / round_trip_eff
+                    # Price that a future AC discharge hour must reach to break
+                    # even. LCOS is defined per DC Wh delivered by the battery;
+                    # dividing it by DC-to-AC efficiency converts it to the
+                    # corresponding cost per useful/exported AC Wh.
+                    lcos_per_wh_dc = getattr(bat, "levelized_cost_of_storage_kwh", 0.0) / 1000.0
+                    break_even_price = (
+                        charge_price / round_trip_eff + lcos_per_wh_dc / inv.dc_to_ac_efficiency
+                    )
 
-                    # Build list of (price, load_wh) for all future hours in the horizon
-                    future = [
-                        (float(prices_arr[h]), float(load_arr[h])) for h in range(hour + 1, n)
-                    ]
-                    # Sort descending by price so we "use" the most expensive hours first
-                    future.sort(key=lambda x: -x[0])
-
-                    # Consume free PV energy against the highest-price future hours.
-                    # The first uncovered (partially or fully) hour defines the best
-                    # price still available for the new AC charge.
-                    remaining_free = free_ac_wh
-                    best_uncovered_price = 0.0
-                    for fp, fl in future:
-                        if remaining_free >= fl:
-                            # Entire expensive hour is already covered by free PV energy
-                            remaining_free -= fl
-                        else:
-                            # First hour not (fully) covered: this is where new charge goes
-                            best_uncovered_price = fp
-                            break
+                    best_uncovered_price = best_prices[hour]
 
                     if best_uncovered_price < break_even_price:
                         # AC charging at this hour is economically unjustified.
-                        # Penalty = excess cost per Wh × DC energy requested this hour.
-                        dc_wh = bat.max_charge_power_w * ac_factor
+                        # Penalty = excess cost per Wh × DC energy requested this slot.
+                        # max_charge_power_w is a power [W]; the energy movable in
+                        # one slot is power × slot_duration_h (¼ at 15 min).
+                        dc_wh = bat.max_charge_power_w * self.slot_duration_h * ac_factor
                         ac_wh = dc_wh / max(inv.ac_to_dc_efficiency, 1e-9)
                         excess_cost_per_wh = break_even_price - best_uncovered_price
-                        total_balance += ac_wh * excess_cost_per_wh * ac_penalty_factor
+                        gesamtbilanz += ac_wh * excess_cost_per_wh * ac_penalty_factor
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
                 penalty = self.config.optimization.genetic.penalties["ev_soc_miss"]
-            except Exception:
+            except:
                 # Use default
                 penalty = 10
                 logger.error(
                     "Penalty function parameter `ev_soc_miss` not configured, using {}.", penalty
                 )
-            ev_soc_percentage = self.simulation.ev.current_soc_percentage()
-            if (
-                ev_soc_percentage < parameters.ev.min_soc_percentage
-                or ev_soc_percentage > parameters.ev.max_soc_percentage
-            ):
-                total_balance += abs(parameters.ev.min_soc_percentage - ev_soc_percentage) * penalty
+            ev_soc_percentage = self._ev_soc_at_deadline(simulation_result, start_hour)
+            if ev_soc_percentage < parameters.ev.min_soc_percentage:
+                gesamtbilanz += abs(parameters.ev.min_soc_percentage - ev_soc_percentage) * penalty
 
-        return (total_balance,)
+        return (gesamtbilanz,)
 
     def optimize(
         self,
         start_solution: Optional[list[float]] = None,
         ngen: int = 200,
+        individuals: Optional[int] = None,
     ) -> tuple[Any, dict[str, list[Any]]]:
         """Run the optimization process using a genetic algorithm.
 
         @TODO: optimize() ngen default (200) is different from optimize_ems() ngen default (400).
         """
-        # Set the number of inviduals in a generation
-        try:
-            individuals = self.config.optimization.genetic.individuals
-            if individuals is None:
-                raise
-        except Exception:
-            individuals = 300
-            logger.error("Individuals not configured. Using {}.", individuals)
+        # Re-seed at the actual optimization boundary. Setup and validation may
+        # consume random values elsewhere in a long-running process; a fixed seed
+        # must nevertheless produce the same population and result.
+        if self.fix_seed is not None:
+            random.seed(self.fix_seed)
 
-        population = self.toolbox.population(n=individuals)
+        # Set the number of inviduals in a generation
+        if individuals is None:
+            try:
+                individuals = self.config.optimization.genetic.individuals
+                if individuals is None:
+                    raise ValueError("individuals is not configured")
+            except Exception:
+                individuals = 300
+                logger.error("Individuals not configured. Using {}.", individuals)
+
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
         stats.register("min", np.min)
@@ -1014,23 +3155,152 @@ class GeneticOptimization(OptimizationBase):
 
         logger.debug("Start optimize: {}", start_solution)
 
-        # Insert the start solution into the population if provided
+        # Validate the warm start before assigning the fixed population budget.
+        valid_start_solution: Optional[list[float]] = None
         if start_solution is not None:
-            for _ in range(10):
-                population.insert(0, creator.Individual(start_solution))
+            n_appliance_genes = self.appliance_layout.n_genes
+            expected_length = (
+                self.control_end_slot * (2 if self.optimize_ev else 1) + n_appliance_genes
+            )
+            start_solution = self._start_solution_for_slot_grid(start_solution)
 
-        # Run the evolutionary algorithm
-        pop, log = algorithms.eaMuPlusLambda(
-            population,
-            self.toolbox,
-            mu=100,
-            lambda_=150,
-            cxpb=0.6,
-            mutpb=0.4,
-            ngen=ngen,
-            stats=stats,
-            halloffame=hof,
-            verbose=self.verbose,
+            if len(start_solution) != expected_length:
+                logger.warning(
+                    "Ignoring start_solution with incompatible length {} (expected {}).",
+                    len(start_solution),
+                    expected_length,
+                )
+            elif not self._start_solution_matches_layout(start_solution):
+                logger.warning(
+                    "Ignoring start_solution: appliance genes do not match the current "
+                    "appliance layout."
+                )
+            else:
+                valid_start_solution = start_solution
+
+        # Scale the seed families with small populations without changing the
+        # established 300-individual defaults. This prevents a 100-member run
+        # from spending 60% of its budget on the warm-start neighbourhood.
+        exact_warm_target = min(
+            self.WARM_START_COPIES,
+            max(1, int(individuals * self.WARM_START_COPY_FRACTION + 0.999999)),
+        )
+        warm_mutation_target = min(
+            self.WARM_START_MUTATIONS,
+            max(1, int(individuals * self.WARM_START_MUTATION_FRACTION + 0.999999)),
+        )
+        educated_guess_target = min(
+            self.EDUCATED_GUESS_TARGET,
+            max(1, int(individuals * self.EDUCATED_GUESS_FRACTION + 0.999999)),
+        )
+        minimum_random = max(
+            int(individuals * self.MIN_RANDOM_POPULATION_FRACTION + 0.999999),
+            individuals - (exact_warm_target + warm_mutation_target + educated_guess_target),
+        )
+        seed_budget = max(individuals - minimum_random, 0)
+        seeded: list[list[Any]] = []
+
+        exact_warm_count = 0
+        warm_neighbors: list[list[int]] = []
+        if valid_start_solution is not None and seed_budget > 0:
+            exact_warm_count = min(exact_warm_target, seed_budget)
+            seeded.extend([valid_start_solution] * exact_warm_count)
+            remaining_seed_budget = seed_budget - len(seeded)
+            warm_neighbors = self._mutated_warm_start_neighbors(
+                valid_start_solution,
+                min(warm_mutation_target, remaining_seed_budget),
+            )
+            seeded.extend(warm_neighbors)
+
+        remaining_seed_budget = seed_budget - len(seeded)
+        educated_guesses = self._educated_guess_individuals(
+            min(educated_guess_target, remaining_seed_budget)
+        )
+        seeded.extend(educated_guesses)
+
+        random_count = max(individuals - len(seeded), 0)
+        population = [creator.Individual(seed) for seed in seeded]
+        population.extend(self.toolbox.population(n=random_count))
+        logger.info(
+            "Genetic settings: {} individuals, {} generations, {} survivors, "
+            "{} offspring per generation, adaptive mutation {:.0%}/{:.0%}.",
+            individuals,
+            ngen,
+            individuals,
+            individuals,
+            self.MUTATION_PROBABILITY,
+            self.STAGNATION_MUTATION_PROBABILITY,
+        )
+        logger.info(
+            "Initial population {}: {} exact warm starts, {} warm mutations, "
+            "{} educated guesses, {} random candidates.",
+            len(population),
+            exact_warm_count,
+            len(warm_neighbors),
+            len(educated_guesses),
+            random_count,
+        )
+
+        # The memoization scope is exactly one optimizer invocation. Always turn
+        # it off again, including when DEAP raises, so no later caller can reuse
+        # results under changed forecasts or device state.
+        self._fitness_cache.clear()
+        self._fitness_cache_hits = 0
+        self._fitness_cache_misses = 0
+        self._fitness_cache_enabled = True
+        local_evaluations = 0
+        local_improvements = 0
+        local_initial_fitness = float("nan")
+        local_final_fitness = float("nan")
+        self._adaptive_evolution_metrics = {}
+        try:
+            pop, log = self._evolve_population_adaptive(
+                population,
+                mu=individuals,
+                lambda_=individuals,
+                ngen=ngen,
+                stats=stats,
+                halloffame=hof,
+            )
+            population = pop
+            (
+                best_solution,
+                local_evaluations,
+                local_improvements,
+                local_initial_fitness,
+                local_final_fitness,
+            ) = self._locally_improve_grid_export(
+                hof[0],
+                max_evaluations=min(
+                    self.LOCAL_SEARCH_MAX_EVALUATIONS,
+                    max(individuals, 1),
+                ),
+            )
+        except Exception:
+            self._fitness_cache.clear()
+            raise
+        finally:
+            self._fitness_cache_enabled = False
+
+        if local_improvements:
+            logger.info(
+                "Grid-export local search: {} improvements in {} evaluations, "
+                "fitness {:.6f} -> {:.6f}.",
+                local_improvements,
+                local_evaluations,
+                local_initial_fitness,
+                local_final_fitness,
+            )
+
+        cache_lookups = self._fitness_cache_hits + self._fitness_cache_misses
+        cache_hit_rate = self._fitness_cache_hits / cache_lookups if cache_lookups > 0 else 0.0
+        cache_keys = len(self._fitness_cache)
+        logger.info(
+            "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",
+            self._fitness_cache_hits,
+            self._fitness_cache_misses,
+            cache_hit_rate,
+            cache_keys,
         )
 
         # Store fitness history
@@ -1039,17 +3309,37 @@ class GeneticOptimization(OptimizationBase):
             "avg": log.select("avg"),  # Average fitness for each generation (Y-axis)
             "max": log.select("max"),  # Maximum fitness for each generation (Y-axis)
             "min": log.select("min"),  # Minimum fitness for each generation (Y-axis)
+            "diversity": log.select("diversity"),
+            "stagnation": log.select("stagnation"),
+            "immigrants": log.select("immigrants"),
+            "restart": log.select("restart"),
+            "fitness_cache": {
+                "hits": self._fitness_cache_hits,
+                "misses": self._fitness_cache_misses,
+                "hit_rate": cache_hit_rate,
+                "keys": cache_keys,
+            },
+            "adaptive_evolution": self._adaptive_evolution_metrics,
+            "local_search": {
+                "evaluations": local_evaluations,
+                "improvements": local_improvements,
+                "initial_fitness": local_initial_fitness,
+                "final_fitness": local_final_fitness,
+            },
         }
 
-        member: dict[str, list[float]] = {"balance": [], "losses": [], "constraints": []}
+        member: dict[str, list[float]] = {"bilanz": [], "verluste": [], "nebenbedingung": []}
         for ind in population:
             if hasattr(ind, "extra_data"):
                 extra_value1, extra_value2, extra_value3 = ind.extra_data
-                member["balance"].append(extra_value1)
-                member["losses"].append(extra_value2)
-                member["constraints"].append(extra_value3)
+                member["bilanz"].append(extra_value1)
+                member["verluste"].append(extra_value2)
+                member["nebenbedingung"].append(extra_value3)
 
-        return hof[0], member
+        # Avoid retaining large genome tuples in a long-lived API process until
+        # cyclic garbage collection happens. Cache statistics above are scalar.
+        self._fitness_cache.clear()
+        return best_solution, member
 
     def optimize_ems(
         self,
@@ -1057,8 +3347,19 @@ class GeneticOptimization(OptimizationBase):
         start_hour: Optional[int] = None,
         worst_case: bool = False,
         ngen: Optional[int] = None,
+        individuals: Optional[int] = None,
     ) -> GeneticSolution:
         """Perform EMS (Energy Management System) optimization and visualize results."""
+        self.config.validate_optimization_horizons()
+        direct_marketing_enabled = self._direct_marketing_enabled()
+        parameters = self._parameters_for_config(parameters)
+        parameters = self._parameters_for_slot_grid(parameters)
+        # Home-appliance scheduling now supports sub-hourly intervals via the
+        # energy-preserving per-slot run profile.
+        home_appliance_params = parameters.resolved_home_appliances()
+        self.optimize_dc_charge = direct_marketing_enabled
+        self.optimize_battery_grid_export = direct_marketing_enabled
+
         if start_hour is None:
             start_hour = self.ems.start_datetime.hour
         # Start hour has to be in sync with energy management
@@ -1066,48 +3367,57 @@ class GeneticOptimization(OptimizationBase):
             raise ValueError(
                 f"Start hour not synced. EMS {self.ems.start_datetime.hour} vs. GENETIC {start_hour}."
             )
+        # Forecasts are trimmed to now; all genome/device indices are run-relative.
+        start_slot = self._control_start_slot()
 
         # Set the number of generations
         generations = ngen
         if generations is None:
             try:
                 generations = self.config.optimization.genetic.generations
-            except Exception:
+            except:
                 generations = 400
                 logger.error("Generations not configured. Using {}.", generations)
 
         self.simulation.reset()
+        # Prices/loads/initial SoC may differ from the previous run - the
+        # break-even lookup must be rebuilt lazily on first evaluation.
+        self._ac_break_even_best_prices = None
 
-        # Initialize PV and EV batteries
-        battery: Optional[Battery] = None
+        # Initialize PV and EV batteries. slot_duration_h lets the Battery scale
+        # its power caps (max_charge_power_w) to a per-slot energy cap.
+        akku: Optional[Battery] = None
         if parameters.pv_battery:
-            battery = Battery(
+            akku = Battery(
                 parameters.pv_battery,
-                prediction_hours=self.config.prediction.hours,
+                prediction_hours=self.control_end_slot,
+                slot_duration_h=self.slot_duration_h,
             )
-            battery.set_charge_per_hour(np.full(self.config.prediction.hours, 0))
+            akku.set_charge_per_hour(np.full(self.control_end_slot, 0))
 
-        ev: Optional[Battery] = None
+        eauto: Optional[Battery] = None
         if parameters.ev:
-            ev = Battery(
+            eauto = Battery(
                 parameters.ev,
-                prediction_hours=self.config.prediction.hours,
+                prediction_hours=self.control_end_slot,
+                slot_duration_h=self.slot_duration_h,
             )
-            ev.set_charge_per_hour(np.full(self.config.prediction.hours, 1))
+            eauto.set_charge_per_hour(np.full(self.control_end_slot, 1))
             self.optimize_ev = (
-                parameters.ev.min_soc_percentage - parameters.ev.initial_soc_percentage >= 0
+                parameters.ev.min_soc_percentage > parameters.ev.initial_soc_percentage
             )
             # electrical vehicle charge rates
             if parameters.ev.charge_rates is not None:
                 self.ev_possible_charge_values = parameters.ev.charge_rates
             elif (
                 self.config.devices.electric_vehicles
-                and len(self.config.devices.electric_vehicles) > 0
-                and list(self.config.devices.electric_vehicles.values())[0].charge_rates is not None
+                and next(iter(self.config.devices.electric_vehicles.values()))
+                and next(iter(self.config.devices.electric_vehicles.values())).charge_rates
+                is not None
             ):
-                self.ev_possible_charge_values = list(
-                    self.config.devices.electric_vehicles.values()
-                )[0].charge_rates
+                self.ev_possible_charge_values = next(
+                    iter(self.config.devices.electric_vehicles.values())
+                ).charge_rates
             else:
                 warning_msg = "No charge rates provided for electric vehicle - using default."
                 logger.warning(warning_msg)
@@ -1136,105 +3446,220 @@ class GeneticOptimization(OptimizationBase):
             ] or [1.0]
         elif (
             self.config.devices.batteries
-            and len(self.config.devices.batteries) > 0
-            and list(self.config.devices.batteries.values())[0].charge_rates
+            and next(iter(self.config.devices.batteries.values()))
+            and next(iter(self.config.devices.batteries.values())).charge_rates
         ):
             self.bat_possible_charge_values = [
-                r for r in list(self.config.devices.batteries.values())[0].charge_rates if r > 0.0
+                r
+                for r in next(iter(self.config.devices.batteries.values())).charge_rates
+                if r > 0.0
             ] or [1.0]
         else:
             self.bat_possible_charge_values = [1.0]
         logger.debug("Battery AC charge levels: {}", self.bat_possible_charge_values)
 
-        # Initialize household appliance if applicable
-        dishwasher = (
-            HomeAppliance(
-                parameters=parameters.dishwasher,
-                optimization_hours=self.config.optimization.genetic.horizon_hours,
-                prediction_hours=self.config.prediction.hours,
+        # Battery-to-grid export levels (direct marketing only). Same resolution
+        # order as the charge rates: request parameters win over the configured
+        # battery, and the fallback is the previous all-or-nothing export.
+        export_rates: Optional[list[float]] = None
+        if parameters.pv_battery and parameters.pv_battery.grid_export_rates:
+            export_rates = list(parameters.pv_battery.grid_export_rates)
+        elif (
+            self.config.devices.batteries
+            and next(iter(self.config.devices.batteries.values()))
+            and next(iter(self.config.devices.batteries.values())).grid_export_rates is not None
+        ):
+            export_rates = list(
+                next(iter(self.config.devices.batteries.values())).grid_export_rates
             )
-            if parameters.dishwasher is not None
-            else None
-        )
+        # Highest rate first so the full-power state keeps the lowest index and
+        # every heuristic that seeds "export here" keeps seeding full power.
+        self.bat_possible_grid_export_values = sorted(
+            (rate for rate in (export_rates or [1.0]) if rate > 0.0), reverse=True
+        ) or [1.0]
+        if self.optimize_battery_grid_export:
+            logger.debug("Battery grid export levels: {}", self.bat_possible_grid_export_values)
 
-        # Initialize the inverter and energy management system
+        # Initialize the flexible consumers (home appliances) and their genome
+        # layout. slot0_datetime (the run start) turns decoded start
+        # slots into absolute local timestamps and drives DAILY day grouping.
+        self._slot0_datetime = self.ems.start_datetime
+        home_appliances = [
+            HomeAppliance(
+                parameters=appliance_params,
+                optimization_hours=self.config.optimization.genetic.horizon_hours,
+                prediction_hours=self.control_end_slot,
+                slot_duration_h=self.slot_duration_h,
+            )
+            for appliance_params in home_appliance_params
+        ]
+        self.appliance_layout = self._build_appliance_layout(home_appliances, self._slot0_datetime)
+
+        # EV charging deadline (departure). Resolved once per run; the seeding
+        # heuristic and the SoC penalty both read it.
+        self._ev_soc_deadline_slot = self._ev_deadline_slot(parameters)
+        if self._ev_soc_deadline_slot is not None:
+            logger.debug(
+                "EV target SoC required by slot {} ({}).",
+                self._ev_soc_deadline_slot,
+                self._slot0_datetime.add(
+                    seconds=self._ev_soc_deadline_slot * self.slot_duration_h * 3600
+                ),
+            )
+
+        # Initialize the inverter and energy management system. slot_duration_h
+        # lets the Inverter scale max_power_wh to a per-slot energy cap.
         inverter: Optional[Inverter] = None
         if parameters.inverter:
             inverter = Inverter(
                 parameters.inverter,
-                battery=battery,
+                battery=akku,
+                slot_duration_h=self.slot_duration_h,
             )
 
         # Prepare device simulation
         self.simulation.prepare(
             parameters=parameters.ems,
             optimization_hours=self.config.optimization.genetic.horizon_hours,
-            prediction_hours=self.config.prediction.hours,
+            prediction_hours=self.control_end_slot,
             inverter=inverter,  # battery is part of inverter
-            ev=ev,
-            home_appliance=dishwasher,
+            ev=eauto,
+            home_appliances=home_appliances,
+            direct_marketing_enabled=direct_marketing_enabled,
         )
 
-        # Setup the DEAP environment and optimization process
-        self.setup_deap_environment({"home_appliance": 1 if dishwasher else 0}, start_hour)
+        self._validate_forecast_availability()
+
+        # Terminal value of the energy left in the battery. Built once per run -
+        # it needs the prepared price/load/PV series - so every fitness
+        # evaluation only interpolates on it.
+        self._terminal_value_curve = self._build_terminal_value_curve(akku, inverter)
+
+        # The curve owns all lookahead information from here on. Simulation
+        # and control heuristics receive only equally sized control forecasts,
+        # even when providers supplied different amounts of tail data.
+        for name in (
+            "load_energy_array",
+            "pv_prediction_wh",
+            "elect_price_hourly",
+            "elect_revenue_per_hour_arr",
+        ):
+            setattr(self.simulation, name, getattr(self.simulation, name)[: self.control_slots])
+
+        # Setup the DEAP environment and optimization process. The appliance
+        # genome layout (built above) drives the appliance gene block; evaluate
+        # gets the slot index (its break-even loop walks the slot arrays from "now").
+        self.setup_deap_environment({"home_appliance": self.appliance_layout.n_genes}, start_hour)
         self.toolbox.register(
             "evaluate",
-            lambda ind: self.evaluate(ind, parameters, start_hour, worst_case),
+            lambda ind: self.evaluate(ind, parameters, start_slot, worst_case),
         )
 
         start_time = time.time()
-        start_solution, extra_data = self.optimize(parameters.start_solution, ngen=generations)
+        start_solution_datetime = self._resolve_start_solution_datetime(parameters)
+        start_solution, extra_data = self.optimize(
+            self._start_solution_for_run_start(parameters.start_solution, start_solution_datetime),
+            ngen=generations,
+            individuals=individuals,
+        )
         elapsed_time = time.time() - start_time
         logger.debug(f"Time evaluate inner: {elapsed_time:.4f} sec.")
 
         # Perform final evaluation on the best solution
         simulation_result = self.evaluate_inner(start_solution)
+        # Read the terminal value off the final battery state, for the solution.
+        _, terminal_value_result = self._terminal_value(parameters, include_tail_plan=True)
 
         # Prepare results
-        discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = self.split_individual(
             start_solution
         )
-        # home appliance may have choosen a different appliance start hour
-        if self.simulation.home_appliance:
-            washingstart_int = self.simulation.home_appliance_start_hour
 
-        ev_charge_hours_float = (
-            [self.ev_possible_charge_values[i] for i in ev_charge_hours_index]
-            if ev_charge_hours_index is not None
-            else None
-        )
+        # Materialize the per-device appliance results only for the final best
+        # solution. Each appliance's load curve (already built by the final
+        # evaluate_inner above) starts at slot 0; slice it to the simulation
+        # window so it aligns with the other per-slot result arrays.
+        starts_per_appliance = self._decode_appliance_starts(appliance_gene_values)
+        home_appliance_energy_wh: dict[str, list[float]] = {}
+        home_appliance_running: dict[str, list[bool]] = {}
+        appliance_starts: dict[str, list[Any]] = {}
+        appliance_deadline_missed: dict[str, bool] = {}
+        timezone = self.config.general.timezone
+        for appliance_index, appliance in enumerate(self.simulation.home_appliances):
+            device_id = appliance.device_id
+            home_appliance_energy_wh[device_id] = appliance.get_load_curve()[start_slot:].tolist()
+            starts = sorted(starts_per_appliance.get(appliance_index, []))
+            home_appliance_running[device_id] = [
+                any(run_start <= slot < run_start + appliance.run_slots for run_start in starts)
+                for slot in range(self.control_slots)
+            ]
+            appliance_starts[device_id] = [
+                self._slot0_datetime.add(
+                    seconds=start * appliance.slot_interval_seconds
+                ).in_timezone(timezone)
+                for start in starts
+            ]
+            # Report a deadline that could not be kept (no run scheduled at all,
+            # or a run that ends late because a BEST_EFFORT deadline was dropped)
+            # so the caller can warn instead of silently trusting the schedule.
+            if appliance.deadline_datetime is not None:
+                appliance_deadline_missed[device_id] = appliance.deadline_missed(
+                    starts, self._slot0_datetime
+                )
+        simulation_result["home_appliance_energy_wh"] = home_appliance_energy_wh
+        simulation_result["home_appliance_running"] = home_appliance_running
 
-        # Simulation may have changed something, use simulation values
-        ac_charge_hours = (
-            self.simulation.ac_charge_hours.tolist()
-            if self.simulation.ac_charge_hours is not None
+        # Deprecated single-device hourly start (kept for backward compatibility).
+        # Only meaningful for the legacy case: exactly one appliance on the hourly
+        # grid. Otherwise None; use appliance_starts instead.
+        washingstart_int: Optional[int] = None
+        if self.slots_per_hour == 1 and len(self.simulation.home_appliances) == 1:
+            single_starts = starts_per_appliance.get(0, [])
+            if single_starts:
+                washingstart_int = self._start_day_slot() + int(min(single_starts))
+
+        eautocharge_hours_float = None
+        if eautocharge_hours_index is not None and self.simulation.ev is not None:
+            eautocharge_hours_float = self.simulation.ev.charge_array.tolist()
+
+        # Report executed controls, already indexed from the run start.
+        def control_values(values: Optional[np.ndarray]) -> list[float]:
+            return values.tolist() if values is not None else []
+
+        ac_charge_hours = control_values(self.simulation.ac_charge_hours)
+        dc_charge_hours = control_values(self.simulation.dc_charge_hours)
+        discharge = control_values(self.simulation.bat_discharge_hours)
+        battery_grid_export_factor = (
+            control_values(self.simulation.bat_grid_export_hours)
+            if direct_marketing_enabled
             else []
         )
-        dc_charge_hours = (
-            self.simulation.dc_charge_hours.tolist()
-            if self.simulation.dc_charge_hours is not None
-            else []
-        )
-        discharge = (
-            self.simulation.bat_discharge_hours.tolist()
-            if self.simulation.bat_discharge_hours is not None
-            else []
-        )
+        battery_grid_export = [1 if value > 0 else 0 for value in battery_grid_export_factor]
 
         return GeneticSolution(
             **{
                 "parameters": parameters,
-                "ac_charge": ac_charge_hours,
-                "dc_charge": dc_charge_hours,
-                "discharge_allowed": discharge,
-                "ev_charge_hours_float": ev_charge_hours_float,
-                "result": GeneticSimulationResult(**simulation_result),
-                "ev_obj": self.simulation.ev,
+                "interval_seconds": self.config.optimization.genetic.interval_sec,
                 "start_hour": start_hour,
-                "start_solution": start_solution,
-                "washingstart": washingstart_int,
                 "extra_data": extra_data,
                 "fitness_history": self.fitness_history,
                 "fixed_seed": self.fix_seed,
+                "controls_start_at_now": True,
+                "ac_charge": ac_charge_hours,
+                "dc_charge": dc_charge_hours,
+                "discharge_allowed": discharge,
+                "battery_grid_export_allowed": battery_grid_export,
+                "battery_grid_export_factor": battery_grid_export_factor,
+                "terminal_value": terminal_value_result,
+                "ev_charge_hours_float": eautocharge_hours_float[start_slot:]
+                if eautocharge_hours_float is not None
+                else None,
+                "result": GeneticSimulationResult(**simulation_result),
+                "ev_obj": self.simulation.ev,
+                "start_solution": start_solution,
+                "start_solution_datetime": self._slot0_datetime,
+                "washingstart": washingstart_int,
+                "appliance_starts": appliance_starts,
+                "appliance_deadline_missed": appliance_deadline_missed,
             }
         )

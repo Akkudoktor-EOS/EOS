@@ -1,6 +1,6 @@
 """Genetic algorithm optimisation solution."""
 
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -30,8 +30,9 @@ from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersB
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueResult
 from akkudoktoreos.optimization.optimization import OptimizationSolution
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 
@@ -239,10 +240,47 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
         "losses_per_hour",
         "home_appliance_wh_per_hour",
         "electricity_price",
+        "feed_in_tariff",
         mode="before",
     )
     def convert_numpy(cls, field: Any) -> Any:
         return NumpyEncoder.convert_numpy(field)[0]
+
+    home_appliance_energy_wh: dict[str, list[float]] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Per-device appliance energy in watt-hours per optimization slot, "
+                "keyed by device_id."
+            )
+        },
+    )
+
+    feed_in_tariff: list[float] = Field(
+        validation_alias=AliasChoices("feed_in_tariff", "Feed_in_tariff"),
+        default_factory=list,
+        json_schema_extra={
+            "description": "Used feed-in tariff in €/Wh per hour, including predictions"
+        },
+    )
+
+    home_appliance_running: dict[str, list[bool]] = Field(
+        default_factory=dict, description="Active run occupancy, including zero-power phases."
+    )
+
+    @field_validator("home_appliance_energy_wh", mode="before")
+    def convert_numpy_appliance_energy(cls, field: Any) -> Any:
+        if isinstance(field, dict):
+            return {
+                device_id: NumpyEncoder.convert_numpy(values)[0]
+                for device_id, values in field.items()
+            }
+        return field
+
+    @computed_field(json_schema_extra={"deprecated": True})
+    def Feed_in_tariff(self) -> Optional[list[float]]:
+        """Deprecated: use feed_in_tariff."""
+        return self.feed_in_tariff
 
 
 class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
@@ -253,55 +291,66 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     parameters: GeneticOptimizationParameters = Field(
         json_schema_extra={"description": "Optimization parameters used to generate solution."}
     )
+
     ac_charge: list[float] = Field(
         json_schema_extra={
             "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
         }
     )
+
     dc_charge: list[float] = Field(
         json_schema_extra={
             "description": "Array with DC charging values as relative power (0-1), other values set to 0."
         }
     )
+
     discharge_allowed: list[int] = Field(
         json_schema_extra={
             "description": "Array with discharge values (1 for discharge, 0 otherwise)."
         }
     )
+
     ev_charge_hours_float: Optional[list[float]] = Field(
         validation_alias=AliasChoices("ev_charge_hours_float", "eautocharge_hours_float"),
         json_schema_extra={
             "description": "Array with EV charging values as relative power (0.0-1.0), or `null` if no EV is optimized."
         },
     )
+
     result: GeneticSimulationResult
+
     ev_obj: Optional[ElectricVehicleResult] = Field(
         validation_alias=AliasChoices("ev_obj", "eauto_obj"),
         json_schema_extra={"description": "Electric vehicle state after optimization."},
     )
+
     start_hour: int = Field(
         default=0,
         json_schema_extra={"description": "Start hour."},
     )
+
     start_solution: Optional[list[float]] = Field(
         default=None,
         json_schema_extra={
             "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
         },
     )
+
     washingstart: Optional[int] = Field(
         default=None,
         json_schema_extra={
             "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
         },
     )
+
     extra_data: Optional[dict[str, Union[list[int], list[float]]]] = Field(
         default=None,
         json_schema_extra={
             "description": ("Dictionary of balance: TBD, losses: TBD, constraints: TBD.")
         },
     )
-    fitness_history: Optional[dict[str, Union[list[int], list[float]]]] = Field(
+
+    fitness_history: Optional[dict[str, Any]] = Field(
         default=None,
         json_schema_extra={
             "description": (
@@ -313,12 +362,12 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             )
         },
     )
+
     fixed_seed: Optional[int] = Field(
         default=None,
         json_schema_extra={"description": "Fixed seed."},
     )
 
-    # Computed fields for backward compatibility (deprecated German names)
     @computed_field(json_schema_extra={"deprecated": True})
     def eautocharge_hours_float(self) -> Optional[list[float]]:
         """Deprecated: Use ev_charge_hours_float instead."""
@@ -333,6 +382,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         "ac_charge",
         "dc_charge",
         "discharge_allowed",
+        "battery_grid_export_allowed",
+        "battery_grid_export_factor",
         mode="before",
     )
     def convert_numpy(cls, field: Any) -> Any:
@@ -347,39 +398,133 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             return ElectricVehicleResult(**field.to_dict())
         return field
 
+    controls_start_at_now: bool = Field(
+        default=False, description="Control arrays start at the run timestamp instead of midnight."
+    )
+
+    battery_grid_export_allowed: list[int] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
+        },
+    )
+
+    terminal_value: Optional[TerminalValueResult] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "The terminal value applied to the energy left in the battery at "
+                "the end of the horizon, including the curve it was read from. "
+                "None when no battery is part of the optimization."
+            )
+        },
+    )
+
+    battery_grid_export_factor: list[float] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "description": (
+                "Array with the battery-to-grid export level per slot as factor "
+                "of the rated discharge power (0.0 for no export). Empty when "
+                "direct marketing is disabled; a solution without this array "
+                "exports at full power wherever "
+                "'battery_grid_export_allowed' is 1."
+            )
+        },
+    )
+
+    start_solution_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Start of the slot that gene 0 of 'start_solution' controls. Send it "
+                "back together with 'start_solution' so the next run can shift the "
+                "warm start by the slots that have elapsed since."
+            ),
+            "examples": [None, "2026-09-14T07:45:00+02:00"],
+        },
+    )
+
+    appliance_starts: dict[str, list[DateTime]] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Scheduled run start times per appliance device_id as absolute local datetimes."
+            )
+        },
+    )
+
+    appliance_deadline_missed: dict[str, bool] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Per appliance device_id with a 'deadline_datetime': whether the "
+                "scheduled run misses that deadline (or was not scheduled at "
+                "all). Appliances without a deadline are not listed."
+            )
+        },
+    )
+
+    interval_seconds: int = Field(
+        default=3600, description="Duration of one result/control slot in seconds."
+    )
+
+    @field_validator("start_solution_datetime", mode="before")
+    @classmethod
+    def transform_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
+
     def _battery_device_id(self) -> str:
         """Get battery device id."""
+        parameters = getattr(self, "parameters", None)
+        if parameters is not None and parameters.pv_battery is not None:
+            return parameters.pv_battery.device_id
         try:
-            return list(self.config.devices.batteries.values())[0].device_id
+            return next(iter(self.config.devices.batteries.values())).device_id
         except Exception:
             return "battery1"
 
     def _ev_device_id(self) -> str:
         """Get electric vehicle device id."""
+        parameters = getattr(self, "parameters", None)
+        if parameters is not None and parameters.ev is not None:
+            return parameters.ev.device_id
         try:
-            return self.config.devices.electric_vehicles.values()[0].device_id
+            return next(iter(self.config.devices.electric_vehicles.values())).device_id
         except Exception:
             return "ev1"
 
     def _homeappliance_device_id(self) -> str:
         """Get home appliance device id."""
+        parameters = getattr(self, "parameters", None)
+        if parameters is not None and parameters.resolved_home_appliances():
+            return parameters.resolved_home_appliances()[0].device_id
         try:
-            return self.config.devices.home_appliances.values()[0].device_id
+            return next(iter(self.config.devices.home_appliances.values())).device_id
         except Exception:
             return "homeappliance1"
 
+    @staticmethod
     def _battery_operation_from_solution(
-        self,
         ac_charge: float,
         dc_charge: float,
         discharge_allowed: bool,
+        battery_grid_export_allowed: bool = False,
+        battery_grid_export_factor: float = 1.0,
     ) -> tuple[BatteryOperationMode, float]:
         """Maps low-level solution to a representative operation mode and factor.
 
         Args:
             ac_charge (float): Allowed AC-side charging power (relative units).
             dc_charge (float): Allowed DC-side charging power (relative units).
-            discharge_allowed (bool): Whether discharging is permitted.
+            discharge_allowed (bool): Whether discharging to local load is permitted.
+            battery_grid_export_allowed (bool): Whether discharge into the grid is permitted.
+            battery_grid_export_factor (float): Export level as factor of the rated
+                discharge power ]0.0 ... 1.0]. Becomes the operation factor of
+                GRID_SUPPORT_EXPORT.
 
         Returns:
             tuple[BatteryOperationMode, float]: A tuple containing
@@ -387,15 +532,30 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 - `float`: the operation factor corresponding to the active signal.
 
         Notes:
-            - The mapping prioritizes AC charge > DC charge > discharge.
+            - Explicit grid export is separate from local-load discharge.
+            - The mapping prioritizes export > AC charge > DC charge > discharge.
             - Multiple strategies can produce the same low-level signals; this function
               returns a representative mode based on a defined priority order.
         """
         # (0,0,0) → Nothing allowed
-        if ac_charge <= 0.0 and dc_charge <= 0.0 and not discharge_allowed:
+        if (
+            ac_charge <= 0.0
+            and dc_charge <= 0.0
+            and not discharge_allowed
+            and not battery_grid_export_allowed
+        ):
             return BatteryOperationMode.IDLE, 1.0
 
-        # (0,0,1) → Discharge only
+        if battery_grid_export_allowed:
+            if ac_charge > 0.0 or dc_charge > 0.0:
+                raise ValueError(
+                    "Illegal state: battery_grid_export_allowed cannot be combined with charging"
+                )
+            return BatteryOperationMode.GRID_SUPPORT_EXPORT, min(
+                max(float(battery_grid_export_factor), 0.0), 1.0
+            )
+
+        # (0,0,1) -> Discharge for local load only
         if ac_charge <= 0.0 and dc_charge <= 0.0 and discharge_allowed:
             return BatteryOperationMode.PEAK_SHAVING, 1.0
 
@@ -436,7 +596,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         dc_charge: float,
         discharge_allowed: bool,
         soc_pct: float,
-    ) -> tuple[float, float, bool]:
+        battery_grid_export_allowed: bool = False,
+    ) -> tuple[float, float, bool, bool]:
         """Clamp raw genetic gene values by the battery's actual SOC at that hour.
 
         The raw gene values represent the optimizer's *intent* and are stored
@@ -448,16 +609,24 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         Clamping rules:
           - AC charge factor: scaled down proportionally when the battery
             headroom (max_soc − current_soc) is smaller than what the
-            commanded factor would store in one hour.  Set to 0 when full.
+            commanded factor would store in one optimization slot.  Set to 0 when full.
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
           - Discharge: blocked when SOC is at or below min SOC.
+          - Battery grid export: blocked when SOC is at or below min SOC.
         """
-        bat_dict = self.config.devices.batteries
-        if bat_dict is None or len(bat_dict) <= 0:
-            return ac_charge, dc_charge, discharge_allowed
+        parameters = getattr(self, "parameters", None)
+        bat_list = (
+            [parameters.pv_battery]
+            if parameters is not None and parameters.pv_battery is not None
+            else list((self.config.devices.batteries or {}).values())
+            if parameters is None
+            else []
+        )
+        if not bat_list:
+            return ac_charge, dc_charge, discharge_allowed, battery_grid_export_allowed
 
-        bat = list(bat_dict.values())[0]
+        bat = bat_list[0]
         min_soc = float(bat.min_soc_percentage)
         max_soc = float(bat.max_soc_percentage)
         capacity_wh = float(bat.capacity_wh)
@@ -470,16 +639,27 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             if headroom_wh <= 0.0:
                 effective_ac = 0.0
             else:
-                inv_list = self.config.devices.inverters
+                inv_list = (
+                    [parameters.inverter]
+                    if parameters is not None and parameters.inverter is not None
+                    else list((self.config.devices.inverters or {}).values())
+                    if parameters is None
+                    else []
+                )
                 ac_to_dc_eff = float(inv_list[0].ac_to_dc_efficiency) if inv_list else 1.0
                 max_ac_cp_w = (
                     float(inv_list[0].max_ac_charge_power_w)
                     if inv_list and inv_list[0].max_ac_charge_power_w is not None
                     else float(bat.max_charge_power_w)
                 )
-                max_dc_per_h_wh = effective_ac * max_ac_cp_w * ac_to_dc_eff * ch_eff
-                if max_dc_per_h_wh > headroom_wh:
-                    effective_ac = effective_ac * (headroom_wh / max_dc_per_h_wh)
+                # Energy storable in one optimization slot, not per hour: scale the
+                # power [W] by the slot duration (1.0 hourly, 0.25 at 15 min).
+                slot_duration_h = float(self.interval_seconds) / 3600.0
+                max_dc_per_slot_wh = (
+                    effective_ac * max_ac_cp_w * slot_duration_h * ac_to_dc_eff * ch_eff
+                )
+                if max_dc_per_slot_wh > headroom_wh:
+                    effective_ac = effective_ac * (headroom_wh / max_dc_per_slot_wh)
 
         # --- DC charge (PV): zero when battery is full ---
         effective_dc = dc_charge
@@ -488,36 +668,49 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
         # --- Discharge: block at min SOC ---
         effective_dis = discharge_allowed and (soc_pct > min_soc)
+        effective_grid_export = battery_grid_export_allowed and (soc_pct > min_soc)
 
-        return effective_ac, effective_dc, effective_dis
+        return effective_ac, effective_dc, effective_dis, effective_grid_export
 
     async def optimization_solution(self) -> OptimizationSolution:
         """Provide the genetic solution as a general optimization solution.
 
         The battery modes are controlled by the grid control triggers:
         - ac_charge: charge from grid
-        - discharge_allowed: discharge to grid
+        - discharge_allowed: discharge to local load
+        - battery_grid_export_allowed: discharge to grid
 
         The following battery modes are supported:
-        - SELF_CONSUMPTION:    ac_charge == 0 and discharge_allowed == 0
-        - GRID_SUPPORT_EXPORT: ac_charge == 0 and discharge_allowed == 1
+        - SELF_CONSUMPTION:    dc_charge > 0 and discharge_allowed == 1
+        - PEAK_SHAVING:        ac_charge == 0 and discharge_allowed == 1
+        - GRID_SUPPORT_EXPORT: battery_grid_export_allowed == 1
         - GRID_SUPPORT_IMPORT: ac_charge  > 0 and discharge_allowed == 0 or 1
         """
-        start_datetime = get_ems().start_datetime
-        start_day_hour = start_datetime.in_timezone(self.config.general.timezone).hour
-        interval_hours = 1
-        power_to_energy_per_interval_factor = 1.0
+        start_datetime = self.start_solution_datetime or get_ems().start_datetime
+        # New controls use the run-relative control horizon; old payloads retain a midnight prefix.
+        # entries indexed by slot (slot 0 == 00:00 local). Index this serializer
+        # by slot too. At the default interval of 3600 s slots_per_hour == 1 and
+        # this is the established hourly behaviour.
+        interval_s = self.interval_seconds
+        start_local = start_datetime.in_timezone(self.config.general.timezone)
+        start_day_slot = (
+            0
+            if self.controls_start_at_now
+            else int((start_local - start_local.start_of("day")).total_seconds() // interval_s)
+        )
+        # power [W] -> energy per slot [Wh]: multiply by the slot duration in hours.
+        power_to_energy_per_interval_factor = interval_s / 3600.0
 
         # --- Create index based on list length and interval ---
         # Ensure we only use the minimum of results and commands if differing
-        periods = min(len(self.result.costs_per_hour), len(self.ac_charge) - start_day_hour)
+        periods = min(len(self.result.costs_per_hour), len(self.ac_charge) - start_day_slot)
         time_index = pd.date_range(
             start=start_datetime,
             periods=periods,
-            freq=f"{interval_hours}h",
+            freq=f"{interval_s}s",
         )
         n_points = len(time_index)
-        end_datetime = start_datetime.add(hours=n_points)
+        end_datetime = start_datetime.add(seconds=interval_s * n_points)
 
         # Fill solution into dataframe with correct column names
         # - load_energy_wh: Load of all energy consumers in wh"
@@ -533,7 +726,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         solution = pd.DataFrame(
             {
                 "date_time": time_index,
-                # result starts at start_day_hour
+                # result starts at start_day_slot
                 "load_energy_wh": self.result.load_wh_per_hour[:n_points],
                 "grid_feedin_energy_wh": self.result.grid_feed_in_wh_per_hour[:n_points],
                 "grid_consumption_energy_wh": self.result.grid_consumption_wh_per_hour[:n_points],
@@ -544,68 +737,91 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             index=time_index,
         )
 
-        # Add battery data
-        battery_device_id = self._battery_device_id()
-        solution[f"{battery_device_id}_soc_factor"] = [
-            v / 100
-            for v in self.result.battery_soc_per_hour[:n_points]  # result starts at start_day_hour
-        ]
-        operation: dict[str, list[float]] = {
-            "genetic_ac_charge_factor": [],
-            "genetic_dc_charge_factor": [],
-            "genetic_discharge_allowed_factor": [],
-        }
-        # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
-        for hour_idx, rate in enumerate(self.ac_charge):
-            if hour_idx < start_day_hour:
-                continue
-            if hour_idx >= start_day_hour + n_points:
-                break
-            ac_charge_hour = self.ac_charge[hour_idx]
-            dc_charge_hour = self.dc_charge[hour_idx]
-            discharge_allowed_hour = bool(self.discharge_allowed[hour_idx])
+        if self.parameters.pv_battery is not None:
+            # Add battery data
+            battery_device_id = self._battery_device_id()
+            solution[f"{battery_device_id}_soc_factor"] = [
+                v / 100
+                for v in self.result.battery_soc_per_hour[
+                    :n_points
+                ]  # result starts at start_day_slot
+            ]
+            operation: dict[str, list[float]] = {
+                "genetic_ac_charge_factor": [],
+                "genetic_dc_charge_factor": [],
+                "genetic_discharge_allowed_factor": [],
+                "genetic_battery_grid_export_allowed_factor": [],
+            }
+            # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
+            for hour_idx, rate in enumerate(self.ac_charge):
+                if hour_idx < start_day_slot:
+                    continue
+                if hour_idx >= start_day_slot + n_points:
+                    break
+                ac_charge_hour = self.ac_charge[hour_idx]
+                dc_charge_hour = self.dc_charge[hour_idx]
+                discharge_allowed_hour = bool(self.discharge_allowed[hour_idx])
+                battery_grid_export_allowed_hour = (
+                    bool(self.battery_grid_export_allowed[hour_idx])
+                    if hour_idx < len(self.battery_grid_export_allowed)
+                    else False
+                )
+                # Solutions written before graded export carry no factor array; they
+                # exported at full power wherever the signal was set.
+                battery_grid_export_factor_hour = (
+                    float(self.battery_grid_export_factor[hour_idx])
+                    if hour_idx < len(self.battery_grid_export_factor)
+                    else (1.0 if battery_grid_export_allowed_hour else 0.0)
+                )
 
-            # Raw genetic gene values — optimizer intent, stored verbatim
-            operation["genetic_ac_charge_factor"].append(ac_charge_hour)
-            operation["genetic_dc_charge_factor"].append(dc_charge_hour)
-            operation["genetic_discharge_allowed_factor"].append(float(discharge_allowed_hour))
+                # Raw genetic gene values — optimizer intent, stored verbatim
+                operation["genetic_ac_charge_factor"].append(ac_charge_hour)
+                operation["genetic_dc_charge_factor"].append(dc_charge_hour)
+                operation["genetic_discharge_allowed_factor"].append(float(discharge_allowed_hour))
+                operation["genetic_battery_grid_export_allowed_factor"].append(
+                    battery_grid_export_factor_hour
+                )
 
-            # SOC-clamped effective values — what can physically be executed at
-            # this hour given the expected battery state of charge.
-            result_idx = hour_idx - start_day_hour
-            soc_h_pct = (
-                self.result.battery_soc_per_hour[result_idx]
-                if result_idx < len(self.result.battery_soc_per_hour)
-                else 0.0
-            )
-            eff_ac, eff_dc, eff_dis = self._soc_clamped_operation_factors(
-                ac_charge_hour, dc_charge_hour, discharge_allowed_hour, soc_h_pct
-            )
-            operation_mode, operation_mode_factor = self._battery_operation_from_solution(
-                eff_ac, eff_dc, eff_dis
-            )
-            for mode in BatteryOperationMode:
-                mode_key = f"{battery_device_id}_{mode.lower()}_op_mode"
-                factor_key = f"{battery_device_id}_{mode.lower()}_op_factor"
-                if mode_key not in operation.keys():
-                    operation[mode_key] = []
-                    operation[factor_key] = []
-                if mode == operation_mode:
-                    operation[mode_key].append(1.0)
-                    operation[factor_key].append(operation_mode_factor)
-                else:
-                    operation[mode_key].append(0.0)
-                    operation[factor_key].append(0.0)
-        for key in operation.keys():
-            if len(operation[key]) != n_points:
-                error_msg = f"instruction {key} has invalid length {len(operation[key])} - expected {n_points}"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
-            solution[key] = operation[key]
+                # SOC-clamped effective values — what can physically be executed at
+                # this hour given the expected battery state of charge.
+                result_idx = hour_idx - start_day_slot
+                soc_h_pct = (
+                    self.result.battery_soc_per_hour[result_idx]
+                    if result_idx < len(self.result.battery_soc_per_hour)
+                    else 0.0
+                )
+                eff_ac, eff_dc, eff_dis, eff_grid_export = self._soc_clamped_operation_factors(
+                    ac_charge_hour,
+                    dc_charge_hour,
+                    discharge_allowed_hour,
+                    soc_h_pct,
+                    battery_grid_export_allowed_hour,
+                )
+                operation_mode, operation_mode_factor = self._battery_operation_from_solution(
+                    eff_ac, eff_dc, eff_dis, eff_grid_export, battery_grid_export_factor_hour
+                )
+                for mode in BatteryOperationMode:
+                    mode_key = f"{battery_device_id}_{mode.lower()}_op_mode"
+                    factor_key = f"{battery_device_id}_{mode.lower()}_op_factor"
+                    if mode_key not in operation.keys():
+                        operation[mode_key] = []
+                        operation[factor_key] = []
+                    if mode == operation_mode:
+                        operation[mode_key].append(1.0)
+                        operation[factor_key].append(operation_mode_factor)
+                    else:
+                        operation[mode_key].append(0.0)
+                        operation[factor_key].append(0.0)
+            for key in operation.keys():
+                if len(operation[key]) != n_points:
+                    error_msg = f"instruction {key} has invalid length {len(operation[key])} - expected {n_points}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                solution[key] = operation[key]
 
         # Add EV battery solution
-        # ev_charge_hours_float start at hour 0 of start day
-        # result.ev_soc_per_hour start at start_datetime.hour
+        # eautocharge_hours_float start at hour 0 of start day
+        # result.EAuto_SoC_pro_Stunde start at start_datetime.hour
         if self.ev_obj:
             ev_device_id = self._ev_device_id()
             if self.ev_charge_hours_float is None:
@@ -633,9 +849,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     "genetic_ev_charge_factor": [],
                 }
                 for hour_idx, rate in enumerate(self.ev_charge_hours_float):
-                    if hour_idx < start_day_hour:
+                    if hour_idx < start_day_slot:
                         continue
-                    if hour_idx >= start_day_hour + n_points:
+                    if hour_idx >= start_day_slot + n_points:
                         break
                     operation["genetic_ev_charge_factor"].append(rate)
                     operation_mode, operation_mode_factor = self._battery_operation_from_solution(
@@ -660,32 +876,33 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         raise ValueError(error_msg)
                     solution[key] = operation[key]
 
-        # Add home appliance data
-        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
-            # Use config and not self.washingstart as washingstart may be None (no start)
-            # even if configured to be started.
-            homeappliance_device_id = self._homeappliance_device_id()
-            # result starts at start_day_hour
-            solution[f"{homeappliance_device_id}_energy_wh"] = (
-                self.result.home_appliance_wh_per_hour[:n_points]
-            )
+        # Add home appliance data, one block of columns per device. Per-device
+        # energy arrays start at start_day_slot, like the other result arrays.
+        for device_id, energy_wh in self.result.home_appliance_energy_wh.items():
+            solution[f"{device_id}_energy_wh"] = energy_wh[:n_points]
             operation = {
-                f"{homeappliance_device_id}_run_op_mode": [],
-                f"{homeappliance_device_id}_run_op_factor": [],
-                f"{homeappliance_device_id}_off_op_mode": [],
-                f"{homeappliance_device_id}_off_op_factor": [],
+                f"{device_id}_run_op_mode": [],
+                f"{device_id}_run_op_factor": [],
+                f"{device_id}_off_op_mode": [],
+                f"{device_id}_off_op_factor": [],
             }
-            for hour_idx, energy in enumerate(solution[f"{homeappliance_device_id}_energy_wh"]):
-                if energy > 0.0:
-                    operation[f"{homeappliance_device_id}_run_op_mode"].append(1.0)
-                    operation[f"{homeappliance_device_id}_run_op_factor"].append(1.0)
-                    operation[f"{homeappliance_device_id}_off_op_mode"].append(0.0)
-                    operation[f"{homeappliance_device_id}_off_op_factor"].append(0.0)
+            running_slots = self.result.home_appliance_running.get(device_id, [])
+            for hour_idx, energy in enumerate(solution[f"{device_id}_energy_wh"]):
+                running = (
+                    running_slots[hour_idx]
+                    if hour_idx < len(running_slots)
+                    else bool(energy and energy > 0.0)
+                )
+                if running:
+                    operation[f"{device_id}_run_op_mode"].append(1.0)
+                    operation[f"{device_id}_run_op_factor"].append(1.0)
+                    operation[f"{device_id}_off_op_mode"].append(0.0)
+                    operation[f"{device_id}_off_op_factor"].append(0.0)
                 else:
-                    operation[f"{homeappliance_device_id}_run_op_mode"].append(0.0)
-                    operation[f"{homeappliance_device_id}_run_op_factor"].append(0.0)
-                    operation[f"{homeappliance_device_id}_off_op_mode"].append(1.0)
-                    operation[f"{homeappliance_device_id}_off_op_factor"].append(1.0)
+                    operation[f"{device_id}_run_op_mode"].append(0.0)
+                    operation[f"{device_id}_run_op_factor"].append(0.0)
+                    operation[f"{device_id}_off_op_mode"].append(1.0)
+                    operation[f"{device_id}_off_op_factor"].append(1.0)
             for key in operation.keys():
                 if len(operation[key]) != n_points:
                     error_msg = f"instruction {key} has invalid length {len(operation[key])} - expected {n_points}"
@@ -706,18 +923,33 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             },
             index=time_index,
         )
-        pred = get_prediction()
+        if self.controls_start_at_now:
+            snapshot = self.parameters.ems
+            prediction["pvforecast_ac_energy_wh"] = snapshot.pv_forecast_wh[:n_points]
+            prediction["loadforecast_energy_wh"] = snapshot.total_load[:n_points]
+            prediction["elec_price_amt_kwh"] = (
+                np.asarray(snapshot.electricity_price_per_wh[:n_points]) * 1000
+            )
+            tariffs = snapshot.feed_in_tariff_per_wh
+            prediction["feed_in_tariff_amt_kwh"] = (
+                np.asarray(tariffs[:n_points]) * 1000
+                if isinstance(tariffs, list)
+                else tariffs * 1000
+            )
+        if self.controls_start_at_now and self.parameters.temperature_forecast is not None:
+            prediction["weather_air_temp_celcius"] = self.parameters.temperature_forecast[:n_points]
+        pred = None if self.controls_start_at_now else get_prediction()
 
-        prediction_specs: list[tuple[str, FillMethod, str, float]] = [
+        for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in [
             (
                 "pvforecast_ac_power",
-                "linear",
+                "ffill",
                 "pvforecast_ac_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
             (
                 "pvforecast_dc_power",
-                "linear",
+                "ffill",
                 "pvforecast_dc_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
@@ -741,32 +973,32 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             ),
             (
                 "loadforecast_power_w",
-                "linear",
+                "ffill",
                 "loadforecast_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
             (
                 "loadakkudoktor_std_power_w",
-                "linear",
+                "ffill",
                 "loadakkudoktor_std_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
             (
                 "loadakkudoktor_mean_power_w",
-                "linear",
+                "ffill",
                 "loadakkudoktor_mean_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
-        ]
-
-        for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in prediction_specs:
-            if pred_key in pred.record_keys:
+        ]:
+            if pred_solution_key in prediction.columns:
+                continue
+            if pred is not None and pred_key in pred.record_keys:
                 array = await pred.key_to_array(
                     key=pred_key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
-                    fill_method=pred_fill_method,
+                    interval=to_duration(f"{interval_s} seconds"),
+                    fill_method=cast(FillMethod, pred_fill_method),
                 )
                 # 'key_to_array()' creates None values array if no data records are available.
                 if array is not None and array.size > 0 and not np.any(pd.isna(array)):
@@ -777,7 +1009,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             generated_at=to_datetime(),
             comment="Optimization solution derived from GeneticSolution.",
             valid_from=start_datetime,
-            valid_until=start_datetime.add(hours=self.config.optimization.genetic.horizon_hours),
+            valid_until=end_datetime,
             total_losses_energy_wh=self.result.total_losses,
             total_revenues_amt=self.result.total_revenue,
             total_costs_amt=self.result.total_costs,
@@ -792,8 +1024,16 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
     def energy_management_plan(self) -> EnergyManagementPlan:
         """Provide the genetic solution as an energy management plan."""
-        start_datetime = get_ems().start_datetime
-        start_day_hour = start_datetime.in_timezone(self.config.general.timezone).hour
+        start_datetime = self.start_solution_datetime or get_ems().start_datetime
+        # Index by slot, not hour (mirrors optimization_solution). At the default
+        # interval of 3600 s this reduces to the start hour-of-day.
+        interval_s = self.interval_seconds
+        start_local = start_datetime.in_timezone(self.config.general.timezone)
+        start_day_slot = (
+            0
+            if self.controls_start_at_now
+            else int((start_local - start_local.start_of("day")).total_seconds() // interval_s)
+        )
         plan = EnergyManagementPlan(
             id=f"plan-genetic@{to_datetime(as_string=True)}",
             generated_at=to_datetime(),
@@ -801,55 +1041,70 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             comment="Energy management plan derived from GeneticSolution.",
         )
 
-        # Add battery instructions (fill rate based control)
-        last_operation_mode: Optional[str] = None
-        last_operation_mode_factor: Optional[float] = None
-        resource_id = self._battery_device_id()
-        # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
-        logger.debug("BAT: {} - {}", resource_id, self.ac_charge[start_day_hour:])
-        for hour_idx, rate in enumerate(self.ac_charge):
-            if hour_idx < start_day_hour:
-                continue
-            # Derive SOC-clamped effective factors so that FRBCInstruction
-            # operation_mode_factor reflects what can physically be executed,
-            # while the raw genetic gene values are preserved in the solution
-            # dataframe (genetic_*_factor columns).
-            result_idx = hour_idx - start_day_hour
-            soc_h_pct = (
-                self.result.battery_soc_per_hour[result_idx]
-                if result_idx < len(self.result.battery_soc_per_hour)
-                else 0.0
-            )
-            eff_ac, eff_dc, eff_dis = self._soc_clamped_operation_factors(
-                self.ac_charge[hour_idx],
-                self.dc_charge[hour_idx],
-                bool(self.discharge_allowed[hour_idx]),
-                soc_h_pct,
-            )
-            operation_mode, operation_mode_factor = self._battery_operation_from_solution(
-                eff_ac, eff_dc, eff_dis
-            )
-            if (
-                operation_mode == last_operation_mode
-                and operation_mode_factor == last_operation_mode_factor
-            ):
-                # Skip, we already added the instruction
-                continue
-            last_operation_mode = operation_mode
-            last_operation_mode_factor = operation_mode_factor
-            execution_time = start_datetime.add(hours=hour_idx - start_day_hour)
-            plan.add_instruction(
-                FRBCInstruction(
-                    resource_id=resource_id,
-                    execution_time=execution_time,
-                    actuator_id=resource_id,
-                    operation_mode_id=operation_mode,
-                    operation_mode_factor=operation_mode_factor,
+        if self.parameters.pv_battery is not None:
+            # Add battery instructions (fill rate based control)
+            last_operation_mode: Optional[str] = None
+            last_operation_mode_factor: Optional[float] = None
+            resource_id = self._battery_device_id()
+            # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
+            logger.debug("BAT: {} - {}", resource_id, self.ac_charge[start_day_slot:])
+            for hour_idx, rate in enumerate(self.ac_charge):
+                if hour_idx < start_day_slot:
+                    continue
+                # Derive SOC-clamped effective factors so that FRBCInstruction
+                # operation_mode_factor reflects what can physically be executed,
+                # while the raw genetic gene values are preserved in the solution
+                # dataframe (genetic_*_factor columns).
+                result_idx = hour_idx - start_day_slot
+                soc_h_pct = (
+                    self.result.battery_soc_per_hour[result_idx]
+                    if result_idx < len(self.result.battery_soc_per_hour)
+                    else 0.0
                 )
-            )
+                battery_grid_export_allowed_hour = (
+                    bool(self.battery_grid_export_allowed[hour_idx])
+                    if hour_idx < len(self.battery_grid_export_allowed)
+                    else False
+                )
+                eff_ac, eff_dc, eff_dis, eff_grid_export = self._soc_clamped_operation_factors(
+                    self.ac_charge[hour_idx],
+                    self.dc_charge[hour_idx],
+                    bool(self.discharge_allowed[hour_idx]),
+                    soc_h_pct,
+                    battery_grid_export_allowed_hour,
+                )
+                operation_mode, operation_mode_factor = self._battery_operation_from_solution(
+                    eff_ac,
+                    eff_dc,
+                    eff_dis,
+                    eff_grid_export,
+                    self.battery_grid_export_factor[hour_idx]
+                    if hour_idx < len(self.battery_grid_export_factor)
+                    else 1.0,
+                )
+                if (
+                    operation_mode == last_operation_mode
+                    and operation_mode_factor == last_operation_mode_factor
+                ):
+                    # Skip, we already added the instruction
+                    continue
+                last_operation_mode = operation_mode
+                last_operation_mode_factor = operation_mode_factor
+                execution_time = start_datetime.add(
+                    seconds=interval_s * (hour_idx - start_day_slot)
+                )
+                plan.add_instruction(
+                    FRBCInstruction(
+                        resource_id=resource_id,
+                        execution_time=execution_time,
+                        actuator_id=resource_id,
+                        operation_mode_id=operation_mode,
+                        operation_mode_factor=operation_mode_factor,
+                    )
+                )
 
         # Add EV battery instructions (fill rate based control)
-        # ev_charge_hours_float start at hour 0 of start day
+        # eautocharge_hours_float start at hour 0 of start day
         if self.ev_obj:
             resource_id = self._ev_device_id()
             if self.ev_charge_hours_float is None:
@@ -868,10 +1123,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 last_operation_mode = None
                 last_operation_mode_factor = None
                 logger.debug(
-                    "EV: {} - {}", resource_id, self.ev_charge_hours_float[start_day_hour:]
+                    "EV: {} - {}", resource_id, self.ev_charge_hours_float[start_day_slot:]
                 )
                 for hour_idx, rate in enumerate(self.ev_charge_hours_float):
-                    if hour_idx < start_day_hour:
+                    if hour_idx < start_day_slot:
                         continue
                     operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                         rate, 0.0, False
@@ -884,7 +1139,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         continue
                     last_operation_mode = operation_mode
                     last_operation_mode_factor = operation_mode_factor
-                    execution_time = start_datetime.add(hours=hour_idx - start_day_hour)
+                    execution_time = start_datetime.add(
+                        seconds=interval_s * (hour_idx - start_day_slot)
+                    )
                     plan.add_instruction(
                         FRBCInstruction(
                             resource_id=resource_id,
@@ -895,34 +1152,36 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         )
                     )
 
-        # Add home appliance instructions (demand driven based control)
-        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
-            # Use config and not self.washingstart as washingstart may be None (no start)
-            # even if configured to be started.
-            resource_id = self._homeappliance_device_id()
-            last_energy: Optional[float] = None
-            for hours, energy in enumerate(self.result.home_appliance_wh_per_hour):
+        # Add home appliance instructions (demand driven based control), one
+        # stream of instructions per device. A new instruction is only emitted on
+        # a transition between OFF (energy == 0) and RUN (energy > 0); a mere
+        # power change within a running profile does not add an instruction.
+        for resource_id, energy_wh in self.result.home_appliance_energy_wh.items():
+            last_state: Optional[bool] = None
+            for hours, energy in enumerate(energy_wh):
                 # hours starts at start_datetime with 0
                 if energy is None:
                     raise ValueError(
-                        f"Unexpected value {energy} in {self.result.home_appliance_wh_per_hour}"
+                        f"Unexpected value {energy} in home_appliance_energy_wh[{resource_id}]"
                     )
-                if last_energy is None or energy != last_energy:
-                    if energy > 0.0:
-                        operation_mode = ApplianceOperationMode.RUN  # type: ignore[assignment]
-                    else:
-                        operation_mode = ApplianceOperationMode.OFF  # type: ignore[assignment]
-                    operation_mode_factor = 1.0
-                    execution_time = start_datetime.add(hours=hours)
+                running_slots = self.result.home_appliance_running.get(resource_id, [])
+                running = running_slots[hours] if hours < len(running_slots) else energy > 0.0
+                if last_state is None or running != last_state:
+                    appliance_mode = (
+                        ApplianceOperationMode.RUN if running else ApplianceOperationMode.OFF
+                    )
+                    execution_time = start_datetime.add(seconds=interval_s * hours)
                     plan.add_instruction(
                         DDBCInstruction(
                             resource_id=resource_id,
                             execution_time=execution_time,
                             actuator_id=resource_id,
-                            operation_mode_id=operation_mode,
-                            operation_mode_factor=operation_mode_factor,
+                            operation_mode_id=appliance_mode,
+                            operation_mode_factor=1.0,
                         )
                     )
-                    last_energy = energy
+                    last_state = running
 
+        if not plan.instructions:
+            plan.valid_from = start_datetime
         return plan
