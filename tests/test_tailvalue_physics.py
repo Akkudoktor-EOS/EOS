@@ -141,15 +141,16 @@ def test_tail_diagnostic_plan_explains_the_selected_path():
     assert sum(slot.slot_value_euro for slot in plan) == pytest.approx(c.value(0))
 
 
-
-
-def test_provider_values_are_not_extrapolated():
+@pytest.mark.asyncio
+async def test_provider_values_are_not_extrapolated():
     from types import SimpleNamespace
 
     start = to_datetime("2026-09-05T00:00:00Z")
     series = pd.Series([1.0, 2.0], index=pd.date_range(start=start, periods=2, freq="h"))
-    provider = SimpleNamespace(key_to_series=lambda *a, **kw: series)
-    result = bounded_forecast_array(
+    from unittest.mock import AsyncMock
+
+    provider = SimpleNamespace(key_to_raw_series=AsyncMock(return_value=series))
+    result = await bounded_forecast_array(
         provider,
         key="price",
         start_datetime=start,
@@ -158,7 +159,6 @@ def test_provider_values_are_not_extrapolated():
     )
     assert result[:8].tolist() == [1.0] * 4 + [2.0] * 4
     assert np.isnan(result[8:]).all()
-
 
 
 def test_disabled_ac_conversion_cannot_earn_negative_price_revenue():
@@ -180,16 +180,16 @@ def test_disabled_ac_conversion_cannot_earn_negative_price_revenue():
     assert bat.soc_wh == 500  # Building the tail never mutates the real battery.
 
 
-
-def test_missing_provider_key_stays_missing():
+@pytest.mark.asyncio
+async def test_missing_provider_key_stays_missing():
     from types import SimpleNamespace
 
-    def unavailable(*a, **kw):
+    async def unavailable(*a, **kw):
         raise KeyError("price unavailable")
 
     start = to_datetime("2026-09-05T00:00:00Z")
-    result = bounded_forecast_array(
-        SimpleNamespace(key_to_series=unavailable),
+    result = await bounded_forecast_array(
+        SimpleNamespace(key_to_raw_series=unavailable),
         key="price",
         start_datetime=start,
         end_datetime=start.add(hours=2),
@@ -197,4 +197,3 @@ def test_missing_provider_key_stays_missing():
     )
     assert np.isnan(result).all()
     assert len(result) == 2
-

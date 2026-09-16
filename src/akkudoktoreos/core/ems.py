@@ -22,6 +22,7 @@ from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
@@ -63,6 +64,7 @@ class EnergyManagement(
 
     # Start datetime.
     _start_datetime: ClassVar[Optional[DateTime]] = None
+    _observation_datetime: ClassVar[Optional[DateTime]] = None
 
     # last run datetime. Used by energy management task
     _last_run_datetime: ClassVar[Optional[DateTime]] = None
@@ -101,25 +103,45 @@ class EnergyManagement(
         """The datetime the last energy management was run."""
         return EnergyManagement._last_run_datetime
 
+    @property
+    def observation_datetime(self) -> DateTime:
+        """Unrounded run time used to assess the freshness of runtime measurements."""
+        return EnergyManagement._observation_datetime or self.start_datetime
+
     @classmethod
-    def set_start_datetime(cls, start_datetime: Optional[DateTime] = None) -> DateTime:
+    def set_start_datetime(
+        cls, start_datetime: Optional[DateTime] = None, interval_seconds: Optional[int] = None
+    ) -> DateTime:
         """Set the start datetime for the next energy management run.
 
         If no datetime is provided, the current datetime is used.
 
-        The start datetime is always rounded down to the nearest hour
-        (i.e., setting minutes, seconds, and microseconds to zero).
+        The start is rounded down to the selected algorithm slot using elapsed
+        time, retaining the correct offset during repeated DST hours.
 
         Args:
             start_datetime (Optional[DateTime]): The datetime to set as the start.
                 If None, the current datetime is used.
+            interval_seconds: Explicit slot duration; otherwise use the configured algorithm.
 
         Returns:
             DateTime: The adjusted start datetime.
         """
         if start_datetime is None:
             start_datetime = to_datetime()
-        cls._start_datetime = start_datetime.set(minute=0, second=0, microsecond=0)
+        cls._observation_datetime = start_datetime
+        if interval_seconds is None:
+            interval_seconds = (
+                cls.config.optimization.genetic.interval_sec
+                if cls.config.optimization.algorithm == OptimizationAlgorithm.GENETIC
+                else 3600
+            )
+        if interval_seconds not in (900, 3600):
+            raise ValueError("Optimization slots must be 900 or 3600 seconds.")
+        cls._start_datetime = to_datetime(
+            (start_datetime.int_timestamp // interval_seconds) * interval_seconds,
+            in_timezone=start_datetime.timezone_name,
+        )
         return cls._start_datetime
 
     @classmethod
@@ -172,8 +194,11 @@ class EnergyManagement(
         start_datetime: Optional[DateTime] = None,
         mode: Optional[EnergyManagementMode] = None,
         algorithm: Optional[OptimizationAlgorithm] = None,
-        genetic_parameters: Optional[GeneticOptimizationParameters] = None,
+        genetic_parameters: Optional[
+            GeneticOptimizationParameters | ConfigOptimizationRequest
+        ] = None,
         genetic_generations: Optional[int] = None,
+        genetic_individuals: Optional[int] = None,
         genetic_seed: Optional[int] = None,
         genetic0_parameters: Optional[Genetic0OptimizationParameters] = None,
         genetic0_generations: Optional[int] = None,
@@ -207,6 +232,7 @@ class EnergyManagement(
             genetic_generations (int, optional): The number of generations for the
                 `GENETIC` algorithm. Defaults to the algorithm's internal default (400)
                 if not specified.
+            genetic_individuals (int, optional): Population size override for this run.
             genetic_seed (int, optional): The seed for the `GENETIC` algorithm. Defaults
                 to the algorithm's internal random seed if not specified.
             genetic0_parameters (Genetic0OptimizationParameters, optional): The
@@ -245,7 +271,16 @@ class EnergyManagement(
 
             # Remember/ set the start datetime of this energy management run.
             # None leads to current time as start datetime
-            self.set_start_datetime(start_datetime)
+            if algorithm is None:
+                algorithm = self.config.optimization.algorithm
+            self.set_start_datetime(
+                start_datetime,
+                interval_seconds=(
+                    self.config.optimization.genetic.interval_sec
+                    if algorithm == OptimizationAlgorithm.GENETIC
+                    else 3600
+                ),
+            )
 
             # Throw away any memory cached results of the last energy management run.
             CacheEnergyManagementStore().clear()
@@ -296,15 +331,19 @@ class EnergyManagement(
                 # Prepare optimization parameters
                 # This also creates default configurations for missing values and updates the predictions
                 logger.info(f"{algorithm}: Starting optimzation parameter preparation.")
-                if genetic_parameters is None:
-                    genetic_parameters = await GeneticOptimizationParameters.prepare()
+                try:
+                    if isinstance(genetic_parameters, ConfigOptimizationRequest):
+                        genetic_parameters = await genetic_parameters.resolve()
+                    elif genetic_parameters is None:
+                        genetic_parameters = await GeneticOptimizationParameters.prepare()
                     if genetic_parameters is None:
-                        logger.error(
-                            f"{algorithm}: Energy management run canceled. "
-                            "Could not prepare optimisation parameters."
-                        )
+                        logger.error("GENETIC: Parameter preparation failed; canceling run.")
                         EnergyManagement._stage = EnergyManagementStage.IDLE
                         return None
+                except Exception:
+                    logger.exception("GENETIC: Parameter preparation failed.")
+                    EnergyManagement._stage = EnergyManagementStage.IDLE
+                    return None
 
                 # Take values from config if not given
                 if genetic_generations is None:
@@ -332,6 +371,7 @@ class EnergyManagement(
                                 GeneticOptimizationParameters, genetic_parameters
                             ),  # cast for mypy
                             ngen=genetic_generations,
+                            individuals=genetic_individuals,
                         ),
                     )
 

@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
@@ -35,7 +36,8 @@ def prepare_tariffs(config_eos):
                 "devices": {
                     "max_batteries": 0,
                     "max_electric_vehicles": 0,
-                    "max_inverters": 0,
+                    "max_inverters": 1,
+                    "inverters": {"inverter1": {"max_power_w": 10000}},
                     "max_home_appliances": 0,
                 },
             }
@@ -49,20 +51,27 @@ def prepare_tariffs(config_eos):
             "feed_in_tariff_wh": revenues,
         }
 
-        async def read_array(key, **kwargs):
+        async def read_series(key, **kwargs):
             if key == "feed_in_tariff_wh" and tariff_reader is not None:
                 return await tariff_reader(key=key, **kwargs)
             value = arrays[key]
             if isinstance(value, Exception):
                 raise value
-            return np.asarray(value)
+            return pd.Series(
+                value, index=pd.date_range("2026-08-01T00:00:00Z", periods=len(value), freq="h")
+            )
 
-        prediction = Mock(update_data=AsyncMock(), key_to_array=AsyncMock(side_effect=read_array))
-        ems = Mock(start_datetime=to_datetime("2026-08-01T00:00:00+00:00"))
+        prediction = Mock(
+            update_data=AsyncMock(), key_to_raw_series=AsyncMock(side_effect=read_series)
+        )
+        ems = Mock(
+            start_datetime=to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC"),
+            observation_datetime=to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC"),
+        )
         ems.genetic_solution.return_value = None
         with (
-            patch("akkudoktoreos.optimization.genetic.geneticparams.get_ems", return_value=ems),
-            patch.object(GeneticOptimizationParameters, "prediction", prediction),
+            patch("akkudoktoreos.optimization.genetic.configrequest.get_ems", return_value=ems),
+            patch.object(ConfigOptimizationRequest, "prediction", prediction),
         ):
             parameters = await GeneticOptimizationParameters.prepare()
         return parameters, prices, prediction
@@ -121,7 +130,6 @@ async def test_provider_revenues_survive_preparation_and_simulation(
         RuntimeError("import unavailable"),
         [],
         [0.00007] * 23,
-        [0.00007] * 25,
         [np.nan] * 24,
         [0.00007] * 23 + [np.nan],
         [np.inf] * 24,
@@ -152,14 +160,14 @@ def test_prediction_record_prices_are_already_per_wh():
 async def test_timestamped_import_records_are_read_in_order(prepare_tariffs, values):
     provider = FeedInTariffImport()
     provider._db_reset_state()
-    start = to_datetime("2026-08-01T00:00:00+00:00").set(hour=0)
+    start = to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC").set(hour=0)
     try:
         await provider.key_from_series(
             "feed_in_tariff_wh",
             pd.Series(values, index=pd.date_range(start=start, periods=24, freq="h")),
         )
         parameters, _, _ = await prepare_tariffs(
-            "FeedInTariffImport", [], tariff_reader=provider.key_to_array
+            "FeedInTariffImport", [], tariff_reader=provider.key_to_raw_series
         )
         if values[0] is None:
             assert parameters is None

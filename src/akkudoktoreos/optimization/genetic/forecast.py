@@ -1,44 +1,61 @@
-"""Resample actual forecast intervals without extrapolating missing provider data."""
+"""Read forecast interval averages without filling gaps or extrapolating the tail."""
 
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from akkudoktoreos.utils.datetimeutil import DateTime, Duration
 
-def bounded_forecast_array(
+
+async def bounded_forecast_array(
     prediction: Any,
     *,
     key: str,
-    start_datetime: Any,
-    end_datetime: Any,
-    interval: Any,
-    **kwargs: Any,
+    start_datetime: DateTime,
+    end_datetime: DateTime,
+    interval: Duration,
 ) -> np.ndarray:
-    """Hold interval averages only within their source interval.
+    """Integrate stored interval averages only across completely covered target slots.
 
-    EOS forecasts carry interval starts. Infer source cadence from timestamps,
-    conservatively bounded to one hour; never extend the last value indefinitely.
-    Explicit NaNs and holes remain missing. Downsampling requires full coverage.
+    Source timestamps are interval starts. Infer their smallest positive cadence,
+    capped at one hour. A missing source interval, explicit NaN or the end of the
+    available forecast remains missing. UTC elapsed time handles DST transitions.
+    The returned values retain the input units; callers convert W to slot Wh once.
     """
-    target_seconds = int(interval.total_seconds())
+    seconds = int(interval.total_seconds())
+    start = start_datetime.timestamp()
+    end = end_datetime.timestamp()
+    if seconds <= 0 or end <= start or (end - start) % seconds:
+        raise ValueError("Forecast bounds must contain a positive whole number of slots.")
+    result = np.full(int((end - start) / seconds), np.nan)
     try:
-        series = prediction.key_to_series(key, dropna=False)
+        series = await prediction.key_to_raw_series(key=key, dropna=False)
     except KeyError:
-        series = pd.Series(dtype=float, index=pd.DatetimeIndex([], tz="UTC"))
+        return result
+    if series.empty:
+        return result
     series = pd.to_numeric(series, errors="coerce").sort_index()
     series = series[~series.index.duplicated(keep="last")]
-    cadence = 3600
-    if len(series) > 1:
-        gaps = np.diff(series.index.as_unit("ns").asi8) / 1e9
-        cadence = int(min(3600, np.min(gaps[gaps > 0])))
-    step = min(cadence, target_seconds)
-    index = pd.date_range(start=start_datetime, end=end_datetime, freq=f"{step}s", inclusive="left")
-    if series.empty:
-        sampled = pd.Series(np.nan, index=index)
-    else:
-        sampled = series.reindex(index, method="ffill", tolerance=pd.Timedelta(seconds=cadence - 1))
-    groups = sampled.resample(f"{target_seconds}s", origin=start_datetime)
-    result = groups.mean()
-    result[groups.count().to_numpy() < target_seconds / step] = np.nan
-    return result.to_numpy(dtype=float)
+    stamps = pd.to_datetime(series.index, utc=True).as_unit("ns").asi8 / 1e9
+    values = series.to_numpy(dtype=float)
+    differences = np.diff(stamps)
+    cadence = min(3600.0, float(np.min(differences))) if len(differences) else 3600.0
+    for slot in range(len(result)):
+        left = start + slot * seconds
+        right = left + seconds
+        position = max(0, int(np.searchsorted(stamps, left, side="right")) - 1)
+        covered = 0.0
+        weighted = 0.0
+        while position < len(stamps) and stamps[position] < right:
+            source_end = stamps[position] + cadence
+            if position + 1 < len(stamps):
+                source_end = min(source_end, stamps[position + 1])
+            overlap = max(0.0, min(right, source_end) - max(left, stamps[position]))
+            if overlap and np.isfinite(values[position]):
+                covered += overlap
+                weighted += (overlap / seconds) * values[position]
+            position += 1
+        if abs(covered - seconds) < 1e-6:
+            result[slot] = weighted
+    return result

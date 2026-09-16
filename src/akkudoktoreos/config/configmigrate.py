@@ -269,6 +269,12 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     # Normalize this provider before the generic field-by-field transfer. Validate
     # coupled bounds together so a transient intermediate default cannot lose them.
     config_data = dict(config_data)
+    from akkudoktoreos.optimization.genetic.geneticsettings import (
+        normalize_genetic_settings,
+    )
+
+    if "optimization" in config_data:
+        config_data["optimization"] = normalize_genetic_settings(config_data["optimization"])
     pv_settings = normalize_akkudoktor_settings(config_data.get("pvforecast"))
     if isinstance(pv_settings, dict):
         config_data["pvforecast"] = pv_settings

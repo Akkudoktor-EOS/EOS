@@ -42,6 +42,14 @@ def feedintariff_provider_ids() -> list[str]:
 class FeedInTariffCommonSettings(SettingsBaseModel):
     """Feed In Tariff Prediction Configuration."""
 
+    direct_marketing_enabled: bool = Field(
+        default=False,
+        description=(
+            "Enable export-aware GENETIC optimization. Sale revenues remain those of the "
+            "configured feed-in provider or explicit forecast; purchase prices never replace them."
+        ),
+    )
+
     provider: Optional[str] = Field(
         default=None,
         json_schema_extra={

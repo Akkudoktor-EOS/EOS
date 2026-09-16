@@ -64,6 +64,7 @@ from akkudoktoreos.optimization.genetic0.genetic0solution import (
 from akkudoktoreos.optimization.genetic0.genetic0visualize import (
     genetic0_prepare_visualize,
 )
+from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
@@ -2172,6 +2173,37 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
     # Return both forecasts as a JSON response
     return ForecastResponse(temperature=temp_air_list, pvpower=ac_power_list)
+
+
+@app.post("/v1/optimize", tags=["optimize"])
+async def fastapi_optimize_config(
+    parameters: ConfigOptimizationRequest = Body(default_factory=ConfigOptimizationRequest),
+) -> GeneticSolution:
+    """Optimize GENETIC using configured devices and optional fresh runtime inputs.
+
+    Static settings belong in configuration. Forecast arrays start at local
+    midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
+    An empty body uses configured providers and fresh measured states of charge.
+    The deprecated /optimize endpoint continues to run hourly GENETIC0.
+    """
+    solution = await get_ems().run(
+        mode=EnergyManagementMode.OPTIMIZATION,
+        algorithm=OptimizationAlgorithm.GENETIC,
+        genetic_parameters=parameters,
+    )
+    if solution is None:
+        raise EOSProblem(
+            status=503,
+            title="GENETIC optimization failed",
+            detail="No new solution was produced. Check configured devices, fresh SoC and forecast coverage.",
+        )
+    if not isinstance(solution, GeneticSolution):
+        raise EOSProblem(
+            status=500,
+            title="Unexpected optimization algorithm result",
+            detail="GENETIC did not return its native solution type.",
+        )
+    return solution
 
 
 @app.post("/optimize", tags=["optimize"])
