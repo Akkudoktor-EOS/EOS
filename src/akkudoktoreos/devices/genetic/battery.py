@@ -1,10 +1,11 @@
 from typing import Any, Iterator, Optional
 
 import numpy as np
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
 from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 
 def max_charging_power_field(description: Optional[str] = None) -> float:
@@ -121,6 +122,39 @@ class ElectricVehicleParameters(BaseBatteryParameters):
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the current state of charge (SOC) of the battery in percentage."
     )
+
+    min_soc_deadline_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Absolute moment by which 'min_soc_percentage' has to be "
+                "reached (departure time). A date time without timezone is read "
+                "as local time. None means end of the optimization horizon."
+            ),
+            "examples": [None, "2026-07-16T07:00:00+02:00"],
+        },
+    )
+    min_soc_max_duration_h: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Maximum time from the start of the optimization until "
+                "'min_soc_percentage' has to be reached [h]. Combined with "
+                "'min_soc_deadline_datetime' the earlier of the two applies."
+            ),
+            "examples": [None, 6.0],
+        },
+    )
+
+    @field_validator("min_soc_deadline_datetime", mode="before")
+    @classmethod
+    def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
 
 
 class Battery:

@@ -10,11 +10,13 @@ import numpy as np
 from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, field_validator, model_validator
 
+from akkudoktoreos.config.configabc import ConfigScope
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.measurement.batterycapacity import (
     BatteryCapacityEstimate,
     BatteryCapacityEstimationSettings,
 )
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.genetic0.genetic0battery import (
@@ -175,6 +177,41 @@ class BatteriesCommonSettings(DevicesBaseSettings):
 
         return arr.tolist()
 
+    min_soc_deadline_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Absolute moment by which 'min_soc_percentage' has to be "
+                "reached (departure time). A date time without timezone is read "
+                "as local time. None means end of the optimization horizon."
+            ),
+            "examples": [None, "2026-07-16T07:00:00+02:00"],
+        },
+    )
+    min_soc_max_duration_h: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Maximum time from the start of the optimization until "
+                "'min_soc_percentage' has to be reached [h]. Combined with "
+                "'min_soc_deadline_datetime' the earlier of the two applies."
+            ),
+            "examples": [None, 6.0],
+        },
+    )
+
+    @field_validator("min_soc_deadline_datetime", mode="before")
+    @classmethod
+    def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
+
     def to_genetic_pv_bat_param(self) -> "SolarPanelBatteryParameters":
         """Return SolarPanelBatteryParameters for the GENETIC optimizer."""
         from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
@@ -205,6 +242,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             max_charge_power_w=self.max_charge_power_w,
             min_soc_percentage=self.min_soc_percentage,
             max_soc_percentage=self.max_soc_percentage,
+            min_soc_deadline_datetime=self.min_soc_deadline_datetime,
+            min_soc_max_duration_h=self.min_soc_max_duration_h,
         )
 
     # ------------------------------------------------------------------
