@@ -24,7 +24,7 @@ parts of the tariff work against the old feature branch; preserve/reconcile thos
 contributions rather than count duplicate implementations as separate deliverables.
 PR #1322 is already published and is additional to this remaining-work table.
 
-One additional standalone defect fix is now prepared as fix/optimize-run-result:
+One additional standalone defect fix is published as PR #1323, fix/optimize-run-result:
 an explicit Optimize request must return only its own completed result. Cache
 method identity was also corrected as a prerequisite within the device package;
 it does not currently add another planned feature PR.
@@ -51,7 +51,8 @@ same configuration structure. A tested tariff patch will be carried into the cor
 port; the core port must keep its regression cases. PV keeps the public
 PVForecastAkkudoktor ID and existing remote behavior unless explicitly selected.
 Parallel preparation does not imply parallel unreviewed merges or publishing all
-branches. Only the JSON fix has publication approval at this point.
+branches. The JSON fix #1322 and subsequently the Optimize fix #1323 have publication
+approval; other branches remain local.
 
 ## Three different Optimize contracts
 

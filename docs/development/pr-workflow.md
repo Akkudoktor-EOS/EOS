@@ -25,7 +25,7 @@ Funktionen aus dem alten Feature-Branch ist noch NICHT abgeschlossen.
 | `fix/imported-feedin-main` | Importierte Einspeisetarife erhalten und prüfen | Lokal vorbereitet auf main |
 | `feat/local-pv-main-port` | Lokale PV-Prognose und Kalibrierung | Lokal vorbereitet auf main |
 | `feat/slot-device-physics` | Slotphysik und getrennte Cache-Methoden | Lokal vorbereitet auf Konfigurationsbasis |
-| `fix/optimize-run-result` | Nur das Ergebnis des erfolgreichen aktuellen Laufs zurückgeben | Lokal vorbereitet auf main |
+| `fix/optimize-run-result` | Nur das Ergebnis des erfolgreichen aktuellen Laufs zurückgeben | Veröffentlicht als #1323; CI läuft |
 | `integration/eos-consolidation-20260916` | Zusammenführung und Prüfung aller Portierungspakete | Unvollständig; kein Gesamt-PR und kein HA-Release |
 | `feat/direct-marketing-battery-grid-export` | Ursprüngliche Entwicklung mit lokalen Änderungen | Unverändert erhalten und gesichert |
 
@@ -84,8 +84,8 @@ alten großen Feature-Branch oder die Integrationsbasis stapeln.
 Unabhängige Fehlerkorrekturen und neue Funktionen können ab jetzt in Themenbranches
 auf main erfolgen. Für Entwicklung, die den vollständigen neuen GENETIC oder die
 noch fehlenden Funktionen benötigt, ist der Integrationsstand noch nicht abgenommen.
-Die ursprüngliche Arbeitskopie bleibt erhalten. Nur der JSON-Fix wurde als PR #1322
-veröffentlicht; nichts wurde gemergt oder deployt.
+Die ursprüngliche Arbeitskopie bleibt erhalten. JSON-Fix #1322 und Optimize-Fix
+#1323 sind veröffentlicht; nichts wurde gemergt oder deployt.
 
 ## HA-Übergabe
 
