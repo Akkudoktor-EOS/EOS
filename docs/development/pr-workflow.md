@@ -20,11 +20,11 @@ Funktionen aus dem alten Feature-Branch ist noch NICHT abgeschlossen.
 | Branch | Zweck | Freigabezustand |
 | --- | --- | --- |
 | `fix/measurement-json-reload` | Kleiner JSON-Ladefehler direkt auf main | Veröffentlicht als #1322; gesamte CI grün, noch nicht gemergt |
-| `feat/config-integration-base` | Zusammengeführte #1256/#1305 plus Integrationskorrekturen | Lokale Abhängigkeitsbasis; kein konkurrierender Sammel-PR |
-| `feat/measurement-energy-quality-capacity` | Messdatenfunktionen ohne neue Optimiererphysik | Getestet; wartet für main auf Konfigurationsbasis |
+| `feat/config-integration-base` | Zusammengeführte #1256/#1305 plus Integrationskorrekturen | Veröffentlichter Vergleichsbranch 9038b65; kein konkurrierender Sammel-PR |
+| `feat/measurement-energy-quality-capacity` | Messdatenfunktionen ohne neue Optimiererphysik | PR #1326 gegen Konfigurationsbasis; später auf main umstellen |
 | `fix/imported-feedin-main` | Importierte Einspeisetarife erhalten und prüfen | Veröffentlicht als #1324; CI läuft |
-| `feat/local-pv-main-port` | Lokale PV-Prognose und Kalibrierung | Lokal vorbereitet auf main |
-| `feat/slot-device-physics` | Slotphysik und getrennte Cache-Methoden | Lokal vorbereitet auf Konfigurationsbasis |
+| `feat/local-pv-main-port` | Lokale PV-Prognose und Kalibrierung | PR #1325 gegen main |
+| `feat/slot-device-physics` | Slotphysik und getrennte Cache-Methoden | PR #1327 gegen Konfigurationsbasis; später auf main umstellen |
 | `fix/optimize-run-result` | Nur das Ergebnis des erfolgreichen aktuellen Laufs zurückgeben | Veröffentlicht als #1323; CI läuft |
 | `integration/eos-consolidation-20260916` | Zusammenführung und Prüfung aller Portierungspakete | Unvollständig; kein Gesamt-PR und kein HA-Release |
 | `feat/direct-marketing-battery-grid-export` | Ursprüngliche Entwicklung mit lokalen Änderungen | Unverändert erhalten und gesichert |
@@ -85,7 +85,9 @@ Unabhängige Fehlerkorrekturen und neue Funktionen können ab jetzt in Themenbra
 auf main erfolgen. Für Entwicklung, die den vollständigen neuen GENETIC oder die
 noch fehlenden Funktionen benötigt, ist der Integrationsstand noch nicht abgenommen.
 Die ursprüngliche Arbeitskopie bleibt erhalten. JSON-Fix #1322, Optimize-Fix #1323
-und Tarifschutz #1324 sind veröffentlicht; nichts wurde gemergt oder deployt.
+und Tarifschutz #1324 sind veröffentlicht. Auf weitere Freigabe folgten PV #1325,
+Messdaten #1326 und Gerätephysik #1327; nichts wurde gemergt oder deployt.
+Der aktuelle Review-Überblick steht in [review-handoff.md](review-handoff.md).
 
 ## HA-Übergabe
 
@@ -102,7 +104,7 @@ Das isolierte Messdatenpaket: 453 bestandene Tests plus 5 Dokumentationstests;
 XML-Protokolle liegen in der privaten Sicherung `eos-20260916-120324`.
 Für PR #1322 ist die gepinnte Linux/Python-3.13-CI inzwischen bestätigt:
 1.884 Tests bestanden, 16 übersprungen; Pre-commit/Mypy, CodeQL und Docker-Build
-erfolgreich auf `ce132ea`. Für die übrigen lokalen Pakete steht diese CI noch aus.
+erfolgreich auf `ce132ea`. Die aktuellen CI-Ergebnisse aller sechs PRs stehen im Review-Handoff.
 
 
 Zusätzlicher Integrationslauf: 764 Tests bestanden, 3 übersprungen; zwei zunächst
@@ -110,10 +112,16 @@ fehlgeschlagene Dokumentationsvergleiche betrafen ausschließlich die Versionsan
 Nach Neugenerierung bestanden alle 5 Dokumentationstests. Darunter sind außerdem
 128 bestandene Energy-Charts-Regressionen zum neuen main-Commit dokumentiert.
 
-Neuester gemeinsamer Source-Stand `b684748`: 277 Tests bestanden, 3 regulär
+Früherer gemeinsamer Source-Stand `b684748`: 277 Tests bestanden, 3 regulär
 übersprungen, für PV, Tarifschutz, Gerätephysik, Cache, Konfiguration und beide
 bisherigen Optimierer einschließlich API-Fehlerbehandlung. Anschließend bestanden
 alle 132 Messdaten-/Haushalts-/Kapazitätsprüfungen auf diesem gemeinsamen Stand.
 Die vollständige neue GENETIC-Orchestrierung bleibt offen. Pakete und
 Kompatibilitätsbedingungen stehen in [pr-integration-matrix.md](pr-integration-matrix.md).
 Die neu generierte gemeinsame Dokumentation besteht ebenfalls alle fünf Prüfungen.
+
+Aktueller Abschluss: Alle sechs veröffentlichten PRs haben ihre vorgesehenen
+GitHub-Prüfungen bestanden. Gemeinsamer Stand: 253 Dateien ohne Mypy-Fehler,
+37 gezielte Nachprüfungen und vollständiger Sphinx-Build erfolgreich. Die Grenzen
+des Windows-Gesamtlaufs und die nachgewiesenen main-Baselinefehler sind im
+[Review-Handoff](review-handoff.md) dokumentiert. Nichts wurde gemergt oder deployt.

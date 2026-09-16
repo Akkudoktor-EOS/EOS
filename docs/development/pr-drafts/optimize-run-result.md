@@ -1,8 +1,8 @@
 # fix(optimization): return only the current completed Optimize result
 
 Published with user approval as [PR #1323](https://github.com/Akkudoktor-EOS/EOS/pull/1323).
-Branch: `fix/optimize-run-result`; base main `4a37244`; head `754b26f`.
-Two commits, three changed files. No merge or deployment.
+Branch: `fix/optimize-run-result`; base main `4a37244`; head `ef8d913`.
+Three commits, three changed files. No merge or deployment.
 
 A failed explicit optimization previously returned an old cached solution as HTTP
 200. Conversion failures could publish a new native result alongside the previous
@@ -16,8 +16,7 @@ Validation: 38 tests passed, 2 regular long-running tests skipped. All 22 new
 regression cases passed again after typing dynamic test keyword arguments. Source
 Ruff, formatting and diff checks passed. Scoped mypy passed for all three changed
 files (transitive imports/untyped dependency diagnostics excluded locally).
-GitHub pre-commit, pytest, CodeQL and Docker workflows have started; final CI is
-pending. Full pinned CI is required before this is described as ready to merge.
+Pinned Linux CI: 1908 passed, 16 skipped; pre-commit including full mypy, CodeQL and Docker passed. Thirty regressions also passed separately in UTC and Europe/Berlin; timezone expectations are now explicit.
 
 The fix is already combined with PV, tariff and device packages in the integration
 branch. Integration also carries the test annotation correction. Independent of

@@ -1,9 +1,9 @@
 # feat(measurement): add typed energy, quality and capacity APIs
 
 Local branch: `feat/measurement-energy-quality-capacity`.
-Review base: `feat/config-integration-base` (`c968e4c`).
+Review base: `feat/config-integration-base` (`9038b65`).
 Eventual target: official main, after its configuration prerequisites land.
-Status: tested local package, NOT yet an independent main-target PR.
+Status: published as [PR #1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326), head `635ff2d`, against the prerequisite branch.
 
 ## Proposed PR body
 
@@ -20,7 +20,7 @@ Regenerate the configuration and OpenAPI contracts. Use synthetic data only.
 Validation: 453 configuration/measurement/device simulation tests and 5 documentation
 tests pass. A further 74 measurement/capacity tests pass after carrying over fixture
 isolation. Ruff passes for measurement source and the measurement REST module.
-Local Windows/Python 3.11.9 validation; full pinned CI remains required.
+Final pinned Linux/Python 3.13 CI: 2046 passed, 16 skipped; pre-commit with full mypy and Docker passed. CodeQL becomes applicable after retargeting to main.
 
 Depends on the device maps/converters in #1256, runtime configuration in #1305 and
 local fixes for stable device IDs, LCOS migration and charge-rate compatibility.
@@ -32,5 +32,5 @@ No new GENETIC orchestration or battery/inverter physics is included in this bra
 Do not open this whole branch against main now: its ancestry still includes the
 unmerged configuration PRs. Preserve those contributors' existing PRs and credit.
 Once prerequisites are merged, rebuild/rebase the measurement package onto that
-main, inspect the resulting diff and rerun relevant tests before publication.
+main, inspect the resulting diff and rerun combined tests and CodeQL before merging.
 The comparison to `feat/config-integration-base` isolates today's measurement work.

@@ -1,4 +1,5 @@
 """Verify fallback JSON loading does not lose records through the singleton."""
+
 from unittest.mock import AsyncMock
 
 import pytest
