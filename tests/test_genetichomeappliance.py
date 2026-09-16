@@ -3,6 +3,7 @@
 TODO: fix this import to match wherever HomeApplianceParameters / HomeAppliance
 actually live in the repo.
 """
+from typing import Any
 from unittest.mock import Mock
 
 import numpy as np
@@ -20,7 +21,7 @@ from akkudoktoreos.utils.datetimeutil import to_duration, to_time
 # ---------------------------------------------------------------------------
 
 def make_params(**overrides) -> HomeApplianceParameters:
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         device_id="dishwasher",
         consumption_wh=2000,
         duration_h=2,

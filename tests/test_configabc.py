@@ -1525,9 +1525,9 @@ class TestCycleTimeWindowSequence:
     def setup_method(self, method):
         self.seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
-                ValueTimeWindow(start_time="14:00:00", duration="4 hours", value=1.0),
-                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=2.0),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.0)),
+                ValueTimeWindow.model_validate(dict(start_time="14:00:00", duration="4 hours", value=1.0)),
+                ValueTimeWindow.model_validate(dict(start_time="20:00:00", duration="2 hours", value=2.0)),
             ]
         )
 
@@ -1541,8 +1541,8 @@ class TestCycleTimeWindowSequence:
     def test_num_cycles_ignores_none(self):
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
-                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=1.0),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=None)),
+                ValueTimeWindow.model_validate(dict(start_time="10:00:00", duration="2 hours", value=1.0)),
             ]
         )
         assert seq.num_cycles() == 1
@@ -1550,8 +1550,8 @@ class TestCycleTimeWindowSequence:
     def test_num_cycles_non_contiguous(self):
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=2.0),
-                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=5.0),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=2.0)),
+                ValueTimeWindow.model_validate(dict(start_time="10:00:00", duration="2 hours", value=5.0)),
             ]
         )
         assert seq.num_cycles() == 2
@@ -1647,8 +1647,8 @@ class TestCycleTimeWindowSequence:
     def test_cycle_array_dropna_false(self):
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
-                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=1.0),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=None)),
+                ValueTimeWindow.model_validate(dict(start_time="10:00:00", duration="2 hours", value=1.0)),
             ]
         )
 
@@ -1694,9 +1694,9 @@ class TestCyclesToMatrix:
     def setup_method(self, method):
         self.seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
-                ValueTimeWindow(start_time="14:00:00", duration="4 hours", value=1.0),
-                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=2.0),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.0)),
+                ValueTimeWindow.model_validate(dict(start_time="14:00:00", duration="4 hours", value=1.0)),
+                ValueTimeWindow.model_validate(dict(start_time="20:00:00", duration="2 hours", value=2.0)),
             ]
         )
         self.start = naive_dt(2024, 6, 15, 0)
@@ -1775,8 +1775,8 @@ class TestCyclesToMatrix:
     def test_none_value_windows_skipped(self):
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
-                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=1.0),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=None)),
+                ValueTimeWindow.model_validate(dict(start_time="10:00:00", duration="2 hours", value=1.0)),
             ]
         )
         indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
@@ -1790,7 +1790,7 @@ class TestCyclesToMatrix:
     def test_all_none_returns_empty(self):
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=None)),
             ]
         )
         indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
@@ -1804,9 +1804,9 @@ class TestCyclesToMatrix:
     def test_row_order_independent_of_window_order(self):
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=2.0),
-                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
-                ValueTimeWindow(start_time="14:00:00", duration="4 hours", value=1.0),
+                ValueTimeWindow.model_validate(dict(start_time="20:00:00", duration="2 hours", value=2.0)),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.0)),
+                ValueTimeWindow.model_validate(dict(start_time="14:00:00", duration="4 hours", value=1.0)),
             ]
         )
         indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
@@ -1822,8 +1822,8 @@ class TestCyclesToMatrix:
     def test_non_contiguous_cycle_indices(self):
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="06:00:00", duration="2 hours", value=3.0),
-                ValueTimeWindow(start_time="16:00:00", duration="2 hours", value=7.0),
+                ValueTimeWindow.model_validate(dict(start_time="06:00:00", duration="2 hours", value=3.0)),
+                ValueTimeWindow.model_validate(dict(start_time="16:00:00", duration="2 hours", value=7.0)),
             ]
         )
         indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
@@ -1842,8 +1842,8 @@ class TestCyclesToMatrix:
         # Cycle 0 appears twice: 06:00–08:00 and 20:00–22:00
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="06:00:00", duration="2 hours", value=0.0),
-                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=0.0),
+                ValueTimeWindow.model_validate(dict(start_time="06:00:00", duration="2 hours", value=0.0)),
+                ValueTimeWindow.model_validate(dict(start_time="20:00:00", duration="2 hours", value=0.0)),
             ]
         )
         indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
@@ -1862,7 +1862,7 @@ class TestCyclesToMatrix:
         # Cycle 0: 08:00–12:00 → 8 half-hour steps starting at step 16 (08:00 / 0.5h)
         seq = CycleTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.0)),
             ]
         )
         start = naive_dt(2024, 6, 15, 0)
@@ -1938,7 +1938,7 @@ class TestCyclesToMatrix:
         # (10:00 < 10:10, so it is included by ceil)
         # Window 08:00–12:00 → all three steps are inside → all 1.0
         seq = CycleTimeWindowSequence(
-            windows=[ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0)]
+            windows=[ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.0))]
         )
         start = naive_dt(2024, 6, 15, 8, 10)
         end   = naive_dt(2024, 6, 15, 10, 10)
@@ -1950,7 +1950,7 @@ class TestCyclesToMatrix:
         # start=08:15, interval=30min → floor to 08:00
         # Window 08:00–10:00 → steps 08:00(1), 08:30(1), 09:00(1), 09:30(1)
         seq = CycleTimeWindowSequence(
-            windows=[ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=0.0)]
+            windows=[ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=0.0))]
         )
         start = naive_dt(2024, 6, 15, 8, 15)
         end   = naive_dt(2024, 6, 15, 10, 15)
