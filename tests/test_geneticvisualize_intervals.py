@@ -184,3 +184,30 @@ def test_tail_chart_starts_after_control_horizon(config_eos, report_solution):
         assert report_solution.discharge_allowed == [0, 0, 1, 1]
     finally:
         plt.close(fig)
+
+
+@pytest.mark.parametrize("tariff", [0.00007, [0.00007] * 6])
+def test_pdf_clips_forecast_tail_and_accepts_historical_diagnostics(
+    config_eos, monkeypatch, report_solution, tariff
+):
+    report_solution.parameters.ems.total_load = [100.0] * 6
+    report_solution.parameters.ems.pv_forecast_wh = [200.0] * 6
+    report_solution.parameters.ems.feed_in_tariff_per_wh = tariff
+    report_solution.extra_data = {
+        "verluste": [1.0, 2.0, 3.0], "bilanz": [0.1, 0.2, 0.3],
+        "nebenbedingung": [0.0, 0.0, 0.0],
+    }
+    captured = []
+    original = visualize.GeneticVisualizationReport.create_line_chart_date
+
+    def capture(self, start_date, y_list, **kwargs):
+        captured.append((y_list, kwargs))
+        return original(self, start_date, y_list, **kwargs)
+
+    monkeypatch.setattr(visualize.GeneticVisualizationReport, "create_line_chart_date", capture)
+    pdf = visualize.genetic_prepare_visualize(report_solution)
+    assert pdf.startswith(b"%PDF-")
+    tariff_plot = next(series for series, kwargs in captured if kwargs.get("title") == "Remuneration")
+    assert np.asarray(tariff_plot[0]).tolist() == [0.00007] * 4
+    assert all(len(series[0]) == 4 for series, _ in captured)
+    assert "verluste" in report_solution.extra_data  # Rendering must not mutate the retained run.

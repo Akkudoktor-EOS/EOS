@@ -465,11 +465,14 @@ def genetic_prepare_visualize(
     # New solutions own their timeline. The fallback supports historical hourly solutions.
     start_datetime = solution.start_solution_datetime or get_ems().start_datetime
     start_offset = 0 if solution.controls_start_at_now else solution.start_hour
+    control_slots = len(solution.result.load_wh_per_hour)
+    end_offset = start_offset + control_slots
+    # Forecasts can include a diagnostic tail; report executable intervals here.
     # Group 1:
     report.create_line_chart_date(
         start_datetime,
         [
-            solution.parameters.ems.total_load[start_offset:],
+            solution.parameters.ems.total_load[start_offset:end_offset],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -479,7 +482,7 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            solution.parameters.ems.pv_forecast_wh[start_offset:],
+            solution.parameters.ems.pv_forecast_wh[start_offset:end_offset],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -489,12 +492,9 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            np.full(
-                len(solution.parameters.ems.total_load) - start_offset,
-                solution.parameters.ems.feed_in_tariff_per_wh[start_offset:]
-                if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
-                else solution.parameters.ems.feed_in_tariff_per_wh,
-            )
+            np.asarray(solution.parameters.ems.feed_in_tariff_per_wh[start_offset:end_offset])
+            if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
+            else np.full(control_slots, solution.parameters.ems.feed_in_tariff_per_wh)
         ],
         title="Remuneration",
         # xlabel="Hours", # not enough space
@@ -505,7 +505,7 @@ def genetic_prepare_visualize(
         report.create_line_chart_date(
             start_datetime,
             [
-                solution.parameters.temperature_forecast[start_offset:],
+                solution.parameters.temperature_forecast[start_offset:end_offset],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -554,7 +554,7 @@ def genetic_prepare_visualize(
     )
     report.create_line_chart_date(
         start_date=start_datetime,  # start_date
-        y_list=[solution.parameters.ems.electricity_price_per_wh[start_offset:]],
+        y_list=[solution.parameters.ems.electricity_price_per_wh[start_offset:end_offset]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (amount/Wh)",
@@ -562,16 +562,16 @@ def genetic_prepare_visualize(
     )
 
     controls: list[Union[np.ndarray, list[Optional[float]], list[float]]] = [
-        solution.ac_charge[start_offset:],
-        solution.dc_charge[start_offset:],
-        np.asarray(solution.discharge_allowed[start_offset:]),
+        solution.ac_charge[start_offset:end_offset],
+        solution.dc_charge[start_offset:end_offset],
+        np.asarray(solution.discharge_allowed[start_offset:end_offset]),
     ]
     control_labels = ["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"]
     if solution.battery_grid_export_allowed:
-        controls.append(np.asarray(solution.battery_grid_export_allowed[start_offset:]))
+        controls.append(np.asarray(solution.battery_grid_export_allowed[start_offset:end_offset]))
         control_labels.append("Battery Grid Export Allowed")
     if solution.battery_grid_export_factor:
-        controls.append(solution.battery_grid_export_factor[start_offset:])
+        controls.append(solution.battery_grid_export_factor[start_offset:end_offset])
         control_labels.append("Battery Grid Export (relative)")
     report.create_line_chart_date(
         start_datetime,
@@ -597,6 +597,16 @@ def genetic_prepare_visualize(
     )
 
     extra_data = solution.extra_data
+    if extra_data:
+        # Historical native runs used German diagnostic keys. Prefer current public keys.
+        extra_data = {
+            key: extra_data.get(key, extra_data.get(alias, []))
+            for key, alias in (
+                ("losses", "verluste"),
+                ("balance", "bilanz"),
+                ("constraints", "nebenbedingung"),
+            )
+        }
     if extra_data:
         report.create_scatter_plot(
             x=np.array(extra_data["losses"]),
