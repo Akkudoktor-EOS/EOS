@@ -113,7 +113,6 @@ def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, An
     Returns:
         dict[str, Any]: Merged dictionary representing combined model data.
     """
-
     source_dict = source.model_dump(
         exclude_unset=True,
         exclude_computed_fields=True,
