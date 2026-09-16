@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
@@ -68,3 +69,37 @@ def test_expected_direct_consumption_preserves_forecast_mean_at_high_pv():
     direct_power_w = interpolator.calculate_expected_direct_consumption(3000.0, 10000.0)
 
     assert direct_power_w == pytest.approx(3000.0)
+
+
+@pytest.mark.parametrize("load,pv", [(4000.0, 5000.0), (10000.0, 20000.0), (0.0, 0.0)])
+def test_genetic_interpolator_boundaries_are_finite_and_physical(load, pv):
+    interpolator = get_eos_load_interpolator()
+    fraction = interpolator.calculate_self_consumption(load, pv)
+    direct = interpolator.calculate_expected_direct_consumption(load, pv)
+    assert np.isfinite(fraction)
+    assert 0.0 <= fraction <= 1.0
+    assert np.isfinite(direct)
+    assert 0.0 <= direct <= min(load, pv)
+
+
+def test_genetic0_inverter_keeps_its_independent_interpolator():
+    from akkudoktoreos.devices.genetic0.genetic0inverter import (
+        Genetic0Inverter,
+        Genetic0InverterParameters,
+    )
+    from akkudoktoreos.optimization.genetic0.genetic0loadinterpolator import (
+        get_genetic0_load_interpolator,
+    )
+
+    inverter = Genetic0Inverter(Genetic0InverterParameters(device_id="legacy", max_power_wh=10000))
+    assert inverter.self_consumption_predictor is get_genetic0_load_interpolator()
+    assert inverter.self_consumption_predictor is not get_eos_load_interpolator()
+
+
+@pytest.mark.parametrize("load,pv", [(4000.0, 5000.0), (10000.0, 20000.0)])
+def test_genetic_inverter_boundary_flows_remain_nonnegative(load, pv):
+    from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+
+    inverter = Inverter(InverterParameters(device_id="boundary", max_power_wh=25000))
+    flows = inverter.process_energy(generation=pv, consumption=load, hour=0)
+    assert all(np.isfinite(value) and value >= 0.0 for value in flows)
