@@ -580,13 +580,17 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             if not measurement_file_path.exists():
                 return False
             try:
-                # Measurement is a singleton: validating a temporary Measurement
-                # returns the existing instance and discards serialized records.
+                # Measurement is a singleton; validating another Measurement
+                # returns this instance instead of restoring serialized records.
                 payload = json.loads(measurement_file_path.read_text(encoding="utf-8"))
-                records = [MeasurementDataRecord.model_validate(data)
-                           for data in payload.get("records", [])]
+                # Validate the complete file before modifying the live records.
+                records = [
+                    MeasurementDataRecord.model_validate(data)
+                    for data in payload.get("records", [])
+                ]
                 for record in records:
                     await self.insert_by_datetime(record)
             except Exception as e:
                 logger.exception("Cannot load measurements")
+                return False
         return True
