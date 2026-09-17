@@ -1,6 +1,8 @@
 import asyncio
+import html
 import json
 import os
+import re
 import time
 from http import HTTPStatus
 from pathlib import Path
@@ -423,5 +425,8 @@ class TestEosdashRedirect:
         """The 404 page links to EOSdash on the host the client used."""
         response = client.get("/no-such-page", headers={"Host": "eos.example.com"})
         assert response.status_code == HTTPStatus.NOT_FOUND
-        assert "http://eos.example.com:8504/" in response.text
-        assert "127.0.0.1:8504" not in response.text
+        # Compare whole link targets, a substring check would also accept a foreign host.
+        # The error message is HTML escaped by the error page, so unescape it first.
+        hrefs = re.findall(r'href="([^"]*)"', html.unescape(response.text))
+        assert "http://eos.example.com:8504/" in hrefs
+        assert "http://127.0.0.1:8504/" not in hrefs
