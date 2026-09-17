@@ -8,9 +8,328 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609101507291966"
+    "version": "v0.3.0.dev2609171537448705"
   },
   "paths": {
+    "/v1/measurement/battery-capacity/{battery_id}": {
+      "post": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Post Battery Capacity",
+        "description": "Estimate capacity from independent SoC anchors and configured DC power.\n\nstore_estimate writes the separate capacity_estimate config field in memory.\nPersistence follows the regular EOS configuration save mechanism.\nThe active capacity_wh and raw measurements are never changed here.",
+        "operationId": "post_battery_capacity_v1_measurement_battery_capacity__battery_id__post",
+        "parameters": [
+          {
+            "name": "battery_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Battery Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatteryCapacityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatteryCapacityEstimate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/samples": {
+      "put": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Put Samples",
+        "description": "Upsert raw values and their quality; legacy value/series payloads remain valid.",
+        "operationId": "put_samples_v1_measurement_samples_put",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MeasurementSample"
+                },
+                "maxItems": 10000,
+                "title": "Samples"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  },
+                  "title": "Response Put Samples V1 Measurement Samples Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Get Samples",
+        "description": "Read raw samples including quality, in a bounded half-open range.",
+        "operationId": "get_samples_v1_measurement_samples_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeasurementSample"
+                  },
+                  "title": "Response Get Samples V1 Measurement Samples Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/energy": {
+      "get": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Get Energy",
+        "description": "Energy in Wh, with temporal coverage and quality; no missing-to-zero filling.",
+        "operationId": "get_energy_v1_measurement_energy_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "interval_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 900,
+              "title": "Interval Seconds"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EnergyInterval"
+                  },
+                  "title": "Response Get Energy V1 Measurement Energy Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/household": {
+      "get": {
+        "tags": [
+          "measurement"
+        ],
+        "summary": "Get Household",
+        "description": "Site, household without EV, and base without separately measured devices.",
+        "operationId": "get_household_v1_measurement_household_get",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "End"
+            }
+          },
+          {
+            "name": "interval_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "default": 900,
+              "title": "Interval Seconds"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/EnergyInterval"
+                    }
+                  },
+                  "title": "Response Get Household V1 Measurement Household Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/cache/clear": {
       "post": {
         "tags": [
@@ -2886,6 +3205,27 @@
               "dishwasher"
             ]
           },
+          "capacity_estimation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimationSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capacity_estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
+          },
           "capacity_wh": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -2918,10 +3258,10 @@
               0.88
             ]
           },
-          "levelized_cost_of_storage_kwh": {
+          "levelized_cost_of_storage_amt_kwh": {
             "type": "number",
-            "title": "Levelized Cost Of Storage Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [amount/kWh].",
+            "title": "Levelized Cost Of Storage Amt Kwh",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
             "default": 0.0,
             "examples": [
               0.12
@@ -3004,7 +3344,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging.",
             "default": 0,
             "examples": [
               10
@@ -3024,7 +3364,7 @@
         },
         "type": "object",
         "title": "BatteriesCommonSettings",
-        "description": "Battery devices base settings."
+        "description": "Battery and electric vehicle device settings.\n\nUsed for both stationary batteries and EV battery packs.\n\nNote: Used for the GENETIC and GENETIC0 algorithm."
       },
       "BatteriesCommonSettings-Output": {
         "properties": {
@@ -3038,6 +3378,27 @@
               "inverter1",
               "dishwasher"
             ]
+          },
+          "capacity_estimation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimationSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capacity_estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BatteryCapacityEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
           },
           "capacity_wh": {
             "type": "integer",
@@ -3071,10 +3432,10 @@
               0.88
             ]
           },
-          "levelized_cost_of_storage_kwh": {
+          "levelized_cost_of_storage_amt_kwh": {
             "type": "number",
-            "title": "Levelized Cost Of Storage Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [amount/kWh].",
+            "title": "Levelized Cost Of Storage Amt Kwh",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
             "default": 0.0,
             "examples": [
               0.12
@@ -3157,7 +3518,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging.",
             "default": 0,
             "examples": [
               10
@@ -3177,47 +3538,40 @@
           "measurement_key_soc_factor": {
             "type": "string",
             "title": "Measurement Key Soc Factor",
-            "description": "Measurement key for the battery state of charge (SoC) as factor of total capacity [0.0 ... 1.0].",
+            "description": "Measurement key for SoC as factor of total capacity [0.0 ... 1.0].",
             "readOnly": true
           },
           "measurement_key_power_l1_w": {
             "type": "string",
             "title": "Measurement Key Power L1 W",
-            "description": "Measurement key for the L1 power the battery is charged or discharged with [W].",
+            "description": "Measurement key for L1 power [W].",
             "readOnly": true
           },
           "measurement_key_power_l2_w": {
             "type": "string",
             "title": "Measurement Key Power L2 W",
-            "description": "Measurement key for the L2 power the battery is charged or discharged with [W].",
+            "description": "Measurement key for L2 power [W].",
             "readOnly": true
           },
           "measurement_key_power_l3_w": {
             "type": "string",
             "title": "Measurement Key Power L3 W",
-            "description": "Measurement key for the L3 power the battery is charged or discharged with [W].",
+            "description": "Measurement key for L3 power [W].",
             "readOnly": true
           },
           "measurement_key_power_3_phase_sym_w": {
             "type": "string",
             "title": "Measurement Key Power 3 Phase Sym W",
-            "description": "Measurement key for the symmetric 3 phase power the battery is charged or discharged with [W].",
+            "description": "Measurement key for symmetric 3-phase power [W].",
             "readOnly": true
           },
           "measurement_keys": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
             "title": "Measurement Keys",
-            "description": "Measurement keys for the battery stati that are measurements.",
+            "description": "All measurement keys for this battery.",
             "readOnly": true
           }
         },
@@ -3231,7 +3585,226 @@
           "measurement_keys"
         ],
         "title": "BatteriesCommonSettings",
-        "description": "Battery devices base settings."
+        "description": "Battery and electric vehicle device settings.\n\nUsed for both stationary batteries and EV battery packs.\n\nNote: Used for the GENETIC and GENETIC0 algorithm."
+      },
+      "BatteryCapacityEstimate": {
+        "properties": {
+          "battery_id": {
+            "type": "string",
+            "title": "Battery Id"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "soc_reference": {
+            "type": "string",
+            "title": "Soc Reference"
+          },
+          "start_soc_percentage": {
+            "type": "number",
+            "title": "Start Soc Percentage"
+          },
+          "end_soc_percentage": {
+            "type": "number",
+            "title": "End Soc Percentage"
+          },
+          "estimated_capacity_wh": {
+            "type": "number",
+            "title": "Estimated Capacity Wh"
+          },
+          "configured_capacity_wh": {
+            "type": "number",
+            "title": "Configured Capacity Wh"
+          },
+          "capacity_change_percentage": {
+            "type": "number",
+            "title": "Capacity Change Percentage"
+          },
+          "model_end_soc_percentage_unclipped": {
+            "type": "number",
+            "title": "Model End Soc Percentage Unclipped"
+          },
+          "model_soc_error_percentage_points": {
+            "type": "number",
+            "title": "Model Soc Error Percentage Points"
+          },
+          "charge_energy_wh": {
+            "type": "number",
+            "title": "Charge Energy Wh"
+          },
+          "discharge_energy_wh": {
+            "type": "number",
+            "title": "Discharge Energy Wh"
+          },
+          "stored_energy_change_wh": {
+            "type": "number",
+            "title": "Stored Energy Change Wh"
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "title": "Charging Efficiency"
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "title": "Discharging Efficiency"
+          },
+          "power_key": {
+            "type": "string",
+            "title": "Power Key"
+          },
+          "positive_power": {
+            "type": "string",
+            "title": "Positive Power"
+          },
+          "integration_method": {
+            "type": "string",
+            "title": "Integration Method"
+          },
+          "coverage_seconds": {
+            "type": "number",
+            "title": "Coverage Seconds"
+          },
+          "samples_used": {
+            "type": "integer",
+            "title": "Samples Used"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "battery_id",
+          "start",
+          "end",
+          "soc_reference",
+          "start_soc_percentage",
+          "end_soc_percentage",
+          "estimated_capacity_wh",
+          "configured_capacity_wh",
+          "capacity_change_percentage",
+          "model_end_soc_percentage_unclipped",
+          "model_soc_error_percentage_points",
+          "charge_energy_wh",
+          "discharge_energy_wh",
+          "stored_energy_change_wh",
+          "charging_efficiency",
+          "discharging_efficiency",
+          "power_key",
+          "positive_power",
+          "integration_method",
+          "coverage_seconds",
+          "samples_used",
+          "warnings"
+        ],
+        "title": "BatteryCapacityEstimate"
+      },
+      "BatteryCapacityEstimationSettings": {
+        "properties": {
+          "power_key": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Power Key"
+          },
+          "positive_power": {
+            "type": "string",
+            "enum": [
+              "charging",
+              "discharging"
+            ],
+            "title": "Positive Power"
+          },
+          "measurement_boundary": {
+            "type": "string",
+            "const": "battery_dc",
+            "title": "Measurement Boundary",
+            "default": "battery_dc"
+          },
+          "min_soc_change_percentage": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Min Soc Change Percentage",
+            "default": 20
+          },
+          "max_duration_hours": {
+            "type": "number",
+            "maximum": 744.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Max Duration Hours",
+            "default": 168
+          }
+        },
+        "type": "object",
+        "required": [
+          "power_key",
+          "positive_power"
+        ],
+        "title": "BatteryCapacityEstimationSettings",
+        "description": "Only a battery-terminal DC power channel is supported, not inverter AC."
+      },
+      "BatteryCapacityRequest": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "start_soc_percentage": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Start Soc Percentage"
+          },
+          "end_soc_percentage": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "End Soc Percentage",
+            "default": 100
+          },
+          "soc_reference": {
+            "type": "string",
+            "enum": [
+              "bms",
+              "external_calibration",
+              "voltage_current_anchor"
+            ],
+            "title": "Soc Reference"
+          },
+          "store_estimate": {
+            "type": "boolean",
+            "title": "Store Estimate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "start_soc_percentage",
+          "soc_reference"
+        ],
+        "title": "BatteryCapacityRequest",
+        "description": "Caller attests both anchors are independent of the capacity being fitted.\n\nEnd is the first confirmed full point when using the default end SoC.\nVoltage/current anchors must be independently established for the chemistry."
       },
       "CacheCommonSettings": {
         "properties": {
@@ -3349,6 +3922,36 @@
         ],
         "title": "ConfigSaveMode",
         "description": "Configuration file save mode."
+      },
+      "CycleTimeWindowSequence-Input": {
+        "properties": {
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/ValueTimeWindow-Input"
+            },
+            "type": "array",
+            "title": "Windows",
+            "description": "Ordered list of value time windows. Each window defines a time interval and an associated value."
+          }
+        },
+        "type": "object",
+        "title": "CycleTimeWindowSequence",
+        "description": "Sequence of time windows associated to cycles.\n\nThis model specializes ``ValueTimeWindowSequence`` so that the ``value``\nfield of each ``ValueTimeWindow`` encodes the **cycle index** (0-based\ninteger) the window belongs to.\n\nTypical use: an appliance that must run ``n`` times per day, each run\nconstrained to a distinct time window.  Assign ``value=0`` to windows\nfor the first cycle, ``value=1`` for the second, and so on.  Multiple\nwindows may share the same cycle index (their allowed regions are unioned).\nWindows with ``value=None`` are silently ignored by all cycle-aware methods."
+      },
+      "CycleTimeWindowSequence-Output": {
+        "properties": {
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/ValueTimeWindow-Output"
+            },
+            "type": "array",
+            "title": "Windows",
+            "description": "Ordered list of value time windows. Each window defines a time interval and an associated value."
+          }
+        },
+        "type": "object",
+        "title": "CycleTimeWindowSequence",
+        "description": "Sequence of time windows associated to cycles.\n\nThis model specializes ``ValueTimeWindowSequence`` so that the ``value``\nfield of each ``ValueTimeWindow`` encodes the **cycle index** (0-based\ninteger) the window belongs to.\n\nTypical use: an appliance that must run ``n`` times per day, each run\nconstrained to a distinct time window.  Assign ``value=0`` to windows\nfor the first cycle, ``value=1`` for the second, and so on.  Multiple\nwindows may share the same cycle index (their allowed regions are unioned).\nWindows with ``value=None`` are silently ignored by all cycle-aware methods."
       },
       "DDBCActuatorStatus": {
         "properties": {
@@ -3710,24 +4313,29 @@
           "batteries": {
             "anyOf": [
               {
-                "items": {
+                "additionalProperties": {
                   "$ref": "#/components/schemas/BatteriesCommonSettings-Input"
                 },
-                "type": "array"
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Batteries",
-            "description": "List of battery devices",
+            "description": "Stationary battery storage devices, keyed by device_id.",
             "examples": [
-              [
-                {
+              {
+                "bat0": {
                   "capacity_wh": 8000,
-                  "device_id": "battery1"
+                  "device_id": "bat0",
+                  "ports": []
                 }
-              ]
+              }
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_batteries": {
@@ -3741,33 +4349,41 @@
               }
             ],
             "title": "Max Batteries",
-            "description": "Maximum number of batteries that can be set",
+            "description": "Maximum number of batteries allowed.",
             "examples": [
-              1,
-              2
+              1
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "electric_vehicles": {
             "anyOf": [
               {
-                "items": {
+                "additionalProperties": {
                   "$ref": "#/components/schemas/BatteriesCommonSettings-Input"
                 },
-                "type": "array"
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Electric Vehicles",
-            "description": "List of electric vehicle devices",
+            "description": "Electric vehicle battery packs, keyed by device_id.",
             "examples": [
-              [
-                {
-                  "capacity_wh": 8000,
-                  "device_id": "battery1"
+              {
+                "ev0": {
+                  "capacity_wh": 60000,
+                  "device_id": "ev0",
+                  "ports": []
                 }
-              ]
+              }
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_electric_vehicles": {
@@ -3781,28 +4397,35 @@
               }
             ],
             "title": "Max Electric Vehicles",
-            "description": "Maximum number of electric vehicles that can be set",
+            "description": "Maximum number of EVs allowed.",
             "examples": [
-              1,
-              2
+              1
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "inverters": {
             "anyOf": [
               {
-                "items": {
+                "additionalProperties": {
                   "$ref": "#/components/schemas/InverterCommonSettings-Input"
                 },
-                "type": "array"
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Inverters",
-            "description": "List of inverters",
+            "description": "Inverter devices, keyed by device_id.",
             "examples": [
-              []
+              {}
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_inverters": {
@@ -3816,28 +4439,41 @@
               }
             ],
             "title": "Max Inverters",
-            "description": "Maximum number of inverters that can be set",
+            "description": "Maximum number of inverters allowed.",
             "examples": [
-              1,
-              2
+              1
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "home_appliances": {
-            "anyOf": [
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HomeApplianceCommonSettings-Input"
+            },
+            "type": "object",
+            "title": "Home Appliances",
+            "description": "Shiftable home appliance devices, keyed by device_id.",
+            "examples": [
               {
-                "items": {
-                  "$ref": "#/components/schemas/HomeApplianceCommonSettings-Input"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
+                "dishwasher": {
+                  "consumption_wh": 1500,
+                  "device_id": "dishwasher",
+                  "duration_h": 2.0,
+                  "ports": [
+                    {
+                      "bus_id": "bus_ac",
+                      "direction": "sink",
+                      "port_id": "p_ac"
+                    }
+                  ]
+                }
               }
             ],
-            "title": "Home Appliances",
-            "description": "List of home appliances",
-            "examples": [
-              []
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_home_appliances": {
@@ -3851,40 +4487,48 @@
               }
             ],
             "title": "Max Home Appliances",
-            "description": "Maximum number of home_appliances that can be set",
+            "description": "Maximum number of home appliances allowed.",
             "examples": [
-              1,
-              2
+              3
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           }
         },
         "type": "object",
         "title": "DevicesCommonSettings",
-        "description": "Base configuration for devices simulation settings."
+        "description": "Configuration for all controllable devices in the simulation.\n\nEvery device collection is a ``dict[str, <Settings>]`` keyed by\n``device_id``.  This makes config paths stable regardless of\ndeclaration order and lets each device settings class build its own\nconfig path from ``self.device_id`` without needing an external index."
       },
       "DevicesCommonSettings-Output": {
         "properties": {
           "batteries": {
             "anyOf": [
               {
-                "items": {
+                "additionalProperties": {
                   "$ref": "#/components/schemas/BatteriesCommonSettings-Output"
                 },
-                "type": "array"
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Batteries",
-            "description": "List of battery devices",
+            "description": "Stationary battery storage devices, keyed by device_id.",
             "examples": [
-              [
-                {
+              {
+                "bat0": {
                   "capacity_wh": 8000,
-                  "device_id": "battery1"
+                  "device_id": "bat0",
+                  "ports": []
                 }
-              ]
+              }
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_batteries": {
@@ -3898,33 +4542,41 @@
               }
             ],
             "title": "Max Batteries",
-            "description": "Maximum number of batteries that can be set",
+            "description": "Maximum number of batteries allowed.",
             "examples": [
-              1,
-              2
+              1
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "electric_vehicles": {
             "anyOf": [
               {
-                "items": {
+                "additionalProperties": {
                   "$ref": "#/components/schemas/BatteriesCommonSettings-Output"
                 },
-                "type": "array"
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Electric Vehicles",
-            "description": "List of electric vehicle devices",
+            "description": "Electric vehicle battery packs, keyed by device_id.",
             "examples": [
-              [
-                {
-                  "capacity_wh": 8000,
-                  "device_id": "battery1"
+              {
+                "ev0": {
+                  "capacity_wh": 60000,
+                  "device_id": "ev0",
+                  "ports": []
                 }
-              ]
+              }
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_electric_vehicles": {
@@ -3938,28 +4590,35 @@
               }
             ],
             "title": "Max Electric Vehicles",
-            "description": "Maximum number of electric vehicles that can be set",
+            "description": "Maximum number of EVs allowed.",
             "examples": [
-              1,
-              2
+              1
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "inverters": {
             "anyOf": [
               {
-                "items": {
+                "additionalProperties": {
                   "$ref": "#/components/schemas/InverterCommonSettings-Output"
                 },
-                "type": "array"
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Inverters",
-            "description": "List of inverters",
+            "description": "Inverter devices, keyed by device_id.",
             "examples": [
-              []
+              {}
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_inverters": {
@@ -3973,28 +4632,41 @@
               }
             ],
             "title": "Max Inverters",
-            "description": "Maximum number of inverters that can be set",
+            "description": "Maximum number of inverters allowed.",
             "examples": [
-              1,
-              2
+              1
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "home_appliances": {
-            "anyOf": [
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HomeApplianceCommonSettings-Output"
+            },
+            "type": "object",
+            "title": "Home Appliances",
+            "description": "Shiftable home appliance devices, keyed by device_id.",
+            "examples": [
               {
-                "items": {
-                  "$ref": "#/components/schemas/HomeApplianceCommonSettings-Output"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
+                "dishwasher": {
+                  "consumption_wh": 1500,
+                  "device_id": "dishwasher",
+                  "duration_h": 2.0,
+                  "ports": [
+                    {
+                      "bus_id": "bus_ac",
+                      "direction": "sink",
+                      "port_id": "p_ac"
+                    }
+                  ]
+                }
               }
             ],
-            "title": "Home Appliances",
-            "description": "List of home appliances",
-            "examples": [
-              []
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_home_appliances": {
@@ -4008,26 +4680,22 @@
               }
             ],
             "title": "Max Home Appliances",
-            "description": "Maximum number of home_appliances that can be set",
+            "description": "Maximum number of home appliances allowed.",
             "examples": [
-              1,
-              2
+              3
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "measurement_keys": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
             "title": "Measurement Keys",
-            "description": "Return the measurement keys for the resource/ device stati that are measurements.",
+            "description": "All measurement keys across all configured devices.",
             "readOnly": true
           }
         },
@@ -4036,7 +4704,7 @@
           "measurement_keys"
         ],
         "title": "DevicesCommonSettings",
-        "description": "Base configuration for devices simulation settings."
+        "description": "Configuration for all controllable devices in the simulation.\n\nEvery device collection is a ``dict[str, <Settings>]`` keyed by\n``device_id``.  This makes config paths stable regardless of\ndeclaration order and lets each device settings class build its own\nconfig path from ``self.device_id`` without needing an external index."
       },
       "ElecFeeCommonSettings-Input": {
         "properties": {
@@ -4826,6 +5494,103 @@
         ],
         "title": "EnergyChartsBiddingZones",
         "description": "Energy Charts Bidding Zones."
+      },
+      "EnergyInterval": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "energy_wh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Energy Wh"
+          },
+          "observed_energy_wh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Energy Wh"
+          },
+          "coverage_seconds": {
+            "type": "number",
+            "title": "Coverage Seconds"
+          },
+          "coverage_status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial",
+              "missing",
+              "invalid"
+            ],
+            "title": "Coverage Status"
+          },
+          "methods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Methods"
+          },
+          "flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "coverage_ranges": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Coverage Ranges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "energy_wh",
+          "observed_energy_wh",
+          "coverage_seconds",
+          "coverage_status",
+          "methods",
+          "flags",
+          "coverage_ranges"
+        ],
+        "title": "EnergyInterval",
+        "description": "Energy and actual temporal support; missing energy is never zero-filled."
       },
       "EnergyManagementCommonSettings-Input": {
         "properties": {
@@ -8582,9 +9347,14 @@
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Consumption Wh",
-            "description": "Energy consumption [Wh].",
+            "description": "Energy consumption per run cycle [Wh].",
+            "default": 3000,
             "examples": [
               2000
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "duration_h": {
@@ -8592,40 +9362,100 @@
             "maximum": 24.0,
             "exclusiveMinimum": 0.0,
             "title": "Duration H",
-            "description": "Usage duration in hours [0 ... 24].",
+            "description": "Run duration per cycle [h] (1-24).",
+            "default": 3,
             "examples": [
-              1
+              2
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
-          "time_windows": {
+          "num_cycles": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Num Cycles",
+            "description": "Number of times the appliance must run within the horizon. Required when cycle_time_windows is null (unconstrained). Ignored when cycle_time_windows is provided -- the number of distinct cycle indices in the windows defines num_cycles. Defaults to 1.",
+            "default": 1,
+            "examples": [
+              1,
+              2
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
+            ]
+          },
+          "cycle_time_windows": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TimeWindowSequence-Input"
+                "$ref": "#/components/schemas/CycleTimeWindowSequence-Input"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Sequence of allowed time windows. Defaults to optimization general time window.",
+            "description": "Per-cycle allowed scheduling time windows. Each window's value field specifies the cycle index (0-based). When null, the appliance may start at any step and num_cycles must be set explicitly.",
             "examples": [
+              null,
               {
                 "windows": [
                   {
-                    "duration": "2 hours",
-                    "start_time": "10:00"
+                    "duration": "5 hours",
+                    "start_time": "07:00",
+                    "value": 0
+                  },
+                  {
+                    "duration": "5 hours",
+                    "start_time": "17:00",
+                    "value": 1
                   }
                 ]
               }
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "min_cycle_gap_h": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Min Cycle Gap H",
+            "description": "Minimum idle time between the end of one cycle and the start of the next [h]. Applies uniformly between all consecutive cycles. 0 means back-to-back runs are permitted.",
+            "default": 0,
+            "examples": [
+              0,
+              1,
+              4
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "cycles_completed_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycles Completed Measurement Key",
+            "description": "Measurement store key holding the number of cycles already completed in the current planning day. Read by HomeApplianceDevice.setup_run via context.resolve_measurement. Defaults to '{device_id}.cycles_completed' when null.",
+            "examples": [
+              "dishwasher.cycles_completed",
+              null
+            ],
+            "x-scope": [
+              "GENETIC"
             ]
           }
         },
         "type": "object",
-        "required": [
-          "consumption_wh",
-          "duration_h"
-        ],
         "title": "HomeApplianceCommonSettings",
-        "description": "Home Appliance devices base settings."
+        "description": "Controllable home appliance device settings.\n\nRepresents a shiftable load whose start time \u2014 and optionally the\nstart times for multiple sequential runs \u2014 can be deferred by the\noptimiser within per-cycle allowed time windows.\n\nThe number of remaining cycles to plan is determined at runtime by\nreading ``cycles_completed_measurement_key`` from the measurement\nstore inside ``HomeApplianceDevice.setup_run``.\n\n``num_cycles`` is required when ``cycle_time_windows`` is ``None``\n(unconstrained); when windows are provided it is derived from\n``cycle_time_windows.num_cycles()``.\n\nSingle-cycle, unconstrained (start any time)\n---------------------------------------------\n\n::\n\n    device_id: dishwasher\n    consumption_wh: 1500\n    duration_h: 2\n    num_cycles: 1\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n\nSingle-cycle, constrained to one window\n----------------------------------------\n\nEach window's ``value`` field carries the **cycle index** (0-based).\nWindows without a ``value`` are ignored by the optimizer::\n\n    device_id: dishwasher\n    consumption_wh: 1500\n    duration_h: 2\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n    cycle_time_windows:\n      windows:\n        - start_time: \"10:00\"\n          duration: \"12 hours\"\n          value: 0\n\nMulti-cycle, per-cycle windows\n--------------------------------\n\nTwo cycles, each with its own window.  Cycle 0 runs in the morning,\ncycle 1 in the evening::\n\n    device_id: washing_machine\n    consumption_wh: 2000\n    duration_h: 2\n    min_cycle_gap_h: 1\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n    cycle_time_windows:\n      windows:\n        - start_time: \"07:00\"\n          duration: \"5 hours\"\n          value: 0\n        - start_time: \"17:00\"\n          duration: \"5 hours\"\n          value: 1\n\nMulti-cycle, shared window (both cycles may run any time 10:00-20:00)\n-----------------------------------------------------------------------\n\nAssign the same-shaped windows to distinct cycle indices so the\noptimizer can place them independently::\n\n    cycle_time_windows:\n      windows:\n        - start_time: \"10:00\"\n          duration: \"10 hours\"\n          value: 0\n        - start_time: \"10:00\"\n          duration: \"10 hours\"\n          value: 1"
       },
       "HomeApplianceCommonSettings-Output": {
         "properties": {
@@ -8644,9 +9474,14 @@
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Consumption Wh",
-            "description": "Energy consumption [Wh].",
+            "description": "Energy consumption per run cycle [Wh].",
+            "default": 3000,
             "examples": [
               2000
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "duration_h": {
@@ -8654,31 +9489,101 @@
             "maximum": 24.0,
             "exclusiveMinimum": 0.0,
             "title": "Duration H",
-            "description": "Usage duration in hours [0 ... 24].",
+            "description": "Run duration per cycle [h] (1-24).",
+            "default": 3,
             "examples": [
-              1
+              2
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
-          "time_windows": {
+          "num_cycles": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Num Cycles",
+            "description": "Number of times the appliance must run within the horizon. Required when cycle_time_windows is null (unconstrained). Ignored when cycle_time_windows is provided -- the number of distinct cycle indices in the windows defines num_cycles. Defaults to 1.",
+            "default": 1,
+            "examples": [
+              1,
+              2
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
+            ]
+          },
+          "cycle_time_windows": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+                "$ref": "#/components/schemas/CycleTimeWindowSequence-Output"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Sequence of allowed time windows. Defaults to optimization general time window.",
+            "description": "Per-cycle allowed scheduling time windows. Each window's value field specifies the cycle index (0-based). When null, the appliance may start at any step and num_cycles must be set explicitly.",
             "examples": [
+              null,
               {
                 "windows": [
                   {
-                    "duration": "2 hours",
-                    "start_time": "10:00"
+                    "duration": "5 hours",
+                    "start_time": "07:00",
+                    "value": 0
+                  },
+                  {
+                    "duration": "5 hours",
+                    "start_time": "17:00",
+                    "value": 1
                   }
                 ]
               }
+            ],
+            "x-scope": [
+              "GENETIC"
             ]
+          },
+          "min_cycle_gap_h": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Min Cycle Gap H",
+            "description": "Minimum idle time between the end of one cycle and the start of the next [h]. Applies uniformly between all consecutive cycles. 0 means back-to-back runs are permitted.",
+            "default": 0,
+            "examples": [
+              0,
+              1,
+              4
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "cycles_completed_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycles Completed Measurement Key",
+            "description": "Measurement store key holding the number of cycles already completed in the current planning day. Read by HomeApplianceDevice.setup_run via context.resolve_measurement. Defaults to '{device_id}.cycles_completed' when null.",
+            "examples": [
+              "dishwasher.cycles_completed",
+              null
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "effective_num_cycles": {
+            "type": "integer",
+            "title": "Effective Num Cycles",
+            "description": "Number of cycles as seen by the optimizer.\n\nDerived from cycle_time_windows.num_cycles() when windows are\nprovided; falls back to the explicit num_cycles field otherwise.",
+            "readOnly": true
           },
           "measurement_keys": {
             "anyOf": [
@@ -8699,12 +9604,11 @@
         },
         "type": "object",
         "required": [
-          "consumption_wh",
-          "duration_h",
+          "effective_num_cycles",
           "measurement_keys"
         ],
         "title": "HomeApplianceCommonSettings",
-        "description": "Home Appliance devices base settings."
+        "description": "Controllable home appliance device settings.\n\nRepresents a shiftable load whose start time \u2014 and optionally the\nstart times for multiple sequential runs \u2014 can be deferred by the\noptimiser within per-cycle allowed time windows.\n\nThe number of remaining cycles to plan is determined at runtime by\nreading ``cycles_completed_measurement_key`` from the measurement\nstore inside ``HomeApplianceDevice.setup_run``.\n\n``num_cycles`` is required when ``cycle_time_windows`` is ``None``\n(unconstrained); when windows are provided it is derived from\n``cycle_time_windows.num_cycles()``.\n\nSingle-cycle, unconstrained (start any time)\n---------------------------------------------\n\n::\n\n    device_id: dishwasher\n    consumption_wh: 1500\n    duration_h: 2\n    num_cycles: 1\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n\nSingle-cycle, constrained to one window\n----------------------------------------\n\nEach window's ``value`` field carries the **cycle index** (0-based).\nWindows without a ``value`` are ignored by the optimizer::\n\n    device_id: dishwasher\n    consumption_wh: 1500\n    duration_h: 2\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n    cycle_time_windows:\n      windows:\n        - start_time: \"10:00\"\n          duration: \"12 hours\"\n          value: 0\n\nMulti-cycle, per-cycle windows\n--------------------------------\n\nTwo cycles, each with its own window.  Cycle 0 runs in the morning,\ncycle 1 in the evening::\n\n    device_id: washing_machine\n    consumption_wh: 2000\n    duration_h: 2\n    min_cycle_gap_h: 1\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n    cycle_time_windows:\n      windows:\n        - start_time: \"07:00\"\n          duration: \"5 hours\"\n          value: 0\n        - start_time: \"17:00\"\n          duration: \"5 hours\"\n          value: 1\n\nMulti-cycle, shared window (both cycles may run any time 10:00-20:00)\n-----------------------------------------------------------------------\n\nAssign the same-shaped windows to distinct cycle indices so the\noptimizer can place them independently::\n\n    cycle_time_windows:\n      windows:\n        - start_time: \"10:00\"\n          duration: \"10 hours\"\n          value: 0\n        - start_time: \"10:00\"\n          duration: \"10 hours\"\n          value: 1"
       },
       "HomeApplianceParameters": {
         "properties": {
@@ -8750,21 +9654,42 @@
               3
             ]
           },
+          "num_cycles": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Num Cycles",
+            "description": "Number of cycles the appliance must run.",
+            "default": 1,
+            "examples": [
+              2
+            ]
+          },
+          "min_cycle_gap_h": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Min Cycle Gap H",
+            "description": "Minimum idle time between the end of one cycle and the start of the next cycle.",
+            "default": 0,
+            "examples": [
+              1
+            ]
+          },
           "time_windows": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+                "$ref": "#/components/schemas/CycleTimeWindowSequence-Output"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "description": "Allowed per-cycle time windows. Each window's `value` encodes the 0-based cycle index it applies to; multiple windows may share a cycle index. When omitted, every cycle is unconstrained across the full prediction horizon.",
             "examples": [
               [
                 {
                   "duration": "3 hours",
-                  "start_time": "10:00"
+                  "start_time": "10:00",
+                  "value": 0
                 }
               ]
             ]
@@ -8778,7 +9703,7 @@
           "duration_h"
         ],
         "title": "HomeApplianceParameters",
-        "description": "Home Appliance Device Simulation Configuration."
+        "description": "Configuration for a simulated home appliance device."
       },
       "HomeAssistantAdapterCommonSettings-Input": {
         "properties": {
@@ -9164,6 +10089,79 @@
         "title": "HomeAssistantAdapterCommonSettings",
         "description": "Common settings for the home assistant adapter."
       },
+      "HouseholdInput": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "branch": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Branch"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "site",
+              "grid",
+              "pv",
+              "battery",
+              "inverter",
+              "ev",
+              "device"
+            ],
+            "title": "Role"
+          },
+          "polarity": {
+            "type": "integer",
+            "enum": [
+              -1,
+              1
+            ],
+            "title": "Polarity",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "branch",
+          "role"
+        ],
+        "title": "HouseholdInput",
+        "description": "A non-overlapping AC branch; polarity normalizes the sensor's sign."
+      },
+      "HouseholdSettings": {
+        "properties": {
+          "topology": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "separate_ac",
+              "hybrid_ac"
+            ],
+            "title": "Topology"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/HouseholdInput"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Inputs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "topology",
+          "inputs"
+        ],
+        "title": "HouseholdSettings",
+        "description": "Fixed topology, never user-supplied executable balance expressions.\n\nGrid import, PV production and battery/inverter discharge are positive.\nEV/device inputs are positive consumption, subtracted only from derived loads."
+      },
       "InverterCommonSettings-Input": {
         "properties": {
           "device_id": {
@@ -9188,25 +10186,13 @@
               }
             ],
             "title": "Max Power W",
-            "description": "Maximum power [W].",
+            "description": "Maximum AC output power [W].",
             "examples": [
               10000
-            ]
-          },
-          "battery_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
             ],
-            "title": "Battery Id",
-            "description": "ID of battery controlled by this inverter.",
-            "examples": [
-              null,
-              "battery1"
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "ac_to_dc_efficiency": {
@@ -9214,12 +10200,16 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Ac To Dc Efficiency",
-            "description": "Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss).",
+            "description": "Efficiency of AC\u2192DC conversion for grid-to-battery charging (0\u20131). Set to 0 to disable AC charging. Default 1.0.",
             "default": 1.0,
             "examples": [
               0.95,
               1.0,
               0.0
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "dc_to_ac_efficiency": {
@@ -9227,11 +10217,15 @@
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Dc To Ac Efficiency",
-            "description": "Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss).",
+            "description": "Efficiency of DC\u2192AC conversion for battery discharging (0\u20131). Default 1.0.",
             "default": 1.0,
             "examples": [
               0.95,
               1.0
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_ac_charge_power_w": {
@@ -9245,17 +10239,326 @@
               }
             ],
             "title": "Max Ac Charge Power W",
-            "description": "Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging.",
+            "description": "Maximum AC charging power [W]. null means no additional limit. 0 disables AC charging.",
             "examples": [
               null,
               0,
               5000
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "Device ID of the battery.",
+            "examples": [
+              null
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
+            ]
+          },
+          "off_state_power_consumption_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Off State Power Consumption W",
+            "description": "Standby power consumed when the inverter is fully idle (battery=0 and PV=0) [W]. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              5.0,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "on_state_power_consumption_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "On State Power Consumption W",
+            "description": "Auxiliary power consumed whenever the inverter is active (non-zero AC power) [W]. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              10.0,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Pv To Ac Efficiency",
+            "description": "Efficiency of PV DC\u2192AC conversion (0\u20131). Required when pv_power_w_key is set (SOLAR or HYBRID). Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.97,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_to_battery_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Pv To Battery Efficiency",
+            "description": "Efficiency of PV DC\u2192battery charging path (0\u20131). Used for HYBRID inverters only. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.98,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_max_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Max Power W",
+            "description": "Maximum DC PV power fed into the inverter [W]. Required when pv_power_w_key is set (SOLAR or HYBRID). Values from pv_power_w_key are clipped to this limit.",
+            "examples": [
+              8000.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_min_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Pv Min Power W",
+            "description": "Minimum DC PV power threshold [W]. Steps with available PV below this value are treated as zero. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              50.0,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_power_w_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Power W Key",
+            "description": "SimulationContext prediction key resolving to a per-step PV power forecast array [W] of shape (horizon,). Set for SOLAR and HYBRID inverter types; leave None for BATTERY.",
+            "examples": [
+              "pv_forecast_w",
+              null
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Capacity Wh",
+            "description": "Usable battery capacity [Wh]. Required for BATTERY and HYBRID inverter types.",
+            "examples": [
+              10000.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Charge Rates",
+            "description": "Optional list of discrete charge rate fractions (each in (0, 1]). When set, the battery is constrained to these specific fractions of battery_max_charge_rate. null means continuous charging. All values must be in (0, 1].",
+            "examples": [
+              null,
+              [
+                0.25,
+                0.5,
+                1.0
+              ]
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_min_charge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Battery Min Charge Rate",
+            "description": "Minimum non-zero charge rate as a fraction of the 1C rate (1C = battery_capacity_wh W). Charge commands below this threshold are rounded to zero. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.1,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_max_charge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Battery Max Charge Rate",
+            "description": "Maximum charge rate as a fraction of the 1C rate (1C = battery_capacity_wh W). bat_factor=+1 maps to this rate. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.5,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_min_discharge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Battery Min Discharge Rate",
+            "description": "Minimum discharge rate as a fraction of the 1C rate (1C = battery_capacity_wh W). Discharge commands below this threshold are rounded to zero. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.1,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_max_discharge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Battery Max Discharge Rate",
+            "description": "Maximum discharge rate as a fraction of the 1C rate. (1C = battery_capacity_wh W). bat_factor=\u22121 maps to this rate. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.5,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_min_soc_factor": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "minimum": 0.0,
+            "title": "Battery Min Soc Factor",
+            "description": "Minimum allowed state of charge as a fraction of battery_capacity_wh. Must be < battery_max_soc_factor. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.1,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_max_soc_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Battery Max Soc Factor",
+            "description": "Maximum allowed state of charge as a fraction of battery_capacity_wh. Must be > battery_min_soc_factor. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.9,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_initial_soc_factor_key": {
+            "type": "string",
+            "title": "Battery Initial Soc Factor Key",
+            "description": "SimulationContext measurement key resolving to the initial battery SoC as a fraction of battery_capacity_wh, in [min_soc_factor, max_soc_factor]. An empty string means the device uses battery_min_soc_factor as the initial SoC (fully depleted to the minimum).",
+            "default": "",
+            "examples": [
+              "battery1_soc_factor",
+              ""
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_lcos_amt_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Battery Lcos Amt Kwh",
+            "description": "Levelized cost of battery storage [Amt./kWh cycled]. Penalises unnecessary charging/discharging so the GA avoids grid-charge\u2192discharge cycles with no price-spread benefit. Typical residential Li-ion value: 0.05 Amt./kWh. Set to 0.0 to encourage the optimizer to use the battery. Defaults to 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.05,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_discharge_reward_amt_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Battery Discharge Reward Amt Kwh",
+            "description": "Shadow price rewarding battery discharge [Amt./kWh discharged AC]. Adds a direct fitness benefit per kWh the battery delivers, on top of the grid import cost reduction already captured by GridConnectionDevice. Helps the GA discover discharge when the load-matching rate is small relative to mutation noise. Suggested value: import_price - export_price - lcos (e.g. 0.30 - 0.08 - 0.05 = 0.17). Set to 0.0 to disable.",
+            "default": 0.02,
+            "examples": [
+              0.0,
+              0.17
+            ],
+            "x-scope": [
+              "UNUSED"
             ]
           }
         },
         "type": "object",
         "title": "InverterCommonSettings",
-        "description": "Inverter devices base settings."
+        "description": "Inverter device settings.\n\nAn inverter bridges a DC bus (PV / battery) and an AC bus (grid /\nhousehold). It must therefore have at least one DC port and one AC\nport."
       },
       "InverterCommonSettings-Output": {
         "properties": {
@@ -9281,25 +10584,13 @@
               }
             ],
             "title": "Max Power W",
-            "description": "Maximum power [W].",
+            "description": "Maximum AC output power [W].",
             "examples": [
               10000
-            ]
-          },
-          "battery_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
             ],
-            "title": "Battery Id",
-            "description": "ID of battery controlled by this inverter.",
-            "examples": [
-              null,
-              "battery1"
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "ac_to_dc_efficiency": {
@@ -9307,12 +10598,16 @@
             "maximum": 1.0,
             "minimum": 0.0,
             "title": "Ac To Dc Efficiency",
-            "description": "Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss).",
+            "description": "Efficiency of AC\u2192DC conversion for grid-to-battery charging (0\u20131). Set to 0 to disable AC charging. Default 1.0.",
             "default": 1.0,
             "examples": [
               0.95,
               1.0,
               0.0
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "dc_to_ac_efficiency": {
@@ -9320,11 +10615,15 @@
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Dc To Ac Efficiency",
-            "description": "Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss).",
+            "description": "Efficiency of DC\u2192AC conversion for battery discharging (0\u20131). Default 1.0.",
             "default": 1.0,
             "examples": [
               0.95,
               1.0
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "max_ac_charge_power_w": {
@@ -9338,18 +10637,170 @@
               }
             ],
             "title": "Max Ac Charge Power W",
-            "description": "Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging.",
+            "description": "Maximum AC charging power [W]. null means no additional limit. 0 disables AC charging.",
             "examples": [
               null,
               0,
               5000
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
             ]
           },
-          "measurement_keys": {
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "Device ID of the battery.",
+            "examples": [
+              null
+            ],
+            "x-scope": [
+              "GENETIC",
+              "GENETIC0"
+            ]
+          },
+          "off_state_power_consumption_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Off State Power Consumption W",
+            "description": "Standby power consumed when the inverter is fully idle (battery=0 and PV=0) [W]. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              5.0,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "on_state_power_consumption_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "On State Power Consumption W",
+            "description": "Auxiliary power consumed whenever the inverter is active (non-zero AC power) [W]. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              10.0,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Pv To Ac Efficiency",
+            "description": "Efficiency of PV DC\u2192AC conversion (0\u20131). Required when pv_power_w_key is set (SOLAR or HYBRID). Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.97,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_to_battery_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Pv To Battery Efficiency",
+            "description": "Efficiency of PV DC\u2192battery charging path (0\u20131). Used for HYBRID inverters only. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.98,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_max_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Max Power W",
+            "description": "Maximum DC PV power fed into the inverter [W]. Required when pv_power_w_key is set (SOLAR or HYBRID). Values from pv_power_w_key are clipped to this limit.",
+            "examples": [
+              8000.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_min_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Pv Min Power W",
+            "description": "Minimum DC PV power threshold [W]. Steps with available PV below this value are treated as zero. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              50.0,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "pv_power_w_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Power W Key",
+            "description": "SimulationContext prediction key resolving to a per-step PV power forecast array [W] of shape (horizon,). Set for SOLAR and HYBRID inverter types; leave None for BATTERY.",
+            "examples": [
+              "pv_forecast_w",
+              null
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Capacity Wh",
+            "description": "Usable battery capacity [Wh]. Required for BATTERY and HYBRID inverter types.",
+            "examples": [
+              10000.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_charge_rates": {
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "type": "number"
                 },
                 "type": "array"
               },
@@ -9357,8 +10808,158 @@
                 "type": "null"
               }
             ],
+            "title": "Battery Charge Rates",
+            "description": "Optional list of discrete charge rate fractions (each in (0, 1]). When set, the battery is constrained to these specific fractions of battery_max_charge_rate. null means continuous charging. All values must be in (0, 1].",
+            "examples": [
+              null,
+              [
+                0.25,
+                0.5,
+                1.0
+              ]
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_min_charge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Battery Min Charge Rate",
+            "description": "Minimum non-zero charge rate as a fraction of the 1C rate (1C = battery_capacity_wh W). Charge commands below this threshold are rounded to zero. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.1,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_max_charge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Battery Max Charge Rate",
+            "description": "Maximum charge rate as a fraction of the 1C rate (1C = battery_capacity_wh W). bat_factor=+1 maps to this rate. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.5,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_min_discharge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Battery Min Discharge Rate",
+            "description": "Minimum discharge rate as a fraction of the 1C rate (1C = battery_capacity_wh W). Discharge commands below this threshold are rounded to zero. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.1,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_max_discharge_rate": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Battery Max Discharge Rate",
+            "description": "Maximum discharge rate as a fraction of the 1C rate. (1C = battery_capacity_wh W). bat_factor=\u22121 maps to this rate. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.5,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_min_soc_factor": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "minimum": 0.0,
+            "title": "Battery Min Soc Factor",
+            "description": "Minimum allowed state of charge as a fraction of battery_capacity_wh. Must be < battery_max_soc_factor. Default 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.1,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_max_soc_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Battery Max Soc Factor",
+            "description": "Maximum allowed state of charge as a fraction of battery_capacity_wh. Must be > battery_min_soc_factor. Default 1.0.",
+            "default": 1.0,
+            "examples": [
+              0.9,
+              1.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_initial_soc_factor_key": {
+            "type": "string",
+            "title": "Battery Initial Soc Factor Key",
+            "description": "SimulationContext measurement key resolving to the initial battery SoC as a fraction of battery_capacity_wh, in [min_soc_factor, max_soc_factor]. An empty string means the device uses battery_min_soc_factor as the initial SoC (fully depleted to the minimum).",
+            "default": "",
+            "examples": [
+              "battery1_soc_factor",
+              ""
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_lcos_amt_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Battery Lcos Amt Kwh",
+            "description": "Levelized cost of battery storage [Amt./kWh cycled]. Penalises unnecessary charging/discharging so the GA avoids grid-charge\u2192discharge cycles with no price-spread benefit. Typical residential Li-ion value: 0.05 Amt./kWh. Set to 0.0 to encourage the optimizer to use the battery. Defaults to 0.0.",
+            "default": 0.0,
+            "examples": [
+              0.05,
+              0.0
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "battery_discharge_reward_amt_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Battery Discharge Reward Amt Kwh",
+            "description": "Shadow price rewarding battery discharge [Amt./kWh discharged AC]. Adds a direct fitness benefit per kWh the battery delivers, on top of the grid import cost reduction already captured by GridConnectionDevice. Helps the GA discover discharge when the load-matching rate is small relative to mutation noise. Suggested value: import_price - export_price - lcos (e.g. 0.30 - 0.08 - 0.05 = 0.17). Set to 0.0 to disable.",
+            "default": 0.02,
+            "examples": [
+              0.0,
+              0.17
+            ],
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "measurement_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
             "title": "Measurement Keys",
-            "description": "Measurement keys for the inverter stati that are measurements.",
+            "description": "Measurement keys for this inverter.\n\nReturns the ``battery_initial_soc_factor_key`` if non-empty, so\nthe EMS measurement store knows to watch for this key.",
             "readOnly": true
           }
         },
@@ -9367,7 +10968,7 @@
           "measurement_keys"
         ],
         "title": "InverterCommonSettings",
-        "description": "Inverter devices base settings."
+        "description": "Inverter device settings.\n\nAn inverter bridges a DC bus (PV / battery) and an AC bus (grid /\nhousehold). It must therefore have at least one DC port and one AC\nport."
       },
       "InverterParameters": {
         "properties": {
@@ -9792,6 +11393,90 @@
         "title": "LoggingCommonSettings",
         "description": "Logging Configuration."
       },
+      "MeasurementChannelSettings": {
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "enum": [
+              "power",
+              "cumulative_energy",
+              "interval_energy"
+            ],
+            "title": "Quantity"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "W",
+              "kW",
+              "Wh",
+              "kWh"
+            ],
+            "title": "Unit"
+          },
+          "integration_method": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "hold",
+                  "linear"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integration Method"
+          },
+          "max_gap_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Gap Seconds"
+          },
+          "interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Seconds"
+          },
+          "timestamp_reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "end"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp Reference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quantity",
+          "unit"
+        ],
+        "title": "MeasurementChannelSettings",
+        "description": "Meaning of a raw measurement channel; no conversion is performed on storage."
+      },
       "MeasurementCommonSettings-Input": {
         "properties": {
           "historic_hours": {
@@ -9810,6 +11495,35 @@
             "examples": [
               17520
             ]
+          },
+          "channels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MeasurementChannelSettings"
+            },
+            "type": "object",
+            "title": "Channels",
+            "description": "Typed raw measurement channels keyed by measurement key."
+          },
+          "household": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HouseholdSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional household energy balance definition.",
+            "examples": [
+              null
+            ]
+          },
+          "energy_context_seconds": {
+            "type": "integer",
+            "maximum": 604800.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Energy Context Seconds",
+            "default": 86400
           },
           "load_emr_keys": {
             "anyOf": [
@@ -9915,6 +11629,35 @@
               17520
             ]
           },
+          "channels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MeasurementChannelSettings"
+            },
+            "type": "object",
+            "title": "Channels",
+            "description": "Typed raw measurement channels keyed by measurement key."
+          },
+          "household": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HouseholdSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional household energy balance definition.",
+            "examples": [
+              null
+            ]
+          },
+          "energy_context_seconds": {
+            "type": "integer",
+            "maximum": 604800.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Energy Context Seconds",
+            "default": 86400
+          },
           "load_emr_keys": {
             "anyOf": [
               {
@@ -10011,6 +11754,42 @@
         ],
         "title": "MeasurementCommonSettings",
         "description": "Measurement Configuration."
+      },
+      "MeasurementSample": {
+        "properties": {
+          "date_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date Time"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/SampleQuality"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "date_time",
+          "key",
+          "value"
+        ],
+        "title": "MeasurementSample",
+        "description": "Complete replacement of one key/timestamp, including its quality."
       },
       "NodeREDAdapterCommonSettings": {
         "properties": {
@@ -10778,6 +12557,267 @@
         "title": "PPBCStartInterruptionInstruction",
         "description": "Represents an instruction to interrupt execution of a running power sequence.\n\nThis model defines a control instruction that interrupts the execution of an\nactive power sequence. It enables dynamic control over sequence execution,\nallowing temporary suspension of a sequence in response to changing system conditions\nor requirements, particularly for sequences marked as interruptible."
       },
+      "PVForecastAkkudoktorLocalCommonSettings": {
+        "properties": {
+          "backend": {
+            "type": "string",
+            "enum": [
+              "remote",
+              "local"
+            ],
+            "title": "Backend",
+            "description": "Akkudoktor forecast backend: remote API or local Open-Meteo/pvlib model.",
+            "default": "remote",
+            "examples": [
+              "remote",
+              "local"
+            ]
+          },
+          "resolution_minutes": {
+            "type": "integer",
+            "title": "Resolution Minutes",
+            "description": "Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block.",
+            "default": 15,
+            "examples": [
+              15,
+              60
+            ]
+          },
+          "forecast_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Days",
+            "description": "Forecast horizon in days (1-16). Leave empty to derive it from `prediction.hours`, which is what keeps the optimizer's tail horizon fed.",
+            "examples": [
+              null,
+              7
+            ]
+          },
+          "past_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 92.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Past Days",
+            "description": "Days of past data to request (0-92). Leave empty to derive it from `prediction.historic_hours`.",
+            "examples": [
+              null,
+              3
+            ]
+          },
+          "weather_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Weather Models",
+            "description": "Open-Meteo weather models to request. Listing more than one turns the input into a poor-man's ensemble: the members are averaged per variable, which is the cheapest reliable way to cut irradiance forecast error. Costs no extra API calls.",
+            "default": [
+              "best_match"
+            ],
+            "examples": [
+              [
+                "best_match"
+              ],
+              [
+                "icon_seamless",
+                "ecmwf_ifs025",
+                "gfs_seamless"
+              ]
+            ]
+          },
+          "transposition_model": {
+            "type": "string",
+            "title": "Transposition Model",
+            "description": "pvlib sky-diffuse transposition model: isotropic, klucher, haydavies, reindl, king or perez.",
+            "default": "perez",
+            "examples": [
+              "perez",
+              "haydavies"
+            ]
+          },
+          "albedo": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Albedo",
+            "description": "Ground albedo used for planes that do not set their own.",
+            "default": 0.25,
+            "examples": [
+              0.25,
+              0.2
+            ]
+          },
+          "inverter_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Inverter Efficiency",
+            "description": "Nominal inverter efficiency (PVWatts eta_inv_nom).",
+            "default": 0.96,
+            "examples": [
+              0.96,
+              0.94
+            ]
+          },
+          "temperature_coefficient": {
+            "type": "number",
+            "title": "Temperature Coefficient",
+            "description": "Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses.",
+            "default": -0.36,
+            "examples": [
+              -0.36,
+              -0.29
+            ]
+          },
+          "apply_iam": {
+            "type": "boolean",
+            "title": "Apply Iam",
+            "description": "Apply the ASHRAE incidence-angle modifier to the beam component.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "shift_to_interval_start": {
+            "type": "boolean",
+            "title": "Shift To Interval Start",
+            "description": "Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_enabled": {
+            "type": "boolean",
+            "title": "Calibration Enabled",
+            "description": "Correct systematic model error against measured PV production. Requires `measurement.pv_production_emr_keys` to be configured and fed. Fits a global scale factor plus per-solar-azimuth factors, which is what catches near-field shading the horizon profile misses.",
+            "default": false,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 1.0,
+            "title": "Calibration Days",
+            "description": "Length of the measurement window used to fit the correction.",
+            "default": 30,
+            "examples": [
+              30,
+              14
+            ]
+          },
+          "calibration_reference_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 3.0,
+            "title": "Calibration Reference Days",
+            "description": "Lookback used to distinguish healthy production from outages or curtailment. If the calibration window contains too few healthy days, the most recent healthy days from this reference window are used.",
+            "default": 30,
+            "examples": [
+              30,
+              14
+            ]
+          },
+          "calibration_outage_filter_enabled": {
+            "type": "boolean",
+            "title": "Calibration Outage Filter Enabled",
+            "description": "Exclude days whose measured production is far below the recent healthy plant level. This prevents inverter, battery and curtailment events from being learned as permanent PV model losses.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_outage_threshold": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Outage Threshold",
+            "description": "A day is treated as unavailable when its measured/modelled energy ratio is below this fraction of the robust healthy reference ratio.",
+            "default": 0.55,
+            "examples": [
+              0.55,
+              0.5
+            ]
+          },
+          "calibration_min_healthy_days": {
+            "type": "integer",
+            "maximum": 31.0,
+            "minimum": 1.0,
+            "title": "Calibration Min Healthy Days",
+            "description": "Minimum number of healthy days used for a fit. Older healthy days from the reference window are added when the recent window contains fewer.",
+            "default": 3,
+            "examples": [
+              3
+            ]
+          },
+          "calibration_azimuth_bin_degrees": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 0.0,
+            "title": "Calibration Azimuth Bin Degrees",
+            "description": "Width of the solar-azimuth bins for the correction. 0 fits a single global factor only.",
+            "default": 45,
+            "examples": [
+              45,
+              30,
+              15,
+              0
+            ]
+          },
+          "calibration_prior_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Calibration Prior Kwh",
+            "description": "Shrinkage strength: a bin needs this much modelled energy before its own factor outweighs the global one. Higher is more conservative.",
+            "default": 5.0,
+            "examples": [
+              5.0,
+              20.0
+            ]
+          },
+          "calibration_min_factor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Min Factor",
+            "description": "Lower clamp on any fitted correction factor.",
+            "default": 0.5,
+            "examples": [
+              0.5
+            ]
+          },
+          "calibration_max_factor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Max Factor",
+            "description": "Upper clamp on any fitted correction factor.",
+            "default": 1.5,
+            "examples": [
+              1.5
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastAkkudoktorLocalCommonSettings",
+        "description": "Common settings for the local (pvlib) PV forecast provider."
+      },
       "PVForecastCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -10794,6 +12834,10 @@
             "examples": [
               "PVForecastAkkudoktor"
             ]
+          },
+          "akkudoktor": {
+            "$ref": "#/components/schemas/PVForecastAkkudoktorLocalCommonSettings",
+            "description": "Akkudoktor forecast backend and local calibration settings"
           },
           "pvforecastimport": {
             "$ref": "#/components/schemas/PVForecastImportCommonSettings",
@@ -10919,6 +12963,10 @@
             "examples": [
               "PVForecastAkkudoktor"
             ]
+          },
+          "akkudoktor": {
+            "$ref": "#/components/schemas/PVForecastAkkudoktorLocalCommonSettings",
+            "description": "Akkudoktor forecast backend and local calibration settings"
           },
           "pvforecastimport": {
             "$ref": "#/components/schemas/PVForecastImportCommonSettings",
@@ -11797,6 +13845,42 @@
         ],
         "title": "PydanticDateTimeSeries",
         "description": "Pydantic model for validating pandas Series with datetime index in JSON format.\n\nThis model handles Series data serialized with orient='index', where the keys are\ndatetime strings and values are the series values. Provides validation and\nconversion between JSON and pandas Series with datetime index.\n\nAttributes:\n    data (Dict[str, Any]): Dictionary mapping datetime strings to values.\n    dtype (str): The data type of the series values.\n    tz (str | None): Timezone name if the datetime index is timezone-aware."
+      },
+      "SampleQuality": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "estimated",
+              "invalid",
+              "unavailable"
+            ],
+            "title": "Status",
+            "default": "measured"
+          },
+          "reset": {
+            "type": "boolean",
+            "title": "Reset",
+            "default": false
+          },
+          "generation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SampleQuality",
+        "description": "Reset marks the first reading after a reset; generation identifies a meter."
       },
       "SeriesProcessing": {
         "type": "string",

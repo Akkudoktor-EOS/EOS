@@ -80,6 +80,7 @@ from akkudoktoreos.server.rest.error import (
     create_error_page,
     register_problem_handlers,
 )
+from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
@@ -260,6 +261,8 @@ The genetic optimization API fields were renamed from German to English. For bac
 # ----------------------
 # Application generic exception handling
 # ----------------------
+
+app.include_router(measurement_router)
 
 register_problem_handlers(app)
 
@@ -2197,7 +2200,7 @@ async def fastapi_optimize(
         start_datetime = to_datetime().set(hour=start_hour)
 
     # Ensure there is only one optimization/ energy management run at a time
-    await get_ems().run(
+    solution = await get_ems().run(
         start_datetime=start_datetime,
         mode=EnergyManagementMode.OPTIMIZATION,
         algorithm=OptimizationAlgorithm.GENETIC0,
@@ -2205,7 +2208,6 @@ async def fastapi_optimize(
         genetic0_generations=ngen,
     )
 
-    solution = get_ems().genetic0_solution()
     if solution is None:
         raise EOSProblem(
             status=404,

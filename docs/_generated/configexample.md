@@ -36,13 +36,15 @@
            "batch_size": 100
        },
        "devices": {
-           "batteries": [
-               {
-                   "device_id": "battery1",
+           "batteries": {
+               "bat0": {
+                   "device_id": "bat0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.0,
+                   "levelized_cost_of_storage_amt_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -61,15 +63,17 @@
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
-           ],
+           },
            "max_batteries": 1,
-           "electric_vehicles": [
-               {
-                   "device_id": "battery1",
-                   "capacity_wh": 8000,
+           "electric_vehicles": {
+               "ev0": {
+                   "device_id": "ev0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
+                   "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.0,
+                   "levelized_cost_of_storage_amt_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -88,12 +92,22 @@
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
-           ],
+           },
            "max_electric_vehicles": 1,
-           "inverters": [],
+           "inverters": {},
            "max_inverters": 1,
-           "home_appliances": [],
-           "max_home_appliances": 1
+           "home_appliances": {
+               "dishwasher": {
+                   "device_id": "dishwasher",
+                   "consumption_wh": 1500,
+                   "duration_h": 2,
+                   "num_cycles": 1,
+                   "cycle_time_windows": null,
+                   "min_cycle_gap_h": 0,
+                   "cycles_completed_measurement_key": null
+               }
+           },
+           "max_home_appliances": 3
        },
        "elecfee": {
            "provider": "ElecFeeFixed",
@@ -195,6 +209,9 @@
        },
        "measurement": {
            "historic_hours": 17520,
+           "channels": {},
+           "household": null,
+           "energy_context_seconds": 86400,
            "load_emr_keys": [
                "load0_emr"
            ],
@@ -236,6 +253,31 @@
        },
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
+           "akkudoktor": {
+               "backend": "remote",
+               "resolution_minutes": 15,
+               "forecast_days": null,
+               "past_days": null,
+               "weather_models": [
+                   "best_match"
+               ],
+               "transposition_model": "perez",
+               "albedo": 0.25,
+               "inverter_efficiency": 0.96,
+               "temperature_coefficient": -0.36,
+               "apply_iam": true,
+               "shift_to_interval_start": true,
+               "calibration_enabled": false,
+               "calibration_days": 30,
+               "calibration_reference_days": 30,
+               "calibration_outage_filter_enabled": true,
+               "calibration_outage_threshold": 0.55,
+               "calibration_min_healthy_days": 3,
+               "calibration_azimuth_bin_degrees": 45,
+               "calibration_prior_kwh": 5.0,
+               "calibration_min_factor": 0.5,
+               "calibration_max_factor": 1.5
+           },
            "pvforecastimport": {
                "import_file_path": null,
                "import_json": null

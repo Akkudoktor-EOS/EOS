@@ -30,6 +30,49 @@ if TYPE_CHECKING:
 
 _KEEP_DEFAULT = object()
 
+
+# -----------------------------
+# Migration helpers
+# -----------------------------
+
+
+def _list_to_device_dict(
+    prefix: str,
+) -> Callable[[Any], Any]:
+    """Return a transform that converts a list of device dicts to a keyed dict.
+
+    Each item must be a dict.  The key is taken from the item's own
+    ``device_id`` field when present; otherwise a key is synthesised
+    from *prefix* + the zero-based index (e.g. ``"bat0"``, ``"bat1"``).
+    """
+
+    def _transform(value: Any) -> Any:
+        if not isinstance(value, (list, dict)):
+            return value
+        result: Dict[str, Any] = {}
+        entries = enumerate(value) if isinstance(value, list) else value.items()
+        for index, original in entries:
+            if not isinstance(original, dict):
+                raise ValueError("Device settings must be an object")
+            item = dict(original)
+            key = (
+                (item.get("device_id") or f"{prefix}{index}") if isinstance(value, list) else index
+            )
+            if not isinstance(key, str):
+                raise ValueError("Device identifiers must be strings")
+            if key in result:
+                raise ValueError(f"Duplicate device_id: {key!r}")
+            item.setdefault("device_id", key)
+            if "levelized_cost_of_storage_kwh" in item:
+                item.setdefault(
+                    "levelized_cost_of_storage_amt_kwh", item.pop("levelized_cost_of_storage_kwh")
+                )
+            result[key] = item
+        return result
+
+    return _transform
+
+
 # -----------------------------
 # Global migration map constant
 # -----------------------------
@@ -58,10 +101,31 @@ MIGRATION_MAP: Dict[
     # - NodeRed
     # devices
     # =======
+    # List → dict migration (all device collections)
+    # These must come *before* any sub-path entries that reference the old list indices,
+    # so the whole collection is moved first; the sub-path None-drops clean up leftovers.
     # - batteries
+    "devices/batteries": (
+        "devices/batteries",
+        _list_to_device_dict("bat"),
+    ),
     "devices/batteries/0/initial_soc_percentage": None,
     # - electric_vehicles
+    "devices/electric_vehicles": (
+        "devices/electric_vehicles",
+        _list_to_device_dict("ev"),
+    ),
     "devices/electric_vehicles/0/initial_soc_percentage": None,
+    # - inverters
+    "devices/inverters": (
+        "devices/inverters",
+        _list_to_device_dict("inv"),
+    ),
+    # - home_appliances
+    "devices/home_appliances": (
+        "devices/home_appliances",
+        _list_to_device_dict("appliance"),
+    ),
     # elecfee
     # =======
     # - ElecFeeFixed
@@ -137,7 +201,7 @@ MIGRATION_MAP: Dict[
     "optimization/interval": None,
     "optimization/horizon_hours": "optimization/genetic0/horizon_hours",
     "optimization/ev_available_charge_rates_percent": (
-        "devices/electric_vehicles/0/charge_rates",
+        "devices/electric_vehicles/ev0/charge_rates",
         lambda v: [x / 100 for x in v],
     ),
     "optimization/hours": "optimization/genetic0/horizon_hours",
@@ -197,8 +261,26 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     skipped_paths = []
 
     from akkudoktoreos.config.config import SettingsEOSDefaults
+    from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
+        PVForecastAkkudoktorLocalCommonSettings,
+        normalize_akkudoktor_settings,
+    )
+
+    # Normalize this provider before the generic field-by-field transfer. Validate
+    # coupled bounds together so a transient intermediate default cannot lose them.
+    config_data = dict(config_data)
+    pv_settings = normalize_akkudoktor_settings(config_data.get("pvforecast"))
+    if isinstance(pv_settings, dict):
+        config_data["pvforecast"] = pv_settings
 
     new_config = SettingsEOSDefaults()
+    if isinstance(pv_settings, dict) and "akkudoktor" in pv_settings:
+        local_settings = PVForecastAkkudoktorLocalCommonSettings.model_validate(
+            pv_settings["akkudoktor"]
+        )
+        new_config.set_nested_value("pvforecast/akkudoktor", local_settings)
+        migrated_source_paths.add("pvforecast/akkudoktor")
+        mapped_count += 1
 
     # 1) Apply explicit migration map
     for old_path, mapping in MIGRATION_MAP.items():
@@ -235,6 +317,17 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
         try:
             if transform:
                 old_value = transform(old_value)
+            if old_path == "optimization/ev_available_charge_rates_percent":
+                from akkudoktoreos.devices.settings.batterysettings import (
+                    BatteriesCommonSettings,
+                )
+
+                vehicles = new_config.devices.electric_vehicles
+                if not vehicles:
+                    vehicles = {"ev0": BatteriesCommonSettings(device_id="ev0")}
+                    new_config.devices.electric_vehicles = vehicles
+                device_id = next(iter(vehicles))
+                new_path = f"devices/electric_vehicles/{device_id}/charge_rates"
             new_config.set_nested_value(new_path, old_value)
             migrated_source_paths.add(old_path.strip("/"))
             mapped_count += 1
