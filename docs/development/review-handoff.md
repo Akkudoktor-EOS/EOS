@@ -5,39 +5,27 @@ Optimize request and result/PDF output. See [GENETIC rollout](genetic-rollout.md
 for configuration and manual acceptance. Historical planning documents in this
 directory describe earlier checkpoints; this handoff supersedes their pending-work lists.
 
-## PR dependencies
+## Integration status
 
-<!-- pyml disable line-length -->
-| PR | Scope | Review base | Merge prerequisite |
-| --- | --- | --- | --- |
-| [#1322](https://github.com/Akkudoktor-EOS/EOS/pull/1322) | Restore JSON measurements | main | Independent |
-| [#1323](https://github.com/Akkudoktor-EOS/EOS/pull/1323) | Atomic Optimize result publication | main | Independent |
-| [#1324](https://github.com/Akkudoktor-EOS/EOS/pull/1324) | Preserve imported sale tariffs | main | Independent |
-| [#1325](https://github.com/Akkudoktor-EOS/EOS/pull/1325) | Local calibrated Akkudoktor PV | main | Independent |
-| [#1328](https://github.com/Akkudoktor-EOS/EOS/pull/1328) | Device/configuration foundation | main | Includes #1256/#1305 |
-| [#1326](https://github.com/Akkudoktor-EOS/EOS/pull/1326) | Measurement and quality APIs | feat/config-foundation-main | #1328, #1322 |
-| [#1327](https://github.com/Akkudoktor-EOS/EOS/pull/1327) | Slot-aware devices and export | feat/config-foundation-main | #1328 |
-| [#1329](https://github.com/Akkudoktor-EOS/EOS/pull/1329) | Complete GENETIC, requests and reports | integration/genetic-prerequisites | All above |
-<!-- pyml enable line-length -->
+The seven prerequisite packages #1322-#1328 are merged into main. PR #1329 was
+merged into `integration/genetic-prerequisites`, not into main. The final delivery
+branch `feat/genetic-complete-main-port` brings that complete implementation directly
+to main. Until that final PR is merged, main lacks the complete GENETIC port.
 
-Merge the independent packages and #1328 first. The foundation preserves the original
-`#1256/#1305` contribution histories and adds compatibility corrections; do not merge
-those original PRs again as extra prerequisites. After their dependencies reach main,
-retarget/rebase #1326/#1327 onto main and rerun CI. Then retarget/rebase the complete
-GENETIC PR onto main and rerun combined CI. Squash merges can require removing already
-landed commits when rebasing. Do not release by merging into a comparison branch.
+The foundation preserves the original #1256/#1305 contributions and compatibility
+corrections; do not merge those original PRs again as extra prerequisites.
 
-The sequential merge rehearsal reproduced the complete tested tree. Small conflict
-resolutions are needed: for #1328/#1327/#1329, select the newer version line in
-`docs/_generated/openapi.md` and `openapi.json`, keeping the automatically combined
-schemas. For #1326, retain both the `bisect_left`/`bisect_right` and
-`datetime`/`timedelta` imports in `measurement.py`. Do not replace entire schema
-files with one side of a merge conflict.
+Main `3c86254` has exactly the production source tree of the original prerequisite
+integration `5eacd54`. Only generated API version strings and one corrected test
+import differ. The final delivery preserves the complete production source and
+tests from #1329, including that corrected import, and regenerates API/configuration
+documents from the combined code. Its merge conflicts arise from the rewritten
+squash ancestry, not from additional production changes on main.
 
-The final comparison branch is the union of the seven published prerequisite heads.
-Its ancestry is attached without changing the combined, tested feature tree.
-CodeQL currently runs for PRs targeting main, so it becomes applicable to stacked
-PRs after retargeting. Other checks run on the stacked branches already.
+Review and merge the final PR with **main** as its target and all four current-head
+checks green: pytest, pre-commit, Docker and CodeQL. Squash and merge is supported.
+Do not use a merge into the comparison branch as a release. Keep the original
+working copy and backup until manual installation acceptance is complete.
 
 ## Review and validation
 
