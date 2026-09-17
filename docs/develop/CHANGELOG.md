@@ -1,4 +1,4 @@
 ```{include} ../../CHANGELOG.md
-:relative-docs: ../
+:relative-docs: docs/
 :relative-images:
 ```
