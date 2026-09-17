@@ -88,6 +88,55 @@ class TestCacheUntilUpdateDecorators:
         assert CacheEnergyManagementStore.hit_count == 1
         assert result1 == result2
 
+    @pytest.mark.parametrize("reverse", [False, True])
+    @pytest.mark.parametrize("use_kwargs", [False, True])
+    def test_methods_with_identical_arguments_keep_separate_results(
+        self, cache_energy_management_store, reverse, use_kwargs
+    ):
+        calls = []
+
+        class Model:
+            @cache_energy_management
+            def fraction(self, value):
+                calls.append("fraction")
+                return value / 1000
+
+            @cache_energy_management
+            def energy(self, value):
+                calls.append("energy")
+                return value * 1000
+
+        model = Model()
+        cases = [(model.fraction, 0.005), (model.energy, 5000)]
+        if reverse:
+            cases.reverse()
+        for _ in range(2):
+            for method, expected in cases:
+                result = method(value=5) if use_kwargs else method(5)
+                assert result == expected
+        assert sorted(calls) == ["energy", "fraction"]
+        assert CacheEnergyManagementStore.miss_count == 2
+        assert CacheEnergyManagementStore.hit_count == 2
+
+    def test_distinct_closures_with_same_name_do_not_share_results(
+        self, cache_energy_management_store
+    ):
+        def make_function(factor):
+            @cache_energy_management
+            def compute(value):
+                return value * factor
+            return compute
+
+        double = make_function(2)
+        triple = make_function(3)
+        assert double.__qualname__ == triple.__qualname__
+        assert double(4) == 8
+        assert triple(4) == 12
+        assert double(4) == 8
+        assert triple(4) == 12
+        assert CacheEnergyManagementStore.miss_count == 2
+        assert CacheEnergyManagementStore.hit_count == 2
+
     def test_cache_energy_management(self, cache_energy_management_store):
         """Test that cache_energy_management caches function results."""
 

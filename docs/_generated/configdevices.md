@@ -57,7 +57,13 @@ config path from ``self.device_id`` without needing an external index.
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100
+                   "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ]
                }
            },
            "max_batteries": 1,
@@ -86,7 +92,13 @@ config path from ``self.device_id`` without needing an external index.
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100
+                   "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ]
                }
            },
            "max_electric_vehicles": 1,
@@ -143,6 +155,12 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "measurement_key_soc_factor": "bat0-soc-factor",
                    "measurement_key_power_l1_w": "bat0-power-l1-w",
                    "measurement_key_power_l2_w": "bat0-power-l2-w",
@@ -184,6 +202,12 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "measurement_key_soc_factor": "ev0-soc-factor",
                    "measurement_key_power_l1_w": "ev0-power-l1-w",
                    "measurement_key_power_l2_w": "ev0-power-l2-w",

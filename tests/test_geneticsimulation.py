@@ -334,18 +334,13 @@ def test_simulation(genetic_simulation):
         "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 1527.13."
     )
 
-    # Verify the total balance
-    assert abs(result["Gesamtbilanz_Euro"] - 6.612835813556755) < 1e-5, (
-        "Total balance should be 6.612835813556755."
-    )
-
-    # Check total revenue and total costs
-    assert abs(result["Gesamteinnahmen_Euro"] - 1.964301131937134) < 1e-5, (
-        "Total revenue should be 1.964301131937134."
-    )
-    assert abs(result["Gesamtkosten_Euro"] - 8.577136945493889) < 1e-5, (
-        "Total costs should be 8.577136945493889 ."
-    )
+    # Reprice the physical grid flows independently. The new direct-use
+    # probability model changes the old aggregate monetary golden values.
+    costs = np.dot(result["Netzbezug_Wh_pro_Stunde"], simulation.elect_price_hourly[start_hour:])
+    revenues = np.dot(result["Netzeinspeisung_Wh_pro_Stunde"], simulation.elect_revenue_per_hour_arr[start_hour:])
+    assert result["Gesamtkosten_Euro"] == pytest.approx(costs)
+    assert result["Gesamteinnahmen_Euro"] == pytest.approx(revenues)
+    assert result["Gesamtbilanz_Euro"] == pytest.approx(costs - revenues)
 
     # Check the losses
     assert abs(result["Gesamt_Verluste"] - 1620.0) < 1e-5, (

@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609171537448705"
+    "version": "v0.3.0.dev2609171651094774"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -3360,6 +3360,39 @@
             "examples": [
               100
             ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. Available to algorithms that explicitly enable battery-to-grid export; configuring rates alone does not enable export. [1.0] selects full-power export. None uses the default export rates.",
+            "default": [
+              0.25,
+              0.5,
+              0.75,
+              1.0
+            ],
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
+                1.0
+              ],
+              null
+            ]
           }
         },
         "type": "object",
@@ -3533,6 +3566,39 @@
             "default": 100,
             "examples": [
               100
+            ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. Available to algorithms that explicitly enable battery-to-grid export; configuring rates alone does not enable export. [1.0] selects full-power export. None uses the default export rates.",
+            "default": [
+              0.25,
+              0.5,
+              0.75,
+              1.0
+            ],
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
+                1.0
+              ],
+              null
             ]
           },
           "measurement_key_soc_factor": {
@@ -5374,6 +5440,33 @@
                 0.25,
                 0.5,
                 0.75,
+                1.0
+              ],
+              null
+            ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. These levels are available to algorithms that explicitly enable battery-to-grid export. None leaves the choice of export levels to the caller.",
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
                 1.0
               ],
               null
@@ -14326,6 +14419,43 @@
                 1.0
               ],
               null
+            ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. These levels are available to algorithms that explicitly enable battery-to-grid export. None leaves the choice of export levels to the caller.",
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
+                1.0
+              ],
+              null
+            ]
+          },
+          "levelized_cost_of_storage_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Levelized Cost Of Storage Kwh",
+            "description": "Levelized cost of storage applied once to each kWh delivered by the battery [EUR/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
             ]
           }
         },

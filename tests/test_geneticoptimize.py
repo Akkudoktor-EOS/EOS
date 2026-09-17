@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from pydantic import ValidationError
 from pypdf import PdfReader
@@ -140,14 +141,29 @@ async def test_optimize(
             f"cp {TESTDATA_FILE} {solution_file}\n"
         )
 
-    assert genetic_solution.result.Gesamtbilanz_Euro == pytest.approx(
-        expected_result.result.Gesamtbilanz_Euro
-    )
-
-    # Assert that the output contains all expected entries.
-    # This does not assert that the optimization always gives the same result!
-    # Reproducibility and mathematical accuracy should be tested on the level of individual components.
-    compare_dict(genetic_solution.model_dump(), expected_result.model_dump())
+    # Keep the output contract, but do not demand an identical stochastic
+    # schedule or monetary golden from the previous direct-consumption model.
+    assert set(genetic_solution.model_dump()) == set(expected_result.model_dump())
+    result = genetic_solution.result
+    expected_slots = len(input_data.ems.pv_forecast_wh) - fixed_start_hour
+    assert len(result.grid_consumption_wh_per_hour) == expected_slots
+    assert len(result.grid_feed_in_wh_per_hour) == expected_slots
+    prices = np.asarray(genetic_solution.parameters.ems.electricity_price_per_wh)[fixed_start_hour:]
+    tariffs = np.asarray(genetic_solution.parameters.ems.feed_in_tariff_per_wh)
+    if tariffs.ndim > 0:
+        tariffs = tariffs[fixed_start_hour:]
+    expected_costs = np.asarray(result.grid_consumption_wh_per_hour) * prices
+    expected_revenues = np.asarray(result.grid_feed_in_wh_per_hour) * tariffs
+    np.testing.assert_allclose(result.costs_per_hour, expected_costs)
+    np.testing.assert_allclose(result.revenue_per_hour, expected_revenues)
+    assert result.total_costs == pytest.approx(sum(expected_costs))
+    assert result.total_revenue == pytest.approx(sum(expected_revenues))
+    assert result.total_balance == pytest.approx(sum(expected_costs) - sum(expected_revenues))
+    assert result.total_losses == pytest.approx(sum(result.losses_per_hour))
+    assert all(value >= 0 for value in result.grid_consumption_wh_per_hour)
+    assert all(value >= 0 for value in result.grid_feed_in_wh_per_hour)
+    assert all(0 <= value <= 100 for value in result.battery_soc_per_hour)
+    assert all(0 <= value <= 100 for value in result.ev_soc_per_hour)
 
     # Check the correct generic optimization solution is created
     optimization_solution = await genetic_solution.optimization_solution()

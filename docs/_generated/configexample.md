@@ -61,7 +61,13 @@
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100
+                   "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ]
                }
            },
            "max_batteries": 1,
@@ -90,7 +96,13 @@
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100
+                   "max_soc_percentage": 100,
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ]
                }
            },
            "max_electric_vehicles": 1,
