@@ -63,7 +63,9 @@ config path from ``self.device_id`` without needing an external index.
                        0.5,
                        0.75,
                        1.0
-                   ]
+                   ],
+                   "min_soc_deadline_datetime": null,
+                   "min_soc_max_duration_h": null
                }
            },
            "max_batteries": 1,
@@ -98,7 +100,9 @@ config path from ``self.device_id`` without needing an external index.
                        0.5,
                        0.75,
                        1.0
-                   ]
+                   ],
+                   "min_soc_deadline_datetime": null,
+                   "min_soc_max_duration_h": null
                }
            },
            "max_electric_vehicles": 1,
@@ -112,7 +116,14 @@ config path from ``self.device_id`` without needing an external index.
                    "num_cycles": 1,
                    "cycle_time_windows": null,
                    "min_cycle_gap_h": 0,
-                   "cycles_completed_measurement_key": null
+                   "cycles_completed_measurement_key": null,
+                   "load_profile_power_w": null,
+                   "load_profile_interval_seconds": null,
+                   "schedule_mode": "ONCE",
+                   "time_windows": null,
+                   "earliest_start_datetime": null,
+                   "deadline_datetime": null,
+                   "deadline_policy": "BEST_EFFORT"
                }
            },
            "max_home_appliances": 3
@@ -161,6 +172,8 @@ config path from ``self.device_id`` without needing an external index.
                        0.75,
                        1.0
                    ],
+                   "min_soc_deadline_datetime": null,
+                   "min_soc_max_duration_h": null,
                    "measurement_key_soc_factor": "bat0-soc-factor",
                    "measurement_key_power_l1_w": "bat0-power-l1-w",
                    "measurement_key_power_l2_w": "bat0-power-l2-w",
@@ -208,6 +221,8 @@ config path from ``self.device_id`` without needing an external index.
                        0.75,
                        1.0
                    ],
+                   "min_soc_deadline_datetime": null,
+                   "min_soc_max_duration_h": null,
                    "measurement_key_soc_factor": "ev0-soc-factor",
                    "measurement_key_power_l1_w": "ev0-power-l1-w",
                    "measurement_key_power_l2_w": "ev0-power-l2-w",
@@ -234,8 +249,17 @@ config path from ``self.device_id`` without needing an external index.
                    "cycle_time_windows": null,
                    "min_cycle_gap_h": 0,
                    "cycles_completed_measurement_key": null,
+                   "load_profile_power_w": null,
+                   "load_profile_interval_seconds": null,
+                   "schedule_mode": "ONCE",
+                   "time_windows": null,
+                   "earliest_start_datetime": null,
+                   "deadline_datetime": null,
+                   "deadline_policy": "BEST_EFFORT",
                    "effective_num_cycles": 1,
-                   "measurement_keys": []
+                   "measurement_keys": [
+                       "dishwasher.cycles_completed"
+                   ]
                }
            },
            "max_home_appliances": 3,
@@ -249,7 +273,8 @@ config path from ``self.device_id`` without needing an external index.
                "ev0-power-l1-w",
                "ev0-power-l2-w",
                "ev0-power-l3-w",
-               "ev0-power-3-phase-sym-w"
+               "ev0-power-3-phase-sym-w",
+               "dishwasher.cycles_completed"
            ]
        }
    }

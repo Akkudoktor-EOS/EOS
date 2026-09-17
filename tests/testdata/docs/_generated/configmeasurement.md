@@ -7,12 +7,15 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| grid_export_emr_keys | `EOS_MEASUREMENT__GRID_EXPORT_EMR_KEYS` | `list[str] | None` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy export to grid [kWh]. |
-| grid_import_emr_keys | `EOS_MEASUREMENT__GRID_IMPORT_EMR_KEYS` | `list[str] | None` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy import from grid [kWh]. |
-| historic_hours | `EOS_MEASUREMENT__HISTORIC_HOURS` | `int | None` | `rw` | `17520` | Number of hours into the past for measurement data |
+| channels | `EOS_MEASUREMENT__CHANNELS` | `dict[str, akkudoktoreos.measurement.measurement.MeasurementChannelSettings]` | `rw` | `required` | Typed raw measurement channels keyed by measurement key. |
+| energy_context_seconds | `EOS_MEASUREMENT__ENERGY_CONTEXT_SECONDS` | `int` | `rw` | `86400` | None |
+| grid_export_emr_keys | `EOS_MEASUREMENT__GRID_EXPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy export to grid [kWh]. |
+| grid_import_emr_keys | `EOS_MEASUREMENT__GRID_IMPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy import from grid [kWh]. |
+| historic_hours | `EOS_MEASUREMENT__HISTORIC_HOURS` | `Optional[int]` | `rw` | `17520` | Number of hours into the past for measurement data |
+| household | `EOS_MEASUREMENT__HOUSEHOLD` | `Optional[akkudoktoreos.measurement.household.HouseholdSettings]` | `rw` | `None` | Optional household energy balance definition. |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the measurements that can be stored. |
-| load_emr_keys | `EOS_MEASUREMENT__LOAD_EMR_KEYS` | `list[str] | None` | `rw` | `None` | The keys of the measurements that are energy meter readings of a load [kWh]. |
-| pv_production_emr_keys | `EOS_MEASUREMENT__PV_PRODUCTION_EMR_KEYS` | `list[str] | None` | `rw` | `None` | The keys of the measurements that are PV production energy meter readings [kWh]. |
+| load_emr_keys | `EOS_MEASUREMENT__LOAD_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of a load [kWh]. |
+| pv_production_emr_keys | `EOS_MEASUREMENT__PV_PRODUCTION_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are PV production energy meter readings [kWh]. |
 :::
 <!-- pyml enable line-length -->
 
@@ -25,6 +28,9 @@
    {
        "measurement": {
            "historic_hours": 17520,
+           "channels": {},
+           "household": null,
+           "energy_context_seconds": 86400,
            "load_emr_keys": [
                "load0_emr"
            ],
@@ -51,6 +57,9 @@
    {
        "measurement": {
            "historic_hours": 17520,
+           "channels": {},
+           "household": null,
+           "energy_context_seconds": 86400,
            "load_emr_keys": [
                "load0_emr"
            ],

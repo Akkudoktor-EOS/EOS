@@ -22,6 +22,7 @@ def offline_ems(monkeypatch):
     cls = ems_module.EnergyManagement
     for name in (
         "_start_datetime",
+        "_observation_datetime",
         "_last_run_datetime",
         "_plan",
         "_optimization_solution",
@@ -34,10 +35,11 @@ def offline_ems(monkeypatch):
     monkeypatch.setattr(ems_module, "CacheEnergyManagementStore", Mock())
     return SimpleNamespace(
         config=SimpleNamespace(
+            general=SimpleNamespace(timezone="Europe/Berlin"),
             ems=SimpleNamespace(mode=EnergyManagementMode.OPTIMIZATION),
             optimization=SimpleNamespace(
                 algorithm=OptimizationAlgorithm.GENETIC,
-                genetic=SimpleNamespace(generations=3, seed=17),
+                genetic=SimpleNamespace(generations=3, seed=17, interval_sec=3600, individuals=31),
                 genetic0=SimpleNamespace(generations=5, seed=29),
             ),
             server=SimpleNamespace(verbose=False),
@@ -46,6 +48,42 @@ def offline_ems(monkeypatch):
         adapter=SimpleNamespace(update_data=AsyncMock()),
         set_start_datetime=cls.set_start_datetime,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("algorithm", list(OptimizationAlgorithm))
+@pytest.mark.parametrize("explicit_start", [False, True])
+async def test_implicit_genetic_start_uses_site_timezone(
+    offline_ems, monkeypatch, set_other_timezone, algorithm, explicit_start
+):
+    set_other_timezone("UTC")
+    now = to_datetime("2026-09-16T22:47:23Z", in_timezone="UTC")
+
+    def frozen_datetime(value=None, **kwargs):
+        return to_datetime(now if value is None else value, **kwargs)
+
+    monkeypatch.setattr(ems_module, "to_datetime", frozen_datetime)
+    offline_ems.config.optimization.genetic.interval_sec = 900
+    await ems_module.EnergyManagement.run(
+        offline_ems,
+        mode=EnergyManagementMode.PREDICTION,
+        algorithm=algorithm,
+        start_datetime=now if explicit_start else None,
+    )
+    start = ems_module.EnergyManagement._start_datetime
+    observed = ems_module.EnergyManagement._observation_datetime
+    assert start is not None and observed is not None
+    assert observed.timestamp() == now.timestamp()
+    if algorithm == OptimizationAlgorithm.GENETIC:
+        assert start.minute == 45
+        assert start.hour == (22 if explicit_start else 0)
+        assert start.day == (16 if explicit_start else 17)
+        assert start.timezone_name == ("UTC" if explicit_start else "Europe/Berlin")
+    else:
+        assert start.minute == 0
+        assert start.hour == 22
+        assert start.day == 16
+        assert start.timezone_name == "UTC"
 
 
 @pytest.mark.asyncio
@@ -90,6 +128,8 @@ async def test_optimization_routes_only_selected_algorithm(
         kwargs[suffix + "_parameters"] = sentinel_parameters
         kwargs[suffix + "_generations"] = 7
         kwargs[suffix + "_seed"] = 43
+        if algorithm == OptimizationAlgorithm.GENETIC:
+            kwargs["genetic_individuals"] = 11
     run_result = await ems_module.EnergyManagement.run(offline_ems, **kwargs)
     assert run_result is solution
     selected = constructors[selected_name]
@@ -97,11 +137,14 @@ async def test_optimization_routes_only_selected_algorithm(
     selected.assert_called_once_with(
         verbose=False, fixed_seed=43 if supplied else expected_config.seed
     )
-    selected.return_value.optimize_ems.assert_called_once_with(
-        start_hour=expected_hour,
-        parameters=sentinel_parameters,
-        ngen=7 if supplied else expected_config.generations,
-    )
+    expected_arguments: dict[str, Any] = {
+        "start_hour": expected_hour,
+        "parameters": sentinel_parameters,
+        "ngen": 7 if supplied else expected_config.generations,
+    }
+    if algorithm == OptimizationAlgorithm.GENETIC:
+        expected_arguments["individuals"] = 11 if supplied else None
+    selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
     other_name = "Genetic0" if selected_name == "Genetic" else "Genetic"
     constructors[other_name].assert_not_called()
     preparers[other_name].assert_not_awaited()

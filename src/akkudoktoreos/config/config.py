@@ -339,6 +339,37 @@ class SettingsEOSDefaults(SettingsEOS):
         # This is mutable, so pydantic does not set a hash.
         return id(self)
 
+    def validate_optimization_horizons(self) -> "SettingsEOSDefaults":
+        """Report a forecast budget that cannot serve the optimization horizons.
+
+        This never rejects a configuration. ``prediction.hours`` is a general
+        setting that also serves callers with nothing to do with optimization,
+        and refusing it here would stop EOS from starting over a horizon the
+        user may not even optimize on. A tail that does not fit is simply
+        shortened, and a control horizon that does not fit is caught by the
+        optimizer itself, which knows exactly which forecast series ran out.
+        """
+        control = self.optimization.genetic.horizon_hours
+        tail = self.optimization.genetic.tail_horizon_hours
+        prediction = self.prediction.hours
+        if prediction is None or prediction < control:
+            logger.warning(
+                "Prediction horizon {} h is shorter than the {} h control horizon. Optimization "
+                "runs will fail until prediction.hours covers the control horizon.",
+                prediction,
+                control,
+            )
+        elif prediction < control + tail:
+            logger.info(
+                "Prediction horizon {} h covers the {} h control horizon but not the requested "
+                "{} h tail. The tail is shortened to {} h; raise prediction.hours to use it fully.",
+                prediction,
+                control,
+                tail,
+                prediction - control,
+            )
+        return self
+
 
 class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     """Singleton configuration handler for the EOS application.

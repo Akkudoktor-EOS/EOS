@@ -5,7 +5,7 @@ machines that must run for a fixed duration, possibly multiple times
 (cycles), within one or more allowed time windows. Given a set of
 requested start times, `HomeAppliance` repairs them into a
 feasible, chronologically ordered schedule and produces the resulting
-hourly load curve.
+per-slot energy curve.
 
 Time windows are always expressed as a `CycleTimeWindowSequence`
 (see ``akkudoktoreos.config.configabc``): each contained window's
@@ -29,20 +29,90 @@ Cycle start times are repaired according to the following rules:
 5. Generate the combined hourly load curve from the final starts.
 """
 
-from typing import Optional
+import math
+from collections.abc import Sequence
+from typing import Any, Optional, Self
 
 import numpy as np
-from pydantic import Field
+from loguru import logger
+from pydantic import Field, field_validator, model_validator
 
-from akkudoktoreos.config.configabc import CycleTimeWindowSequence, ValueTimeWindow
+from akkudoktoreos.config.configabc import (
+    CycleTimeWindowSequence,
+    TimeWindow,
+    TimeWindowSequence,
+    ValueTimeWindow,
+)
+from akkudoktoreos.devices.devicesabc import (
+    ConsumerDeadlinePolicy,
+    ConsumerScheduleMode,
+    validate_home_appliance_load_definition,
+)
 from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
+    compare_datetimes,
     to_datetime,
     to_duration,
     to_time,
 )
+
+
+def resample_power_to_slot_energy(
+    power_w: list[float],
+    input_interval_seconds: float,
+    slot_interval_seconds: float,
+) -> np.ndarray:
+    """Resample a piecewise-constant power profile to per-slot energy.
+
+    Each input value ``power_w[i]`` is interpreted as a constant power [W] over
+    the interval ``[i * input_interval_seconds, (i + 1) * input_interval_seconds)``.
+    The energy of every output slot is the time-weighted integral of the input
+    power over that slot::
+
+        E_j = sum_i  P_i * overlap(i, j) / 3600   [Wh]
+
+    where ``overlap(i, j)`` is the temporal overlap (in seconds) between input
+    interval ``i`` and output slot ``j``. This is exact for arbitrary (including
+    non-integer) ratios such as 10 -> 15 or 20 -> 15 minutes and conserves
+    energy within numerical tolerance::
+
+        sum_j E_j == sum_i P_i * input_interval_seconds / 3600
+
+    Args:
+        power_w: Piecewise-constant power values [W] of a single run.
+        input_interval_seconds: Duration of one input step [s] (> 0).
+        slot_interval_seconds: Duration of one output slot [s] (> 0).
+
+    Returns:
+        1-D array of per-slot energy [Wh]; length is the number of slots the run
+        occupies (ceil of the total run duration divided by the slot duration).
+    """
+    if not math.isfinite(input_interval_seconds) or input_interval_seconds <= 0:
+        raise ValueError("Input interval must be finite and positive.")
+    if not math.isfinite(slot_interval_seconds) or slot_interval_seconds <= 0:
+        raise ValueError("Slot interval must be finite and positive.")
+    if not power_w or any(not math.isfinite(p) or p < 0 for p in power_w):
+        raise ValueError("Power profile must contain finite non-negative values.")
+    n_in = len(power_w)
+    total_seconds = n_in * input_interval_seconds
+    n_slots = int(np.ceil(total_seconds / slot_interval_seconds - 1e-9))
+    out = np.zeros(max(n_slots, 0), dtype=float)
+    for i, power in enumerate(power_w):
+        if power == 0.0:
+            continue
+        seg_start = i * input_interval_seconds
+        seg_end = seg_start + input_interval_seconds
+        first = int(seg_start // slot_interval_seconds)
+        last = int((seg_end - 1e-9) // slot_interval_seconds)
+        for j in range(first, last + 1):
+            slot_start = j * slot_interval_seconds
+            slot_end = slot_start + slot_interval_seconds
+            overlap = min(seg_end, slot_end) - max(seg_start, slot_start)
+            if overlap > 0:
+                out[j] += power * overlap / 3600.0
+    return out
 
 
 class HomeApplianceParameters(DeviceParameters):
@@ -54,7 +124,8 @@ class HomeApplianceParameters(DeviceParameters):
             "examples": ["dishwasher"],
         }
     )
-    consumption_wh: int = Field(
+    consumption_wh: Optional[int] = Field(
+        default=None,
         gt=0,
         json_schema_extra={
             "description": (
@@ -64,7 +135,8 @@ class HomeApplianceParameters(DeviceParameters):
             "examples": [2000],
         },
     )
-    duration_h: int = Field(
+    duration_h: Optional[int] = Field(
+        default=None,
         gt=0,
         json_schema_extra={
             "description": (
@@ -81,6 +153,10 @@ class HomeApplianceParameters(DeviceParameters):
             "examples": [2],
         },
     )
+    completed_cycles: int = Field(
+        default=0, ge=0, description="Cycles already completed on the first planning day."
+    )
+
     min_cycle_gap_h: int = Field(
         default=0,
         ge=0,
@@ -113,6 +189,112 @@ class HomeApplianceParameters(DeviceParameters):
         },
     )
 
+    shared_time_windows: Optional[TimeWindowSequence] = Field(
+        default=None,
+        description="Allowed recurring windows shared by every cycle; intersected with per-cycle windows.",
+    )
+
+    load_profile_power_w: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Explicit load profile describing a single complete run as a "
+                "sequence of non-negative power values in watts. Each value "
+                "covers 'load_profile_interval_seconds'. Mutually exclusive with "
+                "consumption_wh/duration_h."
+            ),
+            "examples": [[200.0, 2000.0, 1800.0, 100.0]],
+        },
+    )
+    load_profile_interval_seconds: Optional[int] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "description": (
+                "Duration of one 'load_profile_power_w' step in seconds. Defaults "
+                "to the configured optimization interval when a profile is given."
+            ),
+            "examples": [900, 3600],
+        },
+    )
+    schedule_mode: ConsumerScheduleMode = Field(
+        default=ConsumerScheduleMode.ONCE,
+        json_schema_extra={
+            "description": (
+                "Scheduling mode: ONCE (a single run within the horizon) or DAILY "
+                "(one run per local calendar day with a feasible full run)."
+            ),
+            "examples": ["ONCE", "DAILY"],
+        },
+    )
+    earliest_start_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Absolute earliest moment the run may start. Starts before it are "
+                "dropped, in addition to 'time_windows' and the horizon. A date "
+                "time without timezone is read as local time. This bound is never "
+                "relaxed."
+            ),
+            "examples": [None, "2026-07-15T20:00:00+02:00"],
+        },
+    )
+    deadline_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Absolute deadline: the complete run must have *finished* at or "
+                "before this moment (e.g. end of the day, or 03:00 tonight). A "
+                "date time without timezone is read as local time. See "
+                "'deadline_policy' for what happens when no start can meet it."
+            ),
+            "examples": [None, "2026-07-16T03:00:00+02:00"],
+        },
+    )
+    deadline_policy: ConsumerDeadlinePolicy = Field(
+        default=ConsumerDeadlinePolicy.BEST_EFFORT,
+        json_schema_extra={
+            "description": (
+                "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT "
+                "runs as early as possible instead (warning logged), STRICT keeps "
+                "the deadline (a ONCE consumer then fails the optimization)."
+            ),
+            "examples": ["BEST_EFFORT", "STRICT"],
+        },
+    )
+
+    @field_validator("earliest_start_datetime", "deadline_datetime", mode="before")
+    @classmethod
+    def transform_to_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        return to_datetime(value)
+
+    @model_validator(mode="after")
+    def validate_load_definition(self) -> Self:
+        """Ensure a complete load definition and valid completed-cycle count."""
+        if self.completed_cycles > self.num_cycles:
+            raise ValueError("completed_cycles must not exceed num_cycles.")
+        validate_home_appliance_load_definition(
+            load_profile_power_w=self.load_profile_power_w,
+            load_profile_interval_seconds=self.load_profile_interval_seconds,
+            consumption_wh=self.consumption_wh,
+            duration_h=self.duration_h,
+        )
+        return self
+
+    @model_validator(mode="after")
+    def validate_schedule_bounds(self) -> Self:
+        """Reject an empty scheduling interval."""
+        if self.earliest_start_datetime is not None and self.deadline_datetime is not None:
+            if compare_datetimes(self.deadline_datetime, self.earliest_start_datetime).le:
+                raise ValueError(
+                    f"deadline_datetime {self.deadline_datetime} must be after "
+                    f"earliest_start_datetime {self.earliest_start_datetime}."
+                )
+        return self
+
 
 class HomeAppliance:
     """Non-vectorized simulation of a multi-cycle home appliance.
@@ -127,6 +309,7 @@ class HomeAppliance:
         parameters: HomeApplianceParameters,
         optimization_hours: int,
         prediction_hours: int,
+        slot_duration_h: float = 1.0,
     ) -> None:
         """Initializes the appliance and builds its allowed-start masks.
 
@@ -135,18 +318,32 @@ class HomeAppliance:
             optimization_hours: Number of hours under active
                 optimization.
             prediction_hours: Length of the simulation horizon, in
-                hours.
+                slots.
+            slot_duration_h: Physical duration of each slot, in hours.
         """
         self.parameters = parameters
         self.optimization_hours = optimization_hours
         self.prediction_hours = prediction_hours
 
-        self.duration_h = parameters.duration_h
-        self.consumption_wh = parameters.consumption_wh
+        if not math.isfinite(slot_duration_h) or slot_duration_h <= 0:
+            raise ValueError("Slot duration must be finite and positive.")
+        self.total_slots = prediction_hours
+        self.slot_duration_h = slot_duration_h
+        self.slot_interval_seconds = slot_duration_h * 3600
+        self.device_id = parameters.device_id
+        self.schedule_mode = parameters.schedule_mode
+        self.time_windows = parameters.shared_time_windows
+        self.earliest_start_datetime = parameters.earliest_start_datetime
+        self.deadline_datetime = parameters.deadline_datetime
+        self.deadline_policy = parameters.deadline_policy
+        self.deadline_relaxed = False
+        self._build_run_profile()
+        self.duration_h = self.run_slots * slot_duration_h
+        self.consumption_wh = float(self.run_energy_wh.sum())
         self.num_cycles = parameters.num_cycles
         self.min_cycle_gap_h = parameters.min_cycle_gap_h
 
-        self.completed_cycles = 0
+        self.completed_cycles = parameters.completed_cycles
 
         self.load_curve = np.zeros(prediction_hours)
 
@@ -172,6 +369,280 @@ class HomeAppliance:
         self.start_latest: list[int] = []
 
         self._setup()
+
+    def _build_run_profile(self) -> None:
+        """Build the per-slot energy [Wh] of a single complete run."""
+        if self.parameters.load_profile_power_w is not None:
+            power = [float(value) for value in self.parameters.load_profile_power_w]
+            input_interval = (
+                self.parameters.load_profile_interval_seconds or self.slot_interval_seconds
+            )
+        else:
+            # Flat fallback: constant power over duration_h hours. Route it through
+            # the same resampling path so hourly and sub-hourly grids behave
+            # identically. Power [W] = energy per hour = consumption_wh / duration_h.
+            duration_h = self.parameters.duration_h
+            consumption_wh = self.parameters.consumption_wh
+            if duration_h is None or consumption_wh is None:
+                raise ValueError("Flat appliance load requires duration and consumption.")
+            power = [consumption_wh / duration_h]
+            input_interval = duration_h * 3600
+
+        self.run_energy_wh: np.ndarray = resample_power_to_slot_energy(
+            power, float(input_interval), float(self.slot_interval_seconds)
+        )
+        self.run_slots: int = int(len(self.run_energy_wh))
+
+    def _slot_offset(self, moment: DateTime, slot0_datetime: DateTime, *, round_up: bool) -> int:
+        """Convert an absolute moment into a slot index relative to slot 0.
+
+        Args:
+            moment: Absolute moment; converted into ``slot0_datetime``'s timezone.
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+            round_up: ``True`` returns the first slot boundary at or after
+                ``moment`` (lower bounds), ``False`` the last one at or before
+                it (upper bounds).
+
+        Returns:
+            Slot index (may be negative or beyond the grid; callers clamp).
+        """
+        timezone = slot0_datetime.timezone
+        if timezone is None:
+            raise ValueError("The optimization slot origin must have a timezone.")
+        seconds = (moment.in_timezone(timezone) - slot0_datetime).total_seconds()
+        exact = seconds / self.slot_interval_seconds
+        # Tolerance absorbs float noise so a moment that sits exactly on a slot
+        # boundary is not pushed to the neighbouring slot.
+        return math.ceil(exact - 1e-9) if round_up else math.floor(exact + 1e-9)
+
+    def allowed_start_slots(
+        self,
+        *,
+        slot0_datetime: DateTime,
+        earliest_slot: int,
+        horizon_end_slot: int,
+        cycle_index: Optional[int] = None,
+    ) -> list[int]:
+        """Return the sorted absolute start slots at which a full run is allowed.
+
+        A start slot ``s`` is allowed when the complete run fits the optimization
+        horizon, both absolute bounds and (if configured) a single allowed time
+        window:
+
+        - ``earliest_slot <= s`` and ``s + run_slots <= horizon_end_slot``
+        - with ``earliest_start_datetime`` set, the run starts at or after it
+        - with ``deadline_datetime`` set, the run *ends* at or before it
+        - with ``time_windows`` set, the run's whole occupied span starting at
+          ``s`` is contained in one window (respecting weekday/date constraints)
+
+        When a deadline leaves no start at all and the policy is
+        ``BEST_EFFORT``, the deadline is dropped and only the earliest still
+        possible start is offered (a warning is logged and ``deadline_relaxed``
+        is set). Multiple cycles retain all relaxed choices for joint
+        earliest-start repair by the optimizer, respecting per-cycle windows
+        and minimum gaps.
+
+        No snapping is performed: every returned slot is a genuinely valid start.
+
+        Args:
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+            earliest_slot: First slot the optimizer may schedule at ("now").
+            horizon_end_slot: Exclusive upper bound; a run must end at or before.
+            cycle_index: Global configured cycle index, independent of completed cycles.
+
+        Returns:
+            Sorted list of allowed absolute start slots (may be empty).
+        """
+        self.deadline_relaxed = False
+        allowed = self._allowed_start_slots(
+            slot0_datetime=slot0_datetime,
+            earliest_slot=earliest_slot,
+            horizon_end_slot=horizon_end_slot,
+            apply_deadline=True,
+            cycle_index=cycle_index,
+        )
+        if (
+            allowed
+            or self.deadline_datetime is None
+            or self.deadline_policy == ConsumerDeadlinePolicy.STRICT
+        ):
+            return allowed
+
+        relaxed = self._allowed_start_slots(
+            slot0_datetime=slot0_datetime,
+            earliest_slot=earliest_slot,
+            horizon_end_slot=horizon_end_slot,
+            apply_deadline=False,
+            cycle_index=cycle_index,
+        )
+        if not relaxed:
+            return relaxed
+        self.deadline_relaxed = True
+        # Keep only the earliest possible start: the deadline is already missed,
+        # so the run is scheduled as soon as possible rather than as cheap as
+        # possible. Multiple cycles retain choices so the optimizer can find
+        # the earliest joint schedule that respects idle gaps.
+        earliest = relaxed[:1] if self.num_cycles == 1 else relaxed
+        logger.warning(
+            "Home appliance '{}': deadline {} can not be met - running as early as "
+            "possible instead (BEST_EFFORT). Run ends {}.",
+            self.device_id,
+            self.deadline_datetime,
+            self.run_end_datetime(earliest[0], slot0_datetime),
+        )
+        return earliest
+
+    def _allowed_start_slots(
+        self,
+        *,
+        slot0_datetime: DateTime,
+        earliest_slot: int,
+        horizon_end_slot: int,
+        cycle_index: Optional[int] = None,
+        apply_deadline: bool,
+    ) -> list[int]:
+        """Compute the allowed start slots for one set of constraints.
+
+        Args:
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+            earliest_slot: First slot the optimizer may schedule at ("now").
+            horizon_end_slot: Exclusive upper bound; a run must end at or before.
+            cycle_index: Global configured cycle index, independent of completed cycles.
+            apply_deadline: Whether ``deadline_datetime`` restricts the run end.
+
+        Returns:
+            Sorted list of allowed absolute start slots (may be empty).
+        """
+        run_slots = self.run_slots
+        if run_slots <= 0:
+            return []
+
+        first_start = max(earliest_slot, 0)
+        if self.earliest_start_datetime is not None:
+            first_start = max(
+                first_start,
+                self._slot_offset(self.earliest_start_datetime, slot0_datetime, round_up=True),
+            )
+
+        end_bound = min(horizon_end_slot, self.total_slots)
+        if apply_deadline and self.deadline_datetime is not None:
+            end_bound = min(
+                end_bound,
+                self._slot_offset(self.deadline_datetime, slot0_datetime, round_up=False),
+            )
+
+        last_start = end_bound - run_slots
+        if last_start < first_start:
+            return []
+
+        if cycle_index is not None and not 0 <= cycle_index < self.num_cycles:
+            raise ValueError("Cycle index is outside the configured cycle range.")
+        cycle_windows = [
+            window
+            for window in (
+                self.parameters.time_windows.windows if self.parameters.time_windows else []
+            )
+            if window.value is not None and int(window.value) == cycle_index
+        ]
+
+        run_duration = to_duration(f"{run_slots * self.slot_interval_seconds} seconds")
+        allowed: list[int] = []
+        for slot in range(first_start, last_start + 1):
+            start_dt = slot0_datetime.add(seconds=slot * self.slot_interval_seconds)
+            if (
+                self.time_windows is None
+                or self._windows_allow_run(self.time_windows.windows, start_dt, run_duration)
+            ) and (
+                not cycle_windows
+                or self._windows_allow_run(cycle_windows, start_dt, run_duration, merge=True)
+            ):
+                allowed.append(slot)
+        return allowed
+
+    @staticmethod
+    def _windows_allow_run(
+        windows: Sequence[TimeWindow], start: DateTime, duration: Duration, *, merge: bool = False
+    ) -> bool:
+        """Check full coverage including windows anchored on previous local dates.
+
+        Date and weekday restrictions belong to the window's opening day.
+        Per-cycle windows retain their existing union semantics; shared windows
+        require one complete containing occurrence.
+        """
+        intervals: list[tuple[DateTime, DateTime]] = []
+        run_end = start + duration
+        for window in windows:
+            days_back = math.ceil(window.duration.total_seconds() / 86400) + 1
+            for offset in range(days_back + 1):
+                anchor = start.subtract(days=offset)
+                if window.date is not None and anchor.date() != window.date:
+                    continue
+                if window.day_of_week is not None and anchor.day_of_week != window.day_of_week:
+                    continue
+                opening, closing = window._window_start_end(anchor)
+                if opening <= start and run_end <= closing:
+                    return True
+                if merge and opening < run_end and closing > start:
+                    intervals.append((opening, closing))
+        covered_until = start
+        for opening, closing in sorted(intervals):
+            if opening > covered_until:
+                break
+            covered_until = max(covered_until, closing)
+            if covered_until >= run_end:
+                return True
+        return False
+
+    def run_end_datetime(self, start_slot: int, slot0_datetime: DateTime) -> DateTime:
+        """Absolute local moment at which a run started at ``start_slot`` finishes.
+
+        Args:
+            start_slot: Absolute start slot of the run.
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+
+        Returns:
+            End datetime of the run (exclusive, i.e. the first free moment).
+        """
+        return slot0_datetime.add(
+            seconds=(start_slot + self.run_slots) * self.slot_interval_seconds
+        )
+
+    def deadline_missed(self, starts: list[int], slot0_datetime: DateTime) -> bool:
+        """Whether the scheduled runs violate the configured deadline.
+
+        Without a deadline nothing can be missed. With one, a consumer that was
+        not scheduled at all, or whose run ends after the deadline (a relaxed
+        BEST_EFFORT deadline), counts as missed.
+
+        Args:
+            starts: Absolute start slots of the scheduled runs.
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+
+        Returns:
+            True if the deadline is set and not met.
+        """
+        if self.deadline_datetime is None:
+            return False
+        if not starts:
+            return True
+        timezone = slot0_datetime.timezone
+        if timezone is None:
+            raise ValueError("The optimization slot origin must have a timezone.")
+        deadline = self.deadline_datetime.in_timezone(timezone)
+        return any(self.run_end_datetime(start, slot0_datetime) > deadline for start in starts)
+
+    def build_load_curve(self, starts: list[int]) -> None:
+        """Place the resampled run energy at each decoded start slot.
+
+        Multiple runs may overlap; their per-slot energies are summed.
+
+        Args:
+            starts: Absolute start slots of the scheduled runs.
+        """
+        if any(start < 0 or start + self.run_slots > self.total_slots for start in starts):
+            raise ValueError("A complete appliance run must fit inside the slot horizon.")
+        self.start_hours = list(starts)
+        self._build_load_curve()
 
     # ------------------------------------------------------------------
     # Setup
@@ -257,9 +728,9 @@ class HomeAppliance:
             microsecond=0,
         )
         end_datetime = start_datetime.add(
-            hours=self.prediction_hours,
+            seconds=self.prediction_hours * self.slot_interval_seconds,
         )
-        interval = to_duration("1 hour")
+        interval = to_duration(self.slot_interval_seconds)
 
         self._build_cycle_start_allowed(
             self.parameters.time_windows,
@@ -293,7 +764,7 @@ class HomeAppliance:
 
         max_start = max(
             0,
-            self.prediction_hours - self.duration_h,
+            self.prediction_hours - self.run_slots,
         )
 
         # The matrix tells us which individual *steps* are inside
@@ -348,7 +819,7 @@ class HomeAppliance:
         horizon = len(window_steps)
         max_start = max(
             0,
-            horizon - self.duration_h,
+            horizon - self.run_slots,
         )
 
         allowed = np.zeros(
@@ -356,15 +827,15 @@ class HomeAppliance:
             dtype=bool,
         )
 
-        if self.duration_h > horizon:
+        if self.run_slots > horizon:
             return allowed
 
         # Rolling sum of `duration_h` consecutive steps, aligned so
         # that window_sums[s] == sum(window_steps[s : s + duration_h]).
         cumulative = np.concatenate(([0.0], np.cumsum(window_steps)))
-        window_sums = cumulative[self.duration_h :] - cumulative[: -self.duration_h]
+        window_sums = cumulative[self.run_slots :] - cumulative[: -self.run_slots]
 
-        allowed[: max_start + 1] = window_sums[: max_start + 1] == float(self.duration_h)
+        allowed[: max_start + 1] = window_sums[: max_start + 1] == float(self.run_slots)
 
         return allowed
 
@@ -404,7 +875,7 @@ class HomeAppliance:
 
         max_start = max(
             0,
-            self.prediction_hours - self.duration_h,
+            self.prediction_hours - self.run_slots,
         )
 
         # 1. Round and clip.
@@ -442,7 +913,7 @@ class HomeAppliance:
         # 4. Enforce duration + minimum idle gap. Each cycle is
         #    pushed forward, if needed, to the next start allowed by
         #    its *own* window.
-        min_next_start = self.duration_h + self.min_cycle_gap_h
+        min_next_start = self.run_slots + math.ceil(self.min_cycle_gap_h / self.slot_duration_h)
 
         final_starts = [repaired[0][0]]
 
@@ -582,25 +1053,17 @@ class HomeAppliance:
         """Builds the load curve from all scheduled cycles."""
         self.reset_load_curve()
 
-        power_per_hour = self.consumption_wh / self.duration_h
-
-        for start_hour in self.start_hours:
-            if start_hour >= self.prediction_hours:
-                continue
-
-            end_hour = min(
-                start_hour + self.duration_h,
-                self.prediction_hours,
-            )
-
-            self.load_curve[start_hour:end_hour] += power_per_hour
+        for start in self.start_hours:
+            length = min(self.run_slots, self.total_slots - start)
+            if 0 <= start and length > 0:
+                self.load_curve[start : start + length] += self.run_energy_wh[:length]
 
     def reset_load_curve(self) -> None:
         """Resets the load curve to all zeros."""
         self.load_curve = np.zeros(self.prediction_hours)
 
     def get_load_curve(self) -> np.ndarray:
-        """Returns the current hourly load curve, in watts."""
+        """Returns the current per-slot load curve, in watt-hours."""
         return self.load_curve
 
     def get_load_for_hour(self, hour: int) -> float:
@@ -610,7 +1073,7 @@ class HomeAppliance:
             hour: Hour of the prediction horizon to look up.
 
         Returns:
-            The load, in watts, at ``hour``.
+            The energy, in watt-hours, at slot ``hour``.
 
         Raises:
             ValueError: If ``hour`` is outside

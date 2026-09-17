@@ -994,10 +994,11 @@ class TestDataSequence:
         data_dict_keep = await sequence.key_to_dict("data_value", dropna=False)
         assert pd.isna(data_dict_keep[to_datetime(datetime(2023, 11, 6), as_string=True)])
 
-    async def test_key_to_lists_dropna_removes_nan(self, sequence):
+    @pytest.mark.parametrize("missing", [None, float("nan")])
+    async def test_key_to_lists_dropna_removes_nan(self, sequence, missing):
         """`dropna=True` (default) must drop records whose value is NaN, not just None."""
         record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        record2 = self.create_test_record(datetime(2023, 11, 6), float("nan"))
+        record2 = self.create_test_record(datetime(2023, 11, 6), missing)
         record3 = self.create_test_record(datetime(2023, 11, 7), 0.9)
         await sequence.insert_by_datetime(record1)
         await sequence.insert_by_datetime(record2)
@@ -1012,6 +1013,27 @@ class TestDataSequence:
         dates_keep, values_keep = await sequence.key_to_lists("data_value", dropna=False)
         assert len(values_keep) == 3
         assert pd.isna(values_keep[1])
+
+    async def test_raw_none_record_keeps_forecast_gap_and_true_interval_length(self, sequence):
+        from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
+
+        start = to_datetime("2026-09-16T10:00:00Z", in_timezone="UTC")
+        for minute, value in [(0, 100.0), (15, None), (30, 100.0)]:
+            await sequence.insert_by_datetime(
+                self.create_test_record(start.add(minutes=minute), value)
+            )
+        raw = await sequence.key_to_raw_series("data_value", dropna=False)
+        assert len(raw) == 3
+        assert raw.index[1].timestamp() == start.add(minutes=15).timestamp()
+        assert pd.isna(raw.iloc[1])
+        filtered = await sequence.key_to_raw_series("data_value")
+        assert filtered.tolist() == [100.0, 100.0]
+        values = await bounded_forecast_array(
+            sequence, key="data_value", start_datetime=start,
+            end_datetime=start.add(hours=1), interval=to_duration(900),
+        )
+        assert values[[0, 2]].tolist() == [100.0, 100.0]
+        assert np.isnan(values[[1, 3]]).all()
 
     async def test_to_dataframe_full_data(self, sequence):
         """Test conversion of all records to a DataFrame without filtering."""

@@ -130,11 +130,17 @@ def test_backup_operations_report_an_uninitialized_path_as_an_invariant_failure(
 
 
 def test_energy_management_initializes_its_start_datetime_once(
+    config_eos: ConfigEOS,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clock = MagicMock(return_value=to_datetime("2024-01-01T12:34:56+01:00"))
-    monkeypatch.setattr("akkudoktoreos.core.ems.to_datetime", clock)
+
+    def fixed_datetime(*args, **kwargs):
+        return to_datetime(*args, **kwargs) if args or kwargs else clock()
+
+    monkeypatch.setattr("akkudoktoreos.core.ems.to_datetime", fixed_datetime)
     monkeypatch.setattr(EnergyManagement, "_start_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
     ems = EnergyManagement()
 
     first = ems.start_datetime
@@ -159,7 +165,7 @@ async def test_energy_calculation_requires_resolvable_record_times(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     measurement = Measurement()
-    measurement.records = [MeasurementDataRecord()]
+    monkeypatch.setattr(measurement, "records", [MeasurementDataRecord()])
     monkeypatch.setattr(Measurement, "min_datetime", AsyncMock(return_value=None))
     monkeypatch.setattr(Measurement, "max_datetime", AsyncMock(return_value=None))
     with pytest.raises(ValueError, match="Start and end datetimes are required"):

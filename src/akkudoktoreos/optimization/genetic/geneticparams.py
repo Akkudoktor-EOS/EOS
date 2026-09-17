@@ -8,9 +8,9 @@ It also provides a method to assemble these parameters from predictions,
 forecasts, and fallback defaults, preparing them for optimization runs.
 """
 
-from typing import Optional, Union
+from datetime import datetime
+from typing import Any, Optional, Union
 
-import numpy as np
 from loguru import logger
 from pydantic import (
     AliasChoices,
@@ -26,7 +26,6 @@ from akkudoktoreos.core.coreabc import (
     ConfigMixin,
     MeasurementMixin,
     PredictionMixin,
-    get_ems,
 )
 from akkudoktoreos.devices.genetic.battery import (
     ElectricVehicleParameters,
@@ -35,7 +34,7 @@ from akkudoktoreos.devices.genetic.battery import (
 from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
 from akkudoktoreos.devices.genetic.inverter import InverterParameters
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
-from akkudoktoreos.utils.datetimeutil import to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # Do not import directly from akkudoktoreos.core.coreabc
 # EnergyManagementSystemMixin - Creates circular dependency with ems.py
@@ -50,7 +49,7 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
     pv_forecast_wh: list[float] = Field(
         validation_alias=AliasChoices("pv_forecast_wh", "pv_prognose_wh"),
         json_schema_extra={
-            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+            "description": "An array of floats representing the forecasted photovoltaic energy in watt-hours per slot for different time intervals."
         },
     )
     electricity_price_per_wh: list[float] = Field(
@@ -74,7 +73,7 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
     total_load: list[float] = Field(
         validation_alias=AliasChoices("total_load", "gesamtlast"),
         json_schema_extra={
-            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+            "description": "An array of floats representing the total load (consumption) in watt-hours per slot for different time intervals."
         },
     )
 
@@ -105,22 +104,13 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
         return self.total_load
 
     @model_validator(mode="after")
-    def validate_list_length(self) -> Self:
-        """Validate that all input lists are of the same length.
-
-        Raises:
-            ValueError: If input list lengths differ.
-        """
-        pv_forecast_length = len(self.pv_forecast_wh)
-        if (
-            pv_forecast_length != len(self.electricity_price_per_wh)
-            or pv_forecast_length != len(self.total_load)
-            or (
-                isinstance(self.feed_in_tariff_per_wh, list)
-                and pv_forecast_length != len(self.feed_in_tariff_per_wh)
-            )
-        ):
-            raise ValueError("Input lists have different lengths")
+    def validate_forecast_arrays(self) -> Self:
+        """Require forecasts; the optimizer validates control coverage and clips the tail."""
+        arrays = [self.pv_forecast_wh, self.electricity_price_per_wh, self.total_load]
+        if isinstance(self.feed_in_tariff_per_wh, list):
+            arrays.append(self.feed_in_tariff_per_wh)
+        if any(not values for values in arrays):
+            raise ValueError("Forecast arrays must not be empty.")
         return self
 
 
@@ -163,6 +153,91 @@ class GeneticOptimizationParameters(
             "description": "Can be `null` or contain a previous solution (if available)."
         },
     )
+
+    forecast_interval_seconds: Optional[int] = Field(
+        default=None,
+        description="Input interval: 3600 for hourly, or optimization interval for native slots.",
+    )
+
+    home_appliances: Optional[list[HomeApplianceParameters]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "List of flexible consumers (home appliances) to schedule."
+        },
+    )
+
+    start_solution_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Start of the slot that gene 0 of 'start_solution' controls, as "
+                "returned with the previous solution. The warm start is shifted by "
+                "the slots that have elapsed until this run. Without it, a "
+                "'start_solution' identical to the last solution of this server "
+                "uses that solution's start; any other one is used unshifted."
+            ),
+            "examples": [None, "2026-09-14T07:45:00+02:00"],
+        },
+    )
+
+    @field_validator("forecast_interval_seconds")
+    @classmethod
+    def validate_forecast_interval(cls, value: Optional[int]) -> Optional[int]:
+        if value not in (None, 900, 3600):
+            raise ValueError("forecast_interval_seconds must be 900 or 3600")
+        return value
+
+    @field_validator("start_solution_datetime", mode="before")
+    @classmethod
+    def transform_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
+        """Accept the usual date time representations, naive input is local time."""
+        if value is None:
+            return None
+        # A stored run must retain its timezone/fold even when the server host
+        # uses another local timezone. ISO offsets survive JSON round trips.
+        aware = value
+        if isinstance(value, str):
+            try:
+                aware = datetime.fromisoformat(value)
+            except ValueError:
+                pass
+        if isinstance(aware, datetime) and aware.tzinfo is not None:
+            return DateTime.instance(aware)
+        return to_datetime(value)
+
+    @model_validator(mode="after")
+    def validate_home_appliances(self) -> Self:
+        """Reject conflicting home appliance definitions.
+
+        The deprecated ``dishwasher`` field and the new ``home_appliances`` list
+        must not be set at the same time; nothing is silently overwritten.
+        Device ids within ``home_appliances`` must be unique.
+        """
+        # Read the deprecated field via __dict__ to avoid emitting a deprecation
+        # warning on every internal validation.
+        dishwasher = self.__dict__.get("dishwasher")
+        if dishwasher is not None and self.home_appliances is not None:
+            raise ValueError(
+                "Provide either 'home_appliances' or the deprecated 'dishwasher', not both."
+            )
+        appliances = self.home_appliances or []
+        device_ids = [appliance.device_id for appliance in appliances]
+        if len(device_ids) != len(set(device_ids)):
+            raise ValueError("home_appliances device_id values must be unique.")
+        return self
+
+    def resolved_home_appliances(self) -> list[HomeApplianceParameters]:
+        """Return the effective home appliance list.
+
+        Maps the deprecated single ``dishwasher`` onto a one-element list so the
+        optimizer only ever deals with the list form.
+        """
+        if self.home_appliances is not None:
+            return list(self.home_appliances)
+        dishwasher = self.__dict__.get("dishwasher")
+        if dishwasher is not None:
+            return [dishwasher]
+        return []
 
     # Computed fields for backward compatibility (deprecated German names)
     @computed_field(json_schema_extra={"deprecated": True})
@@ -208,620 +283,21 @@ class GeneticOptimizationParameters(
 
     @classmethod
     async def prepare(cls) -> "Optional[GeneticOptimizationParameters]":
-        """Prepare optimization parameters from config, forecast and measurement data.
+        """Resolve configured devices and fresh forecasts for automatic optimization.
 
-        Fills in values needed for optimization from available configuration, predictions and
-        measurements. If some data is missing, default or demo values are used.
-
-        Parameters start by definition of the genetic algorithm at hour 0 of the actual date
-        (not at start datetime of energy management run)
-
-        Returns:
-            GeneticOptimizationParameters: The fully prepared optimization parameters.
-
-        Raises:
-            ValueError: If required configuration values like start time are missing.
+        Missing inputs cancel the run without changing providers or inventing devices.
+        The same resolver serves the configuration-owned HTTP request.
         """
-        ems = get_ems()
+        from akkudoktoreos.optimization.genetic.configrequest import (
+            ConfigOptimizationRequest,
+        )
 
-        # The optimization paramters
-        oparams: "Optional[GeneticOptimizationParameters]" = None
-
-        # Check for run definitions
-        if ems.start_datetime is None:
-            error_msg = "Start datetime unknown."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-        # Check for general predictions conditions
-        if cls.config.general.latitude is None:
-            default_latitude = 52.52
-            logger.info(f"Latitude unknown - defaulting to {default_latitude}.")
-            cls.config.general.latitude = default_latitude
-        if cls.config.general.longitude is None:
-            default_longitude = 13.405
-            logger.info(f"Longitude unknown - defaulting to {default_longitude}.")
-            cls.config.general.longitude = default_longitude
-        if cls.config.prediction.hours is None:
-            logger.info("Prediction hours unknown - defaulting to 48 hours.")
-            cls.config.prediction.hours = 48
-        if cls.config.prediction.historic_hours is None:
-            logger.info("Prediction historic hours unknown - defaulting to 24 hours.")
-            cls.config.prediction.historic_hours = 24
-        # Check optimization definitions
-        if cls.config.optimization.genetic.horizon_hours is None:
-            logger.info("Optimization horizon unknown - defaulting to 24 hours.")
-            cls.config.optimization.genetic.horizon_hours = 24
-        if cls.config.optimization.genetic.interval_sec is None:
-            logger.info("Optimization interval unknown - defaulting to 3600 seconds.")
-            cls.config.optimization.genetic.interval_sec = 3600
-        if cls.config.optimization.genetic.interval_sec != 3600:
-            logger.info(
-                f"Optimization interval '{cls.config.optimization.genetic.interval_sec}' seconds "
-                "not supported - forced to 3600 seconds."
+        try:
+            return await ConfigOptimizationRequest().resolve()
+        except Exception as exc:
+            logger.error(
+                "Cannot prepare GENETIC parameters; canceling optimization with provider {}: {}",
+                cls.config.feedintariff.provider,
+                exc,
             )
-            cls.config.optimization.genetic.interval_sec = 3600
-        # Check genetic algorithm definitions
-        if cls.config.optimization.genetic.individuals is None:
-            logger.info("Genetic individuals unknown - defaulting to 300.")
-            cls.config.optimization.genetic.individuals = 300
-        if cls.config.optimization.genetic.generations is None:
-            logger.info("Genetic generations unknown - defaulting to 400.")
-            cls.config.optimization.genetic.generations = 400
-        if "ev_soc_miss" not in cls.config.optimization.genetic.penalties:
-            logger.info("Genetic penalties unknown - defaulting to ev_soc_miss = 10.")
-            cls.config.optimization.genetic.penalties["ev_soc_miss"] = 10
-        # Setup some basic providers if not set
-        if not cls.config.weather.provider:
-            cls.config.weather.provider = "OpenMeteo"
-        if not cls.config.load.provider:
-            cls.config.load.provider = "LoadAkkudoktor"
-
-        # Get start solution from last run
-        start_solution = None
-        last_solution = ems.genetic_solution()
-        if last_solution and last_solution.start_solution:
-            start_solution = last_solution.start_solution
-
-        # Add forecast and device data
-        interval = to_duration(cls.config.optimization.genetic.interval_sec)
-        power_to_energy_per_interval_factor = cls.config.optimization.genetic.interval_sec / 3600
-        parameter_start_datetime = ems.start_datetime.set(hour=0, second=0, microsecond=0)
-        parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
-        max_retries = 10
-
-        for attempt in range(1, max_retries + 1):
-            # Collect all the data for optimisation, but do not exceed max retries
-            if attempt > max_retries:
-                error_msg = f"Maximum retries {max_retries} for parameter collection exceeded. Parameter preparation attempt {attempt}."
-                logger.error(error_msg)
-                raise ValueError(error_msg)
-
-            # Assure predictions are uptodate
-            await cls.prediction.update_data()
-
-            try:  # Try weather first - predition is also needed by the default PV forecast
-                array = await cls.prediction.key_to_array(
-                    key="weather_temp_air",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                )
-                weather_temp_air = array.tolist()
-            except Exception as e:
-                logger.info(
-                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                cls.config.weather.provider = "OpenMeteo"
-                # Retry
-                continue
-            # Try electricity fees next - predition is also needed by the default electricity price
-            # If no provider is set the fees default to 0 anyway
-            if cls.config.elecfee.provider:
-                try:
-                    array = await cls.prediction.key_to_array(
-                        key="elecfee_consumption_amt_kwh",
-                        start_datetime=parameter_start_datetime,
-                        end_datetime=parameter_end_datetime,
-                        interval=interval,
-                        fill_method="ffill",
-                    )
-                except Exception as e:
-                    logger.info(
-                        "No electricity fee data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
-                        e,
-                    )
-                    cls.config.merge_settings_from_dict(
-                        {
-                            "elecfee": {
-                                "provider": "ElecFeeFixed",
-                                "elecfeefixed": {
-                                    "consumption_amt_kwh": {
-                                        "windows": [
-                                            {
-                                                "start_time": "00:00",
-                                                "duration": "24 hours",
-                                                "value": 0.21,
-                                            },
-                                        ]
-                                    },
-                                    "consumption_percent_amt": {
-                                        "windows": [
-                                            {
-                                                "start_time": "00:00",
-                                                "duration": "24 hours",
-                                                "value": 19.0,
-                                            },
-                                        ]
-                                    },
-                                    "feedin_amt_kwh": {
-                                        "windows": [
-                                            {
-                                                "start_time": "00:00",
-                                                "duration": "24 hours",
-                                                "value": 0.0,
-                                            },
-                                        ]
-                                    },
-                                    "feedin_percent_amt": {
-                                        "windows": [
-                                            {
-                                                "start_time": "00:00",
-                                                "duration": "24 hours",
-                                                "value": 0.0,
-                                            },
-                                        ]
-                                    },
-                                },
-                            },
-                        }
-                    )
-                    # Retry
-                    continue
-            try:
-                array = await cls.prediction.key_to_array(
-                    key="pvforecast_ac_power",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="linear",
-                )
-                pvforecast_ac_power = (array * power_to_energy_per_interval_factor).tolist()
-            except Exception as e:
-                logger.info(
-                    "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "pvforecast": {
-                            "provider": "PVForecastPVLib",
-                            "max_planes": 4,
-                            "planes": [
-                                {
-                                    "surface_tilt": 7,
-                                    "surface_azimuth": 170,
-                                    "userhorizon": [20, 27, 22, 20],
-                                    "peakpower": 5.0,
-                                    "module_model": "AXITEC_AC_410MH_144S",
-                                    "inverter_model": "Sungrow__SH25T",
-                                    "inverter_paco": 10000,
-                                    "modules_per_string": 12,
-                                    "strings_per_inverter": 1,
-                                },
-                                {
-                                    "surface_tilt": 7,
-                                    "surface_azimuth": 90,
-                                    "userhorizon": [30, 30, 30, 50],
-                                    "peakpower": 4.8,
-                                    "module_model": "AXITEC_AC_410MH_144S",
-                                    "inverter_model": "Sungrow__SH25T",
-                                    "inverter_paco": 10000,
-                                    "modules_per_string": 12,
-                                    "strings_per_inverter": 1,
-                                },
-                                {
-                                    "surface_tilt": 60,
-                                    "surface_azimuth": 140,
-                                    "userhorizon": [60, 30, 0, 30],
-                                    "peakpower": 1.4,
-                                    "module_model": "AXITEC_AC_410MH_144S",
-                                    "inverter_model": "Sungrow__SH25T",
-                                    "inverter_paco": 2000,
-                                    "modules_per_string": 5,
-                                    "strings_per_inverter": 1,
-                                },
-                                {
-                                    "surface_tilt": 45,
-                                    "surface_azimuth": 185,
-                                    "userhorizon": [45, 25, 30, 60],
-                                    "peakpower": 1.6,
-                                    "module_model": "AXITEC_AC_410MH_144S",
-                                    "inverter_model": "Sungrow__SH25T",
-                                    "inverter_paco": 1400,
-                                    "modules_per_string": 4,
-                                    "strings_per_inverter": 1,
-                                },
-                            ],
-                        },
-                    }
-                )
-                # Retry
-                continue
-            try:
-                array = await cls.prediction.key_to_array(
-                    key="elecprice_marketprice_wh",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                )
-                elecprice_marketprice_wh = array.tolist()
-            except Exception as e:
-                logger.info(
-                    "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "elecprice": {
-                            "elecpricefixed": {
-                                "elecprice_marketprice_amt_kwh": {
-                                    "windows": [
-                                        {
-                                            "duration": "1 day",
-                                            "start_time": "00:00:00.000000",
-                                            "value": 0.288,
-                                        }
-                                    ]
-                                }
-                            },
-                            "provider": "ElecPriceFixed",
-                        },
-                    },
-                )
-                # Retry
-                continue
-            try:
-                array = await cls.prediction.key_to_array(
-                    key="loadforecast_power_w",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                )
-                loadforecast_power_w = array.tolist()
-            except Exception as e:
-                logger.info(
-                    "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "load": {
-                            "provider": "LoadAkkudoktor",
-                            "loadakkudoktor": {
-                                "loadakkudoktor_year_energy_kwh": "3000",
-                            },
-                        },
-                    }
-                )
-                # Retry
-                continue
-            try:
-                array = await cls.prediction.key_to_array(
-                    key="feed_in_tariff_wh",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                )
-                # Prediction records already contain amount/Wh; only fixed-provider
-                # configuration is expressed in amount/kWh. Preserve signs and units.
-                if cls.config.feedintariff.provider == "FeedInTariffImport":
-                    if array.ndim != 1 or len(array) != len(pvforecast_ac_power):
-                        raise ValueError(
-                            "Imported feed-in tariff length does not match the forecast horizon"
-                        )
-                    if not np.isfinite(array).all():
-                        raise ValueError(
-                            "Imported feed-in tariff contains missing or non-finite values"
-                        )
-                feed_in_tariff_wh = array.tolist()
-            except Exception as e:
-                if cls.config.feedintariff.provider == "FeedInTariffImport":
-                    # An external EMS supplies the resolved sale revenue. Replacing
-                    # missing imports with demo or purchase prices changes the economics.
-                    logger.error(
-                        "Cannot prepare GENETIC parameters: FeedInTariffImport revenue is "
-                        "unavailable or invalid; keeping the configured provider and "
-                        "canceling optimization: {}",
-                        e,
-                    )
-                    return None
-                logger.info(
-                    "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "feedintariff": {
-                            "provider": "FeedInTariffFixed",
-                            "feedintarifffixed": {
-                                "feed_in_tariff_amt_kwh": {
-                                    "windows": [
-                                        {
-                                            "start_time": "00:00",
-                                            "duration": "24 hours",
-                                            "value": 0.078,
-                                        },
-                                    ],
-                                },
-                            },
-                        },
-                    }
-                )
-                # Retry
-                continue
-
-            # Add device data
-
-            # Batteries
-            # ---------
-            if cls.config.devices.max_batteries is None:
-                logger.info("Number of battery devices not configured - defaulting to 1.")
-                cls.config.devices.max_batteries = 1
-            if cls.config.devices.max_batteries == 0:
-                battery_params = None
-                battery_lcos_kwh = 0
-            else:
-                if cls.config.devices.batteries is None:
-                    logger.info("No battery device data available - defaulting to demo data.")
-                    cls.config.devices.batteries = {
-                        "battery1": {
-                            "device_id": "battery1",
-                            "capacity_wh": 8000,
-                        },
-                    }
-                try:
-                    # Take first battery
-                    battery_config = list(cls.config.devices.batteries.values())[0]
-                    battery_params = battery_config.to_genetic_pv_bat_param()
-                except Exception as e:
-                    logger.info(
-                        "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
-                        e,
-                    )
-                    cls.config.devices.batteries = {
-                        "battery1": {
-                            "device_id": "battery1",
-                            "capacity_wh": 8000,
-                        },
-                    }
-                    # Retry
-                    continue
-                # Levelized cost of ownership
-                if battery_config.levelized_cost_of_storage_amt_kwh is None:
-                    logger.info(
-                        "No battery device LCOS data available - defaulting to 0 [amount/kWh]. Parameter preparation attempt {}.",
-                        attempt,
-                    )
-                    battery_config.levelized_cost_of_storage_amt_kwh = 0
-                battery_lcos_kwh = battery_config.levelized_cost_of_storage_amt_kwh
-                # Initial SOC
-                try:
-                    initial_soc_factor = await cls.measurement.key_to_value(
-                        key=battery_config.measurement_key_soc_factor,
-                        target_datetime=ems.start_datetime,
-                        time_window=to_duration(to_duration("48 hours")),
-                    )
-                    if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
-                        logger.error(
-                            f"Invalid battery initial SoC factor {initial_soc_factor} - defaulting to 0.0."
-                        )
-                        initial_soc_factor = 0.0
-                    # genetic parameter is 0..100 as int
-                    initial_soc_percentage = int(initial_soc_factor * 100)
-                except Exception:
-                    initial_soc_percentage = None
-                if initial_soc_percentage is None:
-                    logger.info(
-                        f"No battery device SoC data (measurement key = '{battery_config.measurement_key_soc_factor}') available - defaulting to 0."
-                    )
-                    initial_soc_percentage = 0
-                battery_params.initial_soc_percentage = initial_soc_percentage
-
-            # Electric Vehicles
-            # -----------------
-            if cls.config.devices.max_electric_vehicles is None:
-                logger.info("Number of electric_vehicle devices not configured - defaulting to 1.")
-                cls.config.devices.max_electric_vehicles = 1
-            if cls.config.devices.max_electric_vehicles == 0:
-                electric_vehicle_params = None
-            else:
-                if cls.config.devices.electric_vehicles is None:
-                    logger.info(
-                        "No electric vehicle device data available - defaulting to demo data."
-                    )
-                    cls.config.devices.max_electric_vehicles = 1
-                    cls.config.devices.electric_vehicles = {
-                        "ev1": {
-                            "device_id": "ev1",
-                            "capacity_wh": 50000,
-                            "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                            "min_soc_percentage": 70,
-                        },
-                    }
-                try:
-                    # Take first electric_vehicle
-                    electric_vehicle_config = list(cls.config.devices.electric_vehicles.values())[0]
-                    electric_vehicle_params = electric_vehicle_config.to_genetic_ev_bat_param()
-                except Exception as e:
-                    logger.info(
-                        "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
-                        e,
-                    )
-                    cls.config.devices.max_electric_vehicles = 1
-                    cls.config.devices.electric_vehicles = {
-                        "ev1": {
-                            "device_id": "ev1",
-                            "capacity_wh": 50000,
-                            "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                            "min_soc_percentage": 70,
-                        },
-                    }
-                    # Retry
-                    continue
-                # Initial SOC
-                try:
-                    initial_soc_factor = await cls.measurement.key_to_value(
-                        key=electric_vehicle_config.measurement_key_soc_factor,
-                        target_datetime=ems.start_datetime,
-                        time_window=to_duration(to_duration("48 hours")),
-                    )
-                    if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
-                        logger.error(
-                            f"Invalid electric vehicle initial SoC factor {initial_soc_factor} - defaulting to 0.0."
-                        )
-                        initial_soc_factor = 0.0
-                    # genetic parameter is 0..100 as int
-                    initial_soc_percentage = int(initial_soc_factor * 100)
-                except Exception:
-                    initial_soc_percentage = None
-                if initial_soc_percentage is None:
-                    logger.info(
-                        f"No electric vehicle device SoC data (measurement key = '{electric_vehicle_config.measurement_key_soc_factor}') available - defaulting to 0."
-                    )
-                    initial_soc_percentage = 0
-                electric_vehicle_params.initial_soc_percentage = initial_soc_percentage
-
-            # Inverters
-            # ---------
-            if cls.config.devices.max_inverters is None:
-                logger.info("Number of inverter devices not configured - defaulting to 1.")
-                cls.config.devices.max_inverters = 1
-            if cls.config.devices.max_inverters == 0:
-                inverter_params = None
-            else:
-                if cls.config.devices.inverters is None:
-                    logger.info("No inverter device data available - defaulting to demo data.")
-                    cls.config.devices.inverters = {
-                        "inverter1": {
-                            "device_id": "inverter1",
-                            "max_power_w": 10000,
-                            "battery_id": battery_config.device_id,
-                        },
-                    }
-                try:
-                    # Take first inverter
-                    inverter_config = list(cls.config.devices.inverters.values())[0]
-                    inverter_params = inverter_config.to_genetic_param()
-                except Exception as e:
-                    logger.info(
-                        "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
-                        e,
-                    )
-                    cls.config.devices.inverters = {
-                        "inverter1": {
-                            "device_id": "inverter1",
-                            "max_power_w": 10000,
-                            "battery_id": battery_config.device_id,
-                        },
-                    }
-                    # Retry
-                    continue
-
-            # Home Appliances
-            # ---------------
-            if cls.config.devices.max_home_appliances is None:
-                logger.info("Number of home appliance devices not configured - defaulting to 1.")
-                cls.config.devices.max_home_appliances = 1
-            if cls.config.devices.max_home_appliances == 0:
-                home_appliance_params = None
-            else:
-                home_appliance_params = None
-                if cls.config.devices.home_appliances is None:
-                    logger.info(
-                        "No home appliance device data available - defaulting to demo data."
-                    )
-                    cls.config.devices.home_appliances = {
-                        "dishwasher1": {
-                            "device_id": "dishwasher1",
-                            "consumption_wh": 2000,
-                            "duration_h": 3.0,
-                            "cycle_time_windows": {
-                                "windows": [
-                                    {
-                                        "start_time": "08:00",
-                                        "duration": "5 hours",
-                                    },
-                                    {
-                                        "start_time": "15:00",
-                                        "duration": "3 hours",
-                                    },
-                                ],
-                            },
-                        },
-                    }
-                try:
-                    # Take first appliance
-                    home_appliance_config = list(cls.config.devices.home_appliances.values())[0]
-                    home_appliance_params = home_appliance_config.to_genetic_param()
-                except Exception as e:
-                    logger.info(
-                        "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
-                        e,
-                    )
-                    cls.config.devices.home_appliances = {
-                        "dishwasher1": {
-                            "device_id": "dishwasher1",
-                            "consumption_wh": 2000,
-                            "duration_h": 3.0,
-                            "cycle_time_windows": None,
-                        },
-                    }
-                    # Retry
-                    continue
-
-            # We got all parameter data
-            try:
-                oparams = GeneticOptimizationParameters(
-                    ems=GeneticEnergyManagementParameters(
-                        pv_forecast_wh=pvforecast_ac_power,
-                        electricity_price_per_wh=elecprice_marketprice_wh,
-                        feed_in_tariff_per_wh=feed_in_tariff_wh,
-                        total_load=loadforecast_power_w,
-                        price_per_wh_battery=battery_lcos_kwh / 1000,
-                    ),
-                    temperature_forecast=weather_temp_air,
-                    pv_battery=battery_params,
-                    ev=electric_vehicle_params,
-                    inverter=inverter_params,
-                    dishwasher=home_appliance_params,
-                    start_solution=start_solution,
-                )
-            except Exception as e:
-                logger.info(
-                    "Can not prepare optimization parameters - will retry. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                oparams = None
-                # Retry
-                continue
-
-            # Parameters prepared
-            break
-
-        return oparams
+            return None

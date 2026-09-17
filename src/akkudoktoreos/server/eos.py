@@ -64,7 +64,11 @@ from akkudoktoreos.optimization.genetic0.genetic0solution import (
 from akkudoktoreos.optimization.genetic0.genetic0visualize import (
     genetic0_prepare_visualize,
 )
+from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticvisualize import (
+    genetic_prepare_visualize,
+)
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
@@ -1867,6 +1871,35 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
     return solution
 
 
+@app.get(
+    "/v1/energy-management/optimization/solution/GENETIC/pdf",
+    tags=["energy-management"],
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> Response:
+    """Render the retained GENETIC result without rerunning optimization.
+
+    Rendering runs outside the event loop. Copy the result before offloading;
+    its recorded timestamp, interval and inputs own the report's time grid.
+    The legacy /visualization_results.pdf route continues to serve GENETIC0.
+    """
+    retained = get_ems().genetic_solution()
+    if retained is None:
+        raise EOSProblem(
+            status=404,
+            title="Optimization solution report retrieval failed",
+            detail="Can not get the 'GENETIC' optimization solution.",
+        )
+    snapshot = retained.model_copy(deep=True)
+    pdf = await asyncio.to_thread(genetic_prepare_visualize, solution=snapshot)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="optimization-genetic.pdf"'},
+    )
+
+
 @app.get("/v1/energy-management/plan", tags=["energy-management"])
 def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
     """Get the latest energy management plan."""
@@ -2172,6 +2205,44 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
     # Return both forecasts as a JSON response
     return ForecastResponse(temperature=temp_air_list, pvpower=ac_power_list)
+
+
+@app.post("/v1/optimize", tags=["optimize"])
+async def fastapi_optimize_config(
+    request: Request,
+    parameters: ConfigOptimizationRequest = Body(default_factory=ConfigOptimizationRequest),
+) -> GeneticSolution:
+    """Optimize GENETIC using configured devices and optional fresh runtime inputs.
+
+    Static settings belong in configuration; query overrides are rejected.
+    Forecast arrays start at local
+    midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
+    An empty body uses configured providers and fresh measured states of charge.
+    The deprecated /optimize endpoint continues to run hourly GENETIC0.
+    """
+    if request.query_params:
+        raise HTTPException(
+            status_code=422,
+            detail="Configure optimization settings; query overrides are not supported.",
+        )
+    solution = await get_ems().run(
+        mode=EnergyManagementMode.OPTIMIZATION,
+        algorithm=OptimizationAlgorithm.GENETIC,
+        genetic_parameters=parameters,
+    )
+    if solution is None:
+        raise EOSProblem(
+            status=503,
+            title="GENETIC optimization failed",
+            detail="No new solution was produced. Check configured devices, fresh SoC and forecast coverage.",
+        )
+    if not isinstance(solution, GeneticSolution):
+        raise EOSProblem(
+            status=500,
+            title="Unexpected optimization algorithm result",
+            detail="GENETIC did not return its native solution type.",
+        )
+    return solution
 
 
 @app.post("/optimize", tags=["optimize"])

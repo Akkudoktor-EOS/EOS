@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2609171651094774`
+**Version**: `v0.3.0.dev2609171762020752`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -750,6 +750,32 @@ Get the latest solution of the optimization.
 
 ---
 
+## GET /v1/energy-management/optimization/solution/GENETIC/pdf
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_genetic_pdf_get_v1_energy-management_optimization_solution_genetic_pdf_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_genetic_pdf_get_v1_energy-management_optimization_solution_genetic_pdf_get)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Optimization Solution Genetic Pdf Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Render the retained GENETIC result without rerunning optimization.
+
+Rendering runs outside the event loop. Copy the result before offloading;
+its recorded timestamp, interval and inputs own the report's time grid.
+The legacy /visualization_results.pdf route continues to serve GENETIC0.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
 ## GET /v1/energy-management/optimization/solution/{algorithm}
 
 <!-- pyml disable line-length -->
@@ -1334,6 +1360,42 @@ Merge the measurement of given key and value into EOS measurements at given date
 - `key` (query, required): Measurement key.
 
 - `value` (query, required): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## POST /v1/optimize
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_optimize_config_v1_optimize_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_optimize_config_v1_optimize_post)
+<!-- pyml enable line-length -->
+
+Fastapi Optimize Config
+
+<!-- pyml disable line-length -->
+```python
+"""
+Optimize GENETIC using configured devices and optional fresh runtime inputs.
+
+Static settings belong in configuration; query overrides are rejected.
+Forecast arrays start at local
+midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
+An empty body uses configured providers and fresh measured states of charge.
+The deprecated /optimize endpoint continues to run hourly GENETIC0.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/ConfigOptimizationRequest"
+}
 
 **Responses**:
 
