@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2609161763699487`
+**Version**: `v0.3.0.dev2609171651094774`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -880,6 +880,44 @@ Returns:
 
 ---
 
+## POST /v1/measurement/battery-capacity/{battery_id}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/post_battery_capacity_v1_measurement_battery-capacity__battery_id__post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/post_battery_capacity_v1_measurement_battery-capacity__battery_id__post)
+<!-- pyml enable line-length -->
+
+Post Battery Capacity
+
+<!-- pyml disable line-length -->
+```python
+"""
+Estimate capacity from independent SoC anchors and configured DC power.
+
+store_estimate writes the separate capacity_estimate config field in memory.
+Persistence follows the regular EOS configuration save mechanism.
+The active capacity_wh and raw measurements are never changed here.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `battery_id` (path, required): No description provided.
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/BatteryCapacityRequest"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
 ## PUT /v1/measurement/data
 
 <!-- pyml disable line-length -->
@@ -940,6 +978,72 @@ Merge the measurement data given as dataframe into EOS measurements.
 
 ---
 
+## GET /v1/measurement/energy
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_energy_v1_measurement_energy_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_energy_v1_measurement_energy_get)
+<!-- pyml enable line-length -->
+
+Get Energy
+
+<!-- pyml disable line-length -->
+```python
+"""
+Energy in Wh, with temporal coverage and quality; no missing-to-zero filling.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `key` (query, required): No description provided.
+
+- `start` (query, required): No description provided.
+
+- `end` (query, required): No description provided.
+
+- `interval_seconds` (query, optional): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/measurement/household
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_household_v1_measurement_household_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_household_v1_measurement_household_get)
+<!-- pyml enable line-length -->
+
+Get Household
+
+<!-- pyml disable line-length -->
+```python
+"""
+Site, household without EV, and base without separately measured devices.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `start` (query, required): No description provided.
+
+- `end` (query, required): No description provided.
+
+- `interval_seconds` (query, optional): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
 ## GET /v1/measurement/keys
 
 <!-- pyml disable line-length -->
@@ -985,6 +1089,73 @@ Delete measurement values for a key within a datetime range.
 - `start_datetime` (query, optional): Start datetime.
 
 - `end_datetime` (query, optional): End datetime.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/measurement/samples
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_samples_v1_measurement_samples_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_samples_v1_measurement_samples_get)
+<!-- pyml enable line-length -->
+
+Get Samples
+
+<!-- pyml disable line-length -->
+```python
+"""
+Read raw samples including quality, in a bounded half-open range.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `key` (query, required): No description provided.
+
+- `start` (query, required): No description provided.
+
+- `end` (query, required): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## PUT /v1/measurement/samples
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/put_samples_v1_measurement_samples_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/put_samples_v1_measurement_samples_put)
+<!-- pyml enable line-length -->
+
+Put Samples
+
+<!-- pyml disable line-length -->
+```python
+"""
+Upsert raw values and their quality; legacy value/series payloads remain valid.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "type": "array",
+  "items": {
+    "$ref": "#/components/schemas/MeasurementSample"
+  },
+  "maxItems": 10000,
+  "title": "Samples"
+}
 
 **Responses**:
 

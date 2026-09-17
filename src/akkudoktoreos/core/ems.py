@@ -180,7 +180,7 @@ class EnergyManagement(
         genetic0_seed: Optional[int] = None,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
-    ) -> None:
+    ) -> Optional[GeneticSolution | Genetic0Solution]:
         """Run the energy management.
 
         This method initializes the energy management run by setting its
@@ -224,7 +224,9 @@ class EnergyManagement(
                 even if a cached version is still valid.
 
         Returns:
-            None
+            The native optimization solution produced by this run, or None when
+            no optimization completed. Previous successful results remain available
+            through the solution getters after an aborted run.
         """
         async with EnergyManagement._run_lock:
             if mode is None:
@@ -234,7 +236,7 @@ class EnergyManagement(
                 raise ValueError(f"Unknown energy management mode {mode}.")
             if mode == EnergyManagementMode.DISABLED:
                 logger.info("Energy management run disabled.")
-                return
+                return None
 
             logger.info("Starting energy management run.")
 
@@ -277,7 +279,7 @@ class EnergyManagement(
             if mode == EnergyManagementMode.PREDICTION:
                 logger.info("Energy management run done (predictions updated)")
                 EnergyManagement._stage = EnergyManagementStage.IDLE
-                return
+                return None
 
             # --- Optimization ---
             EnergyManagement._stage = EnergyManagementStage.OPTIMIZATION
@@ -286,6 +288,8 @@ class EnergyManagement(
 
             if algorithm is None:
                 algorithm = self.config.optimization.algorithm
+
+            run_solution: GeneticSolution | Genetic0Solution
 
             # --- GENETIC algorithm ---
             if algorithm == OptimizationAlgorithm.GENETIC:
@@ -300,7 +304,7 @@ class EnergyManagement(
                             "Could not prepare optimisation parameters."
                         )
                         EnergyManagement._stage = EnergyManagementStage.IDLE
-                        return
+                        return None
 
                 # Take values from config if not given
                 if genetic_generations is None:
@@ -331,21 +335,20 @@ class EnergyManagement(
                         ),
                     )
 
+                    # Build all representations before publishing any of them.
+                    optimization_solution = await genetic_solution.optimization_solution()
+                    plan = genetic_solution.energy_management_plan()
+
                 except Exception:
                     logger.exception(f"{algorithm}: Energy management optimization failed.")
                     EnergyManagement._stage = EnergyManagementStage.IDLE
-                    return
+                    return None
 
-                # Make genetic solution public
+                # Publish a consistent set without yielding to another coroutine.
                 EnergyManagement._genetic_solution = genetic_solution
-
-                # Make optimization solution public
-                EnergyManagement._optimization_solution = (
-                    await genetic_solution.optimization_solution()
-                )
-
-                # Make plan public
-                EnergyManagement._plan = genetic_solution.energy_management_plan()
+                EnergyManagement._optimization_solution = optimization_solution
+                EnergyManagement._plan = plan
+                run_solution = genetic_solution
 
                 logger.debug(
                     "{}: Energy management genetic solution:\n{}",
@@ -366,7 +369,7 @@ class EnergyManagement(
                             "Could not prepare optimisation parameters."
                         )
                         EnergyManagement._stage = EnergyManagementStage.IDLE
-                        return
+                        return None
 
                 # Take values from config if not given
                 if genetic0_generations is None:
@@ -397,21 +400,20 @@ class EnergyManagement(
                         ),
                     )
 
+                    # Build all representations before publishing any of them.
+                    optimization_solution = await genetic0_solution.optimization_solution()
+                    plan = genetic0_solution.energy_management_plan()
+
                 except Exception:
                     logger.exception(f"{algorithm}: Energy management optimization failed.")
                     EnergyManagement._stage = EnergyManagementStage.IDLE
-                    return
+                    return None
 
-                # Make genetic0 solution public
+                # Publish a consistent set without yielding to another coroutine.
                 EnergyManagement._genetic0_solution = genetic0_solution
-
-                # Make optimization solution public
-                EnergyManagement._optimization_solution = (
-                    await genetic0_solution.optimization_solution()
-                )
-
-                # Make plan public
-                EnergyManagement._plan = genetic0_solution.energy_management_plan()
+                EnergyManagement._optimization_solution = optimization_solution
+                EnergyManagement._plan = plan
+                run_solution = genetic0_solution
 
                 logger.debug(
                     "{}: Energy management genetic solution:\n{}",
@@ -422,7 +424,7 @@ class EnergyManagement(
             else:
                 logger.error(f"Unknown optimization algorithm: '{algorithm}'. Skipping.")
                 EnergyManagement._stage = EnergyManagementStage.IDLE
-                return
+                return None
 
             optimization_duration = to_datetime() - optimization_start
             logger.info(
@@ -459,3 +461,4 @@ class EnergyManagement(
 
             # energy management run finished
             EnergyManagement._stage = EnergyManagementStage.IDLE
+            return run_solution

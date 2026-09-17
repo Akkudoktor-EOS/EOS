@@ -39,6 +39,8 @@
            "batteries": {
                "bat0": {
                    "device_id": "bat0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -72,6 +74,8 @@
            "electric_vehicles": {
                "ev0": {
                    "device_id": "ev0",
+                   "capacity_estimation": null,
+                   "capacity_estimate": null,
                    "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
@@ -217,6 +221,9 @@
        },
        "measurement": {
            "historic_hours": 17520,
+           "channels": {},
+           "household": null,
+           "energy_context_seconds": 86400,
            "load_emr_keys": [
                "load0_emr"
            ],
@@ -258,6 +265,31 @@
        },
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
+           "akkudoktor": {
+               "backend": "remote",
+               "resolution_minutes": 15,
+               "forecast_days": null,
+               "past_days": null,
+               "weather_models": [
+                   "best_match"
+               ],
+               "transposition_model": "perez",
+               "albedo": 0.25,
+               "inverter_efficiency": 0.96,
+               "temperature_coefficient": -0.36,
+               "apply_iam": true,
+               "shift_to_interval_start": true,
+               "calibration_enabled": false,
+               "calibration_days": 30,
+               "calibration_reference_days": 30,
+               "calibration_outage_filter_enabled": true,
+               "calibration_outage_threshold": 0.55,
+               "calibration_min_healthy_days": 3,
+               "calibration_azimuth_bin_degrees": 45,
+               "calibration_prior_kwh": 5.0,
+               "calibration_min_factor": 0.5,
+               "calibration_max_factor": 1.5
+           },
            "pvforecastimport": {
                "import_file_path": null,
                "import_json": null
