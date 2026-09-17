@@ -14,6 +14,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
 
+### Fixed
+
+- Configuration updates made at runtime, e.g. by `PUT /v1/config`, are no longer discarded when the
+  same configuration key is set in the EOS configuration file or in the environment
+  ([#1303](https://github.com/Akkudoktor-EOS/EOS/issues/1303)).
+- Environment variables are applied to the configuration on server startup instead of taking effect
+  only after the first configuration change.
+
 ## 0.3.0 (2026-03-17)
 
 Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.

@@ -12,14 +12,15 @@
         "console_level": "INFO"
     },
     "devices": {
-        "batteries": [
-            {
+        "batteries": {
+            "pv_akku": {
                 "device_id": "pv_akku",
                 "capacity_wh": 30000
             }
-        ],
-        "electric_vehicles": [
-            {
+        },
+        "electric_vehicles": {
+            "ev0": {
+                "device_id": "ev0",
                 "charge_rates": [
                     0.0,
                     0.375,
@@ -30,7 +31,7 @@
                     1.0
                 ]
             }
-        ]
+        }
     },
     "measurement": {
         "load_emr_keys": [

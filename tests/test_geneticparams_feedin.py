@@ -11,9 +11,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
-from akkudoktoreos.optimization.genetic.geneticdevices import InverterParameters
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )

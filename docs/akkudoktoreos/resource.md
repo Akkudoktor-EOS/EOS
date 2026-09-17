@@ -198,18 +198,18 @@ horizon.
 
 ### Home Appliance Simulation
 
-### Home Appliance Configuration
+### GENETIC0 Home Appliance Configuration
 
 Home appliance to run within the optimization horizon.
 
 ```json
-[
-  {
+{
+  "dishwasher1": {
     "device_id": "dishwasher1",
     "consumption_wh": 2000,
     "duration_h": 3
   }
-]
+}
 ```
 
 Home appliance to run within a time window of 5 hours starting at 8:00 every day and another time
@@ -217,8 +217,8 @@ window of 3 hours starting at 15:00 every day. See
 [Time Window Sequence Configuration](configtimewindow-page) for more information.
 
 ```json
-[
-  {
+{
+  "dishwasher1": {
     "device_id": "dishwasher1",
     "consumption_wh": 2000,
     "duration_h": 3,
@@ -235,13 +235,100 @@ window of 3 hours starting at 15:00 every day. See
       ]
     }
   }
-]
+}
 ```
 
 :::{admonition} Note
 :class: note
 The optimization algorithm always restricts to one start within the optimization horizon per
 energy management run.
+:::
+
+### GENETIC Home Appliance Configuration
+
+Home appliance to run once, unconstrained, within the optimization horizon:
+
+```json
+{
+  "dishwasher1": {
+    "device_id": "dishwasher1",
+    "consumption_wh": 2000,
+    "duration_h": 3,
+    "num_cycles": 1
+  }
+}
+```
+
+Home appliance to run within a time window of 5 hours starting at 8:00. Each window's `value`
+field carries the 0-based cycle index it applies to -- here there is only one cycle (index `0`),
+so `num_cycles` does not need to be set explicitly; it is derived from the distinct cycle indices
+found in `cycle_time_windows`. See
+[ime Window Sequence Configuration](configimewindow-page) for more information.
+
+```json
+{
+  "dishwasher1": {
+    "device_id": "dishwasher1",
+    "consumption_wh": 2000,
+    "duration_h": 3,
+    "cycle_time_windows": {
+      "windows": [
+        {
+          "start_time": "08:00",
+          "duration": "5 hours",
+          "value": 0
+        }
+      ]
+    }
+  }
+}
+```
+
+Home appliance that must run **twice** per day, each run confined to its own time window --
+cycle 0 in the morning (07:00, 5 hours), cycle 1 in the evening (17:00, 5 hours) -- with at least
+1 hour idle between the two runs:
+
+```json
+{
+  "washing_machine1": {
+    "device_id": "washing_machine1",
+    "consumption_wh": 2000,
+    "duration_h": 2,
+    "min_cycle_gap_h": 1,
+    "cycle_time_windows": {
+      "windows": [
+        {
+          "start_time": "07:00",
+          "duration": "5 hours",
+          "value": 0
+        },
+        {
+          "start_time": "17:00",
+          "duration": "5 hours",
+          "value": 1
+        }
+      ]
+    }
+  }
+}
+```
+
+`min_cycle_gap_h` enforces a minimum idle time between the end of one cycle and the start of the
+next; it defaults to `0`, which permits back-to-back runs. To let both cycles run anywhere in a
+shared window instead of separate morning/evening slots, give both windows the same `start_time`
+and `duration` but keep their distinct `value` (cycle index) -- the optimizer still places each
+cycle independently within that shared window.
+
+How many cycles remain to be scheduled on a given energy management run is read at runtime from
+the measurement store, under the key configured in `cycles_completed_measurement_key` (defaults
+to `{device_id}.cycles_completed`). This lets the optimizer skip cycles the appliance has already
+completed earlier the same day.
+
+:::{admonition} Note
+:class: note
+Unlike GENETIC0, the GENETIC algorithm can plan multiple cycles -- and therefore multiple starts
+-- of the same appliance within a single energy management run, whenever `num_cycles` (or the
+number of distinct cycle indices in `cycle_time_windows`) is greater than 1.
 :::
 
 ### Home Appliance Instructions
