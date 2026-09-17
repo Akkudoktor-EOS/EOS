@@ -6,16 +6,66 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Energy planning update: read before upgrading
+
+This update brings the complete GENETIC energy planner to the current EOS interfaces.
+It can plan in 15-minute steps, consider battery export, schedule EV charging before
+departure and fit flexible household loads into their allowed time windows. New
+measurement tools make missing data, energy use and battery-capacity estimates easier
+to inspect. The Akkudoktor PV provider also gains an optional local, calibratable model.
+
+**Existing installations need an integration check before upgrading.** Device settings
+now use stable IDs instead of list positions. The new `POST /v1/optimize` takes hardware
+and schedules from EOS configuration; its request body supplies only current observations,
+forecasts and a previous plan. The legacy `POST /optimize` remains available with GENETIC0;
+changing that URL alone does not migrate an integration to the new planner.
+
+Automatic configuration migration handles supported old settings, but cannot rewrite
+Home Assistant automations, Node-RED flows or custom scripts. Back up configuration and
+stored data, then check device IDs, tariff units, fresh battery measurements and the
+resulting plans. Read the [upgrade guide](docs/akkudoktoreos/upgrade-genetic.md) for the
+compatibility changes and a short test procedure. These changes are not yet a tagged release.
+
 ### Added
 
+- Complete GENETIC planning at 15- or 60-minute intervals, timestamp-aligned reuse of
+  previous plans, explicitly enabled battery export, EV deadlines and flexible consumers.
+- Forecast continuation and AUTO/FIXED valuation of energy left in the battery, separate
+  from battery wear costs. Continuation helps choose the plan; it does not add commands
+  beyond the configured control horizon.
+- Configuration-driven `POST /v1/optimize` and a PDF report of the stored GENETIC result.
+- Measurement sample, energy, household-balance and battery-capacity APIs with data-quality
+  and coverage information. A capacity estimate does not overwrite configured capacity.
+- Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
+  backend remains the default.
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
 
+### Changed / compatibility
+
+- Device collections are maps keyed by device ID. Old list-based configuration migrates,
+  but integrations using paths such as `devices.batteries.0` must use the actual device ID.
+  GENETIC and GENETIC0 have separate algorithm settings.
+- GENETIC rejects missing, stale or invalid battery state and incomplete control forecasts
+  instead of inventing usable inputs. Unsupported device counts and inconsistent battery
+  links also fail explicitly. The default measurement age limit is five minutes.
+- Imported sale prices, including zero and negative prices, are preserved. Corrected
+  battery/inverter limits, losses and wear costs can change the chosen plan and its costs.
+- The electricity-fee framework replaces old `elecprice.charges_kwh` / `vat_rate` fields.
+  Those old fields are dropped during migration: configure and verify fees explicitly.
+- Quarter-hour clients must use the returned timestamps and interval, not assume 24 hourly
+  values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
+- Runtime configuration changes now take priority over environment and file values for
+  explicitly updated keys; command-line settings retain higher priority.
+
 ### Fixed
 
+- Failed optimization requests no longer return a previous successful result as if it
+  belonged to the failed run; successful results and plans are published together.
+- Restored JSON measurements retain their timestamps and values.
 - Configuration updates made at runtime, e.g. by `PUT /v1/config`, are no longer discarded when the
   same configuration key is set in the EOS configuration file or in the environment
   ([#1303](https://github.com/Akkudoktor-EOS/EOS/issues/1303)).

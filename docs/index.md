@@ -30,6 +30,7 @@ develop/CONTRIBUTING.md
 develop/install.md
 akkudoktoreos/configuration.md
 develop/update.md
+akkudoktoreos/upgrade-genetic.md
 develop/revert.md
 akkudoktoreos/adapter/adapterhomeassistant.md
 akkudoktoreos/adapter/adapternodered.md

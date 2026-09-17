@@ -44,6 +44,23 @@ the configuration effort needed for the integration you should better use other 
 
 ## Quick Start
 
+### Upgrading an existing installation?
+
+The next release includes a substantial energy-planning update: 15-minute GENETIC plans,
+EV departure targets, flexible household loads, optional battery export, and better
+measurement and PV-forecast tools. **These features are currently unreleased.**
+
+Existing Home Assistant automations, Node-RED flows and custom API clients may need changes.
+Devices now use stable IDs, the new optimizer reads hardware settings from EOS configuration,
+and incomplete forecasts or outdated battery measurements can stop a run. The legacy
+`POST /optimize` remains available with GENETIC0; the new `POST /v1/optimize` has a different
+request format. Back up your configuration and data before updating.
+
+Read the [upgrade guide](docs/akkudoktoreos/upgrade-genetic.md) and
+[changelog](CHANGELOG.md#unreleased) before switching an existing installation.
+
+### Start with Docker
+
 Run EOS with Docker (access dashboard at `http://localhost:8504`):
 
 ```bash
