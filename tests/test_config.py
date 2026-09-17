@@ -726,7 +726,10 @@ def test_set_nested_value_survives_merge(config_eos_file):
 
 def test_revert_settings_restores_backup(config_eos_file):
     """Revert restores the backup values even if the config file differs."""
-    write_config_file(config_eos_file, {"optimization": {"genetic": {"individuals": 200}}})
+    write_config_file(
+        config_eos_file,
+        {"optimization": {"genetic": {"individuals": 200}}, "server": {"port": 9000}},
+    )
 
     config_file_path = config_eos_file.general.config_file_path
     assert config_file_path is not None
@@ -736,6 +739,8 @@ def test_revert_settings_restores_backup(config_eos_file):
             {
                 "general": {"version": config_eos_file.general.version},
                 "optimization": {"genetic": {"individuals": 500}},
+                # Equal to the field default - must be restored nevertheless
+                "server": {"port": 8503},
             }
         ),
         encoding="utf-8",
@@ -744,6 +749,7 @@ def test_revert_settings_restores_backup(config_eos_file):
     config_eos_file.revert_settings("backup")
 
     assert config_eos_file.optimization.genetic.individuals == 500
+    assert config_eos_file.server.port == 8503
 
 
 def test_config_from_env_on_first_init(config_eos, config_default_dirs, monkeypatch):

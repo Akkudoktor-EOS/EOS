@@ -39,7 +39,11 @@ from akkudoktoreos.core.emsettings import (
 )
 from akkudoktoreos.core.logabc import LOGGING_LEVELS
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
-from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, deep_merge
+from akkudoktoreos.core.pydantic import (
+    PydanticModelNestedValueMixin,
+    deep_merge,
+    dump_set_fields,
+)
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
@@ -864,8 +868,10 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         backup_settings = migrate_config_data(backup_data)
 
         # Backup settings are runtime settings - they supersede environment and config file.
-        ConfigEOS._runtime_settings = backup_settings.model_dump(
-            exclude_none=True, exclude_defaults=True, exclude_computed_fields=True
+        # The migration fills the nested settings in place, so the backup values have to be
+        # collected from the nested models. Values equal to a field default are kept.
+        ConfigEOS._runtime_settings = dump_set_fields(
+            backup_settings, exclude_none=True, exclude_computed_fields=True
         )
         self._setup()
 

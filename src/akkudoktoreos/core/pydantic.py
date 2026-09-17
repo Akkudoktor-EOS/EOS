@@ -65,6 +65,33 @@ from akkudoktoreos.utils.datetimeutil import (
 _model_private_state: "weakref.WeakKeyDictionary[Union[PydanticBaseModel, PydanticModelNestedValueMixin], Dict[str, Any]]" = weakref.WeakKeyDictionary()
 
 
+def dump_set_fields(model: BaseModel, **kwargs: Any) -> dict[str, Any]:
+    """Dump the fields that were explicitly set on a model and on its nested models.
+
+    `model_dump(exclude_unset=True)` only looks at the fields set on the model itself. A nested
+    model that was filled in place is dropped with all of its values, because the field holding it
+    was never assigned. This function walks the nested models instead, so values are kept whether
+    or not they equal their field default.
+
+    Args:
+        model (BaseModel): Pydantic model instance to dump.
+        **kwargs (Any): Additional arguments for the `model_dump()` of the set fields.
+
+    Returns:
+        dict[str, Any]: The explicitly set fields, nested as in the model.
+    """
+    data: dict[str, Any] = {}
+    for name in type(model).model_fields:
+        value = getattr(model, name, None)
+        if isinstance(value, BaseModel):
+            nested = dump_set_fields(value, **kwargs)
+            if nested:
+                data[name] = nested
+        elif name in model.model_fields_set:
+            data.update(model.model_dump(include={name}, **kwargs))
+    return data
+
+
 def deep_merge(source_data: Any, update_data: Any) -> Any:
     """Merge two data structures recursively.
 
