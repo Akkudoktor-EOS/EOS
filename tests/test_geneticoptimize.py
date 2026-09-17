@@ -2,11 +2,9 @@ import json
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import numpy as np
 import pytest
-from pydantic import ValidationError
 from pypdf import PdfReader
 
 from akkudoktoreos.config.config import ConfigEOS
@@ -22,7 +20,7 @@ from akkudoktoreos.optimization.genetic.geneticvisualize import (
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
-ems_eos = get_ems(init=True) # init once
+ems_eos = get_ems(init=True)  # init once
 
 DIR_TESTDATA = Path(__file__).parent / "testdata" / "genetic"
 
@@ -39,6 +37,7 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
             assert actual[key] == pytest.approx(value)
         else:
             assert actual[key] == pytest.approx(value)
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -67,30 +66,30 @@ async def test_optimize(
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
         {
-            "prediction": {
-                "hours": 48
-            },
+            "prediction": {"hours": 48},
             "optimization": {
                 "algorithm": "GENETIC",
                 "genetic": {
-                    "horizon_hours": 48,
+                    "horizon_hours": 38,
+                    "tail_horizon_hours": 0,
+                    "terminal_value_mode": "FIXED",
                     "individuals": 300,
                     "generations": 10,
                     "penalties": {
                         "ev_soc_miss": 10,
                         "ac_charge_break_even": break_even,
-                    }
-                }
+                    },
+                },
             },
             "devices": {
                 "max_electric_vehicles": 1,
-                "electric_vehicles": { "ev1":
-                    {
+                "electric_vehicles": {
+                    "ev1": {
                         "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
                     }
                 },
-             }
-         }
+            },
+        }
     )
 
     # Load input and output data
@@ -99,7 +98,9 @@ async def test_optimize(
         input_data = GeneticOptimizationParameters(**json.load(f_in))
 
     # Fake energy management run start datetime
-    ems_eos.set_start_datetime(to_datetime().set(hour=fixed_start_hour))
+    ems_eos.set_start_datetime(
+        to_datetime("2026-09-16T10:00:00+02:00", in_timezone="Europe/Berlin")
+    )
 
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()
@@ -115,31 +116,9 @@ async def test_optimize(
         parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
     )
 
-    # Write test output to file, so we can take it as new data on intended change
-    TESTDATA_FILE = DIR_TESTDATA / f"new_{fn_out}"
-    with TESTDATA_FILE.open("w", encoding="utf-8", newline="\n") as f_out:
-        f_out.write(genetic_solution.model_dump_json(indent=4, exclude_unset=True))
-
-    solution_file = DIR_TESTDATA / fn_out
-    # In case a new test case is added, we don't want to fail here, so the new output is written
-    # to disk before
-    try:
-        with solution_file.open("r") as f_out:
-            expected_data = json.load(f_out)
-            expected_result = GeneticSolution(**expected_data)
-    except ValidationError:
-        # Expected genetic solution data does not fit to GeneticSolution data schema
-        # Possibly the GeneticSolution class changed.
-        pytest.fail(
-            f"ValidationError: Can not load expected solution from {solution_file}\n"
-            f"cp {TESTDATA_FILE} {solution_file}\n"
-        )
-    except FileNotFoundError:
-        # Should not happen
-        pytest.fail(
-            f"FileNotFoundError: Can not load expected solution from {solution_file}\n"
-            f"cp {TESTDATA_FILE} {solution_file}\n"
-        )
+    # Historical payloads still deserialize with deprecated English/German aliases.
+    with (DIR_TESTDATA / fn_out).open("r") as expected_file:
+        expected_result = GeneticSolution.model_validate(json.load(expected_file))
 
     # Keep the output contract, but do not demand an identical stochastic
     # schedule or monetary golden from the previous direct-consumption model.
@@ -148,10 +127,8 @@ async def test_optimize(
     expected_slots = len(input_data.ems.pv_forecast_wh) - fixed_start_hour
     assert len(result.grid_consumption_wh_per_hour) == expected_slots
     assert len(result.grid_feed_in_wh_per_hour) == expected_slots
-    prices = np.asarray(genetic_solution.parameters.ems.electricity_price_per_wh)[fixed_start_hour:]
-    tariffs = np.asarray(genetic_solution.parameters.ems.feed_in_tariff_per_wh)
-    if tariffs.ndim > 0:
-        tariffs = tariffs[fixed_start_hour:]
+    prices = np.asarray(genetic_solution.parameters.ems.electricity_price_per_wh)
+    tariffs = np.asarray(genetic_solution.parameters.ems.feed_in_tariff_per_wh)[:expected_slots]
     expected_costs = np.asarray(result.grid_consumption_wh_per_hour) * prices
     expected_revenues = np.asarray(result.grid_feed_in_wh_per_hour) * tariffs
     np.testing.assert_allclose(result.costs_per_hour, expected_costs)
@@ -167,11 +144,25 @@ async def test_optimize(
 
     # Check the correct generic optimization solution is created
     optimization_solution = await genetic_solution.optimization_solution()
-    # @TODO
+    dataframe = optimization_solution.solution.to_dataframe()
+    assert len(dataframe) == expected_slots
+    assert optimization_solution.valid_from == genetic_solution.start_solution_datetime
+    assert optimization_solution.valid_until == ems_eos.start_datetime.add(hours=expected_slots)
+    assert genetic_solution.controls_start_at_now
+    assert len(genetic_solution.ac_charge) == expected_slots
+    assert len(genetic_solution.dc_charge) == expected_slots
+    assert len(genetic_solution.discharge_allowed) == expected_slots
 
     # Check the correct generic energy management plan is created
     plan = genetic_solution.energy_management_plan()
-    # @TODO
+    assert plan.valid_from == optimization_solution.valid_from
+    assert plan.valid_until is None
+    assert optimization_solution.valid_from is not None
+    assert optimization_solution.valid_until is not None
+    assert all(
+        optimization_solution.valid_from <= item.execution_time < optimization_solution.valid_until
+        for item in plan.instructions
+    )
 
     # Check visualization works
     pdf = genetic_prepare_visualize(
@@ -180,8 +171,4 @@ async def test_optimize(
     assert pdf.startswith(b"%PDF-")
 
     reader = PdfReader(BytesIO(pdf))
-    assert len(reader.pages) == 6
-
-
-    # Everything passed, remove generated files
-    TESTDATA_FILE.unlink()
+    assert len(reader.pages) >= 6

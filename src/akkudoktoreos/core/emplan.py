@@ -2234,7 +2234,9 @@ class EnergyManagementPlan(PydanticBaseModel):
             self.valid_until = None
             return
 
-        self.valid_from = min(i.execution_time for i in self.instructions)
+        self.valid_from = min(
+            (i.execution_time for i in self.instructions), key=lambda value: value.timestamp()
+        )
 
         end_times = []
         for instr in self.instructions:
@@ -2245,12 +2247,14 @@ class EnergyManagementPlan(PydanticBaseModel):
                 return
             end_times.append(instr.execution_time + instr_duration)
 
-        self.valid_until = max(end_times) if end_times else None
+        self.valid_until = (
+            max(end_times, key=lambda value: value.timestamp()) if end_times else None
+        )
 
     def add_instruction(self, instruction: EnergyManagementInstruction) -> None:
         """Adds a new control instruction and updates time range."""
         self.instructions.append(instruction)
-        self.instructions.sort(key=lambda i: i.execution_time)
+        self.instructions.sort(key=lambda i: i.execution_time.timestamp())
         self._update_time_range()
 
     def clear(self) -> None:
@@ -2289,14 +2293,14 @@ class EnergyManagementPlan(PydanticBaseModel):
         by_resource: dict[str, list["EnergyManagementInstruction"]] = defaultdict(list)
         for instr in self.instructions:
             # skip instructions scheduled in the future
-            if instr.execution_time <= now:
+            if instr.execution_time.timestamp() <= now.timestamp():
                 by_resource[instr.resource_id].append(instr)
 
         active: list["EnergyManagementInstruction"] = []
 
         for resource_id, instrs in by_resource.items():
             # pick latest instruction by execution_time
-            latest = max(instrs, key=lambda i: i.execution_time)
+            latest = max(instrs, key=lambda i: i.execution_time.timestamp())
 
             if len(instrs) == 0:
                 # No instructions, ther shall be at least one
@@ -2310,7 +2314,7 @@ class EnergyManagementPlan(PydanticBaseModel):
                 active.append(latest)
             else:
                 # active only if now is strictly before execution_time + duration
-                if latest.execution_time + instr_duration > now:
+                if (latest.execution_time + instr_duration).timestamp() > now.timestamp():
                     active.append(latest)
 
         return active
@@ -2320,9 +2324,11 @@ class EnergyManagementPlan(PydanticBaseModel):
     ) -> Optional[EnergyManagementInstruction]:
         """Finds the next instruction scheduled after the specified time."""
         now = now or to_datetime()
-        future_instructions = [i for i in self.instructions if i.execution_time > now]
+        future_instructions = [
+            i for i in self.instructions if i.execution_time.timestamp() > now.timestamp()
+        ]
         return (
-            min(future_instructions, key=lambda i: i.execution_time)
+            min(future_instructions, key=lambda i: i.execution_time.timestamp())
             if future_instructions
             else None
         )

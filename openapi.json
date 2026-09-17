@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609161779929573"
+    "version": "v0.3.0.dev2609162059048192"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -2834,6 +2834,24 @@
         }
       }
     },
+    "/v1/energy-management/optimization/solution/GENETIC/pdf": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Optimization Solution Genetic Pdf Get",
+        "description": "Render the retained GENETIC result without rerunning optimization.\n\nRendering runs outside the event loop. Copy the result before offloading;\nits recorded timestamp, interval and inputs own the report's time grid.\nThe legacy /visualization_results.pdf route continues to serve GENETIC0.",
+        "operationId": "fastapi_energy_management_optimization_solution_genetic_pdf_get_v1_energy_management_optimization_solution_GENETIC_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/pdf": {}
+            }
+          }
+        }
+      }
+    },
     "/v1/energy-management/plan": {
       "get": {
         "tags": [
@@ -2993,6 +3011,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ForecastResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/optimize": {
+      "post": {
+        "tags": [
+          "optimize"
+        ],
+        "summary": "Fastapi Optimize Config",
+        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers and fresh measured states of charge.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
+        "operationId": "fastapi_optimize_config_v1_optimize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigOptimizationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneticSolution"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3393,6 +3452,46 @@
               ],
               null
             ]
+          },
+          "min_soc_deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Deadline Datetime",
+            "description": "Absolute moment by which 'min_soc_percentage' has to be reached (departure time). A date time without timezone is read as local time. None means end of the optimization horizon.",
+            "examples": [
+              null,
+              "2026-07-16T07:00:00+02:00"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "min_soc_max_duration_h": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Max Duration H",
+            "description": "Maximum time from the start of the optimization until 'min_soc_percentage' has to be reached [h]. Combined with 'min_soc_deadline_datetime' the earlier of the two applies.",
+            "examples": [
+              null,
+              6.0
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
           }
         },
         "type": "object",
@@ -3599,6 +3698,46 @@
                 1.0
               ],
               null
+            ]
+          },
+          "min_soc_deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Deadline Datetime",
+            "description": "Absolute moment by which 'min_soc_percentage' has to be reached (departure time). A date time without timezone is read as local time. None means end of the optimization horizon.",
+            "examples": [
+              null,
+              "2026-07-16T07:00:00+02:00"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "min_soc_max_duration_h": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Max Duration H",
+            "description": "Maximum time from the start of the optimization until 'min_soc_percentage' has to be reached [h]. Combined with 'min_soc_deadline_datetime' the earlier of the two applies.",
+            "examples": [
+              null,
+              6.0
+            ],
+            "x-scope": [
+              "GENETIC"
             ]
           },
           "measurement_key_soc_factor": {
@@ -3980,6 +4119,52 @@
         "title": "ConfigEOS",
         "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    .. code-block:: python\n\n        config_eos = ConfigEOS()  # Always returns the same instance\n            print(config_eos.prediction.hours)  # Access a setting from the loaded configuration"
       },
+      "ConfigOptimizationRequest": {
+        "properties": {
+          "soc": {
+            "additionalProperties": {
+              "type": "integer",
+              "maximum": 100.0,
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Soc"
+          },
+          "forecasts": {
+            "$ref": "#/components/schemas/RuntimeForecasts"
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution"
+          },
+          "start_solution_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution Datetime"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ConfigOptimizationRequest",
+        "description": "Supply observations while hardware, tariffs and scheduling remain in config."
+      },
       "ConfigSaveMode": {
         "type": "string",
         "enum": [
@@ -3988,6 +4173,24 @@
         ],
         "title": "ConfigSaveMode",
         "description": "Configuration file save mode."
+      },
+      "ConsumerDeadlinePolicy": {
+        "type": "string",
+        "enum": [
+          "BEST_EFFORT",
+          "STRICT"
+        ],
+        "title": "ConsumerDeadlinePolicy",
+        "description": "Behaviour when a flexible consumer's deadline cannot be met.\n\nA deadline (``deadline_datetime``) demands that a complete run has *finished*\nbefore that moment. Depending on \"now\", the run duration, the optimization\nhorizon and the allowed time windows, no such start may exist.\n\nPolicies\n--------\n- BEST_EFFORT:\n    Run as early as the remaining constraints allow, i.e. minimize the\n    delay instead of the cost (\"it should have been done by 03:00, so\n    start now\"). A warning is logged. This keeps an optimization request\n    answerable instead of failing it - the usual choice for home\n    automation.\n\n- STRICT:\n    Keep the deadline. A ONCE consumer without a feasible start makes the\n    optimization fail; a DAILY consumer is simply not scheduled on days\n    without a feasible start."
+      },
+      "ConsumerScheduleMode": {
+        "type": "string",
+        "enum": [
+          "ONCE",
+          "DAILY"
+        ],
+        "title": "ConsumerScheduleMode",
+        "description": "Schedule mode of a flexible consumer (home appliance).\n\nDetermines how often a consumer's load profile is scheduled within the\noptimization horizon.\n\nModes\n-----\n- ONCE:\n    The consumer runs exactly once somewhere within the optimization\n    horizon (\"fire and forget\"). The optimizer picks the start.\n\n- DAILY:\n    The consumer runs once per local calendar day, but only on days for\n    which at least one complete, allowed run still fits into the remaining\n    horizon. The optimizer picks one start per eligible day."
       },
       "CycleTimeWindowSequence-Input": {
         "properties": {
@@ -5471,6 +5674,40 @@
               ],
               null
             ]
+          },
+          "min_soc_deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Deadline Datetime",
+            "description": "Absolute moment by which 'min_soc_percentage' has to be reached (departure time). A date time without timezone is read as local time. None means end of the optimization horizon.",
+            "examples": [
+              null,
+              "2026-07-16T07:00:00+02:00"
+            ]
+          },
+          "min_soc_max_duration_h": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Max Duration H",
+            "description": "Maximum time from the start of the optimization until 'min_soc_percentage' has to be reached [h]. Combined with 'min_soc_deadline_datetime' the earlier of the two applies.",
+            "examples": [
+              null,
+              6.0
+            ]
           }
         },
         "additionalProperties": false,
@@ -6129,6 +6366,12 @@
       },
       "FeedInTariffCommonSettings-Input": {
         "properties": {
+          "direct_marketing_enabled": {
+            "type": "boolean",
+            "title": "Direct Marketing Enabled",
+            "description": "Enable export-aware GENETIC optimization. Sale revenues remain those of the configured feed-in provider or explicit forecast; purchase prices never replace them.",
+            "default": false
+          },
           "provider": {
             "anyOf": [
               {
@@ -6172,6 +6415,12 @@
       },
       "FeedInTariffCommonSettings-Output": {
         "properties": {
+          "direct_marketing_enabled": {
+            "type": "boolean",
+            "title": "Direct Marketing Enabled",
+            "description": "Enable export-aware GENETIC optimization. Sale revenues remain those of the configured feed-in provider or explicit forecast; purchase prices never replace them.",
+            "default": false
+          },
           "provider": {
             "anyOf": [
               {
@@ -8447,8 +8696,10 @@
         "properties": {
           "interval_sec": {
             "type": "integer",
-            "maximum": 3600.0,
-            "minimum": 900.0,
+            "enum": [
+              900,
+              3600
+            ],
             "title": "Interval Sec",
             "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
             "default": 3600,
@@ -8516,6 +8767,49 @@
             "examples": [
               null,
               42
+            ]
+          },
+          "measurement_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age Seconds",
+            "description": "Maximum age of SoC measurements for configuration-based optimization [s].",
+            "default": 300
+          },
+          "tail_horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tail Horizon Hours",
+            "description": "Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable.",
+            "default": 48
+          },
+          "terminal_value_mode": {
+            "$ref": "#/components/schemas/TerminalValueMode",
+            "description": "How to value the energy left in the battery at the end of the control horizon. AUTO solves the forecast tail with an AUTO continuation proxy at its end (or only the proxy if tail is zero); FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
+            "default": "AUTO",
+            "examples": [
+              "AUTO",
+              "FIXED"
+            ]
+          },
+          "terminal_value_euro_per_kwh": {
+            "type": "number",
+            "title": "Terminal Value Euro Per Kwh",
+            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Only used with terminal_value_mode = FIXED. Defaults to 0 EUR/kWh.",
+            "default": 0.0,
+            "examples": [
+              0.0,
+              0.2
+            ]
+          },
+          "terminal_value_window_hours": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Terminal Value Window Hours",
+            "description": "Length of the trailing window at the effective tail end the AUTO continuation curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
             ]
           },
           "penalties": {
@@ -8550,8 +8844,10 @@
         "properties": {
           "interval_sec": {
             "type": "integer",
-            "maximum": 3600.0,
-            "minimum": 900.0,
+            "enum": [
+              900,
+              3600
+            ],
             "title": "Interval Sec",
             "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
             "default": 3600,
@@ -8619,6 +8915,49 @@
             "examples": [
               null,
               42
+            ]
+          },
+          "measurement_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age Seconds",
+            "description": "Maximum age of SoC measurements for configuration-based optimization [s].",
+            "default": 300
+          },
+          "tail_horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tail Horizon Hours",
+            "description": "Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable.",
+            "default": 48
+          },
+          "terminal_value_mode": {
+            "$ref": "#/components/schemas/TerminalValueMode",
+            "description": "How to value the energy left in the battery at the end of the control horizon. AUTO solves the forecast tail with an AUTO continuation proxy at its end (or only the proxy if tail is zero); FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
+            "default": "AUTO",
+            "examples": [
+              "AUTO",
+              "FIXED"
+            ]
+          },
+          "terminal_value_euro_per_kwh": {
+            "type": "number",
+            "title": "Terminal Value Euro Per Kwh",
+            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Only used with terminal_value_mode = FIXED. Defaults to 0 EUR/kWh.",
+            "default": 0.0,
+            "examples": [
+              0.0,
+              0.2
+            ]
+          },
+          "terminal_value_window_hours": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Terminal Value Window Hours",
+            "description": "Length of the trailing window at the effective tail end the AUTO continuation curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
             ]
           },
           "penalties": {
@@ -8666,7 +9005,7 @@
             },
             "type": "array",
             "title": "Pv Forecast Wh",
-            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+            "description": "An array of floats representing the forecasted photovoltaic energy in watt-hours per slot for different time intervals."
           },
           "electricity_price_per_wh": {
             "items": {
@@ -8702,7 +9041,7 @@
             },
             "type": "array",
             "title": "Total Load",
-            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+            "description": "An array of floats representing the total load (consumption) in watt-hours per slot for different time intervals."
           },
           "pv_prognose_wh": {
             "items": {
@@ -8859,6 +9198,50 @@
             "title": "Start Solution",
             "description": "Can be `null` or contain a previous solution (if available)."
           },
+          "forecast_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Interval Seconds",
+            "description": "Input interval: 3600 for hourly, or optimization interval for native slots."
+          },
+          "home_appliances": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HomeApplianceParameters"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Appliances",
+            "description": "List of flexible consumers (home appliances) to schedule."
+          },
+          "start_solution_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution Datetime",
+            "description": "Start of the slot that gene 0 of 'start_solution' controls, as returned with the previous solution. The warm start is shifted by the slots that have elapsed until this run. Without it, a 'start_solution' identical to the last solution of this server uses that solution's start; any other one is used unshifted.",
+            "examples": [
+              null,
+              "2026-09-14T07:45:00+02:00"
+            ]
+          },
           "pv_akku": {
             "anyOf": [
               {
@@ -9007,6 +9390,36 @@
             "title": "Electricity Price",
             "description": "Used Electricity Price, including predictions"
           },
+          "home_appliance_energy_wh": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Home Appliance Energy Wh",
+            "description": "Per-device appliance energy in watt-hours per optimization slot, keyed by device_id."
+          },
+          "feed_in_tariff": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Feed In Tariff",
+            "description": "Used feed-in tariff in \u20ac/Wh per hour, including predictions"
+          },
+          "home_appliance_running": {
+            "additionalProperties": {
+              "items": {
+                "type": "boolean"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Home Appliance Running",
+            "description": "Active run occupancy, including zero-power phases."
+          },
           "Last_Wh_pro_Stunde": {
             "items": {
               "type": "number"
@@ -9141,6 +9554,23 @@
             "description": "Deprecated: Use electricity_price instead.",
             "deprecated": true,
             "readOnly": true
+          },
+          "Feed_in_tariff": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed In Tariff",
+            "description": "Deprecated: use feed_in_tariff.",
+            "deprecated": true,
+            "readOnly": true
           }
         },
         "type": "object",
@@ -9172,7 +9602,8 @@
           "Netzeinspeisung_Wh_pro_Stunde",
           "Verluste_Pro_Stunde",
           "akku_soc_pro_stunde",
-          "Electricity_price"
+          "Electricity_price",
+          "Feed_in_tariff"
         ],
         "title": "GeneticSimulationResult",
         "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
@@ -9300,22 +9731,7 @@
           "fitness_history": {
             "anyOf": [
               {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "items": {
-                        "type": "integer"
-                      },
-                      "type": "array"
-                    },
-                    {
-                      "items": {
-                        "type": "number"
-                      },
-                      "type": "array"
-                    }
-                  ]
-                },
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -9336,6 +9752,82 @@
             ],
             "title": "Fixed Seed",
             "description": "Fixed seed."
+          },
+          "controls_start_at_now": {
+            "type": "boolean",
+            "title": "Controls Start At Now",
+            "description": "Control arrays start at the run timestamp instead of midnight.",
+            "default": false
+          },
+          "battery_grid_export_allowed": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Battery Grid Export Allowed",
+            "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
+          },
+          "terminal_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TerminalValueResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The terminal value applied to the energy left in the battery at the end of the horizon, including the curve it was read from. None when no battery is part of the optimization."
+          },
+          "battery_grid_export_factor": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Battery Grid Export Factor",
+            "description": "Array with the battery-to-grid export level per slot as factor of the rated discharge power (0.0 for no export). Empty when direct marketing is disabled; a solution without this array exports at full power wherever 'battery_grid_export_allowed' is 1."
+          },
+          "start_solution_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution Datetime",
+            "description": "Start of the slot that gene 0 of 'start_solution' controls. Send it back together with 'start_solution' so the next run can shift the warm start by the slots that have elapsed since.",
+            "examples": [
+              null,
+              "2026-09-14T07:45:00+02:00"
+            ]
+          },
+          "appliance_starts": {
+            "additionalProperties": {
+              "items": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Appliance Starts",
+            "description": "Scheduled run start times per appliance device_id as absolute local datetimes."
+          },
+          "appliance_deadline_missed": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Appliance Deadline Missed",
+            "description": "Per appliance device_id with a 'deadline_datetime': whether the scheduled run misses that deadline (or was not scheduled at all). Appliances without a deadline are not listed."
+          },
+          "interval_seconds": {
+            "type": "integer",
+            "title": "Interval Seconds",
+            "description": "Duration of one result/control slot in seconds.",
+            "default": 3600
           },
           "eautocharge_hours_float": {
             "anyOf": [
@@ -9437,8 +9929,15 @@
             ]
           },
           "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Consumption Wh",
             "description": "Energy consumption per run cycle [Wh].",
             "default": 3000,
@@ -9451,9 +9950,16 @@
             ]
           },
           "duration_h": {
-            "type": "integer",
-            "maximum": 24.0,
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 24.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Duration H",
             "description": "Run duration per cycle [h] (1-24).",
             "default": 3,
@@ -9544,6 +10050,138 @@
             "x-scope": [
               "GENETIC"
             ]
+          },
+          "load_profile_power_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Power W",
+            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts. Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
+            "examples": [
+              [
+                200.0,
+                2000.0,
+                1800.0,
+                100.0
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "load_profile_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Interval Seconds",
+            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
+            "examples": [
+              900,
+              3600
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ConsumerScheduleMode",
+            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
+            "default": "ONCE",
+            "examples": [
+              "ONCE",
+              "DAILY"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              [
+                {
+                  "duration": "3 hours",
+                  "start_time": "10:00"
+                }
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "earliest_start_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Start Datetime",
+            "description": "Absolute earliest moment the run may start. Starts before it are dropped, in addition to 'time_windows' and the horizon. A date time without timezone is read as local time. This bound is never relaxed.",
+            "examples": [
+              null,
+              "2026-07-15T20:00:00+02:00"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Datetime",
+            "description": "Absolute deadline: the complete run must have *finished* at or before this moment (e.g. end of the day, or 03:00 tonight). A date time without timezone is read as local time. See 'deadline_policy' for what happens when no start can meet it.",
+            "examples": [
+              null,
+              "2026-07-16T03:00:00+02:00"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "deadline_policy": {
+            "$ref": "#/components/schemas/ConsumerDeadlinePolicy",
+            "description": "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT runs as early as possible instead (warning logged), STRICT keeps the deadline (a ONCE consumer then fails the optimization).",
+            "default": "BEST_EFFORT",
+            "examples": [
+              "BEST_EFFORT",
+              "STRICT"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
           }
         },
         "type": "object",
@@ -9564,8 +10202,15 @@
             ]
           },
           "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Consumption Wh",
             "description": "Energy consumption per run cycle [Wh].",
             "default": 3000,
@@ -9578,9 +10223,16 @@
             ]
           },
           "duration_h": {
-            "type": "integer",
-            "maximum": 24.0,
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 24.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Duration H",
             "description": "Run duration per cycle [h] (1-24).",
             "default": 3,
@@ -9672,6 +10324,138 @@
               "GENETIC"
             ]
           },
+          "load_profile_power_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Power W",
+            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts. Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
+            "examples": [
+              [
+                200.0,
+                2000.0,
+                1800.0,
+                100.0
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "load_profile_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Interval Seconds",
+            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
+            "examples": [
+              900,
+              3600
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ConsumerScheduleMode",
+            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
+            "default": "ONCE",
+            "examples": [
+              "ONCE",
+              "DAILY"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              [
+                {
+                  "duration": "3 hours",
+                  "start_time": "10:00"
+                }
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "earliest_start_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Start Datetime",
+            "description": "Absolute earliest moment the run may start. Starts before it are dropped, in addition to 'time_windows' and the horizon. A date time without timezone is read as local time. This bound is never relaxed.",
+            "examples": [
+              null,
+              "2026-07-15T20:00:00+02:00"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Datetime",
+            "description": "Absolute deadline: the complete run must have *finished* at or before this moment (e.g. end of the day, or 03:00 tonight). A date time without timezone is read as local time. See 'deadline_policy' for what happens when no start can meet it.",
+            "examples": [
+              null,
+              "2026-07-16T03:00:00+02:00"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "deadline_policy": {
+            "$ref": "#/components/schemas/ConsumerDeadlinePolicy",
+            "description": "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT runs as early as possible instead (warning logged), STRICT keeps the deadline (a ONCE consumer then fails the optimization).",
+            "default": "BEST_EFFORT",
+            "examples": [
+              "BEST_EFFORT",
+              "STRICT"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
           "effective_num_cycles": {
             "type": "integer",
             "title": "Effective Num Cycles",
@@ -9730,8 +10514,15 @@
             ]
           },
           "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Consumption Wh",
             "description": "An integer representing the energy consumption of a household device in watt-hours.",
             "examples": [
@@ -9739,8 +10530,15 @@
             ]
           },
           "duration_h": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Duration H",
             "description": "An integer representing the usage duration of a household device in hours.",
             "examples": [
@@ -9756,6 +10554,13 @@
             "examples": [
               2
             ]
+          },
+          "completed_cycles": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Completed Cycles",
+            "description": "Cycles already completed on the first planning day.",
+            "default": 0
           },
           "min_cycle_gap_h": {
             "type": "integer",
@@ -9786,14 +10591,115 @@
                 }
               ]
             ]
+          },
+          "shared_time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Allowed recurring windows shared by every cycle; intersected with per-cycle windows."
+          },
+          "load_profile_power_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Power W",
+            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts. Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
+            "examples": [
+              [
+                200.0,
+                2000.0,
+                1800.0,
+                100.0
+              ]
+            ]
+          },
+          "load_profile_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Interval Seconds",
+            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
+            "examples": [
+              900,
+              3600
+            ]
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ConsumerScheduleMode",
+            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
+            "default": "ONCE",
+            "examples": [
+              "ONCE",
+              "DAILY"
+            ]
+          },
+          "earliest_start_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Start Datetime",
+            "description": "Absolute earliest moment the run may start. Starts before it are dropped, in addition to 'time_windows' and the horizon. A date time without timezone is read as local time. This bound is never relaxed.",
+            "examples": [
+              null,
+              "2026-07-15T20:00:00+02:00"
+            ]
+          },
+          "deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Datetime",
+            "description": "Absolute deadline: the complete run must have *finished* at or before this moment (e.g. end of the day, or 03:00 tonight). A date time without timezone is read as local time. See 'deadline_policy' for what happens when no start can meet it.",
+            "examples": [
+              null,
+              "2026-07-16T03:00:00+02:00"
+            ]
+          },
+          "deadline_policy": {
+            "$ref": "#/components/schemas/ConsumerDeadlinePolicy",
+            "description": "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT runs as early as possible instead (warning logged), STRICT keeps the deadline (a ONCE consumer then fails the optimization).",
+            "default": "BEST_EFFORT",
+            "examples": [
+              "BEST_EFFORT",
+              "STRICT"
+            ]
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "device_id",
-          "consumption_wh",
-          "duration_h"
+          "device_id"
         ],
         "title": "HomeApplianceParameters",
         "description": "Configuration for a simulated home appliance device."
@@ -13939,6 +14845,91 @@
         "title": "PydanticDateTimeSeries",
         "description": "Pydantic model for validating pandas Series with datetime index in JSON format.\n\nThis model handles Series data serialized with orient='index', where the keys are\ndatetime strings and values are the series values. Provides validation and\nconversion between JSON and pandas Series with datetime index.\n\nAttributes:\n    data (Dict[str, Any]): Dictionary mapping datetime strings to values.\n    dtype (str): The data type of the series values.\n    tz (str | None): Timezone name if the datetime index is timezone-aware."
       },
+      "RuntimeForecasts": {
+        "properties": {
+          "pv_forecast_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Forecast Wh"
+          },
+          "total_load": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Load"
+          },
+          "electricity_price_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electricity Price Per Wh"
+          },
+          "feed_in_tariff_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed In Tariff Per Wh"
+          },
+          "temperature_forecast": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Forecast"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RuntimeForecasts",
+        "description": "External series from local midnight, in slot Wh and currency per Wh.\n\nThe interval is configured in optimization.genetic.interval_sec. Omitted\nseries are read from the configured providers, preserving their raw coverage."
+      },
       "SampleQuality": {
         "properties": {
           "status": {
@@ -14467,6 +15458,359 @@
         ],
         "title": "SolarPanelBatteryParameters",
         "description": "PV battery device simulation configuration."
+      },
+      "TailDiagnostics": {
+        "properties": {
+          "slots": {
+            "type": "integer",
+            "title": "Slots",
+            "default": 0
+          },
+          "slot_hours": {
+            "type": "number",
+            "title": "Slot Hours",
+            "default": 0.0
+          },
+          "soc_grid_points": {
+            "type": "integer",
+            "title": "Soc Grid Points",
+            "default": 0
+          },
+          "min_import_price_euro_per_kwh": {
+            "type": "number",
+            "title": "Min Import Price Euro Per Kwh",
+            "default": 0.0
+          },
+          "max_import_price_euro_per_kwh": {
+            "type": "number",
+            "title": "Max Import Price Euro Per Kwh",
+            "default": 0.0
+          },
+          "min_feed_in_tariff_euro_per_kwh": {
+            "type": "number",
+            "title": "Min Feed In Tariff Euro Per Kwh",
+            "default": 0.0
+          },
+          "max_feed_in_tariff_euro_per_kwh": {
+            "type": "number",
+            "title": "Max Feed In Tariff Euro Per Kwh",
+            "default": 0.0
+          },
+          "negative_import_price_slots": {
+            "type": "integer",
+            "title": "Negative Import Price Slots",
+            "default": 0
+          },
+          "positive_battery_export_slots": {
+            "type": "integer",
+            "title": "Positive Battery Export Slots",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TailDiagnostics",
+        "description": "Forecast summary used by the deterministic tail optimization."
+      },
+      "TailPlanSlot": {
+        "properties": {
+          "slot": {
+            "type": "integer",
+            "title": "Slot"
+          },
+          "hour_from_start": {
+            "type": "number",
+            "title": "Hour From Start"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "alternative_action": {
+            "type": "string",
+            "title": "Alternative Action",
+            "default": ""
+          },
+          "decision_margin_euro": {
+            "type": "number",
+            "title": "Decision Margin Euro",
+            "default": 0.0
+          },
+          "soc_start_percentage": {
+            "type": "number",
+            "title": "Soc Start Percentage"
+          },
+          "soc_end_percentage": {
+            "type": "number",
+            "title": "Soc End Percentage"
+          },
+          "pv_wh": {
+            "type": "number",
+            "title": "Pv Wh"
+          },
+          "load_wh": {
+            "type": "number",
+            "title": "Load Wh"
+          },
+          "grid_import_wh": {
+            "type": "number",
+            "title": "Grid Import Wh"
+          },
+          "grid_export_wh": {
+            "type": "number",
+            "title": "Grid Export Wh"
+          },
+          "battery_charge_wh": {
+            "type": "number",
+            "title": "Battery Charge Wh"
+          },
+          "battery_discharge_wh": {
+            "type": "number",
+            "title": "Battery Discharge Wh"
+          },
+          "import_price_euro_per_kwh": {
+            "type": "number",
+            "title": "Import Price Euro Per Kwh"
+          },
+          "feed_in_tariff_euro_per_kwh": {
+            "type": "number",
+            "title": "Feed In Tariff Euro Per Kwh"
+          },
+          "slot_value_euro": {
+            "type": "number",
+            "title": "Slot Value Euro"
+          },
+          "remaining_value_euro": {
+            "type": "number",
+            "title": "Remaining Value Euro"
+          },
+          "ac_charge_factor": {
+            "type": "number",
+            "title": "Ac Charge Factor"
+          },
+          "dc_charge_allowed": {
+            "type": "integer",
+            "title": "Dc Charge Allowed"
+          },
+          "discharge_allowed": {
+            "type": "integer",
+            "title": "Discharge Allowed"
+          },
+          "battery_grid_export_factor": {
+            "type": "number",
+            "title": "Battery Grid Export Factor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "hour_from_start",
+          "action",
+          "soc_start_percentage",
+          "soc_end_percentage",
+          "pv_wh",
+          "load_wh",
+          "grid_import_wh",
+          "grid_export_wh",
+          "battery_charge_wh",
+          "battery_discharge_wh",
+          "import_price_euro_per_kwh",
+          "feed_in_tariff_euro_per_kwh",
+          "slot_value_euro",
+          "remaining_value_euro",
+          "ac_charge_factor",
+          "dc_charge_allowed",
+          "discharge_allowed",
+          "battery_grid_export_factor"
+        ],
+        "title": "TailPlanSlot",
+        "description": "One diagnostic slot of the optimal tail path.\n\nThese values explain the lookahead used for fitness. They are diagnostics\nonly and are never copied into the executable control arrays."
+      },
+      "TerminalValueCurve": {
+        "properties": {
+          "energy_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Energy Wh",
+            "description": "Breakpoints of usable AC energy left in the battery [Wh]."
+          },
+          "value_euro": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Value Euro",
+            "description": "Cumulative credit at each breakpoint [EUR]."
+          },
+          "operating_value_euro": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Operating Value Euro",
+            "description": "Tail operating component at each breakpoint [EUR]; empty for a proxy curve."
+          },
+          "continuation_value_euro": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Continuation Value Euro",
+            "description": "Continuation component at each breakpoint [EUR]; empty for a proxy curve."
+          },
+          "marginal_euro_per_kwh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Marginal Euro Per Kwh",
+            "description": "Marginal value of the segment that starts at each breakpoint [EUR/kWh]. May be negative or non-monotone in TAIL mode."
+          },
+          "residual_energy_wh": {
+            "type": "number",
+            "title": "Residual Energy Wh",
+            "description": "Energy up to which the curve is backed by residual load - the knee. Everything beyond it is only worth an export.",
+            "default": 0.0
+          },
+          "window_slots": {
+            "type": "integer",
+            "title": "Window Slots",
+            "description": "Number of trailing horizon slots the curve was derived from. Fewer slots than a full day mean a shorter proxy period.",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TerminalValueCurve",
+        "description": "Piecewise linear, concave value of battery energy left at the horizon.\n\n``energy_wh`` and ``value_euro`` are the breakpoints of the cumulative\nvalue, ``marginal_euro_per_kwh`` the slope of each segment. Both arrays\nstart at the origin; the curve is flat beyond its last breakpoint."
+      },
+      "TerminalValueMode": {
+        "type": "string",
+        "enum": [
+          "AUTO",
+          "FIXED"
+        ],
+        "title": "TerminalValueMode",
+        "description": "How the energy left in the battery at the end of the horizon is valued.\n\nModes\n-----\n- AUTO:\n    Solve the deterministic forecast tail and apply a conservative\n    continuation proxy at its end. Tail values may decrease with SOC when\n    empty capacity is valuable. With a zero tail, use the proxy directly.\n\n- FIXED:\n    Credit every stored kWh with the configured\n    ``terminal_value_euro_per_kwh`` (or ``preis_euro_pro_wh_akku`` of the\n    request). The historical behaviour; a value of 0 makes the optimizer\n    empty the battery towards the end of the horizon."
+      },
+      "TerminalValueResult": {
+        "properties": {
+          "control_horizon_hours": {
+            "type": "number",
+            "title": "Control Horizon Hours",
+            "default": 0
+          },
+          "requested_tail_hours": {
+            "type": "number",
+            "title": "Requested Tail Hours",
+            "default": 0
+          },
+          "effective_tail_hours": {
+            "type": "number",
+            "title": "Effective Tail Hours",
+            "default": 0
+          },
+          "tail_end_hour": {
+            "type": "number",
+            "title": "Tail End Hour",
+            "default": 0
+          },
+          "continuation_mode": {
+            "type": "string",
+            "title": "Continuation Mode",
+            "default": "FIXED"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "Terminal value mode the run used: TAIL, AUTO or FIXED.",
+            "examples": [
+              "TAIL",
+              "AUTO",
+              "FIXED"
+            ]
+          },
+          "battery_energy_wh": {
+            "type": "number",
+            "title": "Battery Energy Wh",
+            "description": "Usable AC energy left in the battery at the end of the horizon [Wh].",
+            "default": 0.0
+          },
+          "credited_euro": {
+            "type": "number",
+            "title": "Credited Euro",
+            "description": "Credit applied to the total balance [EUR].",
+            "default": 0.0
+          },
+          "tail_operating_euro": {
+            "type": "number",
+            "title": "Tail Operating Euro",
+            "description": "Optimal net cash flow within the effective tail for the selected control-end battery state [EUR].",
+            "default": 0.0
+          },
+          "continuation_value_euro": {
+            "type": "number",
+            "title": "Continuation Value Euro",
+            "description": "Continuation credit remaining at the end of the optimal tail path [EUR].",
+            "default": 0.0
+          },
+          "curve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TerminalValueCurve"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Combined tail value curve (tail operation plus continuation) read by fitness; None in FIXED mode."
+          },
+          "continuation_curve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TerminalValueCurve"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Conservative AUTO proxy constructed at the effective tail end."
+          },
+          "tail_diagnostics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TailDiagnostics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tail_plan": {
+            "items": {
+              "$ref": "#/components/schemas/TailPlanSlot"
+            },
+            "type": "array",
+            "title": "Tail Plan",
+            "description": "Diagnostic optimal battery path inside the tail. It explains the lookahead but is never an executable control plan."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why this mode applied. Empty in AUTO mode; in FIXED mode it says whether FIXED was configured or whether AUTO fell back because no curve could be derived.",
+            "default": "",
+            "examples": [
+              "",
+              "terminal_value_mode is FIXED"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "TerminalValueResult",
+        "description": "What the optimizer credited for the energy left in the battery."
       },
       "TimeWindow-Input": {
         "properties": {

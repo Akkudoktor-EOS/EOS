@@ -1,7 +1,7 @@
 from enum import StrEnum
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_ems
@@ -10,7 +10,10 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeDataFrame,
 )
 from akkudoktoreos.optimization.genetic0.genetic0settings import Genetic0CommonSettings
-from akkudoktoreos.optimization.genetic.geneticsettings import GeneticCommonSettings
+from akkudoktoreos.optimization.genetic.geneticsettings import (
+    GeneticCommonSettings,
+    normalize_genetic_settings,
+)
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 
@@ -28,6 +31,12 @@ def optimization_default_algorithm() -> OptimizationAlgorithm:
 
 class OptimizationCommonSettings(SettingsBaseModel):
     """General Optimization Configuration."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_old_genetic_settings(cls, value: Any) -> Any:
+        """Accept the feature branch's flat GENETIC settings without losing values."""
+        return normalize_genetic_settings(value)
 
     algorithm: OptimizationAlgorithm = Field(
         default_factory=optimization_default_algorithm,

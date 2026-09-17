@@ -1,0 +1,188 @@
+# ruff: noqa: S101
+
+import numpy as np
+
+from akkudoktoreos.devices.devicesabc import BatteryOperationMode
+from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+
+
+def test_battery_discharge_allowed_remains_local_load_mode(config_eos):
+    config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
+    solution = GeneticSolution
+
+    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+        ac_charge=0.0,
+        dc_charge=0.0,
+        discharge_allowed=True,
+    )
+
+    assert operation_mode == BatteryOperationMode.PEAK_SHAVING
+    assert operation_mode_factor == 1.0
+
+
+def test_battery_grid_export_signal_maps_to_grid_support_export(config_eos):
+    config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
+    solution = GeneticSolution
+
+    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+        ac_charge=0.0,
+        dc_charge=0.0,
+        discharge_allowed=False,
+        battery_grid_export_allowed=True,
+    )
+
+    assert operation_mode == BatteryOperationMode.GRID_SUPPORT_EXPORT
+    assert operation_mode_factor == 1.0
+
+
+def test_decode_charge_discharge_has_separate_battery_grid_export_state():
+    optimization = GeneticOptimization()
+    optimization.bat_possible_charge_values = [1.0]
+    optimization.optimize_dc_charge = True
+    optimization.optimize_battery_grid_export = True
+
+    ac_charge, dc_charge, discharge, battery_grid_export = optimization.decode_charge_discharge(
+        np.array([5])
+    )
+
+    assert ac_charge.tolist() == [0.0]
+    assert dc_charge.tolist() == [0]
+    assert discharge.tolist() == [0]
+    assert battery_grid_export.tolist() == [1]
+
+
+def test_decode_charge_discharge_has_self_consumption_state_after_legacy_export():
+    optimization = GeneticOptimization()
+    optimization.bat_possible_charge_values = [1.0]
+    optimization.optimize_dc_charge = True
+    optimization.optimize_battery_grid_export = True
+
+    layout = optimization._battery_state_layout()
+    ac_charge, dc_charge, discharge, battery_grid_export = optimization.decode_charge_discharge(
+        np.array([6])
+    )
+
+    assert layout.total_states == 7
+    assert layout.grid_export_state == 5
+    assert layout.self_consumption_state == 6
+    assert ac_charge.tolist() == [0.0]
+    assert dc_charge.tolist() == [1]
+    assert discharge.tolist() == [1]
+    assert battery_grid_export.tolist() == [0]
+
+
+def test_graded_grid_export_states_decode_to_rates():
+    """Each configured export rate gets its own state; state 5 stays full power."""
+    optimization = GeneticOptimization()
+    optimization.bat_possible_charge_values = [1.0]
+    optimization.bat_possible_grid_export_values = [1.0, 0.5, 0.25]
+    optimization.optimize_dc_charge = True
+    optimization.optimize_battery_grid_export = True
+
+    layout = optimization._battery_state_layout()
+
+    assert layout.grid_export_states == (5, 6, 7)
+    # The full-power state keeps its index, so existing seeds stay valid.
+    assert layout.grid_export_state == 5
+    assert layout.self_consumption_state == 8
+    assert layout.total_states == 9
+
+    _, _, _, battery_grid_export = optimization.decode_charge_discharge(np.array([0, 5, 6, 7]))
+    assert battery_grid_export.tolist() == [0.0, 1.0, 0.5, 0.25]
+
+
+def test_single_export_rate_keeps_all_or_nothing_layout():
+    """Without configured rates the state space is the one from before grading."""
+    optimization = GeneticOptimization()
+    optimization.bat_possible_charge_values = [1.0]
+    optimization.optimize_dc_charge = True
+    optimization.optimize_battery_grid_export = True
+
+    layout = optimization._battery_state_layout()
+
+    assert layout.grid_export_states == (5,)
+    assert layout.total_states == 7
+
+
+def test_battery_grid_export_factor_becomes_operation_factor(config_eos):
+    """A partial export level is reported as the GRID_SUPPORT_EXPORT factor."""
+    config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
+    solution = GeneticSolution
+
+    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+        ac_charge=0.0,
+        dc_charge=0.0,
+        discharge_allowed=False,
+        battery_grid_export_allowed=True,
+        battery_grid_export_factor=0.25,
+    )
+
+    assert operation_mode == BatteryOperationMode.GRID_SUPPORT_EXPORT
+    assert operation_mode_factor == 0.25
+
+
+def test_disjoint_cycle_masks_keep_feasible_non_deadline_order(config_eos):
+    from akkudoktoreos.core.coreabc import get_ems
+    from akkudoktoreos.optimization.genetic.geneticparams import (
+        GeneticOptimizationParameters,
+    )
+    from akkudoktoreos.utils.datetimeutil import to_datetime
+
+    config_eos.merge_settings_from_dict(
+        {
+            "optimization": {
+                "genetic": {
+                    "interval_sec": 900,
+                    "horizon_hours": 2,
+                    "tail_horizon_hours": 0,
+                    "terminal_value_mode": "FIXED",
+                }
+            }
+        }
+    )
+    get_ems(init=True).set_start_datetime(
+        to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
+    )
+    params = GeneticOptimizationParameters.model_validate(
+        {
+            "ems": {
+                "pv_forecast_wh": [0.0] * 8,
+                "total_load": [0.0] * 8,
+                "electricity_price_per_wh": [0.0003] * 8,
+                "feed_in_tariff_per_wh": 0.0,
+                "price_per_wh_battery": 0.0,
+            },
+            "forecast_interval_seconds": 900,
+            "pv_battery": None,
+            "ev": None,
+            "inverter": {"device_id": "inv", "max_power_wh": 1000},
+            "home_appliances": [
+                {
+                    "device_id": "washer",
+                    "num_cycles": 2,
+                    "load_profile_power_w": [1000.0, 1000.0],
+                    "load_profile_interval_seconds": 900,
+                    "time_windows": {
+                        "windows": [
+                            {"start_time": "01:00", "duration": "30 minutes", "value": 0},
+                            {"start_time": "00:00", "duration": "30 minutes", "value": 1},
+                            {"start_time": "01:15", "duration": "30 minutes", "value": 1},
+                        ]
+                    },
+                }
+            ],
+        }
+    )
+    optimizer = GeneticOptimization(fixed_seed=42)
+    solution = optimizer.optimize_ems(params, ngen=1, individuals=6)
+    assert [(item.hour, item.minute) for item in solution.appliance_starts["washer"]] == [
+        (0, 0),
+        (1, 0),
+    ]
+    assert sum(solution.result.home_appliance_energy_wh["washer"]) == 1000.0
+    # Even a candidate choosing the second disconnected window repairs to the
+    # feasible order, without dropping a configured run or crossing its mask.
+    genes = [0, 1]
+    assert optimizer._decode_appliance_starts(genes) == {0: [0, 4]}
+    assert genes == [0, 0]

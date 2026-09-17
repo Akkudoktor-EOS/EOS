@@ -67,7 +67,9 @@
                        0.5,
                        0.75,
                        1.0
-                   ]
+                   ],
+                   "min_soc_deadline_datetime": null,
+                   "min_soc_max_duration_h": null
                }
            },
            "max_batteries": 1,
@@ -102,7 +104,9 @@
                        0.5,
                        0.75,
                        1.0
-                   ]
+                   ],
+                   "min_soc_deadline_datetime": null,
+                   "min_soc_max_duration_h": null
                }
            },
            "max_electric_vehicles": 1,
@@ -116,7 +120,14 @@
                    "num_cycles": 1,
                    "cycle_time_windows": null,
                    "min_cycle_gap_h": 0,
-                   "cycles_completed_measurement_key": null
+                   "cycles_completed_measurement_key": null,
+                   "load_profile_power_w": null,
+                   "load_profile_interval_seconds": null,
+                   "schedule_mode": "ONCE",
+                   "time_windows": null,
+                   "earliest_start_datetime": null,
+                   "deadline_datetime": null,
+                   "deadline_policy": "BEST_EFFORT"
                }
            },
            "max_home_appliances": 3
@@ -172,6 +183,7 @@
            "mode": "OPTIMIZATION"
        },
        "feedintariff": {
+           "direct_marketing_enabled": false,
            "provider": "FeedInTariffFixed",
            "feedintarifffixed": {
                "feed_in_tariff_amt_kwh": {
@@ -245,6 +257,11 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "measurement_max_age_seconds": 300,
+               "tail_horizon_hours": 48,
+               "terminal_value_mode": "AUTO",
+               "terminal_value_euro_per_kwh": 0.0,
+               "terminal_value_window_hours": 24,
                "penalties": {
                    "ev_soc_miss": 10
                }

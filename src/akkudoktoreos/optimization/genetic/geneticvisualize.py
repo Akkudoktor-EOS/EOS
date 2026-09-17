@@ -27,7 +27,11 @@ class GeneticVisualizationReport(ConfigMixin):
     def __init__(
         self,
         version: str = "0.0.1",
+        interval_seconds: int = 3600,
     ) -> None:
+        if interval_seconds <= 0:
+            raise ValueError("Report interval must be positive")
+        self.interval_seconds = interval_seconds
         # Initialize the report with empty groups
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
         self.current_group: list[
@@ -129,12 +133,16 @@ class GeneticVisualizationReport(ConfigMixin):
         line_styles: Optional[list[str]] = None,
         x2label: Optional[Union[str, None]] = "Hours Since Start",
     ) -> None:
-        """Create a line chart and add it to the current group."""
+        """Plot interval values at their start timestamps without energy rescaling."""
+        if not y_list or not len(y_list[0]):
+            return
+        if any(len(values) != len(y_list[0]) for values in y_list):
+            raise ValueError("Date chart series must cover the same intervals")
 
         def chart() -> None:
             timestamps = [
-                start_date.add(hours=i) for i in range(len(y_list[0]))
-            ]  # 840 timestamps at 1-hour intervals
+                start_date.add(seconds=i * self.interval_seconds) for i in range(len(y_list[0]))
+            ]
 
             for idx, y_data in enumerate(y_list):
                 label = labels[idx] if labels else None  # Chart label
@@ -150,18 +158,14 @@ class GeneticVisualizationReport(ConfigMixin):
 
             # Format the time axis
             plt.gca().xaxis.set_major_formatter(
-                mdates.DateFormatter("%Y-%m-%d", tz=self.config.general.timezone)
+                mdates.DateFormatter("%Y-%m-%d", tz=start_date.tzinfo)
             )  # Show date and time
             plt.gca().xaxis.set_major_locator(
-                mdates.DayLocator(interval=1, tz=self.config.general.timezone)
+                mdates.DayLocator(interval=1, tz=start_date.tzinfo)
             )  # Major ticks every day
-            plt.gca().xaxis.set_minor_locator(
-                mdates.HourLocator(interval=2, tz=self.config.general.timezone)
-            )
+            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=2, tz=start_date.tzinfo))
             # Minor ticks every 6 hours
-            plt.gca().xaxis.set_minor_formatter(
-                mdates.DateFormatter("%H", tz=self.config.general.timezone)
-            )
+            plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H", tz=start_date.tzinfo))
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
             # Auto-format the x-axis for readability
 
@@ -203,10 +207,12 @@ class GeneticVisualizationReport(ConfigMixin):
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
             # ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
             ax2.set_xticks(
-                mdates.date2num(timestamps[:: len(timestamps) // 12])
+                mdates.date2num(timestamps[:: max(1, len(timestamps) // 12)])
             )  # Select 10 evenly spaced ticks
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
-            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 12]])
+            ax2.set_xticklabels(
+                [f"{h:g}" for h in hours_since_start[:: max(1, len(timestamps) // 12)]]
+            )
             if x2label:
                 ax2.set_xlabel(x2label)
 
@@ -455,14 +461,18 @@ def genetic_prepare_visualize(
 ) -> bytes:
     global debug_visualize
 
-    report = GeneticVisualizationReport()
-    next_full_hour_date = get_ems().start_datetime
-    start_hour = solution.start_hour
+    report = GeneticVisualizationReport(interval_seconds=solution.interval_seconds)
+    # New solutions own their timeline. The fallback supports historical hourly solutions.
+    start_datetime = solution.start_solution_datetime or get_ems().start_datetime
+    start_offset = 0 if solution.controls_start_at_now else solution.start_hour
+    control_slots = len(solution.result.load_wh_per_hour)
+    end_offset = start_offset + control_slots
+    # Forecasts can include a diagnostic tail; report executable intervals here.
     # Group 1:
     report.create_line_chart_date(
-        next_full_hour_date,
+        start_datetime,
         [
-            solution.parameters.ems.total_load[start_hour:],
+            solution.parameters.ems.total_load[start_offset:end_offset],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -470,9 +480,9 @@ def genetic_prepare_visualize(
         labels=["Total Load (Wh)"],
     )
     report.create_line_chart_date(
-        next_full_hour_date,
+        start_datetime,
         [
-            solution.parameters.ems.pv_forecast_wh[start_hour:],
+            solution.parameters.ems.pv_forecast_wh[start_offset:end_offset],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -480,14 +490,11 @@ def genetic_prepare_visualize(
     )
 
     report.create_line_chart_date(
-        next_full_hour_date,
+        start_datetime,
         [
-            np.full(
-                len(solution.parameters.ems.total_load) - start_hour,
-                solution.parameters.ems.feed_in_tariff_per_wh[start_hour:]
-                if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
-                else solution.parameters.ems.feed_in_tariff_per_wh,
-            )
+            np.asarray(solution.parameters.ems.feed_in_tariff_per_wh[start_offset:end_offset])
+            if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
+            else np.full(control_slots, solution.parameters.ems.feed_in_tariff_per_wh)
         ],
         title="Remuneration",
         # xlabel="Hours", # not enough space
@@ -496,9 +503,9 @@ def genetic_prepare_visualize(
     )
     if solution.parameters.temperature_forecast:
         report.create_line_chart_date(
-            next_full_hour_date,
+            start_datetime,
             [
-                solution.parameters.temperature_forecast[start_hour:],
+                solution.parameters.temperature_forecast[start_offset:end_offset],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -509,7 +516,7 @@ def genetic_prepare_visualize(
 
     # Group 2:
     report.create_line_chart_date(
-        start_date=next_full_hour_date,  # start_date
+        start_date=start_datetime,  # start_date
         y_list=[
             solution.result.load_wh_per_hour,
             solution.result.home_appliance_wh_per_hour,
@@ -517,7 +524,7 @@ def genetic_prepare_visualize(
             solution.result.grid_consumption_wh_per_hour,
             solution.result.losses_per_hour,
         ],
-        title="Energy Flow per Hour",
+        title="Energy Flow per Interval",
         # xlabel="Date", # not enough space
         ylabel="Energy (Wh)",
         labels=[
@@ -534,9 +541,9 @@ def genetic_prepare_visualize(
 
     # Group 3:
     report.create_line_chart_date(
-        start_date=next_full_hour_date,
+        start_date=start_datetime,
         y_list=[solution.result.battery_soc_per_hour, solution.result.ev_soc_per_hour],
-        title="Battery SOC",
+        title="Battery SOC at Interval Start",
         # xlabel="Date", # not enough space
         ylabel="%",
         labels=[
@@ -546,54 +553,60 @@ def genetic_prepare_visualize(
         markers=["o", "x"],
     )
     report.create_line_chart_date(
-        start_date=next_full_hour_date,  # start_date
-        y_list=[solution.parameters.ems.electricity_price_per_wh[start_hour:]],
+        start_date=start_datetime,  # start_date
+        y_list=[solution.parameters.ems.electricity_price_per_wh[start_offset:end_offset]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (amount/Wh)",
         x2label=None,  # not enough space
     )
 
-    labels = list(
-        item
-        for sublist in zip(
-            list(str(i) for i in range(0, 23, 2)), list(str(" ") for i in range(0, 23, 2))
-        )
-        for item in sublist
-    )
-    labels = labels[start_hour:] + labels
-
-    report.create_bar_chart(
-        labels=labels,
-        values_list=[
-            solution.ac_charge[start_hour:],
-            solution.dc_charge[start_hour:],
-            solution.discharge_allowed[start_hour:],
-        ],
-        title="AC/DC Charging and Discharge Overview",
-        ylabel="Relative Power (0-1) / Discharge (0 or 1)",
-        label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
-        colors=["blue", "green", "red"],
-        bottom=3,
-        xlabels=labels,
+    controls: list[Union[np.ndarray, list[Optional[float]], list[float]]] = [
+        solution.ac_charge[start_offset:end_offset],
+        solution.dc_charge[start_offset:end_offset],
+        np.asarray(solution.discharge_allowed[start_offset:end_offset]),
+    ]
+    control_labels = ["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"]
+    if solution.battery_grid_export_allowed:
+        controls.append(np.asarray(solution.battery_grid_export_allowed[start_offset:end_offset]))
+        control_labels.append("Battery Grid Export Allowed")
+    if solution.battery_grid_export_factor:
+        controls.append(solution.battery_grid_export_factor[start_offset:end_offset])
+        control_labels.append("Battery Grid Export (relative)")
+    report.create_line_chart_date(
+        start_datetime,
+        controls,
+        title="Executable Battery Controls",
+        ylabel="Relative Power / Allowed (0-1)",
+        labels=control_labels,
     )
     report.finalize_group()
 
     # Group 4:
 
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        start_datetime,  # start_date
         [
             solution.result.costs_per_hour,
             solution.result.revenue_per_hour,
         ],
-        title="Financial Balance per Hour",
+        title="Financial Balance per Interval",
         # xlabel="Date", # not enough space
         ylabel="Amount",
         labels=["Costs", "Revenue"],
     )
 
     extra_data = solution.extra_data
+    if extra_data:
+        # Historical native runs used German diagnostic keys. Prefer current public keys.
+        extra_data = {
+            key: extra_data.get(key, extra_data.get(alias, []))
+            for key, alias in (
+                ("losses", "verluste"),
+                ("balance", "bilanz"),
+                ("constraints", "nebenbedingung"),
+            )
+        }
     if extra_data:
         report.create_scatter_plot(
             x=np.array(extra_data["losses"]),
@@ -683,11 +696,126 @@ def genetic_prepare_visualize(
             )
             report.finalize_group()
 
+    _add_solution_diagnostics(report, solution, start_datetime)
+
     # Generate the PDF report
     pdf = report.generate_pdf()
 
     # Return pdf (a bytes object)
     return pdf
+
+
+def _add_solution_diagnostics(
+    report: GeneticVisualizationReport, solution: GeneticSolution, start: DateTime
+) -> None:
+    """Render the retained run diagnostics; tail actions are never executable controls."""
+    report.add_text_page(
+        f"Run start: {start.isoformat()}. Interval: {report.interval_seconds} seconds. "
+        "Energy values are Wh per interval; prices are amount/Wh. "
+        "Timeline positions mark interval starts. Battery SOC shows the beginning of each interval.",
+        title="GENETIC Run",
+    )
+    report.finalize_group()
+    device_ids = sorted(
+        solution.result.home_appliance_energy_wh.keys()
+        | solution.appliance_starts.keys()
+        | solution.appliance_deadline_missed.keys()
+    )
+    for device_id in device_ids:
+        energy = solution.result.home_appliance_energy_wh.get(device_id, [])
+        report.create_line_chart_date(
+            start,
+            [energy],
+            title=f"Flexible Consumer: {device_id}",
+            ylabel="Energy (Wh per interval)",
+        )
+        if energy:
+            report.finalize_group()
+        starts = ", ".join(
+            value.isoformat() for value in solution.appliance_starts.get(device_id, [])
+        )
+        report.add_text_page(
+            f"Scheduled starts: {starts or 'none'}. "
+            f"Deadline missed: {solution.appliance_deadline_missed.get(device_id, False)}.",
+            title=f"Flexible Consumer Schedule: {device_id}",
+        )
+        report.finalize_group()
+    terminal = solution.terminal_value
+    if terminal is None:
+        return
+    report.add_text_page(
+        f"Mode: {terminal.mode}. Reason: {terminal.reason or 'none'}. "
+        f"Control horizon: {terminal.control_horizon_hours:g} h. "
+        f"Requested tail: {terminal.requested_tail_hours:g} h; "
+        f"effective tail: {terminal.effective_tail_hours:g} h; "
+        f"tail end: {terminal.tail_end_hour:g} h after run start. "
+        f"Battery usable AC energy at control end: {terminal.battery_energy_wh:g} Wh. "
+        f"Credited terminal value: {terminal.credited_euro:g} EUR. "
+        f"Tail operating value: {terminal.tail_operating_euro:g} EUR. "
+        f"Continuation value: {terminal.continuation_value_euro:g} EUR "
+        f"({terminal.continuation_mode}). "
+        "Tail results are diagnostic lookahead only, not executable controls. "
+        "The terminal credit is a modeled residual value, not realized revenue.",
+        title="Terminal Value and Tail Diagnostics",
+    )
+    report.finalize_group()
+    if terminal.tail_diagnostics is not None:
+        report.add_json_page(
+            terminal.tail_diagnostics.model_dump(), title="Tail Forecast Summary", fontsize=10
+        )
+        report.finalize_group()
+    curve = terminal.curve
+    if curve is not None and curve.energy_wh:
+
+        def value_chart() -> None:
+            plt.plot(curve.energy_wh, curve.value_euro, label="Terminal credit")
+            plt.scatter(
+                [terminal.battery_energy_wh], [terminal.credited_euro], label="Selected state"
+            )
+            plt.xlabel("Usable AC Battery Energy (Wh)")
+            plt.ylabel("Terminal Value (EUR)")
+            plt.title("Residual Battery Value Curve")
+            plt.legend()
+            plt.grid(True)
+
+        report.add_chart_to_group(value_chart, "Residual Battery Value Curve")
+        report.finalize_group()
+    if terminal.tail_plan:
+        # Use explicit hour offsets, which also preserve a clipped tail's true start.
+        plan = terminal.tail_plan
+
+        def tail_chart() -> None:
+            dates = [start.add(seconds=slot.hour_from_start * 3600) for slot in plan]
+            for field, label in (
+                ("grid_import_wh", "Grid import"),
+                ("grid_export_wh", "Grid export"),
+                ("battery_charge_wh", "Battery charge"),
+                ("battery_discharge_wh", "Battery discharge"),
+            ):
+                plt.plot(
+                    mdates.date2num(dates),
+                    [getattr(slot, field) for slot in plan],
+                    label=label,
+                    marker="o" if len(plan) == 1 else None,
+                )
+            if len(plan) == 1:
+                # A lone sample otherwise disappears and datetime autoscaling spans years.
+                half_interval = report.interval_seconds / 2
+                plt.xlim(
+                    mdates.date2num(dates[0].subtract(seconds=half_interval)),
+                    mdates.date2num(dates[0].add(seconds=half_interval)),
+                )
+            plt.gca().xaxis.set_major_formatter(
+                mdates.DateFormatter("%m-%d %H:%M", tz=start.tzinfo)
+            )
+            plt.xlabel("Interval Start (diagnostic only)")
+            plt.ylabel("Energy (Wh per interval)")
+            plt.title("Tail Lookahead: Not Executable Controls")
+            plt.legend()
+            plt.grid(True)
+
+        report.add_chart_to_group(tail_chart, "Tail Lookahead")
+        report.finalize_group()
 
 
 def genetic_generate_example_report(filename: str = "example_report.pdf") -> None:
