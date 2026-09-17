@@ -2376,20 +2376,44 @@ def _sanitize_redirect_path(path: str) -> Optional[str]:
     return "/".join(parts)
 
 
-def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
-    # Path is not for EOSdash
-    if not (path.startswith("eosdash") or path == ""):
-        host = get_config().server.eosdash_host
-        if host is None:
-            host = get_config().server.host
-        host = str(host)
-        port = get_config().server.eosdash_port
-        if port is None:
-            port = 8504
+def _eosdash_base_url(request: Request) -> str:
+    """Base URL of EOSdash as reachable by the client that sent `request`.
+
+    The EOSdash bind address must not be used here. A bind address is server local
+    (`127.0.0.1` means the client machine for a remote browser, `0.0.0.0` is no address at
+    all), so it breaks every remote client and every reverse proxy setup. The host the
+    client used to reach EOS is the one address known to be reachable for that client, so
+    only the port is replaced by the EOSdash port. A reverse proxy may override host and
+    scheme by the standard forwarded headers.
+
+    Args:
+        request: The incoming request to derive scheme and host from.
+
+    Returns:
+        str: Base URL of EOSdash, without trailing slash.
+    """
+    port = get_config().server.eosdash_port or 8504
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+    # X-Forwarded-Host may carry a port and a list of proxy hops - take the first entry.
+    forwarded_host = request.headers.get("x-forwarded-host", "").split(",")[0].strip()
+    host = forwarded_host.rsplit(":", 1)[0] if forwarded_host else (request.url.hostname or "")
+    host = host.strip("[]")
+    if not host or host == "0.0.0.0":  # noqa: S104
+        # No usable host in the request - fall back to the configured bind address.
+        host = str(get_config().server.eosdash_host or get_config().server.host)
         if host == "0.0.0.0":  # noqa: S104
             # Use IP of EOS host
             host = get_host_ip()
-        url = f"http://{host}:{port}/"
+    if ":" in host:
+        # IPv6 literal
+        host = f"[{host}]"
+    return f"{scheme}://{host}:{port}"
+
+
+def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
+    # Path is not for EOSdash
+    if not (path.startswith("eosdash") or path == ""):
+        url = f"{_eosdash_base_url(request)}/"
         error_page = create_error_page(
             status_code="404",
             error_title="Page Not Found",
@@ -2402,14 +2426,9 @@ Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
         )
         return HTMLResponse(content=error_page, status_code=404)
 
-    host = str(get_config().server.eosdash_host)
-    if host == "0.0.0.0":  # noqa: S104
-        # Use IP of EOS host
-        host = get_host_ip()
-    if host and get_config().server.eosdash_port:
-        base_url = f"http://{host}:{get_config().server.eosdash_port}"
+    if get_config().server.eosdash_port:
         safe_path = _sanitize_redirect_path(path) or ""
-        url = f"{base_url}/{safe_path}"
+        url = f"{_eosdash_base_url(request)}/{safe_path}"
         return RedirectResponse(url=url, status_code=303)
 
     # Redirect the root URL to the site map

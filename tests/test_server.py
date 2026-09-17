@@ -369,3 +369,59 @@ class TestServerWithEnv:
 
         # Assure config got configuration from environment
         assert config_json["server"]["eosdash_port"] == int(self.eos_env["EOS_SERVER__EOSDASH_PORT"])
+
+
+class TestEosdashRedirect:
+    """Redirects to EOSdash must target an address the client can reach.
+
+    See https://github.com/Akkudoktor-EOS/EOS/issues/1320: the redirect was built from
+    the EOSdash bind address, so remote clients were sent to their own localhost.
+    """
+
+    @pytest.fixture
+    def client(self, config_eos):
+        from fastapi.testclient import TestClient
+
+        from akkudoktoreos.server.eos import app
+
+        config_eos.server.eosdash_host = "127.0.0.1"
+        config_eos.server.eosdash_port = 8504
+        return TestClient(app, follow_redirects=False)
+
+    def test_root_redirect_uses_request_host(self, client):
+        """The root redirect points to the host the client used, not to the bind address."""
+        response = client.get("/", headers={"Host": "eos.example.com"})
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == "http://eos.example.com:8504/"
+
+    def test_root_redirect_honours_forwarded_headers(self, client):
+        """Forwarded headers of a reverse proxy define scheme and host of the redirect."""
+        response = client.get(
+            "/",
+            headers={
+                "Host": "eos-internal",
+                "X-Forwarded-Host": "eos.example.com",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == "https://eos.example.com:8504/"
+
+    def test_root_redirect_keeps_local_host(self, client):
+        """Local access still redirects to the local EOSdash."""
+        response = client.get("/", headers={"Host": "127.0.0.1:8503"})
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == "http://127.0.0.1:8504/"
+
+    def test_eosdash_path_redirect_keeps_path(self, client):
+        """The path is preserved when redirecting to EOSdash."""
+        response = client.get("/eosdash/health", headers={"Host": "eos.example.com"})
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == "http://eos.example.com:8504/eosdash/health"
+
+    def test_unknown_path_error_page_links_to_request_host(self, client):
+        """The 404 page links to EOSdash on the host the client used."""
+        response = client.get("/no-such-page", headers={"Host": "eos.example.com"})
+        assert response.status_code == HTTPStatus.NOT_FOUND
+        assert "http://eos.example.com:8504/" in response.text
+        assert "127.0.0.1:8504" not in response.text
