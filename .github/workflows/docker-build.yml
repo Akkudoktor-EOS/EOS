@@ -9,6 +9,9 @@ on:
       - 'main'
     tags:
       - 'v*'
+      # Source-only RCs are explicitly checked out for testing.
+      # Never let an RC tag publish Docker aliases or change existing installations.
+      - '!v*rc*'
   pull_request:
     branches:
       - '**'

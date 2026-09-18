@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+## 0.4.0rc1 - 2026-09-18
+
+This is a source-only release candidate for local testing, not a stable release.
+Check out tag `v0.4.0rc1` to test this exact version. No Docker images are published
+for this candidate; existing Docker and Home Assistant installations are not updated.
+
 ### Energy planning update: read before upgrading
 
 This update brings the complete GENETIC energy planner to the current EOS interfaces.
@@ -24,7 +30,7 @@ Automatic configuration migration handles supported old settings, but cannot rew
 Home Assistant automations, Node-RED flows or custom scripts. Back up configuration and
 stored data, then check device IDs, tariff units, fresh battery measurements and the
 resulting plans. Read the [upgrade guide](docs/akkudoktoreos/upgrade-genetic.md) for the
-compatibility changes and a short test procedure. These changes are not yet a tagged release.
+compatibility changes and a short test procedure before testing this candidate.
 
 ### Added
 

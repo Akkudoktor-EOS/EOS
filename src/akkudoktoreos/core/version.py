@@ -23,7 +23,7 @@ from typing import Optional
 
 # For development add `.dev` to previous release
 # For release omit `.dev`.
-VERSION_BASE = "0.3.0.dev"
+VERSION_BASE = "0.4.0rc1"
 
 # Project hash of relevant files
 HASH_EOS = ""
@@ -335,6 +335,7 @@ __version__ = _version_calculate()
 VERSION_RE = re.compile(
     r"""
     ^(?P<base>\d+\.\d+\.\d+)       # x.y.z
+    (?P<rc>rc[1-9]\d*)?            # optional PEP 440 release candidate
     (?:\.dev                       # literal '.dev' for development versions
         (?P<date>\d{8})            # 8-digit date: YYMMDDHH
         (?P<hash>[a-f0-9]+)?       # hex hash
@@ -350,6 +351,7 @@ def version() -> dict[str, Optional[str]]:
 
     The version string shall be of the form:
         x.y.z
+        x.y.zrcN
         x.y.z.dev
         x.y.z.dev<date><hash>
 
