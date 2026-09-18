@@ -10,6 +10,7 @@ import traceback
 from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
+from urllib.parse import urlsplit
 
 import psutil
 import uvicorn
@@ -2377,35 +2378,27 @@ def _sanitize_redirect_path(path: str) -> Optional[str]:
 
 
 def _eosdash_base_url(request: Request) -> str:
-    """Base URL of EOSdash as reachable by the client that sent `request`.
+    """Return the configured public dashboard URL or a direct-access URL.
 
-    The EOSdash bind address must not be used here. A bind address is server local
-    (`127.0.0.1` means the client machine for a remote browser, `0.0.0.0` is no address at
-    all), so it breaks every remote client and every reverse proxy setup. The host the
-    client used to reach EOS is the one address known to be reachable for that client, so
-    only the port is replaced by the EOSdash port. A reverse proxy may override host and
-    scheme by the standard forwarded headers.
-
-    Args:
-        request: The incoming request to derive scheme and host from.
-
-    Returns:
-        str: Base URL of EOSdash, without trailing slash.
+    A proxy's public dashboard route cannot be inferred from its EOS API route.
+    Configure eosdash_public_url for TLS termination, port mappings or prefixes.
     """
-    port = get_config().server.eosdash_port or 8504
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
-    # X-Forwarded-Host may carry a port and a list of proxy hops - take the first entry.
-    forwarded_host = request.headers.get("x-forwarded-host", "").split(",")[0].strip()
-    host = forwarded_host.rsplit(":", 1)[0] if forwarded_host else (request.url.hostname or "")
-    host = host.strip("[]")
-    if not host or host == "0.0.0.0":  # noqa: S104
-        # No usable host in the request - fall back to the configured bind address.
-        host = str(get_config().server.eosdash_host or get_config().server.host)
-        if host == "0.0.0.0":  # noqa: S104
-            # Use IP of EOS host
+    settings = get_config().server
+    if settings.eosdash_public_url:
+        return settings.eosdash_public_url.rstrip("/")
+    port = settings.eosdash_port or 8504
+    scheme = request.url.scheme
+    if scheme not in ("http", "https"):
+        scheme = "http"
+    # Request.url honours the Host header and parses bracketed IPv6 correctly.
+    # Proxy scheme handling belongs to the ASGI server's trusted proxy middleware;
+    # do not trust arbitrary raw X-Forwarded-* headers here.
+    host = urlsplit(str(request.url)).hostname or ""
+    if not host or host in ("0.0.0.0", "::"):  # noqa: S104
+        host = str(settings.eosdash_host or settings.host)
+        if host in ("0.0.0.0", "::"):  # noqa: S104
             host = get_host_ip()
     if ":" in host:
-        # IPv6 literal
         host = f"[{host}]"
     return f"{scheme}://{host}:{port}"
 

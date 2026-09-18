@@ -396,8 +396,8 @@ class TestEosdashRedirect:
         assert response.status_code == HTTPStatus.SEE_OTHER
         assert response.headers["location"] == "http://eos.example.com:8504/"
 
-    def test_root_redirect_honours_forwarded_headers(self, client):
-        """Forwarded headers of a reverse proxy define scheme and host of the redirect."""
+    def test_root_redirect_ignores_untrusted_forwarded_headers(self, client):
+        """Raw forwarding headers cannot override the public dashboard address."""
         response = client.get(
             "/",
             headers={
@@ -407,7 +407,7 @@ class TestEosdashRedirect:
             },
         )
         assert response.status_code == HTTPStatus.SEE_OTHER
-        assert response.headers["location"] == "https://eos.example.com:8504/"
+        assert response.headers["location"] == "http://eos-internal:8504/"
 
     def test_root_redirect_keeps_local_host(self, client):
         """Local access still redirects to the local EOSdash."""
@@ -430,3 +430,49 @@ class TestEosdashRedirect:
         hrefs = re.findall(r'href="([^"]*)"', html.unescape(response.text))
         assert "http://eos.example.com:8504/" in hrefs
         assert "http://127.0.0.1:8504/" not in hrefs
+
+    @pytest.mark.parametrize("host", ["[2001:db8::1234]", "[2001:db8::1234]:8503"])
+    def test_direct_ipv6_preserves_address(self, client, host):
+        response = client.get("/", headers={"Host": host})
+        assert response.headers["location"] == "http://[2001:db8::1234]:8504/"
+
+    @pytest.mark.parametrize(
+        "public_url",
+        [
+            "https://energy.example.com",
+            "https://energy.example.com:443",
+            "https://energy.example.com:9443/dashboard",
+            "https://[2001:db8::1234]/dashboard",
+        ],
+    )
+    def test_public_url_preserves_proxy_port_and_prefix(self, client, config_eos, public_url):
+        config_eos.server.eosdash_public_url = public_url + "/"
+        headers = {"Host": "internal:8503", "X-Forwarded-Host": "wrong.example"}
+        response = client.get("/", headers=headers)
+        assert response.headers["location"] == public_url + "/"
+        response = client.get("/eosdash/health", headers=headers)
+        assert response.headers["location"] == public_url + "/eosdash/health"
+        response = client.get("/missing", headers=headers)
+        hrefs = re.findall(r'href="([^"]*)"', html.unescape(response.text))
+        assert public_url + "/" in hrefs
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "",
+            "/dashboard",
+            "//example.com",
+            "ftp://example.com",
+            "https://user:password@example.com",
+            "https://example.com?token=a",
+            "https://example.com#fragment",
+            "https://example.com:99999",
+            "https://example.com:0",
+            "https://example.com\\evil",
+            "https://example.com/\nheader",
+            "https://example.com/a b",
+        ],
+    )
+    def test_invalid_public_url_rejected(self, config_eos, value):
+        with pytest.raises(ValueError):
+            config_eos.server.eosdash_public_url = value
