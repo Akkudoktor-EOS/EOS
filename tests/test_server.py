@@ -18,6 +18,7 @@ from akkudoktoreos.core.version import __version__
 from akkudoktoreos.server.server import (
     ServerCommonSettings,
     get_default_host,
+    get_host_ip,
     get_default_port,
     get_host_ip,
     wait_for_port_free,
