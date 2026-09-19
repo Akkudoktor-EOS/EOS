@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import time
 from http import HTTPStatus
 from pathlib import Path
@@ -18,6 +19,7 @@ from akkudoktoreos.server.server import (
     ServerCommonSettings,
     get_default_host,
     get_default_port,
+    get_host_ip,
     wait_for_port_free,
 )
 
@@ -56,23 +58,27 @@ class TestServerSettingsValidation:
 
     def test_ha_addon_default_ports_ok(self, config_eos, monkeypatch):
         """Default ports are accepted in HA addon mode."""
-        monkeypatch.setattr('akkudoktoreos.server.server.is_home_assistant_addon', lambda: True)
-        assert config_eos.server.port == get_default_port()           # 8503
+        monkeypatch.setattr("akkudoktoreos.server.server.is_home_assistant_addon", lambda: True)
+        assert config_eos.server.port == get_default_port()  # 8503
         assert config_eos.server.eosdash_port == get_default_port() + 1  # 8504
 
     def test_server_port_restriction_in_ha_addon(self, config_eos, monkeypatch):
         """Server port must be the default (8503) in HA addon mode."""
-        monkeypatch.setattr('akkudoktoreos.server.server.is_home_assistant_addon', lambda: True)
+        monkeypatch.setattr("akkudoktoreos.server.server.is_home_assistant_addon", lambda: True)
         with pytest.raises(ValidationError) as excinfo:
             config_eos.server.port = 9000
-        assert "Server port number `8503` for Home Assistant add-on can not be changed" in str(excinfo.value)
+        assert "Server port number `8503` for Home Assistant add-on can not be changed" in str(
+            excinfo.value
+        )
 
     def test_eosdash_port_restriction_in_ha_addon(self, config_eos, monkeypatch):
         """EOSdash port must be the default (8504) in HA addon mode."""
-        monkeypatch.setattr('akkudoktoreos.server.server.is_home_assistant_addon', lambda: True)
+        monkeypatch.setattr("akkudoktoreos.server.server.is_home_assistant_addon", lambda: True)
         with pytest.raises(ValidationError) as excinfo:
             config_eos.server.eosdash_port = 9001
-        assert "EOSdash port number `8504` for Home Assistant add-on can not be changed" in str(excinfo.value)
+        assert "EOSdash port number `8504` for Home Assistant add-on can not be changed" in str(
+            excinfo.value
+        )
 
     def test_ports_allowed_when_not_ha_addon(self, config_eos):
         """Custom ports are allowed when not in HA addon mode."""
@@ -84,7 +90,6 @@ class TestServerSettingsValidation:
 
 
 class TestServerStartStop:
-
     @pytest.mark.asyncio
     async def test_forward_stream_truncates_very_long_line(self, monkeypatch, tmp_path):
         """Test logging from EOSdash can also handle very long lines."""
@@ -180,7 +185,9 @@ class TestServerStartStop:
         eosdash_server = f"http://{config_eos.server.eosdash_host}:{config_eos.server.eosdash_port}"
 
         # Port may be blocked
-        assert wait_for_port_free(config_eos.server.eosdash_port, timeout=120, waiting_app_name="EOSdash")
+        assert wait_for_port_free(
+            config_eos.server.eosdash_port, timeout=120, waiting_app_name="EOSdash"
+        )
 
         owned_processes: list[psutil.Process] = []
         try:
@@ -359,7 +366,9 @@ class TestServerWithEnv:
         """Ensure server is started with environment passed to configuration."""
         server = server_setup_for_class["server"]
 
-        assert server_setup_for_class["eosdash_port"] == int(self.eos_env["EOS_SERVER__EOSDASH_PORT"])
+        assert server_setup_for_class["eosdash_port"] == int(
+            self.eos_env["EOS_SERVER__EOSDASH_PORT"]
+        )
 
         result = requests.get(f"{server}/v1/config")
         assert result.status_code == HTTPStatus.OK
@@ -368,4 +377,147 @@ class TestServerWithEnv:
         config_json = result.json()
 
         # Assure config got configuration from environment
-        assert config_json["server"]["eosdash_port"] == int(self.eos_env["EOS_SERVER__EOSDASH_PORT"])
+        assert config_json["server"]["eosdash_port"] == int(
+            self.eos_env["EOS_SERVER__EOSDASH_PORT"]
+        )
+
+
+class TestEosdashRedirect:
+    """Redirects to EOSdash must target an address the client can reach.
+
+    See https://github.com/Akkudoktor-EOS/EOS/issues/1320: the redirect was built from
+    the EOSdash bind address, so remote clients were sent to their own localhost.
+    """
+
+    @pytest.fixture
+    def client(self, config_eos):
+        from fastapi.testclient import TestClient
+
+        from akkudoktoreos.server.eos import app
+
+        config_eos.server.eosdash_host = "127.0.0.1"
+        config_eos.server.eosdash_port = 8504
+        return TestClient(app, follow_redirects=False)
+
+    @pytest.mark.parametrize("host", ["localhost:8503", "127.0.0.1:8503"])
+    def test_root_redirect_uses_request_host(self, client, host):
+        """The root redirect points to the host the client used, not to the bind address."""
+        response = client.get("/", headers={"Host": host})
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == f"http://{host.split(':')[0]}:8504/"
+
+    def test_root_redirect_uses_host_ip_of_the_eos_machine(self, client):
+        """Access by the IP address of the EOS machine redirects to that address."""
+        host_ip = get_host_ip()
+        response = client.get("/", headers={"Host": f"{host_ip}:8503"})
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == f"http://{host_ip}:8504/"
+
+    def test_root_redirect_ignores_untrusted_forwarded_headers(self, client):
+        """Raw forwarding headers cannot override the public dashboard address."""
+        response = client.get(
+            "/",
+            headers={
+                "Host": "localhost",
+                "X-Forwarded-Host": "eos.example.com",
+                "X-Forwarded-Proto": "https",
+            },
+        )
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == "http://localhost:8504/"
+
+    def test_root_redirect_keeps_local_host(self, client):
+        """Local access still redirects to the local EOSdash."""
+        response = client.get("/", headers={"Host": "127.0.0.1:8503"})
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == "http://127.0.0.1:8504/"
+
+    def test_untrusted_request_host_is_not_reflected(self, client):
+        """An unknown Host header must not become the redirect target."""
+        response = client.get("/", headers={"Host": "attacker.example"})
+        assert response.status_code == HTTPStatus.NOT_FOUND
+        assert "attacker.example:8504" not in response.text
+        assert "eosdash_public_url" in response.text
+
+    def test_untrusted_request_host_on_unknown_path(self, client):
+        """The 404 page offers no link for an unknown Host header."""
+        response = client.get("/no-such-page", headers={"Host": "attacker.example"})
+        assert response.status_code == HTTPStatus.NOT_FOUND
+        assert "attacker.example:8504" not in response.text
+
+    def test_eosdash_path_redirect_keeps_path(self, client):
+        """The path is preserved when redirecting to EOSdash."""
+        response = client.get("/eosdash/health", headers={"Host": "localhost:8503"})
+        assert response.status_code == HTTPStatus.SEE_OTHER
+        assert response.headers["location"] == "http://localhost:8504/eosdash/health"
+
+    def test_unknown_path_error_page_links_to_request_host(self, client):
+        """The 404 page links to EOSdash on the host the client used."""
+        response = client.get("/no-such-page", headers={"Host": "localhost:8503"})
+        assert response.status_code == HTTPStatus.NOT_FOUND
+        # The link must be real HTML, the error page escapes the message it is given.
+        assert "&lt;a href" not in response.text
+        # Compare the whole link target, a substring check would also accept a foreign host.
+        hrefs = [href for href in re.findall(r'href="([^"]*)"', response.text) if href != "/docs"]
+        assert hrefs == ["http://localhost:8504/"]
+
+    def test_error_page_escapes_request_url(self, client):
+        """A crafted URL is shown as text, never as markup."""
+        response = client.get(
+            "/%3Cscript%3Ealert(1)%3C/script%3E", headers={"Host": "localhost:8503"}
+        )
+        assert response.status_code == HTTPStatus.NOT_FOUND
+        assert "<script>alert(1)</script>" not in response.text
+
+    @pytest.mark.parametrize("host", ["[::1]", "[::1]:8503"])
+    def test_direct_ipv6_preserves_address(self, client, host):
+        """An IPv6 address keeps its brackets in the redirect."""
+        response = client.get("/", headers={"Host": host})
+        assert response.headers["location"] == "http://[::1]:8504/"
+
+    def test_untrusted_ipv6_host_is_not_reflected(self, client):
+        """An IPv6 address that the configuration does not know is not reflected."""
+        response = client.get("/", headers={"Host": "[2001:db8::1234]:8503"})
+        assert response.status_code == HTTPStatus.NOT_FOUND
+        assert "2001:db8::1234" not in response.headers.get("location", "")
+
+    @pytest.mark.parametrize(
+        "public_url",
+        [
+            "https://energy.example.com",
+            "https://energy.example.com:443",
+            "https://energy.example.com:9443/dashboard",
+            "https://[2001:db8::1234]/dashboard",
+        ],
+    )
+    def test_public_url_preserves_proxy_port_and_prefix(self, client, config_eos, public_url):
+        config_eos.server.eosdash_public_url = public_url + "/"
+        headers = {"Host": "internal:8503", "X-Forwarded-Host": "wrong.example"}
+        response = client.get("/", headers=headers)
+        assert response.headers["location"] == public_url + "/"
+        response = client.get("/eosdash/health", headers=headers)
+        assert response.headers["location"] == public_url + "/eosdash/health"
+        response = client.get("/missing", headers=headers)
+        hrefs = [href for href in re.findall(r'href="([^"]*)"', response.text) if href != "/docs"]
+        assert hrefs == [public_url + "/"]
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "",
+            "/dashboard",
+            "//example.com",
+            "ftp://example.com",
+            "https://user:password@example.com",
+            "https://example.com?token=a",
+            "https://example.com#fragment",
+            "https://example.com:99999",
+            "https://example.com:0",
+            "https://example.com\\evil",
+            "https://example.com/\nheader",
+            "https://example.com/a b",
+        ],
+    )
+    def test_invalid_public_url_rejected(self, config_eos, value):
+        with pytest.raises(ValueError):
+            config_eos.server.eosdash_public_url = value

@@ -8,6 +8,7 @@ import socket
 import sys
 import time
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 try:
     # Only available on Linux/Unix type systems
@@ -429,6 +430,18 @@ class ServerCommonSettings(SettingsBaseModel):
             ],
         },
     )
+    eosdash_public_url: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Public EOSdash base URL for redirects and error-page links, including an "
+                "optional proxy path prefix. Set this for reverse proxies or mapped ports; "
+                "it does not change the bind address. Without it, direct access uses the "
+                "request host and EOSdash port. Raw forwarded headers are not used."
+            ),
+            "examples": ["https://energy.example.com/dashboard"],
+        },
+    )
     eosdash_supervise_interval_sec: int = Field(
         default=10,
         json_schema_extra={
@@ -463,6 +476,31 @@ class ServerCommonSettings(SettingsBaseModel):
             ],
         },
     )
+
+    @field_validator("eosdash_public_url")
+    @classmethod
+    def validate_eosdash_public_url(cls, value: Optional[str]) -> Optional[str]:
+        """Require an absolute HTTP(S) base URL without credentials or query data."""
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in ("http", "https")
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+            or "?" in value
+            or "#" in value
+            or "\\" in value
+            or any(character.isspace() or ord(character) < 32 for character in value)
+        ):
+            raise ValueError("EOSdash public URL must be an absolute HTTP(S) base URL.")
+        # Accessing port also validates its numeric range.
+        if parsed.port == 0:
+            raise ValueError("EOSdash public URL port must be positive.")
+        return value.rstrip("/")
 
     @field_validator("host", "eosdash_host", mode="before")
     def validate_server_host(cls, value: Optional[str]) -> Optional[str]:

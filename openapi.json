@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609171762020752"
+    "version": "v0.3.0.dev2609180541765849"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -15038,6 +15038,21 @@
             "default": 8504,
             "examples": [
               8504
+            ]
+          },
+          "eosdash_public_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eosdash Public Url",
+            "description": "Public EOSdash base URL for redirects and error-page links, including an optional proxy path prefix. Set this for reverse proxies or mapped ports; it does not change the bind address. Without it, direct access uses the request host and EOSdash port. Raw forwarded headers are not used.",
+            "examples": [
+              "https://energy.example.com/dashboard"
             ]
           },
           "eosdash_supervise_interval_sec": {
