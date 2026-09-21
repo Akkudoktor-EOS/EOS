@@ -294,7 +294,8 @@ class InverterCommonSettings(DevicesBaseSettings):
                 "charging) limit the whole charge current to the grid charge current; "
                 "PV surplus above it is exported, not stored. False keeps the "
                 "default model: PV surplus charges first and the grid adds "
-                "ac_charge x max_charge_power_w on top."
+                "ac_charge x max_charge_power_w on top. Also applies to POST /optimize "
+                "requests whose inverter leaves this setting unset."
             ),
             "examples": [False, True],
         },

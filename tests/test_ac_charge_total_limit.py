@@ -221,3 +221,42 @@ class TestGeneticSimulation:
         assert ac["Netzeinspeisung_Wh_pro_Stunde"][1] == pytest.approx(
             dc["Netzeinspeisung_Wh_pro_Stunde"][1]
         )
+
+
+class TestConfigResolution:
+    """The flag is a device config option; /optimize requests may leave it unset."""
+
+    @pytest.fixture
+    def resolve(self, config_eos):
+        from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+
+        def _resolve(configured: list[dict], requested=None, device_id="inverter"):
+            config_eos.merge_settings_from_dict({"devices": {"inverters": configured}})
+            params = InverterParameters(
+                device_id=device_id,
+                max_power_wh=10000,
+                ac_charge_limits_total_charge=requested,
+            )
+            opt = GeneticOptimization(fixed_seed=42)
+            return opt._inverter_parameters_with_config(params).ac_charge_limits_total_charge
+
+        return _resolve
+
+    def test_unset_request_takes_the_matching_config_inverter(self, resolve):
+        configured = [{"device_id": "inverter", "ac_charge_limits_total_charge": True}]
+        assert resolve(configured) is True
+
+    def test_unset_request_takes_the_only_config_inverter(self, resolve):
+        configured = [{"device_id": "inverter1", "ac_charge_limits_total_charge": True}]
+        assert resolve(configured, device_id="other") is True
+
+    def test_request_value_wins_over_config(self, resolve):
+        configured = [{"device_id": "inverter", "ac_charge_limits_total_charge": True}]
+        assert resolve(configured, requested=False) is False
+
+    def test_no_config_inverter_means_default_model(self, resolve):
+        assert resolve([]) is False
+
+    def test_unset_parameter_uses_default_model_in_inverter(self):
+        inverter, _ = _build(limits_total=None)
+        assert inverter.ac_charge_limits_total_charge is False

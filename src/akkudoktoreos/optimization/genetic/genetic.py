@@ -18,6 +18,7 @@ from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
 from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.optimization.genetic.geneticdevices import InverterParameters
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
@@ -3203,6 +3204,24 @@ class GeneticOptimization(OptimizationBase):
         self._fitness_cache.clear()
         return best_solution, member
 
+    def _inverter_parameters_with_config(
+        self, parameters: InverterParameters
+    ) -> InverterParameters:
+        """Take inverter model settings the request leaves open from the device config.
+
+        A request that sets ``ac_charge_limits_total_charge`` keeps its value.
+        Otherwise the configured inverter with the same device_id decides, or
+        the only configured inverter if none matches; without one it is False.
+        """
+        if parameters.ac_charge_limits_total_charge is not None:
+            return parameters
+        configured = list(self.config.devices.inverters or [])
+        match = next((d for d in configured if d.device_id == parameters.device_id), None)
+        if match is None and len(configured) == 1:
+            match = configured[0]
+        limits_total = bool(match and match.ac_charge_limits_total_charge)
+        return parameters.model_copy(update={"ac_charge_limits_total_charge": limits_total})
+
     def optimierung_ems(
         self,
         parameters: GeneticOptimizationParameters,
@@ -3369,7 +3388,7 @@ class GeneticOptimization(OptimizationBase):
         inverter: Optional[Inverter] = None
         if parameters.inverter:
             inverter = Inverter(
-                parameters.inverter,
+                self._inverter_parameters_with_config(parameters.inverter),
                 battery=akku,
                 slot_duration_h=self.slot_duration_h,
             )

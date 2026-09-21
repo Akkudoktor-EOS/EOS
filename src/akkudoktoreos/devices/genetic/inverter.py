@@ -33,7 +33,7 @@ class Inverter:
         # This value remains a power [W]. GeneticSimulation converts it into a
         # slot-independent charge-factor limit.
         self.max_ac_charge_power_w = self.parameters.max_ac_charge_power_w
-        self.ac_charge_limits_total_charge = self.parameters.ac_charge_limits_total_charge
+        self.ac_charge_limits_total_charge = bool(self.parameters.ac_charge_limits_total_charge)
 
     def ac_charge_factor(self, factor: float) -> float:
         """Return the AC charge factor the inverter can actually execute.

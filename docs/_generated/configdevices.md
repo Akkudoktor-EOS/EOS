@@ -230,7 +230,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| ac_charge_limits_total_charge | `bool` | `rw` | `False` | True if the AC charge setpoint caps the battery's total charge power, PV included. Some hybrid inverters (e.g. Deye in time-of-use grid charging) limit the whole charge current to the grid charge current; PV surplus above it is exported, not stored. False keeps the default model: PV surplus charges first and the grid adds ac_charge x max_charge_power_w on top. |
+| ac_charge_limits_total_charge | `bool` | `rw` | `False` | True if the AC charge setpoint caps the battery's total charge power, PV included. Some hybrid inverters (e.g. Deye in time-of-use grid charging) limit the whole charge current to the grid charge current; PV surplus above it is exported, not stored. False keeps the default model: PV surplus charges first and the grid adds ac_charge x max_charge_power_w on top. Also applies to POST /optimize requests whose inverter leaves this setting unset. |
 | ac_to_dc_efficiency | `float` | `rw` | `1.0` | Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss). |
 | battery_id | `Optional[str]` | `rw` | `None` | ID of battery controlled by this inverter. |
 | dc_to_ac_efficiency | `float` | `rw` | `1.0` | Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss). |
