@@ -195,11 +195,14 @@ class TestGeneticSimulation:
                 ev=None,
                 home_appliance=None,
             )
-            sim.ac_charge_hours[:] = 0
-            sim.dc_charge_hours[:] = 0
-            sim.bat_discharge_hours[:] = 0
-            sim.ac_charge_hours[1] = ac_factor
-            sim.dc_charge_hours[1] = dc_factor
+            ac_hours, dc_hours = sim.ac_charge_hours, sim.dc_charge_hours
+            discharge_hours = sim.bat_discharge_hours
+            assert ac_hours is not None and dc_hours is not None and discharge_hours is not None
+            ac_hours[:] = 0
+            dc_hours[:] = 0
+            discharge_hours[:] = 0
+            ac_hours[1] = ac_factor
+            dc_hours[1] = dc_factor
             return sim.simulate(start_hour=0)
 
         return _simulate
