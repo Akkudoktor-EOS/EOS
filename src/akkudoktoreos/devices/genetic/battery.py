@@ -65,6 +65,9 @@ class Battery:
         self.charge_array = np.full(self.prediction_hours, 0)
         self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
         self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        # Optional per-slot cap on the raw charge energy from all sources. It is
+        # unbounded unless an inverter restricts a slot (see limit_slot_charge).
+        self._charge_limit_raw_wh_per_slot = np.full(self.prediction_hours, np.inf)
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.min_soc_wh = (self.min_soc_percentage / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percentage / 100) * self.capacity_wh
@@ -110,6 +113,21 @@ class Battery:
         self.charge_array = np.full(self.prediction_hours, 0)
         self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
         self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        self._charge_limit_raw_wh_per_slot = np.full(self.prediction_hours, np.inf)
+
+    def limit_slot_charge(self, hour: int, raw_wh: float) -> None:
+        """Cap the raw energy the battery may take in one slot, from all sources.
+
+        The cap covers PV and grid charging together and is not raised by later
+        calls within the same slot. It is lifted again by ``reset()``.
+
+        Args:
+            hour (int): Slot index.
+            raw_wh (float): Maximum raw charge energy [Wh] before charging efficiency.
+        """
+        self._charge_limit_raw_wh_per_slot[hour] = min(
+            self._charge_limit_raw_wh_per_slot[hour], max(float(raw_wh), 0.0)
+        )
 
     def rated_discharge_energy_wh(self) -> float:
         """Return the DC energy one full-power discharge slot delivers.
@@ -240,6 +258,7 @@ class Battery:
 
         - Available SoC headroom (``max_soc_wh − soc_wh``)
         - ``max_charge_power_w``
+        - A slot limit set by ``limit_slot_charge()``, if any
         - ``charging_efficiency``
 
         Args:
@@ -280,7 +299,11 @@ class Battery:
         # Scale the power cap [W] to a per-slot energy cap [Wh] (W x slot hours).
         # At slot_duration_h=1.0 (hourly) this equals the legacy power value.
         max_charge_per_slot_wh_fast = max(
-            self.max_charge_power_w * self.slot_duration_h - self._charged_raw_wh_per_slot[hour],
+            min(
+                self.max_charge_power_w * self.slot_duration_h,
+                self._charge_limit_raw_wh_per_slot[hour],
+            )
+            - self._charged_raw_wh_per_slot[hour],
             0.0,
         )
         charging_efficiency_fast = self.charging_efficiency

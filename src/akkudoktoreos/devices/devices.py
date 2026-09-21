@@ -285,6 +285,21 @@ class InverterCommonSettings(DevicesBaseSettings):
         },
     )
 
+    ac_charge_limits_total_charge: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "True if the AC charge setpoint caps the battery's total charge power, "
+                "PV included. Some hybrid inverters (e.g. Deye in time-of-use grid "
+                "charging) limit the whole charge current to the grid charge current; "
+                "PV surplus above it is exported, not stored. False keeps the "
+                "default model: PV surplus charges first and the grid adds "
+                "ac_charge x max_charge_power_w on top."
+            ),
+            "examples": [False, True],
+        },
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def measurement_keys(self) -> Optional[list[str]]:

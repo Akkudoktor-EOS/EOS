@@ -48,11 +48,15 @@ def _simulate_action(
     bat.soc_wh = float(energy_wh)
     bat._charged_raw_wh_per_slot.fill(0)
     bat._discharged_raw_wh_per_slot.fill(0)
+    bat._charge_limit_raw_wh_per_slot.fill(np.inf)
     ac_enabled = inv.ac_to_dc_efficiency > 0 and (
         inv.max_ac_charge_power_w is None or inv.max_ac_charge_power_w > 0
     )
     bat.charge_array[0] = ac_rate if ac_rate > 0 and ac_enabled else dc
     bat.discharge_array[0] = discharge if export == 0 or tariff > 0 else 0
+    rate = inv.ac_charge_factor(ac_rate)
+    if rate > 0:
+        inv.begin_ac_charge_slot(0, rate)
     sold, bought, losses, _ = inv.process_energy(
         pv,
         load,
@@ -62,18 +66,11 @@ def _simulate_action(
     )
     ac_grid_charge_wh = 0.0
     if ac_rate > 0 and inv.ac_to_dc_efficiency > 0:
-        rate = ac_rate
-        if inv.max_ac_charge_power_w is not None and bat.max_charge_power_w > 0:
-            rate = min(
-                rate,
-                inv.max_ac_charge_power_w * inv.ac_to_dc_efficiency / bat.max_charge_power_w,
-            )
         bat.charge_array[0] = rate
         if rate > 0:
-            stored, loss = bat.charge_energy(None, 0, charge_factor=rate)
-            ac_grid_charge_wh = (stored + loss) / inv.ac_to_dc_efficiency
+            ac_grid_charge_wh, ac_losses = inv.charge_battery_from_grid(0, rate)
             bought += ac_grid_charge_wh
-            losses += loss + max(ac_grid_charge_wh - stored - loss, 0.0)
+            losses += ac_losses
     if direct_marketing and tariff < 0:
         sold = 0.0
     discharged_wh = bat.discharged_energy_wh(0)

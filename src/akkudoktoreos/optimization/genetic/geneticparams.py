@@ -502,6 +502,7 @@ class GeneticOptimizationParameters(
                         ac_to_dc_efficiency=inverter_config.ac_to_dc_efficiency,
                         dc_to_ac_efficiency=inverter_config.dc_to_ac_efficiency,
                         max_ac_charge_power_w=inverter_config.max_ac_charge_power_w,
+                        ac_charge_limits_total_charge=inverter_config.ac_charge_limits_total_charge,
                     )
                 except:
                     logger.info(

@@ -467,7 +467,18 @@ class GeneticSimulation(PydanticBaseModel):
                 0.0
             )
 
+            # AC charge factor of this slot, capped by max_ac_charge_power_w
+            ac_charge_factor = 0.0
+            if battery_fast and ac_charging_possible:
+                ac_charge_factor = ac_charge_hours_fast[hour]
+                if inverter_fast:
+                    ac_charge_factor = inverter_fast.ac_charge_factor(ac_charge_factor)
+
             if inverter_fast:
+                # Some inverters cap the total charge power with the AC setpoint;
+                # that cap has to be in place before PV charges the battery.
+                if ac_charge_factor > 0.0:
+                    inverter_fast.begin_ac_charge_slot(hour, ac_charge_factor)
                 energy_produced = pv_prediction_wh_fast[hour]
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
                 # bat_grid_export_hours carries the export level per slot:
@@ -495,39 +506,21 @@ class GeneticSimulation(PydanticBaseModel):
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
 
             # AC PV Battery Charge
-            if battery_fast:
-                hour_ac_charge = ac_charge_hours_fast[hour]
-                if hour_ac_charge > 0.0 and ac_charging_possible:
-                    # Cap charge factor by max_ac_charge_power_w if set
-                    effective_charge_factor = hour_ac_charge
-                    if max_ac_charge_w_fast is not None and battery_fast.max_charge_power_w > 0:
-                        # DC power = max_charge_power_w * factor
-                        # AC power = DC power / ac_to_dc_eff
-                        # AC power must be <= max_ac_charge_power_w
-                        max_dc_factor = (
-                            max_ac_charge_w_fast * ac_to_dc_eff_fast
-                        ) / battery_fast.max_charge_power_w
-                        effective_charge_factor = min(effective_charge_factor, max_dc_factor)
-
-                    if effective_charge_factor > 0:
-                        battery_charged_energy_actual, battery_losses_actual = (
-                            battery_fast.charge_energy(
-                                None, hour, charge_factor=effective_charge_factor
-                            )
-                        )
-
-                        # DC energy entering the battery (before battery internal efficiency)
-                        dc_energy = battery_charged_energy_actual + battery_losses_actual
-                        # AC energy consumed from grid (accounts for AC→DC conversion loss)
-                        ac_energy = dc_energy / ac_to_dc_eff_fast
-                        # Inverter AC→DC conversion losses
-                        inverter_charge_losses = ac_energy - dc_energy
-
-                        consumption += ac_energy
-                        energy_consumption_grid_actual += ac_energy
-                        losses_wh_per_hour[hour_idx] += (
-                            battery_losses_actual + inverter_charge_losses
-                        )
+            if ac_charge_factor > 0.0 and battery_fast:
+                if inverter_fast:
+                    ac_energy, ac_charge_losses = inverter_fast.charge_battery_from_grid(
+                        hour, ac_charge_factor
+                    )
+                else:
+                    # Without an inverter the grid charges the battery losslessly
+                    # (AC-to-DC efficiency 1.0).
+                    stored, ac_charge_losses = battery_fast.charge_energy(
+                        None, hour, charge_factor=ac_charge_factor
+                    )
+                    ac_energy = stored + ac_charge_losses
+                consumption += ac_energy
+                energy_consumption_grid_actual += ac_energy
+                losses_wh_per_hour[hour_idx] += ac_charge_losses
 
             # Update hourly arrays
             if (
