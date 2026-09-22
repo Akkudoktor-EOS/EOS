@@ -62,7 +62,7 @@ dev = [
     "pre-commit==4.6.2",
     "mypy==2.3.1",
     "types-requests==2.33.0.20260906", # for mypy
-    "pandas-stubs==3.0.5.260730", # for mypy
+    "pandas-stubs==3.0.5.260914", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.23.0.20260911", # for mypy
     "types-PyYaml==6.0.12.20260906", # for mypy
