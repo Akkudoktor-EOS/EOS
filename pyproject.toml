@@ -31,10 +31,10 @@ dependencies = [
     "bokeh==3.9.2",
     "uvicorn==0.52.4",
     "scipy==1.17.1",
-    "tzfpy==2.0.0",
+    "tzfpy==2.1.0",
     "deap==1.4.4",
     "requests==2.34.2",
-    "pandas==3.0.5",
+    "pandas==3.0.6",
     "pendulum==3.2.0",
     "platformdirs==4.11.8",
     "psutil==7.2.2",
@@ -62,9 +62,9 @@ dev = [
     "pre-commit==4.6.2",
     "mypy==2.3.1",
     "types-requests==2.33.0.20260906", # for mypy
-    "pandas-stubs==3.0.5.260730", # for mypy
+    "pandas-stubs==3.0.5.260914", # for mypy
     "tokenize-rt==6.2.0", # for mypy
-    "types-docutils==0.23.0.20260911", # for mypy
+    "types-docutils==0.23.0.20260917", # for mypy
     "types-PyYaml==6.0.12.20260906", # for mypy
     "scipy-stubs==1.17.1.5", # for mypy
     "types-psutil==7.2.2.20260906", # for mypy
@@ -86,7 +86,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-xprocess==1.0.2",
     "coverage==7.16.0",
-    "pypdf==6.18.1",
+    "pypdf==6.19.0",
 ]
 
 [project.urls]
