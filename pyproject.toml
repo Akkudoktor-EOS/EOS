@@ -29,7 +29,7 @@ dependencies = [
     "markdown-it-py==4.2.0",
     "mdit-py-plugins==0.6.1",
     "bokeh==3.9.2",
-    "uvicorn==0.52.4",
+    "uvicorn==0.53.0",
     "scipy==1.17.1",
     "tzfpy==2.0.0",
     "deap==1.4.4",
