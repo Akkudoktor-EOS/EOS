@@ -77,6 +77,10 @@ ENV MPLCONFIGDIR="${EOS_DATA_DIR}/mplconfigdir"
 
 # Overwrite when starting the container in a production environment
 ENV EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
+# EOSdash must listen on all interfaces so HA ingress can reach it.
+# server.eosdash_host defaults to 127.0.0.1 (not None), so it does not
+# inherit --host 0.0.0.0 from the CLI.
+ENV EOS_SERVER__EOSDASH_HOST=0.0.0.0
 
 # Set environment variables to reduce threading needs
 ENV OPENBLAS_NUM_THREADS=1
