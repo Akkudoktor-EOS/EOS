@@ -110,12 +110,13 @@ class TestFeedInTariffDvhubOnline:
         previous = to_datetime(SAMPLE["data"][0]["ts"])
         provider.highest_orig_datetime = previous
         monkeypatch.setattr(provider, "_request_forecast", lambda **_: SAMPLE)
-        monkeypatch.setattr(
-            provider, "key_from_series", AsyncMock(side_effect=RuntimeError("storage failed"))
-        )
-
-        with pytest.raises(RuntimeError, match="storage failed"):
-            await provider._update_data(force_update=True)
+        with patch.object(
+            FeedInTariffDvhubOnline,
+            "key_from_series",
+            new=AsyncMock(side_effect=RuntimeError("storage failed")),
+        ):
+            with pytest.raises(RuntimeError, match="storage failed"):
+                await provider._update_data(force_update=True)
         assert provider.highest_orig_datetime == previous
 
 
