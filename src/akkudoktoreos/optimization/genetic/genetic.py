@@ -97,28 +97,48 @@ class ApplianceGeneLayout:
         )
 
 
-def _pack_genes(values: list[int]) -> bytes:
-    """Encode genes as a compact, hashable key.
+# A packed genome is a tuple of bounded byte chunks: a leading tag byte
+# (b"\x00" narrow / b"\x01" wide) followed by one bytes object per chunk.
+PackedGenes = tuple[bytes, ...]
 
-    A fitness cache holds ~100k entries per run. As tuples of Python ints a
-    192-gene genome costs ~1.6 KB - above pymalloc's 512-byte limit, so every
-    tuple lands in glibc malloc of the optimization worker thread, and glibc
-    keeps those pages after the cache is cleared. Gene values are small indices
-    (states, charge rates, appliance start offsets), so one byte per gene fits
-    nearly always; larger values fall back to 8 bytes per gene. The leading tag
-    byte keeps both encodings apart.
+# Chunk widths chosen so every chunk stays well under pymalloc's 512-byte
+# threshold: 256 one-byte genes and 32 signed-64-bit genes are both 256 bytes.
+_NARROW_CHUNK_GENES = 256
+_WIDE_CHUNK_GENES = 32
+
+
+def _pack_genes(values: list[int]) -> PackedGenes:
+    """Encode genes as a compact, hashable key held entirely within pymalloc.
+
+    A fitness cache holds ~100k entries per run. A single ``bytes`` object for a
+    long genome exceeds pymalloc's 512-byte threshold once the genome grows
+    (e.g. ~480 genes at 15-min resolution over a 60 h horizon with EV genes: the
+    one-byte encoding alone is 481 bytes, over 512 with the object header) and
+    then lands in glibc malloc, which does not reliably return those pages to
+    the OS - ``malloc_trim`` is glibc-only and absent on musl. Splitting the
+    genome into bounded chunks keeps every object small regardless of horizon,
+    so the cache stays inside pymalloc on every platform. Gene values are small
+    indices (states, charge rates, appliance start offsets), so one byte per
+    gene fits nearly always; any value outside 0-255 switches the whole genome
+    to 8 bytes per gene. The leading tag byte keeps both encodings apart.
     """
-    try:
-        return b"\x00" + bytes(values)
-    except ValueError:
-        return b"\x01" + array("q", values).tobytes()
+    narrow = all(0 <= value <= 255 for value in values)
+    width = _NARROW_CHUNK_GENES if narrow else _WIDE_CHUNK_GENES
+    chunks: list[bytes] = []
+    for start in range(0, len(values), width):
+        # Slice per chunk so the encoder never materialises an oversized
+        # temporary bytes object for the whole genome.
+        window = values[start : start + width]
+        chunk = bytes(window) if narrow else array("q", window).tobytes()
+        chunks.append(chunk)
+    return (b"\x00" if narrow else b"\x01", *chunks)
 
 
-def _unpack_genes(packed: bytes) -> list[int]:
+def _unpack_genes(packed: PackedGenes) -> list[int]:
     """Decode genes encoded by ``_pack_genes``."""
-    if packed[:1] == b"\x00":
-        return list(packed[1:])
-    return array("q", packed[1:]).tolist()
+    if packed[0] == b"\x00":
+        return [value for chunk in packed[1:] for value in chunk]
+    return [value for chunk in packed[1:] for value in array("q", chunk)]
 
 
 _LIBC: Optional[ctypes.CDLL] = None
@@ -146,7 +166,7 @@ def _release_freed_memory() -> None:
 class FitnessCacheEntry:
     """One canonical, successful fitness evaluation within an optimization run."""
 
-    genome: bytes  # _pack_genes() of the canonical individual
+    genome: PackedGenes  # _pack_genes() of the canonical individual
     fitness: tuple[float]
     extra_data: tuple[float, float, float]
 
@@ -795,7 +815,7 @@ class GeneticOptimization(OptimizationBase):
         # never shared across runs because forecasts, prices and device state may
         # have changed even when the genome is identical.
         self._fitness_cache_enabled = False
-        self._fitness_cache: dict[bytes, FitnessCacheEntry] = {}
+        self._fitness_cache: dict[PackedGenes, FitnessCacheEntry] = {}
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
 
@@ -2442,7 +2462,7 @@ class GeneticOptimization(OptimizationBase):
     def _best_unique(self, population: list[Any], count: int) -> list[Any]:
         """Return the best fitness-relevant unique candidates."""
         selected: list[Any] = []
-        seen: set[bytes] = set()
+        seen: set[PackedGenes] = set()
         for candidate in tools.selBest(population, len(population)):
             key = self._fitness_key(candidate)
             if key in seen:
@@ -2457,8 +2477,8 @@ class GeneticOptimization(OptimizationBase):
         self,
         candidates: list[Any],
         selected: list[Any],
-        selected_keys: list[bytes],
-        best_key: bytes,
+        selected_keys: list[PackedGenes],
+        best_key: PackedGenes,
     ) -> bool:
         """Carry still-protected immigrants into ``selected`` in place.
 
@@ -2535,7 +2555,7 @@ class GeneticOptimization(OptimizationBase):
             count,
             max(1, int(count * self.SELECTION_DIVERSITY_FLOOR + 0.999999)),
         )
-        key_counts: dict[bytes, int] = defaultdict(int)
+        key_counts: dict[PackedGenes, int] = defaultdict(int)
         for key in selected_keys:
             key_counts[key] += 1
         if len(key_counts) >= target_unique:
@@ -2904,7 +2924,7 @@ class GeneticOptimization(OptimizationBase):
         self._fitness_cache[canonical_key] = entry
         return fitness
 
-    def _fitness_key(self, individual: list[int]) -> bytes:
+    def _fitness_key(self, individual: list[int]) -> PackedGenes:
         """Return the fitness-relevant genome, excluding elapsed control slots."""
         start_slot = self._control_start_slot()
         relevant = list(individual[start_slot : self.control_end_slot])

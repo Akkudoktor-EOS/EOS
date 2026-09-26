@@ -1,3 +1,4 @@
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -63,18 +64,37 @@ def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEO
 
 @pytest.mark.parametrize(
     "genes",
-    [[], [0, 1, 255], [3] * 192, [0, 256, 1], [70000, 2, 0]],
+    [
+        [],
+        [0, 1, 255],
+        [3] * 192,
+        [0, 256, 1],
+        [70000, 2, 0],
+        [7] * 480,  # 60 h at 15 min with EV genes, all one-byte
+        [7] * 479 + [256],  # same length, one value forces the 8-byte encoding
+        [-1, 0, 300],  # negatives also take the signed 8-byte path
+    ],
 )
 def test_pack_genes_roundtrip(genes: list[int]):
     assert _unpack_genes(_pack_genes(genes)) == genes
 
 
-def test_pack_genes_stays_below_pymalloc_limit():
-    # 24 h at 15 min with EV genes: the key must stay a small object (<= 512 B),
-    # otherwise ~100k cache entries go to glibc malloc and are never given back.
-    import sys
-
-    assert sys.getsizeof(_pack_genes([7] * 192)) <= 512
+@pytest.mark.parametrize(
+    "genes",
+    [
+        [7] * 480,  # narrow: ~60 h at 15 min with EV genes, all one-byte
+        [7] * 479 + [256],  # wide: one value forces 8 bytes for the whole genome
+    ],
+)
+def test_pack_genes_key_and_chunks_stay_below_pymalloc_limit(genes: list[int]):
+    # A 60 h/15 min horizon with EV genes reaches ~480 genes. The packed key and
+    # every chunk must stay small objects (<= 512 B), otherwise ~100k cache
+    # entries per run go to glibc malloc and are never given back to the OS.
+    packed = _pack_genes(genes)
+    assert sys.getsizeof(packed) <= 512
+    for chunk in packed:
+        assert sys.getsizeof(chunk) <= 512
+    assert _unpack_genes(packed) == genes
 
 
 def test_pack_genes_encodings_do_not_collide():
