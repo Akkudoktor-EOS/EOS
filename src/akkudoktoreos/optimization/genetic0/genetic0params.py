@@ -36,8 +36,8 @@ from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
     Genetic0HomeApplianceParameters,
 )
 from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
-from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
+from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.utils.datetimeutil import to_duration
 
 # Do not import directly from akkudoktoreos.core.coreabc

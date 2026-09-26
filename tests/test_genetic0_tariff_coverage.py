@@ -7,7 +7,9 @@ import pandas as pd
 import pytest
 
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic0.genetic0params import Genetic0OptimizationParameters
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
+)
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
@@ -55,7 +57,9 @@ async def test_dvhub_tariff_requires_real_control_horizon(
         assert "Missing feed-in tariff within the GENETIC0 control horizon" in caplog.text
     else:
         assert parameters is not None
-        assert parameters.ems.feed_in_tariff_per_wh[:24] == pytest.approx(
+        tariffs = parameters.ems.feed_in_tariff_per_wh
+        assert isinstance(tariffs, list)
+        assert tariffs[:24] == pytest.approx(
             [(4 * hour + 1.5) / 1_000_000 for hour in range(24)]
         )
-        assert np.isnan(parameters.ems.feed_in_tariff_per_wh[24:]).all()
+        assert np.isnan(tariffs[24:]).all()
