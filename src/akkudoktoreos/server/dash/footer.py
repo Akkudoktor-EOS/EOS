@@ -39,15 +39,13 @@ def get_alive(eos_host: str, eos_port: Union[str, int]) -> str:
     return alive
 
 
-def Footer(
-    eos_host: Optional[str], eos_port: Optional[Union[str, int]], request_host: str
-) -> str:
+def Footer(eos_host: Optional[str], eos_port: Optional[Union[str, int]], request_host: str) -> str:
     if eos_host is None:
         eos_host = get_config().server.host
     if eos_port is None:
         eos_port = get_config().server.port
     # A bind address is useful inside the container, but cannot be opened by a browser.
-    public_host = request_host if eos_host in ("0.0.0.0", "::") else eos_host
+    public_host = request_host if eos_host in ("0.0.0.0", "::") else eos_host  # noqa: S104
     url_host = f"[{public_host}]" if public_host and ":" in public_host else public_host
     docs_url = urlunsplit(("http", f"{url_host}:{eos_port}", "/docs", "", ""))
     alive_icon = None
