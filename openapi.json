@@ -15076,6 +15076,21 @@
               8504
             ]
           },
+          "eosdash_public_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eosdash Public Url",
+            "description": "Public EOSdash base URL for redirects and error-page links, including an optional proxy path prefix. Set this for reverse proxies or mapped ports; it does not change the bind address. Without it, direct access uses the request host and EOSdash port. Raw forwarded headers are not used.",
+            "examples": [
+              "https://energy.example.com/dashboard"
+            ]
+          },
           "eosdash_supervise_interval_sec": {
             "type": "integer",
             "title": "Eosdash Supervise Interval Sec",

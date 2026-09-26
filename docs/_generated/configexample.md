@@ -392,6 +392,7 @@
            "startup_eosdash": true,
            "eosdash_host": "127.0.0.1",
            "eosdash_port": 8504,
+           "eosdash_public_url": "https://energy.example.com/dashboard",
            "eosdash_supervise_interval_sec": 10,
            "run_as_user": null,
            "reload": true
