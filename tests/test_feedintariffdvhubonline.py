@@ -1,6 +1,7 @@
 """Tests for the dvhub.online feed-in tariff provider."""
 
 import os
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,7 +14,7 @@ from akkudoktoreos.prediction.feedintariffdvhubonline import (
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
-SAMPLE = {
+SAMPLE: dict[str, list[dict[str, Any]]] = {
     "data": [
         {"ts": "2026-07-19T12:00:00.000Z", "price": 42.5},   # EUR/MWh
         {"ts": "2026-07-19T12:15:00.000Z", "price": -5.69},  # negative slot
