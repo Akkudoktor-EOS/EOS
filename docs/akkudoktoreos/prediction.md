@@ -404,7 +404,31 @@ No fees are applied, even if given by the `ElecFee` prediction.
 
 ### FeedInTariffDvhubOnline Provider
 
-TBD
+`FeedInTariffDvhubOnline` loads day-ahead prices from the dvhub.online `/api/prices`
+endpoint for the configured bidding zone. It stores the published 15-minute slots
+as `feed_in_tariff_wh` in EUR/Wh, converted from the API's EUR/MWh prices. These
+are raw market prices; no import charges or VAT are added.
+
+Only published prices are stored. If the data does not cover the configured
+GENETIC control horizon, automatic optimization cancels with a missing tariff
+error instead of extending the final known price. Request, response, and storage
+errors also fail the update, including when older prices are already stored.
+Set the control horizon within the published day-ahead window to use this
+provider for automatic optimization.
+
+Example configuration:
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffDvhubOnline",
+    "dvhubonline": {
+      "base_url": "https://dvhub.online",
+      "zone": "DE-LU"
+    }
+  }
+}
+```
 
 ### FeedInTariffEnergyCharts Provider
 
