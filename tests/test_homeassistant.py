@@ -284,11 +284,11 @@ class TestHomeAssistantAddon:
             assert isinstance(ingress_port, int), "ingress_port must be an integer"
             assert 1 <= ingress_port <= 65535, "ingress_port must be a valid port number"
 
-            # Ingress port should NOT be in ports section
+            # The dashboard port is optional and has no host mapping by default.
             ports = cfg.get("ports", {})
             port_key = f"{ingress_port}/tcp"
-            assert port_key not in ports, \
-                f"Port {ingress_port} is used for ingress and should not be in 'ports' section"
+            assert port_key in ports, f"Port {ingress_port} must be configurable in 'ports'"
+            assert ports[port_key] is None, "Ingress port must be unpublished by default"
 
         # Validate URL if present
         if "url" in cfg:
@@ -330,14 +330,10 @@ class TestHomeAssistantAddon:
 
         ingress_port = cfg["ingress_port"]
 
-        # The ingress port should NOT be in the ports section
+        # A null mapping lets users opt in to host publication while preserving ingress.
         ports = cfg.get("ports", {})
         port_key = f"{ingress_port}/tcp"
-
-        if port_key in ports:
-            pytest.fail(
-                f"Port {ingress_port} is used for ingress but also listed in 'ports' section. "
-                f"Remove it from 'ports' to avoid conflicts."
-            )
+        assert port_key in ports, f"Port {ingress_port} must be configurable in 'ports'"
+        assert ports[port_key] is None, "Ingress port must be unpublished by default"
 
         print(f"✓ Ingress configuration valid (port {ingress_port})")
