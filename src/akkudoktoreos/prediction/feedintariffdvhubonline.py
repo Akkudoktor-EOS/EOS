@@ -43,7 +43,7 @@ class FeedInTariffDvhubOnline(FeedInTariffProvider):
     ``FeedInTariffEnergyCharts`` this intentionally adds no import charges or
     VAT, so the series is the direct-marketing revenue the optimizer needs.
     Only published slots are stored. Automatic optimization requires real
-    tariff coverage for its control horizon.
+    tariff coverage for the GENETIC or GENETIC0 control horizon.
     """
 
     highest_orig_datetime: Optional[datetime] = None

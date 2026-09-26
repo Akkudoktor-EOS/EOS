@@ -8,6 +8,7 @@ It also provides a method to assemble these parameters from predictions,
 forecasts, and fallback defaults, preparing them for optimization runs.
 """
 
+import math
 from typing import Optional, Union
 
 from loguru import logger
@@ -35,6 +36,7 @@ from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
     Genetic0HomeApplianceParameters,
 )
 from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
+from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.utils.datetimeutil import to_duration
 
@@ -506,41 +508,28 @@ class Genetic0OptimizationParameters(
                 )
                 # Retry
                 continue
-            try:
-                array = await cls.prediction.key_to_array(
-                    key="feed_in_tariff_wh",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
+            tariff_values = await bounded_forecast_array(
+                cls.prediction,
+                key="feed_in_tariff_wh",
+                start_datetime=parameter_start_datetime,
+                end_datetime=parameter_end_datetime,
+                interval=interval,
+            )
+            first = int(
+                (ems.start_datetime - parameter_start_datetime).total_seconds()
+                / interval.total_seconds()
+            )
+            last = first + cls.config.optimization.genetic0.horizon_hours
+            if last > len(tariff_values) or not all(
+                math.isfinite(value) for value in tariff_values[first:last]
+            ):
+                logger.error(
+                    "Missing feed-in tariff within the GENETIC0 control horizon; "
+                    "canceling optimization with provider {}.",
+                    cls.config.feedintariff.provider,
                 )
-                feed_in_tariff_wh = array.tolist()
-            except Exception as e:
-                logger.info(
-                    "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "feedintariff": {
-                            "provider": "FeedInTariffFixed",
-                            "feedintarifffixed": {
-                                "feed_in_tariff_amt_kwh": {
-                                    "windows": [
-                                        {
-                                            "start_time": "00:00",
-                                            "duration": "24 hours",
-                                            "value": 0.078,
-                                        },
-                                    ],
-                                },
-                            },
-                        },
-                    }
-                )
-                # Retry
-                continue
+                return None
+            feed_in_tariff_wh = tariff_values.tolist()
 
             # Add device data
 
