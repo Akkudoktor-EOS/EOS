@@ -323,8 +323,15 @@ def _version_calculate() -> str:
 # Project version information
 # ---------------------------
 
-# The version
-__version__ = _version_calculate()
+# Home Assistant passes the add-on's config.yaml version as BUILD_VERSION. A
+# Docker build without a concrete version uses "dev" (or a branch name), so
+# keep the source-derived version in that case.
+_build_version = os.getenv("EOS_BUILD_VERSION", "")
+__version__ = (
+    _build_version
+    if re.fullmatch(r"\d+\.\d+\.\d+(?:\.dev\d+)?", _build_version)
+    else _version_calculate()
+)
 
 
 # -------------------
