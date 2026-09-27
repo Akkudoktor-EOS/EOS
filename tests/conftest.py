@@ -526,9 +526,13 @@ def cleanup_eos_eosdash(
     assert not running, f"Test server cleanup timed out for PIDs {running}"
 
 
-def is_in_test_dir(path: Path, eos_dir: str) -> bool:
+@pytest.fixture
+def is_in_test_dir() -> Callable[[Path, str], bool]:
     """Check containment after resolving temporary-directory aliases."""
-    return path.resolve().is_relative_to(Path(eos_dir).resolve())
+    def contains(path: Path, eos_dir: str) -> bool:
+        return path.resolve().is_relative_to(Path(eos_dir).resolve())
+
+    return contains
 
 
 @contextmanager
