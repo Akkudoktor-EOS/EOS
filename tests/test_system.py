@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 import requests
+from conftest import is_in_test_dir
 
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -30,7 +31,7 @@ class TestSystem:
         config_json = result.json()
         config_folder_path = Path(config_json["general"]["config_folder_path"])
         # Assure we are working in test environment
-        assert str(config_folder_path).startswith(eos_dir)
+        assert is_in_test_dir(config_folder_path, eos_dir)
 
         result = requests.put(f"{server}/v1/config/weather/provider", json="BrightSky")
         assert result.status_code == HTTPStatus.OK
