@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 import requests
-from conftest import is_in_test_dir
 
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -19,7 +18,7 @@ FILE_TESTDATA_EOSSERVER_CONFIG_1 = DIR_TESTDATA.joinpath("eosserver_config_1.jso
 
 class TestSystem:
 
-    def test_prediction_brightsky(self, server_setup_for_class, is_system_test):
+    def test_prediction_brightsky(self, server_setup_for_class, is_system_test, is_in_test_dir):
         """Test weather prediction by BrightSky."""
         server = server_setup_for_class["server"]
         eos_dir = server_setup_for_class["eos_dir"]
