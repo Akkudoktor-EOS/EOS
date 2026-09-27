@@ -526,6 +526,11 @@ def cleanup_eos_eosdash(
     assert not running, f"Test server cleanup timed out for PIDs {running}"
 
 
+def is_in_test_dir(path: Path, eos_dir: str) -> bool:
+    """Check containment after resolving temporary-directory aliases."""
+    return path.resolve().is_relative_to(Path(eos_dir).resolve())
+
+
 @contextmanager
 def server_base(
     xprocess: XProcess,
@@ -565,7 +570,7 @@ def server_base(
     eosdash_server = f"http://{eosdash_host}:{eosdash_port}"
 
     eos_tmp_dir = tempfile.TemporaryDirectory()
-    eos_dir = str(eos_tmp_dir.name)
+    eos_dir = str(Path(eos_tmp_dir.name).resolve())
     eos_general_data_folder_path = str(Path(eos_dir) / "data")
     process_name = f"eos-{Path(eos_dir).name}"
     owned_processes: list[psutil.Process] = []
