@@ -9,7 +9,7 @@ from pathlib import Path
 import psutil
 import pytest
 import requests
-from conftest import cleanup_eos_eosdash, is_in_test_dir
+from conftest import cleanup_eos_eosdash
 from loguru import logger
 from pydantic import ValidationError
 
@@ -25,7 +25,7 @@ from akkudoktoreos.server.server import (
 
 
 @pytest.mark.skipif(os.name == "nt", reason="Directory symlinks require privileges on Windows")
-def test_temp_directory_alias_is_contained(tmp_path):
+def test_temp_directory_alias_is_contained(tmp_path, is_in_test_dir):
     """Resolved path containment accepts aliases but rejects sibling directories."""
     target = tmp_path / "server"
     target.mkdir()
@@ -38,7 +38,7 @@ def test_temp_directory_alias_is_contained(tmp_path):
 
 
 class TestServer:
-    def test_server_setup_for_class(self, server_setup_for_class):
+    def test_server_setup_for_class(self, server_setup_for_class, is_in_test_dir):
         """Ensure server is started."""
         server = server_setup_for_class["server"]
         eos_dir = server_setup_for_class["eos_dir"]
@@ -251,7 +251,7 @@ class TestServerStartStop:
                 await asyncio.wait_for(starteosdash.eosdash_proc.wait(), timeout=timeout)
 
     @pytest.mark.skipif(os.name == "nt", reason="Server restart not supported on Windows")
-    def test_server_restart(self, server_setup_for_function, is_system_test):
+    def test_server_restart(self, server_setup_for_function, is_system_test, is_in_test_dir):
         """Test server restart."""
         server = server_setup_for_function["server"]
         eos_dir = server_setup_for_function["eos_dir"]
