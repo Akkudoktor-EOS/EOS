@@ -210,7 +210,8 @@
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",
            "latitude": 52.52,
-           "longitude": 13.405
+           "longitude": 13.405,
+           "timezone_override": null
        },
        "load": {
            "provider": "LoadAkkudoktor",
