@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609171762020752"
+    "version": "v0.3.0.dev2610011739436914"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -11227,6 +11227,70 @@
               "GENETIC0"
             ]
           },
+          "dc_to_ac_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc To Ac Efficiency Curve",
+            "description": "Load-dependent efficiency of DC\u2192AC conversion for battery discharging as a list of [load_fraction, efficiency] points. The load fraction is the AC power relative to max_power_w (0\u20131); points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. null keeps the constant dc_to_ac_efficiency. Default null.",
+            "examples": [
+              null,
+              [
+                [
+                  0.02,
+                  0.8
+                ],
+                [
+                  0.07,
+                  0.93
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.95
+                ]
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "dc_to_ac_efficiency_reference_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dc To Ac Efficiency Reference Load Fraction",
+            "description": "Load fraction of max_power_w (0\u20131) at which dc_to_ac_efficiency_curve is evaluated to value stored battery energy without a specific conversion (remaining energy at the end of the horizon, AC charge break-even). Should represent the typical load served by the battery, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
+            "default": 0.06,
+            "examples": [
+              0.06,
+              0.1
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
           "max_ac_charge_power_w": {
             "anyOf": [
               {
@@ -11636,6 +11700,70 @@
             "x-scope": [
               "GENETIC",
               "GENETIC0"
+            ]
+          },
+          "dc_to_ac_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc To Ac Efficiency Curve",
+            "description": "Load-dependent efficiency of DC\u2192AC conversion for battery discharging as a list of [load_fraction, efficiency] points. The load fraction is the AC power relative to max_power_w (0\u20131); points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. null keeps the constant dc_to_ac_efficiency. Default null.",
+            "examples": [
+              null,
+              [
+                [
+                  0.02,
+                  0.8
+                ],
+                [
+                  0.07,
+                  0.93
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.95
+                ]
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "dc_to_ac_efficiency_reference_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dc To Ac Efficiency Reference Load Fraction",
+            "description": "Load fraction of max_power_w (0\u20131) at which dc_to_ac_efficiency_curve is evaluated to value stored battery energy without a specific conversion (remaining energy at the end of the horizon, AC charge break-even). Should represent the typical load served by the battery, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
+            "default": 0.06,
+            "examples": [
+              0.06,
+              0.1
+            ],
+            "x-scope": [
+              "GENETIC"
             ]
           },
           "max_ac_charge_power_w": {
@@ -12068,6 +12196,64 @@
             "examples": [
               0.95,
               1.0
+            ]
+          },
+          "dc_to_ac_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc To Ac Efficiency Curve",
+            "description": "Load-dependent efficiency of DC to AC conversion as a list of (load_fraction, efficiency) points. The load fraction is the AC power of the conversion relative to max_power_wh [0.0 ... 1.0]; points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. Default None (constant dc_to_ac_efficiency).",
+            "examples": [
+              null,
+              [
+                [
+                  0.02,
+                  0.8
+                ],
+                [
+                  0.07,
+                  0.93
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.95
+                ]
+              ]
+            ]
+          },
+          "dc_to_ac_efficiency_reference_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dc To Ac Efficiency Reference Load Fraction",
+            "description": "Load fraction at which dc_to_ac_efficiency_curve is evaluated where stored battery energy is valued without a specific conversion (e.g. remaining battery energy at the end of the horizon, AC charge break-even). Should represent the typical load the battery serves, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
+            "default": 0.06,
+            "examples": [
+              0.06,
+              0.1
             ]
           },
           "max_ac_charge_power_w": {

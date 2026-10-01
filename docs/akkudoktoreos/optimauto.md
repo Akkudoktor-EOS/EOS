@@ -284,6 +284,36 @@ The inverter supports separate AC↔DC conversion efficiencies:
   Must be > 0. Default `1.0`.
 - `max_ac_charge_power_w`: Maximum AC charging power in watts. `null` = no additional limit.
   Set to `0` to disable AC charging. Default `null`.
+- `dc_to_ac_efficiency_curve`: Optional load-dependent DC→AC efficiency as a list of
+  `[load_fraction, efficiency]` points, with the load fraction relative to `max_power_w`.
+  Real inverters are much less efficient at low load, e.g. when the battery serves a small
+  night-time base load. The points must be strictly increasing in load fraction (0-1) with
+  efficiencies in (0, 1]; values in between are interpolated linearly, values outside are
+  clamped to the first/last point. When set, the curve replaces `dc_to_ac_efficiency` for
+  battery discharge. Default `null` (constant `dc_to_ac_efficiency`, unchanged behaviour).
+- `dc_to_ac_efficiency_reference_load_fraction`: Load fraction at which the curve is evaluated
+  where stored energy is valued without a specific discharge, e.g. the energy left in the
+  battery at the end of the horizon and the AC charge break-even. Choose the typical load
+  the battery serves. Only used with `dc_to_ac_efficiency_curve`. Default `0.06`.
+
+**Example with an efficiency curve:**
+
+```json
+{
+    "devices": {
+        "inverters": {
+            "inv1": {
+                "max_power_w": 10000,
+                "battery_id": "bat1",
+                "dc_to_ac_efficiency_curve": [
+                    [0.02, 0.80], [0.07, 0.93], [0.30, 0.96], [1.00, 0.95]
+                ],
+                "dc_to_ac_efficiency_reference_load_fraction": 0.06
+            }
+        }
+    }
+}
+```
 
 #### Electric vehicle simulation configuration
 

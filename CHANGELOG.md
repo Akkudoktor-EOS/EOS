@@ -38,6 +38,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   and coverage information. A capacity estimate does not overwrite configured capacity.
 - Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
   backend remains the default.
+- Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
+  models the lower DC-to-AC efficiency at low load. Without it the constant
+  `dc_to_ac_efficiency` applies unchanged.
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
