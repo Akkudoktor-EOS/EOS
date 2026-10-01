@@ -1,20 +1,22 @@
 #!/usr/bin/env python
-import pickle
 from pathlib import Path
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
 
 from akkudoktoreos.core.cache import cache_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.utils.gridinterpolator import (
+    LinearGridInterpolator,
+    load_grid_interpolator,
+)
 
 
 class SelfConsumptionProbabilityInterpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
-        # Load the RegularGridInterpolator
-        with open(self.filepath, "rb") as file:
-            self.interpolator: RegularGridInterpolator = pickle.load(file)  # noqa: S301
+        # The table is a pickled SciPy RegularGridInterpolator; evaluate it
+        # without importing SciPy.
+        self.interpolator: LinearGridInterpolator = load_grid_interpolator(self.filepath)
 
     def _generate_points(
         self, load_1h_power: float, pv_power: float

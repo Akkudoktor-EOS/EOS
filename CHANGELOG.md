@@ -60,6 +60,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
 - Runtime configuration changes now take priority over environment and file values for
   explicitly updated keys; command-line settings retain higher priority.
+- The self-consumption probability tables are evaluated with NumPy instead of SciPy, so a
+  GENETIC run no longer loads SciPy (about 40 MB less memory). Results are bit-identical to
+  SciPy's Linux builds.
 
 ### Fixed
 
