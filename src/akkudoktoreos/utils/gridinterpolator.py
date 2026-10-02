@@ -12,11 +12,17 @@ The arithmetic follows SciPy's ``method="linear"`` 2-D path step by step
 order), so the results are bit-identical to SciPy builds that do not fuse
 multiply-add operations (e.g. the Linux wheels). Builds that do fuse them
 (e.g. the macOS arm64 wheel) differ only by rounding (about 1e-16).
+
+``SwitchableGridInterpolator`` chooses the evaluation per call: SciPy (the
+default, unchanged behaviour) or the NumPy implementation. SciPy is imported
+only when it is actually used.
 """
 
 import pickle
+import threading
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, BinaryIO, Union
+from typing import Any, BinaryIO, Callable, Optional, Union
 
 import numpy as np
 
@@ -161,3 +167,81 @@ def load_grid_interpolator(source: Union[str, Path, BinaryIO]) -> LinearGridInte
     return LinearGridInterpolator(
         grid=state["_grid"], values=state["_values"], fill_value=state.get("fill_value")
     )
+
+
+class GridInterpolatorBackend(StrEnum):
+    """How the self-consumption tables are evaluated."""
+
+    SCIPY = "scipy"
+    NUMPY = "numpy"
+
+
+class SwitchableGridInterpolator:
+    """Evaluate a grid table with SciPy or with ``LinearGridInterpolator``.
+
+    ``backend`` is called on every evaluation and returns the backend to use, so
+    a configuration change applies to the next evaluation. The SciPy
+    ``RegularGridInterpolator`` is built from the same grid, values and fill
+    value the pickle holds (``method="linear"``, ``bounds_error=False``) on its
+    first use; with the NumPy backend SciPy is never imported.
+
+    Args:
+        linear: The table, as loaded by ``load_grid_interpolator()``.
+        backend: Returns the backend for the next evaluation.
+    """
+
+    def __init__(
+        self,
+        linear: LinearGridInterpolator,
+        backend: Callable[[], Union[str, GridInterpolatorBackend]],
+    ) -> None:
+        self._linear = linear
+        self._backend = backend
+        self._scipy: Optional[Any] = None
+        self._lock = threading.Lock()
+
+    @property
+    def grid(self) -> tuple[np.ndarray, ...]:
+        """Grid coordinates per axis."""
+        return self._linear.grid
+
+    @property
+    def values(self) -> np.ndarray:
+        """Values on the grid."""
+        return self._linear.values
+
+    @property
+    def fill_value(self) -> Union[float, None]:
+        """Value for points outside the grid."""
+        return self._linear.fill_value
+
+    def _scipy_interpolator(self) -> Any:
+        if self._scipy is None:
+            with self._lock:
+                if self._scipy is None:
+                    from scipy.interpolate import RegularGridInterpolator
+
+                    self._scipy = RegularGridInterpolator(
+                        self._linear.grid,
+                        self._linear.values,
+                        method="linear",
+                        bounds_error=False,
+                        fill_value=self._linear.fill_value,
+                    )
+        return self._scipy
+
+    def __call__(self, xi: Any) -> np.ndarray:
+        """Interpolate at points ``xi`` of shape ``(..., 2)``."""
+        if self._backend() == GridInterpolatorBackend.NUMPY:
+            return self._linear(xi)
+        return self._scipy_interpolator()(xi)
+
+
+def configured_grid_interpolator_backend() -> GridInterpolatorBackend:
+    """Backend from ``optimization.self_consumption_interpolator``; SciPy if unavailable."""
+    try:
+        from akkudoktoreos.core.coreabc import get_config
+
+        return GridInterpolatorBackend(get_config().optimization.self_consumption_interpolator)
+    except Exception:
+        return GridInterpolatorBackend.SCIPY

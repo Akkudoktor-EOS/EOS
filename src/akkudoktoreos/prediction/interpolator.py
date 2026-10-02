@@ -6,7 +6,8 @@ import numpy as np
 from akkudoktoreos.core.cache import cache_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.utils.gridinterpolator import (
-    LinearGridInterpolator,
+    SwitchableGridInterpolator,
+    configured_grid_interpolator_backend,
     load_grid_interpolator,
 )
 
@@ -14,9 +15,12 @@ from akkudoktoreos.utils.gridinterpolator import (
 class SelfConsumptionProbabilityInterpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
-        # The table is a pickled SciPy RegularGridInterpolator; evaluate it
-        # without importing SciPy.
-        self.interpolator: LinearGridInterpolator = load_grid_interpolator(self.filepath)
+        # The table is a pickled SciPy RegularGridInterpolator. It is read
+        # without SciPy; optimization.self_consumption_interpolator decides
+        # whether SciPy (default) or NumPy evaluates it.
+        self.interpolator = SwitchableGridInterpolator(
+            load_grid_interpolator(self.filepath), configured_grid_interpolator_backend
+        )
         self.load_power_min_w = float(self.interpolator.grid[0][0])
         self.load_power_max_w = float(self.interpolator.grid[0][-1])
         self.minute_load_levels_w = np.asarray(self.interpolator.grid[1], dtype=float)

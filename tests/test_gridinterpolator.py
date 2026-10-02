@@ -12,7 +12,9 @@ import pytest
 from scipy.interpolate import RegularGridInterpolator
 
 from akkudoktoreos.utils.gridinterpolator import (
+    GridInterpolatorBackend,
     LinearGridInterpolator,
+    SwitchableGridInterpolator,
     load_grid_interpolator,
 )
 
@@ -146,3 +148,59 @@ def test_loading_the_tables_does_not_import_scipy():
         [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=120
     )
     assert result.stdout.strip().splitlines()[-1] == "False"
+
+
+@pytest.mark.parametrize("table", TABLES, ids=lambda path: path.name)
+def test_switchable_interpolator_defaults_to_scipy(table: Path):
+    with table.open("rb") as file:
+        scipy_interpolator = pickle.load(file)  # noqa: S301 - shipped data file
+    backend: dict[str, str] = {"value": GridInterpolatorBackend.SCIPY}
+    switchable = SwitchableGridInterpolator(load_grid_interpolator(table), lambda: backend["value"])
+    points = _points(switchable.grid, n=5000)
+
+    # SciPy backend: the same RegularGridInterpolator as the pickle, so exactly its results.
+    np.testing.assert_array_equal(switchable(points), scipy_interpolator(points))
+
+    # NumPy backend: LinearGridInterpolator; the switch applies to the next call.
+    backend["value"] = GridInterpolatorBackend.NUMPY
+    np.testing.assert_array_equal(switchable(points), load_grid_interpolator(table)(points))
+    backend["value"] = "scipy"
+    np.testing.assert_array_equal(switchable(points), scipy_interpolator(points))
+
+
+def test_setting_selects_the_backend(config_eos):
+    from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
+
+    assert config_eos.optimization.self_consumption_interpolator == GridInterpolatorBackend.SCIPY
+    interpolator = get_eos_load_interpolator().interpolator
+    points = _points(interpolator.grid, n=2000)
+    with (DATA_DIR / "regular_grid_interpolator.pkl").open("rb") as file:
+        scipy_values = pickle.load(file)(points)  # noqa: S301 - shipped data file
+    np.testing.assert_array_equal(interpolator(points), scipy_values)
+
+    config_eos.merge_settings_from_dict({"optimization": {"self_consumption_interpolator": "numpy"}})
+    assert config_eos.optimization.self_consumption_interpolator == GridInterpolatorBackend.NUMPY
+    linear = load_grid_interpolator(DATA_DIR / "regular_grid_interpolator.pkl")
+    np.testing.assert_array_equal(interpolator(points), linear(points))
+
+    with pytest.raises(ValueError):
+        config_eos.merge_settings_from_dict({"optimization": {"self_consumption_interpolator": "cubic"}})
+
+
+@pytest.mark.parametrize(
+    ("backend", "imports_scipy"), [("numpy", "False"), ("scipy", "True")]
+)
+def test_numpy_backend_does_not_import_scipy(backend: str, imports_scipy: str):
+    code = (
+        "import sys\n"
+        "from akkudoktoreos.utils.gridinterpolator import SwitchableGridInterpolator, load_grid_interpolator\n"
+        + "".join(
+            f"SwitchableGridInterpolator(load_grid_interpolator({str(table)!r}), lambda: {backend!r})([[500.0, 100.0]])\n"
+            for table in TABLES
+        )
+        + "print('scipy' in sys.modules)\n"
+    )
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, timeout=120
+    )
+    assert result.stdout.strip().splitlines()[-1] == imports_scipy
