@@ -60,6 +60,10 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
 - Runtime configuration changes now take priority over environment and file values for
   explicitly updated keys; command-line settings retain higher priority.
+- New setting `optimization.self_consumption_interpolator` (`scipy` by default, `numpy`).
+  With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
+  GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
+  SciPy's Linux builds. The tables are read without SciPy in both cases.
 
 ### Fixed
 

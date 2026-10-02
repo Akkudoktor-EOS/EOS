@@ -1,20 +1,26 @@
 #!/usr/bin/env python
-import pickle
 from pathlib import Path
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
 
 from akkudoktoreos.core.cache import cache_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.utils.gridinterpolator import (
+    SwitchableGridInterpolator,
+    configured_grid_interpolator_backend,
+    load_grid_interpolator,
+)
 
 
 class SelfConsumptionProbabilityInterpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
-        # Load the RegularGridInterpolator
-        with open(self.filepath, "rb") as file:
-            self.interpolator: RegularGridInterpolator = pickle.load(file)  # noqa: S301
+        # The table is a pickled SciPy RegularGridInterpolator. It is read
+        # without SciPy; optimization.self_consumption_interpolator decides
+        # whether SciPy (default) or NumPy evaluates it.
+        self.interpolator = SwitchableGridInterpolator(
+            load_grid_interpolator(self.filepath), configured_grid_interpolator_backend
+        )
         self.load_power_min_w = float(self.interpolator.grid[0][0])
         self.load_power_max_w = float(self.interpolator.grid[0][-1])
         self.minute_load_levels_w = np.asarray(self.interpolator.grid[1], dtype=float)
