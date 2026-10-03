@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610041249684973"
+    "version": "v0.3.0.dev2610041200027982"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -8837,6 +8837,16 @@
               2
             ]
           },
+          "pin_workers": {
+            "type": "boolean",
+            "title": "Pin Workers",
+            "description": "Pin the evaluation workers to the last 'workers' CPU cores. The server process stays unpinned and keeps a core that is not busy with the optimization, so it answers requests during a run, and the run never uses more than 'workers' cores. Needs at least one core more than workers; Linux only.",
+            "default": true,
+            "examples": [
+              true,
+              false
+            ]
+          },
           "measurement_max_age_seconds": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -9019,6 +9029,16 @@
               null,
               1,
               2
+            ]
+          },
+          "pin_workers": {
+            "type": "boolean",
+            "title": "Pin Workers",
+            "description": "Pin the evaluation workers to the last 'workers' CPU cores. The server process stays unpinned and keeps a core that is not busy with the optimization, so it answers requests during a run, and the run never uses more than 'workers' cores. Needs at least one core more than workers; Linux only.",
+            "default": true,
+            "examples": [
+              true,
+              false
             ]
           },
           "measurement_max_age_seconds": {

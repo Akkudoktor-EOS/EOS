@@ -33,6 +33,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -74,6 +75,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -188,6 +190,7 @@
 | interval_sec | `Literal[900, 3600]` | `rw` | `3600` | The optimization interval [sec]. Defaults to 3600 seconds (1 hour) |
 | measurement_max_age_seconds | `int` | `rw` | `300` | Maximum age of SoC measurements for configuration-based optimization [s]. |
 | penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
+| pin_workers | `bool` | `rw` | `True` | Pin the evaluation workers to the last 'workers' CPU cores. The server process stays unpinned and keeps a core that is not busy with the optimization, so it answers requests during a run, and the run never uses more than 'workers' cores. Needs at least one core more than workers; Linux only. |
 | seed | `Optional[int]` | `rw` | `None` | Random seed for reproducibility. None = random. |
 | tail_horizon_hours | `int` | `rw` | `48` | Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable. |
 | terminal_value_euro_per_kwh | `float` | `rw` | `0.0` | Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Only used with terminal_value_mode = FIXED. Defaults to 0 EUR/kWh. |
@@ -213,6 +216,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -243,6 +247,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
