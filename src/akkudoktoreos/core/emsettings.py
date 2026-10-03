@@ -61,6 +61,19 @@ class EnergyManagementCommonSettings(SettingsBaseModel):
         },
     )
 
+    start_on_interval_boundary: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "Start energy management runs on the wall-clock multiples of 'interval' "
+                "(for 900 s: every quarter hour, matching a 15 minute market) instead of "
+                "'interval' seconds after the previous run ended. A run that takes longer "
+                "than 'interval' is followed by one at the next boundary after it ended."
+            ),
+            "examples": [False, True],
+        },
+    )
+
     notify_url: Optional[str] = Field(
         default=None,
         json_schema_extra={

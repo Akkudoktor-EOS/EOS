@@ -27,6 +27,7 @@ ExcArgNoReturnAnyFuncT = Union[
     Callable[[Exception], None], Callable[[Exception], Coroutine[Any, Any, None]]
 ]
 ConfigGetterFuncT = Callable[[str], Any]
+DueCheckFuncT = Callable[["JobState"], bool]
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +50,8 @@ class JobState:
             in seconds.
         on_exception: Optional callable invoked with the raised exception whenever
             ``func`` fails. May be sync or async.
+        due_check: Optional callable that decides whether an enabled job is due,
+            instead of "``interval`` seconds since the last run ended".
         last_run_at: Monotonic timestamp of the last completed run; ``0.0`` means never run.
         last_duration: How long the last run took, in seconds.
         last_error: String representation of the last exception, or ``None`` if the last run succeeded.
@@ -62,6 +65,7 @@ class JobState:
     fallback_interval: float  # used when the key is not found or returns zero
     config_getter: ConfigGetterFuncT  # callable(key: str) -> Any; returns interval in seconds
     on_exception: Optional[ExcArgNoReturnAnyFuncT] = None  # optional cleanup/alerting hook
+    due_check: Optional[DueCheckFuncT] = None  # optional own schedule for an enabled job
 
     # mutable state
     last_run_at: float = 0.0  # monotonic timestamp; 0.0 means "never run"
@@ -107,6 +111,8 @@ class JobState:
         interval = self.interval()
         if interval is None:
             return False
+        if self.due_check is not None:
+            return self.due_check(self)
         return (time.monotonic() - self.last_run_at) >= interval
 
     def summary(self) -> dict:
@@ -190,6 +196,7 @@ class RetentionManager:
         interval_attr: str,
         fallback_interval: float = 300.0,
         on_exception: Optional[ExcArgNoReturnAnyFuncT] = None,
+        due_check: Optional[DueCheckFuncT] = None,
     ) -> None:
         """Register a maintenance function with the manager.
 
@@ -233,6 +240,7 @@ class RetentionManager:
             fallback_interval=fallback_interval,
             config_getter=self._config_getter,
             on_exception=on_exception,
+            due_check=due_check,
         )
         logger.info("RetentionManager: registered job '{}' (config: {})", name, interval_attr)
 

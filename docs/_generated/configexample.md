@@ -181,6 +181,7 @@
            "startup_delay": 5.0,
            "interval": 300.0,
            "mode": "OPTIMIZATION",
+           "start_on_interval_boundary": false,
            "notify_url": null
        },
        "feedintariff": {

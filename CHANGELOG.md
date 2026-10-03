@@ -57,6 +57,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   cores, default on). For a fixed seed the plan is identical to a single-process run.
 - Optional `ems.notify_url`: EOS sends an HTTP POST with a small JSON event after every
   completed optimization, so a client can fetch the new plan right away instead of polling.
+- Optional `ems.start_on_interval_boundary` (default off): energy management runs start on
+  the wall-clock multiples of `ems.interval` (every quarter hour for 900 s) instead of
+  `interval` seconds after the previous run ended.
 
 ### Changed / compatibility
 

@@ -1,11 +1,13 @@
 import json
+import math
 import threading
+import time
 import traceback
 import urllib.request
 from asyncio import Lock, get_running_loop
 from concurrent.futures import ThreadPoolExecutor
 from enum import StrEnum
-from typing import ClassVar, Optional, cast
+from typing import Any, ClassVar, Optional, cast
 
 from loguru import logger
 from pydantic import computed_field
@@ -16,6 +18,7 @@ from akkudoktoreos.core.coreabc import (
     ConfigMixin,
     PredictionMixin,
     SingletonMixin,
+    get_config,
 )
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.emsettings import EnergyManagementMode
@@ -57,6 +60,44 @@ async def ems_manage_energy() -> None:
     to ensure proper energy management.
     """
     await EnergyManagement().run()
+
+
+def next_interval_boundary(now: float, interval: float) -> float:
+    """First wall-clock multiple of ``interval`` at or after ``now``."""
+    return math.ceil(now / interval) * interval
+
+
+_planned_start: Optional[tuple[tuple[float, float], float]] = None
+
+
+def ems_run_is_due(job: Any) -> bool:
+    """Decide whether the energy management job is due (RetentionManager hook).
+
+    Without ``ems.start_on_interval_boundary`` a run is due ``interval``
+    seconds after the previous one ended. With it, runs start on the
+    wall-clock multiples of ``interval`` (every quarter hour for 900 s): the
+    start is planned once after each run for the next boundary, so a run that
+    takes longer than ``interval`` is followed by one at the next boundary
+    after it ended. The very first run starts right away.
+    """
+    global _planned_start
+    interval = job.interval()
+    if interval is None:
+        return False
+    if not getattr(get_config().ems, "start_on_interval_boundary", False):
+        return (time.monotonic() - job.last_run_at) >= interval
+    if job.last_run_at == 0.0:
+        return True
+    key = (job.last_run_at, float(interval))
+    if _planned_start is None or _planned_start[0] != key:
+        start = next_interval_boundary(time.time(), interval)
+        _planned_start = (key, start)
+        logger.info(
+            "Next energy management run in {:.0f} s (on the {:.0f} s boundary).",
+            max(0.0, start - time.time()),
+            interval,
+        )
+    return time.time() >= _planned_start[1]
 
 
 NOTIFY_TIMEOUT_SECONDS = 5.0

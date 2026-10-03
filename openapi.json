@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610041216878443"
+    "version": "v0.3.0.dev2610041210053445"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -5948,6 +5948,16 @@
               "OPTIMIZATION"
             ]
           },
+          "start_on_interval_boundary": {
+            "type": "boolean",
+            "title": "Start On Interval Boundary",
+            "description": "Start energy management runs on the wall-clock multiples of 'interval' (for 900 s: every quarter hour, matching a 15 minute market) instead of 'interval' seconds after the previous run ended. A run that takes longer than 'interval' is followed by one at the next boundary after it ended.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ]
+          },
           "notify_url": {
             "anyOf": [
               {
@@ -5993,6 +6003,16 @@
             "description": "Energy management mode [DISABLED | PREDICTION | OPTIMIZATION]. Defaults to DISABLED.",
             "examples": [
               "OPTIMIZATION"
+            ]
+          },
+          "start_on_interval_boundary": {
+            "type": "boolean",
+            "title": "Start On Interval Boundary",
+            "description": "Start energy management runs on the wall-clock multiples of 'interval' (for 900 s: every quarter hour, matching a 15 minute market) instead of 'interval' seconds after the previous run ended. A run that takes longer than 'interval' is followed by one at the next boundary after it ended.",
+            "default": false,
+            "examples": [
+              false,
+              true
             ]
           },
           "notify_url": {

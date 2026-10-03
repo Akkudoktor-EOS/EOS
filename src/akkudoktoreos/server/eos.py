@@ -38,7 +38,7 @@ from akkudoktoreos.core.coreabc import (
 )
 from akkudoktoreos.core.dataabc import DataImportMixin
 from akkudoktoreos.core.emplan import EnergyManagementPlan, ResourceStatus
-from akkudoktoreos.core.ems import ems_manage_energy
+from akkudoktoreos.core.ems import ems_manage_energy, ems_run_is_due
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.logging import logging_track_config, read_file_log
 from akkudoktoreos.core.pydantic import (
@@ -215,7 +215,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         compact_eos_database,
         interval_attr="database/compaction_interval_sec",
     )
-    manager.register("manage_energy", ems_manage_energy, interval_attr="ems/interval")
+    manager.register(
+        "manage_energy", ems_manage_energy, interval_attr="ems/interval", due_check=ems_run_is_due
+    )
 
     # Start the manager an by this all EOS repeated tasks
     retention_manager_task = asyncio.create_task(manager.run(activation_condition=config_eos_ready))
