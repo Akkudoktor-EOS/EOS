@@ -538,7 +538,7 @@ class EnergyManagement(
 
             logger.info("{}: Energy management run done (optimization updated)", algorithm)
             notify_optimization_completed(
-                self.config.ems.notify_url,
+                getattr(self.config.ems, "notify_url", None),
                 {
                     "event": "optimization_completed",
                     "algorithm": str(algorithm),
