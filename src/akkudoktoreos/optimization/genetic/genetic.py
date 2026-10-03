@@ -4,6 +4,8 @@ import ctypes
 import ctypes.util
 import gc
 import math
+import multiprocessing
+import os
 import random
 import sys
 import time
@@ -160,6 +162,81 @@ def _release_freed_memory() -> None:
     gc.collect()
     if _LIBC is not None:
         _LIBC.malloc_trim(0)
+
+
+# Parallel fitness evaluation. Workers are forked once per optimization run,
+# after the run is fully prepared, so each one owns a copy of the optimizer with
+# the run's forecasts, devices and terminal-value curve. Only genomes and
+# results cross the process boundary.
+MAX_EVALUATION_WORKERS = 2
+EVALUATION_BATCH_TIMEOUT_SECONDS = 120.0
+_WORKER_OPTIMIZER: Optional[Any] = None
+
+
+def _cpu_cores() -> int:
+    """Return the number of CPU cores this process may run on."""
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except (AttributeError, OSError):
+        return max(1, os.cpu_count() or 1)
+
+
+def _cgroup_cpu_limit(cgroup_root: str = "/sys/fs/cgroup") -> Optional[int]:
+    """Return the CPU limit (cgroup v2 ``cpu.max``) in whole cores, if any.
+
+    Checks this process's own cgroup and every parent, so a container limit
+    and a systemd ``CPUQuota=`` on a native service both count.
+    """
+    try:
+        with open("/proc/self/cgroup") as own:
+            path = next(
+                (line.split("::", 1)[1].strip() for line in own if line.startswith("0::")), "/"
+            )
+    except OSError:
+        path = "/"
+    limits: list[int] = []
+    while True:
+        try:
+            with open(os.path.join(cgroup_root, path.lstrip("/"), "cpu.max")) as cpu_max:
+                quota, period = cpu_max.read().split()[:2]
+            if quota != "max":
+                limits.append(max(1, math.ceil(int(quota) / int(period))))
+        except (OSError, ValueError, ZeroDivisionError):
+            pass
+        if path in ("", "/"):
+            break
+        path = os.path.dirname(path.rstrip("/"))
+    return min(limits) if limits else None
+
+
+def auto_evaluation_workers(cores: Optional[int] = None, cpu_limit: Optional[int] = None) -> int:
+    """Number of evaluation processes when ``workers`` is not configured.
+
+    One core always stays free for the rest of the system, and at most
+    ``MAX_EVALUATION_WORKERS`` are used: 1-2 cores -> 1, 3 or more -> 2.
+    A container CPU limit caps the result further.
+    """
+    if cores is None:
+        cores = _cpu_cores()
+    if cpu_limit is None:
+        cpu_limit = _cgroup_cpu_limit()
+    workers = min(MAX_EVALUATION_WORKERS, max(1, cores - 1))
+    if cpu_limit is not None:
+        workers = min(workers, max(1, cpu_limit))
+    return workers
+
+
+def _evaluation_worker_init() -> None:
+    """Evaluate without the run cache in a worker; the parent owns the cache."""
+    if _WORKER_OPTIMIZER is not None:
+        _WORKER_OPTIMIZER._fitness_cache_enabled = False
+
+
+def _evaluation_worker(genome: list[int]) -> tuple[list[int], tuple[float], Any]:
+    """Evaluate one genome in a worker and return the (repaired) genome and results."""
+    individual = creator.Individual(genome)
+    fitness = _WORKER_OPTIMIZER.toolbox.evaluate(individual)  # type: ignore[union-attr]
+    return list(individual), tuple(fitness), getattr(individual, "extra_data", None)
 
 
 @dataclass(frozen=True)
@@ -847,6 +924,9 @@ class GeneticOptimization(OptimizationBase):
         self._fitness_cache_max_entries: Optional[int] = None
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
+        # Evaluation worker processes, forked per run in optimize().
+        self._evaluation_pool: Optional[Any] = None
+        self._evaluation_workers = 1
 
         # Appliance genome layout, built once per optimization run in
         # optimize_ems(). Empty by default so setup_deap_environment() can be
@@ -2467,10 +2547,117 @@ class GeneticOptimization(OptimizationBase):
     def _evaluate_invalid(self, population: list[Any]) -> int:
         """Evaluate invalid individuals and return the number of cache lookups."""
         invalid = [individual for individual in population if not individual.fitness.valid]
-        fitnesses = self.toolbox.map(self.toolbox.evaluate, invalid)
-        for individual, fitness in zip(invalid, fitnesses):
+        pool = getattr(self, "_evaluation_pool", None)
+        if pool is not None and len(invalid) > 1:
+            try:
+                self._evaluate_parallel(pool, invalid)
+                return len(invalid)
+            except Exception as exc:
+                logger.warning(
+                    "Parallel fitness evaluation failed ({}); evaluating serially for the "
+                    "rest of this run.",
+                    exc,
+                )
+                self._stop_evaluation_pool()
+        pending = [individual for individual in invalid if not individual.fitness.valid]
+        fitnesses = self.toolbox.map(self.toolbox.evaluate, pending)
+        for individual, fitness in zip(pending, fitnesses):
             individual.fitness.values = fitness
         return len(invalid)
+
+    def _evaluate_parallel(self, pool: Any, invalid: list[Any]) -> None:
+        """Evaluate individuals in the worker processes, same results as evaluate().
+
+        Cache lookups and stores stay in this process. With the cache active,
+        identical genomes are evaluated once, as a serial run would hit the
+        cache for the repeats. Results are applied only when the whole batch
+        has returned, so a failed batch leaves nothing half-assigned.
+        """
+        cache_enabled = getattr(self, "_fitness_cache_enabled", False)
+        groups: list[list[Any]] = []
+        keys: list[Optional[PackedGenes]] = []
+        by_key: dict[PackedGenes, list[Any]] = {}
+        for individual in invalid:
+            if not cache_enabled:
+                groups.append([individual])
+                keys.append(None)
+                continue
+            key = self._fitness_key(individual)
+            cached = self._fitness_cache.get(key)
+            if cached is not None:
+                individual.fitness.values = self._apply_cached_fitness(individual, cached)
+                continue
+            group = by_key.get(key)
+            if group is not None:
+                group.append(individual)
+                self._fitness_cache_hits += 1
+                continue
+            by_key[key] = [individual]
+            groups.append(by_key[key])
+            keys.append(key)
+            self._fitness_cache_misses += 1
+        if not groups:
+            return
+
+        genomes = [[int(value) for value in group[0]] for group in groups]
+        chunksize = max(1, len(genomes) // (self._evaluation_workers * 4))
+        results = pool.map_async(_evaluation_worker, genomes, chunksize=chunksize).get(
+            timeout=EVALUATION_BATCH_TIMEOUT_SECONDS
+        )
+        for group, cache_key, (genome, fitness, extra_data) in zip(groups, keys, results):
+            for individual in group:
+                individual[:] = genome
+                if extra_data is None:
+                    if hasattr(individual, "extra_data"):
+                        del individual.extra_data
+                else:
+                    individual.extra_data = extra_data
+                individual.fitness.values = fitness
+            if cache_key is not None and extra_data is not None:
+                self._store_fitness_cache(cache_key, group[0], fitness)
+
+    def _configured_evaluation_workers(self) -> int:
+        """Configured number of evaluation processes; automatic when unset."""
+        try:
+            workers = self._genetic_cfg.workers
+        except Exception:
+            workers = None
+        if workers is None:
+            return auto_evaluation_workers()
+        return max(1, int(workers))
+
+    def _start_evaluation_pool(self) -> None:
+        """Fork the evaluation workers for this run (none when one process is enough)."""
+        global _WORKER_OPTIMIZER
+        self._evaluation_pool = None
+        self._evaluation_workers = self._configured_evaluation_workers()
+        if self._evaluation_workers < 2:
+            return
+        try:
+            context = multiprocessing.get_context("fork")
+        except ValueError:
+            logger.warning("Parallel fitness evaluation needs fork(); evaluating serially.")
+            return
+        _WORKER_OPTIMIZER = self
+        try:
+            self._evaluation_pool = context.Pool(
+                self._evaluation_workers, initializer=_evaluation_worker_init
+            )
+        except Exception as exc:
+            _WORKER_OPTIMIZER = None
+            logger.warning("Could not start evaluation workers ({}); evaluating serially.", exc)
+            return
+        logger.info("Genetic evaluation: {} worker processes.", self._evaluation_workers)
+
+    def _stop_evaluation_pool(self) -> None:
+        """Stop the evaluation workers of this run."""
+        global _WORKER_OPTIMIZER
+        pool = getattr(self, "_evaluation_pool", None)
+        self._evaluation_pool = None
+        _WORKER_OPTIMIZER = None
+        if pool is not None:
+            pool.terminate()
+            pool.join()
 
     def _fresh_population(self, count: int, *, educated_fraction: float) -> list[Any]:
         """Create a mixed set of current educated guesses and random immigrants."""
@@ -2918,19 +3105,30 @@ class GeneticOptimization(OptimizationBase):
         original_key = self._fitness_key(individual)
         cached = self._fitness_cache.get(original_key)
         if cached is not None:
-            individual[:] = _unpack_genes(cached.genome)
-            individual.extra_data = cached.extra_data  # type: ignore[attr-defined]
-            self._fitness_cache_hits += 1
-            return cached.fitness
+            return self._apply_cached_fitness(individual, cached)
 
         self._fitness_cache_misses += 1
         fitness = self._evaluate_uncached(individual, parameters, start_hour, worst_case)
+        self._store_fitness_cache(original_key, individual, fitness)
+        return fitness
+
+    def _apply_cached_fitness(self, individual: Any, cached: FitnessCacheEntry) -> tuple[float]:
+        """Give an individual the cached canonical genome and results."""
+        individual[:] = _unpack_genes(cached.genome)
+        individual.extra_data = cached.extra_data
+        self._fitness_cache_hits += 1
+        return cached.fitness
+
+    def _store_fitness_cache(
+        self, original_key: PackedGenes, individual: Any, fitness: tuple[float]
+    ) -> None:
+        """Remember a successful evaluation under its original and canonical key."""
         extra_data = getattr(individual, "extra_data", None)
         if extra_data is None:
             # Failed evaluations use the sentinel fitness and are intentionally
             # not cached: an unexpected transient failure must never become a
             # persistent result for the remainder of the run.
-            return fitness
+            return
 
         canonical_key = self._fitness_key(individual)
         extra_value1, extra_value2, extra_value3 = extra_data
@@ -2948,7 +3146,6 @@ class GeneticOptimization(OptimizationBase):
         max_entries = getattr(self, "_fitness_cache_max_entries", None)
         if max_entries is not None:
             self._evict_fitness_cache(max_entries)
-        return fitness
 
     def _evict_fitness_cache(self, max_entries: int) -> None:
         """Drop the oldest cache keys until at most ``max_entries`` remain.
@@ -3375,6 +3572,7 @@ class GeneticOptimization(OptimizationBase):
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
         self._fitness_cache_enabled = max_entries != 0
+        self._start_evaluation_pool()
         local_evaluations = 0
         local_improvements = 0
         local_initial_fitness = float("nan")
@@ -3408,6 +3606,7 @@ class GeneticOptimization(OptimizationBase):
             _release_freed_memory()
             raise
         finally:
+            self._stop_evaluation_pool()
             self._fitness_cache_enabled = False
 
         if local_improvements:

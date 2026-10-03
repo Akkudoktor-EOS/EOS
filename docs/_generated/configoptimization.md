@@ -32,6 +32,7 @@
                "generations": 400,
                "seed": null,
                "fitness_cache_max_entries": null,
+               "workers": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -72,6 +73,7 @@
                "generations": 400,
                "seed": null,
                "fitness_cache_max_entries": null,
+               "workers": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -191,6 +193,7 @@
 | terminal_value_euro_per_kwh | `float` | `rw` | `0.0` | Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Only used with terminal_value_mode = FIXED. Defaults to 0 EUR/kWh. |
 | terminal_value_mode | `<enum 'TerminalValueMode'>` | `rw` | `AUTO` | How to value the energy left in the battery at the end of the control horizon. AUTO solves the forecast tail with an AUTO continuation proxy at its end (or only the proxy if tail is zero); FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO. |
 | terminal_value_window_hours | `int` | `rw` | `24` | Length of the trailing window at the effective tail end the AUTO continuation curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours. |
+| workers | `Optional[int]` | `rw` | `None` | Processes that evaluate candidate solutions in parallel. None = automatic: one CPU core always stays free and at most two are used (1-2 cores -> 1, 3 or more cores -> 2), capped by a container CPU limit. 1 = evaluate in the server process only. The result for a fixed seed is the same with any value. |
 :::
 <!-- pyml enable line-length -->
 
@@ -209,6 +212,7 @@
                "generations": 400,
                "seed": null,
                "fitness_cache_max_entries": null,
+               "workers": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -238,6 +242,7 @@
                "generations": 400,
                "seed": null,
                "fitness_cache_max_entries": null,
+               "workers": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
