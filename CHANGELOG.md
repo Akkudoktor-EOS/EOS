@@ -86,6 +86,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   ([#1303](https://github.com/Akkudoktor-EOS/EOS/issues/1303)).
 - Environment variables are applied to the configuration on server startup instead of taking effect
   only after the first configuration change.
+- GENETIC reads its horizon, interval and prediction settings once at the start of a run. A
+  configuration change during a run (for example a client adapting the control horizon) no
+  longer fails the run with an out-of-bounds error; it applies to the next run.
 
 ## 0.3.0 (2026-03-17)
 
