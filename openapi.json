@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610041200027982"
+    "version": "v0.3.0.dev2610041253450372"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -5947,6 +5947,22 @@
             "examples": [
               "OPTIMIZATION"
             ]
+          },
+          "notify_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Url",
+            "description": "URL that receives an HTTP POST with a small JSON event after every completed optimization, so a client can fetch the new solution right away instead of polling for it. None = off.",
+            "examples": [
+              null,
+              "http://127.0.0.1:8080/api/eos/solution-ready"
+            ]
           }
         },
         "type": "object",
@@ -5977,6 +5993,22 @@
             "description": "Energy management mode [DISABLED | PREDICTION | OPTIMIZATION]. Defaults to DISABLED.",
             "examples": [
               "OPTIMIZATION"
+            ]
+          },
+          "notify_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Url",
+            "description": "URL that receives an HTTP POST with a small JSON event after every completed optimization, so a client can fetch the new solution right away instead of polling for it. None = off.",
+            "examples": [
+              null,
+              "http://127.0.0.1:8080/api/eos/solution-ready"
             ]
           },
           "modes": {

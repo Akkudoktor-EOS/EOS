@@ -1,4 +1,7 @@
+import json
+import threading
 import traceback
+import urllib.request
 from asyncio import Lock, get_running_loop
 from concurrent.futures import ThreadPoolExecutor
 from enum import StrEnum
@@ -54,6 +57,48 @@ async def ems_manage_energy() -> None:
     to ensure proper energy management.
     """
     await EnergyManagement().run()
+
+
+NOTIFY_TIMEOUT_SECONDS = 5.0
+_notify_failing = False
+
+
+def _post_notification(url: str, event: dict) -> None:
+    """POST one event; log a failure once per failure streak, not every run."""
+    global _notify_failing
+    # The scheme is restricted to http(s) by the notify_url setting.
+    request = urllib.request.Request(  # noqa: S310
+        url,
+        data=json.dumps(event).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=NOTIFY_TIMEOUT_SECONDS) as response:  # noqa: S310
+            response.read()
+    except Exception as exc:
+        if not _notify_failing:
+            logger.warning("Optimization notification to {} failed: {}", url, exc)
+        _notify_failing = True
+        return
+    if _notify_failing:
+        logger.info("Optimization notification to {} works again.", url)
+    _notify_failing = False
+
+
+def notify_optimization_completed(url: Optional[str], event: dict) -> Optional[threading.Thread]:
+    """Tell ``ems.notify_url`` that a new solution is available.
+
+    Runs in a background thread so a slow or unreachable receiver never delays
+    the energy management run.
+    """
+    if not url:
+        return None
+    thread = threading.Thread(
+        target=_post_notification, args=(url, event), name="eos-notify", daemon=True
+    )
+    thread.start()
+    return thread
 
 
 class EnergyManagement(
@@ -492,6 +537,15 @@ class EnergyManagement(
             logger.debug("{}: Energy management plan:\n{}", algorithm, EnergyManagement._plan)
 
             logger.info("{}: Energy management run done (optimization updated)", algorithm)
+            notify_optimization_completed(
+                self.config.ems.notify_url,
+                {
+                    "event": "optimization_completed",
+                    "algorithm": str(algorithm),
+                    "completed_at": to_datetime().to_iso8601_string(),
+                    "duration_s": round(optimization_duration.total_seconds(), 1),
+                },
+            )
 
             # --- Dispatch control by adapters ---
             EnergyManagement._stage = EnergyManagementStage.CONTROL_DISPATCH
