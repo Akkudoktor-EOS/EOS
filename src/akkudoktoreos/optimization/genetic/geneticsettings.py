@@ -123,6 +123,20 @@ class GeneticCommonSettings(SettingsBaseModel):
         },
     )
 
+    workers: Optional[int] = Field(
+        default=None,
+        ge=1,
+        json_schema_extra={
+            "description": (
+                "Processes that evaluate candidate solutions in parallel. None = automatic: "
+                "one CPU core always stays free and at most two are used (1-2 cores -> 1, "
+                "3 or more cores -> 2), capped by a container CPU limit. 1 = evaluate in the "
+                "server process only. The result for a fixed seed is the same with any value."
+            ),
+            "examples": [None, 1, 2],
+        },
+    )
+
     measurement_max_age_seconds: int = Field(
         default=300,
         gt=0,
