@@ -164,6 +164,11 @@ def _release_freed_memory() -> None:
         _LIBC.malloc_trim(0)
 
 
+# CPU share of a container/systemd limit kept free for the server process:
+# while the workers compute, it still has to answer API requests (a client
+# pushing forecasts timed out when two workers used a 2-core limit fully).
+SERVER_CPU_RESERVE = 0.25
+
 # Parallel fitness evaluation. Workers are forked once per optimization run,
 # after the run is fully prepared, so each one owns a copy of the optimizer with
 # the run's forecasts, devices and terminal-value curve. Only genomes and
@@ -181,8 +186,8 @@ def _cpu_cores() -> int:
         return max(1, os.cpu_count() or 1)
 
 
-def _cgroup_cpu_limit(cgroup_root: str = "/sys/fs/cgroup") -> Optional[int]:
-    """Return the CPU limit (cgroup v2 ``cpu.max``) in whole cores, if any.
+def _cgroup_cpu_limit(cgroup_root: str = "/sys/fs/cgroup") -> Optional[float]:
+    """Return the CPU limit (cgroup v2 ``cpu.max``) in cores, if any.
 
     Checks this process's own cgroup and every parent, so a container limit
     and a systemd ``CPUQuota=`` on a native service both count.
@@ -194,13 +199,13 @@ def _cgroup_cpu_limit(cgroup_root: str = "/sys/fs/cgroup") -> Optional[int]:
             )
     except OSError:
         path = "/"
-    limits: list[int] = []
+    limits: list[float] = []
     while True:
         try:
             with open(os.path.join(cgroup_root, path.lstrip("/"), "cpu.max")) as cpu_max:
                 quota, period = cpu_max.read().split()[:2]
             if quota != "max":
-                limits.append(max(1, math.ceil(int(quota) / int(period))))
+                limits.append(int(quota) / int(period))
         except (OSError, ValueError, ZeroDivisionError):
             pass
         if path in ("", "/"):
@@ -209,12 +214,13 @@ def _cgroup_cpu_limit(cgroup_root: str = "/sys/fs/cgroup") -> Optional[int]:
     return min(limits) if limits else None
 
 
-def auto_evaluation_workers(cores: Optional[int] = None, cpu_limit: Optional[int] = None) -> int:
+def auto_evaluation_workers(cores: Optional[int] = None, cpu_limit: Optional[float] = None) -> int:
     """Number of evaluation processes when ``workers`` is not configured.
 
     One core always stays free for the rest of the system, and at most
     ``MAX_EVALUATION_WORKERS`` are used: 1-2 cores -> 1, 3 or more -> 2.
-    A container CPU limit caps the result further.
+    A CPU limit caps the result further and keeps ``SERVER_CPU_RESERVE`` of
+    it for the server process (limit 2 -> 1 worker, 2.5 -> 2).
     """
     if cores is None:
         cores = _cpu_cores()
@@ -222,14 +228,38 @@ def auto_evaluation_workers(cores: Optional[int] = None, cpu_limit: Optional[int
         cpu_limit = _cgroup_cpu_limit()
     workers = min(MAX_EVALUATION_WORKERS, max(1, cores - 1))
     if cpu_limit is not None:
-        workers = min(workers, max(1, cpu_limit))
+        workers = min(workers, max(1, math.floor(cpu_limit - SERVER_CPU_RESERVE)))
     return workers
 
 
-def _evaluation_worker_init() -> None:
+def worker_cpu_set(workers: int, allowed: Optional[set[int]] = None) -> Optional[set[int]]:
+    """CPU cores the evaluation workers are pinned to, or None for no pinning.
+
+    The workers get the last ``workers`` cores this process may use; the
+    server process itself stays unpinned. It therefore always finds a core
+    that is not busy with the optimization and keeps answering requests, and
+    the optimization never spreads beyond ``workers`` cores (no CPU quota
+    needed). Without a spare core there is nothing to gain: no pinning.
+    """
+    if allowed is None:
+        try:
+            allowed = set(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            return None
+    if workers < 1 or len(allowed) <= workers:
+        return None
+    return set(sorted(allowed)[-workers:])
+
+
+def _evaluation_worker_init(cpus: Optional[set[int]] = None) -> None:
     """Evaluate without the run cache in a worker; the parent owns the cache."""
     if _WORKER_OPTIMIZER is not None:
         _WORKER_OPTIMIZER._fitness_cache_enabled = False
+    if cpus:
+        try:
+            os.sched_setaffinity(0, cpus)
+        except (AttributeError, OSError):
+            pass
 
 
 def _evaluation_worker(genome: list[int]) -> tuple[list[int], tuple[float], Any]:
@@ -2638,16 +2668,30 @@ class GeneticOptimization(OptimizationBase):
         except ValueError:
             logger.warning("Parallel fitness evaluation needs fork(); evaluating serially.")
             return
+        cpus = worker_cpu_set(self._evaluation_workers) if self._pin_workers() else None
         _WORKER_OPTIMIZER = self
         try:
             self._evaluation_pool = context.Pool(
-                self._evaluation_workers, initializer=_evaluation_worker_init
+                self._evaluation_workers,
+                initializer=_evaluation_worker_init,
+                initargs=(cpus,),
             )
         except Exception as exc:
             _WORKER_OPTIMIZER = None
             logger.warning("Could not start evaluation workers ({}); evaluating serially.", exc)
             return
-        logger.info("Genetic evaluation: {} worker processes.", self._evaluation_workers)
+        logger.info(
+            "Genetic evaluation: {} worker processes{}.",
+            self._evaluation_workers,
+            f" on CPU cores {sorted(cpus)}" if cpus else "",
+        )
+
+    def _pin_workers(self) -> bool:
+        """Whether evaluation workers are pinned to fixed CPU cores."""
+        try:
+            return bool(self._genetic_cfg.pin_workers)
+        except Exception:
+            return True
 
     def _stop_evaluation_pool(self) -> None:
         """Stop the evaluation workers of this run."""

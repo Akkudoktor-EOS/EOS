@@ -29,7 +29,9 @@ HOURS = 24
         (4, None, 2),
         (16, None, 2),  # at most two
         (4, 1, 1),  # container CPU limit
-        (4, 2, 2),
+        (4, 2, 1),  # a quarter core stays free for the server process
+        (4, 2.5, 2),
+        (4, 3, 2),
         (2, 4, 1),
     ],
 )
@@ -158,8 +160,25 @@ def test_cgroup_cpu_limit_reads_own_and_parent_cgroups(tmp_path, monkeypatch):
         return real_open(path, *args, **kwargs)
 
     monkeypatch.setattr("builtins.open", fake_open)
-    assert _cgroup_cpu_limit(str(tmp_path)) == 2  # 1.5 cores -> 2
+    assert _cgroup_cpu_limit(str(tmp_path)) == 1.5
     (service / "cpu.max").write_text("max 100000\n")
     assert _cgroup_cpu_limit(str(tmp_path)) is None
     (tmp_path / "cpu.max").write_text("100000 100000\n")
     assert _cgroup_cpu_limit(str(tmp_path)) == 1  # a parent limit counts too
+
+
+@pytest.mark.parametrize(
+    "workers,allowed,expected",
+    [
+        (2, {0, 1, 2, 3}, {2, 3}),  # core 0/1 stay free for the server and the system
+        (3, {0, 1, 2, 3}, {1, 2, 3}),
+        (1, {0, 1}, {1}),
+        (2, {0, 1}, None),  # no spare core -> no pinning
+        (2, {4, 5, 6, 7}, {6, 7}),  # restricted container cpuset
+        (0, {0, 1, 2, 3}, None),
+    ],
+)
+def test_worker_cpu_set(workers, allowed, expected):
+    from akkudoktoreos.optimization.genetic.genetic import worker_cpu_set
+
+    assert worker_cpu_set(workers, allowed) == expected

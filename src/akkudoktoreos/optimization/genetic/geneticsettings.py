@@ -137,6 +137,20 @@ class GeneticCommonSettings(SettingsBaseModel):
         },
     )
 
+    pin_workers: bool = Field(
+        default=True,
+        json_schema_extra={
+            "description": (
+                "Pin the evaluation workers to the last 'workers' CPU cores. The server "
+                "process stays unpinned and keeps a core that is not busy with the "
+                "optimization, so it answers requests during a run, and the run never "
+                "uses more than 'workers' cores. Needs at least one core more than "
+                "workers; Linux only."
+            ),
+            "examples": [True, False],
+        },
+    )
+
     measurement_max_age_seconds: int = Field(
         default=300,
         gt=0,
