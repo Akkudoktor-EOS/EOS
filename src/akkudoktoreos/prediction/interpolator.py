@@ -15,6 +15,8 @@ from akkudoktoreos.utils.gridinterpolator import (
 
 
 class SelfConsumptionProbabilityInterpolator:
+    LOAD_DISTRIBUTION_CACHE_SIZE = 4096
+
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
         # The table is a pickled SciPy RegularGridInterpolator. It is read
@@ -27,6 +29,9 @@ class SelfConsumptionProbabilityInterpolator:
         self.load_power_max_w = float(self.interpolator.grid[0][-1])
         self.minute_load_levels_w = np.asarray(self.interpolator.grid[1], dtype=float)
         self.minute_load_max_w = float(self.interpolator.grid[1][-1])
+        # _load_distribution() per (backend, bounded mean load). The table is
+        # static, so an entry never goes stale; the size is bounded.
+        self._load_distributions: dict[tuple[str, float], tuple[np.ndarray, np.ndarray]] = {}
 
     def _load_distribution(self, mean_load_power_w: float) -> tuple[np.ndarray, np.ndarray]:
         """Return the conditional minute-load distribution for a mean load.
@@ -36,9 +41,18 @@ class SelfConsumptionProbabilityInterpolator:
         numerical deviations, so negative masses are removed and the result is
         normalized explicitly.
         """
-        bounded_mean_load_w = float(
-            np.clip(mean_load_power_w, self.load_power_min_w, self.load_power_max_w)
+        # The distribution depends on the mean load only, not on the PV power.
+        # An optimization asks for the same few loads (one per forecast slot,
+        # plus appliance combinations) with ever-changing PV values, so the
+        # table lookup over all minute-load bins is done once per load. Callers
+        # must not modify the returned arrays.
+        bounded_mean_load_w = min(
+            max(float(mean_load_power_w), self.load_power_min_w), self.load_power_max_w
         )
+        key = (str(configured_grid_interpolator_backend()), bounded_mean_load_w)
+        cached = self._load_distributions.get(key)
+        if cached is not None:
+            return cached
         points = np.column_stack(
             (
                 np.full(self.minute_load_levels_w.shape, bounded_mean_load_w),
@@ -48,8 +62,14 @@ class SelfConsumptionProbabilityInterpolator:
         probabilities = np.maximum(np.asarray(self.interpolator(points), dtype=float), 0.0)
         probability_sum = float(probabilities.sum())
         if probability_sum <= 0.0:
-            return self.minute_load_levels_w, probabilities
-        return self.minute_load_levels_w, probabilities / probability_sum
+            distribution = (self.minute_load_levels_w, probabilities)
+        else:
+            distribution = (self.minute_load_levels_w, probabilities / probability_sum)
+        if bounded_mean_load_w == bounded_mean_load_w:  # not NaN: NaN never matches a key
+            if len(self._load_distributions) >= self.LOAD_DISTRIBUTION_CACHE_SIZE:
+                self._load_distributions.clear()
+            self._load_distributions[key] = distribution
+        return distribution
 
     def _generate_points(
         self, mean_load_power_w: float, pv_power_w: float
@@ -129,7 +149,8 @@ class SelfConsumptionProbabilityInterpolator:
         expected_direct_power_w = float(
             np.dot(probabilities, np.minimum(normalized_load_levels_w, pv_power_w))
         )
-        return float(np.clip(expected_direct_power_w, 0.0, min(mean_load_power_w, pv_power_w)))
+        # Scalar bounds: min/max instead of np.clip (same result, no array round trip).
+        return min(max(expected_direct_power_w, 0.0), min(mean_load_power_w, pv_power_w))
 
     # def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
     #     """Calculate the PV self-consumption rate using RegularGridInterpolator.

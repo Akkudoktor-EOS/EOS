@@ -2844,15 +2844,21 @@ class GeneticOptimization(OptimizationBase):
     ) -> list[Any]:
         """Create offspring where crossover and mutation can both be applied."""
         offspring: list[Any] = []
+        # Offspring only take the genes of their parents: fitness, extra_data and
+        # immigrant protection are dropped by _invalidate_individual() below. A
+        # genome is a flat list of ints, so a new Individual from the parent's
+        # genes is the same child as a deepcopy that is invalidated afterwards -
+        # without copy.deepcopy walking every gene (8 % of a run).
+        clone = creator.Individual
         for _ in range(count):
-            child = self.toolbox.clone(random.choice(population))  # noqa: S311
+            child = clone(random.choice(population))  # noqa: S311
             crossed = False
             if (
                 len(child) > 1
                 and len(population) > 1
                 and random.random() < self.CROSSOVER_PROBABILITY  # noqa: S311
             ):
-                partner = self.toolbox.clone(random.choice(population))  # noqa: S311
+                partner = clone(random.choice(population))  # noqa: S311
                 child, _ = self.toolbox.mate(child, partner)
                 crossed = True
 
