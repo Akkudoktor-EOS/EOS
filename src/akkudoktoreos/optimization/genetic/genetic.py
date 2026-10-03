@@ -710,28 +710,54 @@ class GeneticOptimization(OptimizationBase):
     SOFT_RESTART_SURVIVOR_FRACTION = 0.20
     POINT_MUTATION_EXPECTED_GENES = 3.0
 
+    # Per-run configuration snapshot. The optimization reads horizon, tail,
+    # interval and prediction hours many times during a run. A client that
+    # updates the configuration while a run is in progress (e.g. a shrinking
+    # control horizon as the known price horizon moves on during the night)
+    # must not change these mid-run: genomes and device arrays sized at the
+    # start would no longer match the simulation loop, and the final
+    # evaluation fails with an IndexError. The snapshot is taken in
+    # optimize_ems() and released when the run ends; new values apply to the
+    # next run.
+    _run_genetic_cfg: Any = None
+    _run_prediction_hours: Optional[float] = None
+
+    @property
+    def _genetic_cfg(self) -> Any:
+        """Genetic configuration, frozen for the duration of a run."""
+        if self._run_genetic_cfg is not None:
+            return self._run_genetic_cfg
+        return self.config.optimization.genetic
+
+    @property
+    def _prediction_hours_cfg(self) -> Any:
+        """Prediction hours, frozen for the duration of a run."""
+        if self._run_prediction_hours is not None:
+            return self._run_prediction_hours
+        return self.config.prediction.hours
+
     # Independent forecast and control durations on the optimization grid.
     @property
     def slot_duration_h(self) -> float:
         """Length of one optimization slot in hours (1.0 hourly, 0.25 at 15 min)."""
-        interval = self.config.optimization.genetic.interval_sec or 3600
+        interval = self._genetic_cfg.interval_sec or 3600
         return interval / 3600
 
     @property
     def slots_per_hour(self) -> int:
         """Number of optimization slots per hour (1 hourly, 4 at 15 min)."""
-        interval = self.config.optimization.genetic.interval_sec or 3600
+        interval = self._genetic_cfg.interval_sec or 3600
         return 3600 // interval
 
     @property
     def control_slots(self) -> int:
         """Number of executable control intervals, measured from now."""
-        return self.config.optimization.genetic.horizon_hours * self.slots_per_hour
+        return self._genetic_cfg.horizon_hours * self.slots_per_hour
 
     @property
     def prediction_slots(self) -> int:
         """Forecast duration, independent of the control genome."""
-        return int(self.config.prediction.hours * self.slots_per_hour)
+        return int(self._prediction_hours_cfg * self.slots_per_hour)
 
     @property
     def tail_slots(self) -> int:
@@ -741,7 +767,7 @@ class GeneticOptimization(OptimizationBase):
         tail rather than failing the run, so the shortfall is not reported as
         missing provider data.
         """
-        requested = self.config.optimization.genetic.tail_horizon_hours * self.slots_per_hour
+        requested = self._genetic_cfg.tail_horizon_hours * self.slots_per_hour
         budget = max(0, self.prediction_slots - self.control_slots)
         return min(requested, budget)
 
@@ -766,12 +792,12 @@ class GeneticOptimization(OptimizationBase):
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
-        if self.config.optimization.genetic.interval_sec not in (900, 3600):
+        if self._genetic_cfg.interval_sec not in (900, 3600):
             logger.warning(
                 "Genetic optimization interval {} seconds is unsupported; using 3600 seconds.",
-                self.config.optimization.genetic.interval_sec,
+                self._genetic_cfg.interval_sec,
             )
-            self.config.optimization.genetic.interval_sec = 3600
+            self._genetic_cfg.interval_sec = 3600
         self.opti_param: dict[str, Any] = {}
         # EV genes cover precisely the control horizon; no fixed prediction tail.
         self.fixed_eauto_hours = 0
@@ -888,7 +914,7 @@ class GeneticOptimization(OptimizationBase):
         the total slot grid.
         """
         start_slot = self._control_start_slot()
-        horizon_slots = self.config.optimization.genetic.horizon_hours * self.slots_per_hour
+        horizon_slots = self._genetic_cfg.horizon_hours * self.slots_per_hour
         return min(self.control_end_slot, start_slot + horizon_slots)
 
     def _ev_deadline_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
@@ -966,7 +992,7 @@ class GeneticOptimization(OptimizationBase):
         self._forecast_reason = ""
         if available < requested:
             self._forecast_reason = (
-                f"Tail forecast shortened: requested {self.config.optimization.genetic.tail_horizon_hours} h, "
+                f"Tail forecast shortened: requested {self._genetic_cfg.tail_horizon_hours} h, "
                 f"effective {self._effective_tail_slots * self.slot_duration_h:g} h; "
                 f"limited by {', '.join(limiting)}. Continuation starts at slot {available}."
             )
@@ -993,8 +1019,8 @@ class GeneticOptimization(OptimizationBase):
             self._terminal_value_reason = "no battery in this optimization"
             return None
         try:
-            mode = self.config.optimization.genetic.terminal_value_mode
-            window_hours = self.config.optimization.genetic.terminal_value_window_hours
+            mode = self._genetic_cfg.terminal_value_mode
+            window_hours = self._genetic_cfg.terminal_value_window_hours
         except Exception:
             self._terminal_value_reason = "terminal value configuration unavailable"
             return None
@@ -1111,10 +1137,10 @@ class GeneticOptimization(OptimizationBase):
             The credit in EUR and the result object for the solution.
         """
         diagnostics = dict(
-            control_horizon_hours=self.config.optimization.genetic.horizon_hours,
-            requested_tail_hours=self.config.optimization.genetic.tail_horizon_hours,
+            control_horizon_hours=self._genetic_cfg.horizon_hours,
+            requested_tail_hours=self._genetic_cfg.tail_horizon_hours,
             effective_tail_hours=0.0,
-            tail_end_hour=float(self.config.optimization.genetic.horizon_hours),
+            tail_end_hour=float(self._genetic_cfg.horizon_hours),
         )
         battery = self.simulation.battery
         if battery is None:
@@ -1133,9 +1159,7 @@ class GeneticOptimization(OptimizationBase):
             if isinstance(curve, TailValueCurve):
                 tail_operating_euro, continuation_value_euro = curve.component_values(energy_wh)
                 tail_plan = (
-                    curve.diagnostic_plan(
-                        energy_wh, float(self.config.optimization.genetic.horizon_hours)
-                    )
+                    curve.diagnostic_plan(energy_wh, float(self._genetic_cfg.horizon_hours))
                     if include_tail_plan
                     else []
                 )
@@ -1144,8 +1168,8 @@ class GeneticOptimization(OptimizationBase):
                 tail_plan = []
             return credit, TerminalValueResult(
                 mode="TAIL" if isinstance(curve, TailValueCurve) else "AUTO",
-                control_horizon_hours=self.config.optimization.genetic.horizon_hours,
-                requested_tail_hours=self.config.optimization.genetic.tail_horizon_hours,
+                control_horizon_hours=self._genetic_cfg.horizon_hours,
+                requested_tail_hours=self._genetic_cfg.tail_horizon_hours,
                 effective_tail_hours=getattr(self, "_effective_tail_slots", 0)
                 * self.slot_duration_h,
                 tail_end_hour=(self.control_end_slot + getattr(self, "_effective_tail_slots", 0))
@@ -1465,17 +1489,14 @@ class GeneticOptimization(OptimizationBase):
         ) -> list[float]:
             data = np.asarray(values, dtype=float)
             # API inputs default to hourly; native callers declare their interval.
-            native = (
-                parameters.forecast_interval_seconds
-                == self.config.optimization.genetic.interval_sec
-            )
+            native = parameters.forecast_interval_seconds == self._genetic_cfg.interval_sec
             if parameters.forecast_interval_seconds is None:
-                max_hourly = self.config.prediction.hours + math.ceil(
+                max_hourly = self._prediction_hours_cfg + math.ceil(
                     self._start_day_slot() / self.slots_per_hour
                 )
                 if self.slots_per_hour > 1 and max_hourly < len(data) < self.prediction_slots:
                     raise ValueError(
-                        f"{name}: ambiguous forecast interval; expected either {self.config.prediction.hours} hourly values or {self.prediction_slots} native values. Set forecast_interval_seconds for shortened native forecasts."
+                        f"{name}: ambiguous forecast interval; expected either {self._prediction_hours_cfg} hourly values or {self.prediction_slots} native values. Set forecast_interval_seconds for shortened native forecasts."
                     )
                 native = self.slots_per_hour == 1 or len(data) >= self.prediction_slots
             if parameters.forecast_interval_seconds == 900 and self.slots_per_hour == 1:
@@ -1525,7 +1546,7 @@ class GeneticOptimization(OptimizationBase):
             update={
                 "ems": normalized_ems,
                 "temperature_forecast": temperature_forecast,
-                "forecast_interval_seconds": self.config.optimization.genetic.interval_sec,
+                "forecast_interval_seconds": self._genetic_cfg.interval_sec,
             },
             deep=True,
         )
@@ -1541,8 +1562,7 @@ class GeneticOptimization(OptimizationBase):
         n_appliance_genes = self.appliance_layout.n_genes
         expected_length = self.control_end_slot * (2 if self.optimize_ev else 1) + n_appliance_genes
         hourly_length = (
-            self.config.optimization.genetic.horizon_hours * (2 if self.optimize_ev else 1)
-            + n_appliance_genes
+            self._genetic_cfg.horizon_hours * (2 if self.optimize_ev else 1) + n_appliance_genes
         )
 
         if len(start_solution) == expected_length or self.slots_per_hour == 1:
@@ -1550,10 +1570,10 @@ class GeneticOptimization(OptimizationBase):
         if len(start_solution) != hourly_length:
             return list(start_solution)
 
-        battery_end = self.config.optimization.genetic.horizon_hours
+        battery_end = self._genetic_cfg.horizon_hours
         migrated = np.repeat(start_solution[:battery_end], self.slots_per_hour).tolist()
         if self.optimize_ev:
-            ev_end = battery_end + self.config.optimization.genetic.horizon_hours
+            ev_end = battery_end + self._genetic_cfg.horizon_hours
             migrated.extend(
                 np.repeat(start_solution[battery_end:ev_end], self.slots_per_hour).tolist()
             )
@@ -2949,7 +2969,7 @@ class GeneticOptimization(OptimizationBase):
     def _configured_fitness_cache_max_entries(self) -> Optional[int]:
         """Return the configured fitness cache limit (None = unbounded)."""
         try:
-            max_entries = self.config.optimization.genetic.fitness_cache_max_entries
+            max_entries = self._genetic_cfg.fitness_cache_max_entries
         except Exception:
             return None
         if max_entries is None:
@@ -3142,9 +3162,7 @@ class GeneticOptimization(OptimizationBase):
 
             # Configurable penalty multiplier (default 1 = economic loss in €)
             try:
-                ac_penalty_factor = float(
-                    self.config.optimization.genetic.penalties["ac_charge_break_even"]
-                )
+                ac_penalty_factor = float(self._genetic_cfg.penalties["ac_charge_break_even"])
             except Exception:
                 ac_penalty_factor = 1.0
 
@@ -3207,7 +3225,7 @@ class GeneticOptimization(OptimizationBase):
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
-                penalty = self.config.optimization.genetic.penalties["ev_soc_miss"]
+                penalty = self._genetic_cfg.penalties["ev_soc_miss"]
             except:
                 # Use default
                 penalty = 10
@@ -3239,7 +3257,7 @@ class GeneticOptimization(OptimizationBase):
         # Set the number of inviduals in a generation
         if individuals is None:
             try:
-                individuals = self.config.optimization.genetic.individuals
+                individuals = self._genetic_cfg.individuals
                 if individuals is None:
                     raise ValueError("individuals is not configured")
             except Exception:
@@ -3472,7 +3490,29 @@ class GeneticOptimization(OptimizationBase):
         ngen: Optional[int] = None,
         individuals: Optional[int] = None,
     ) -> GeneticSolution:
-        """Perform EMS (Energy Management System) optimization and visualize results."""
+        """Perform EMS (Energy Management System) optimization and visualize results.
+
+        The genetic configuration and the prediction hours are frozen for the
+        run (see ``_genetic_cfg``); updates made while it runs apply to the next.
+        """
+        self.config.validate_optimization_horizons()
+        self._run_genetic_cfg = self.config.optimization.genetic.model_copy(deep=True)
+        self._run_prediction_hours = self.config.prediction.hours
+        try:
+            return self._optimize_ems_run(parameters, start_hour, worst_case, ngen, individuals)
+        finally:
+            self._run_genetic_cfg = None
+            self._run_prediction_hours = None
+
+    def _optimize_ems_run(
+        self,
+        parameters: GeneticOptimizationParameters,
+        start_hour: Optional[int],
+        worst_case: bool,
+        ngen: Optional[int],
+        individuals: Optional[int],
+    ) -> GeneticSolution:
+        """Run the optimization with the configuration snapshot in place."""
         self.config.validate_optimization_horizons()
         direct_marketing_enabled = self._direct_marketing_enabled()
         parameters = self._parameters_for_config(parameters)
@@ -3497,7 +3537,7 @@ class GeneticOptimization(OptimizationBase):
         generations = ngen
         if generations is None:
             try:
-                generations = self.config.optimization.genetic.generations
+                generations = self._genetic_cfg.generations
             except:
                 generations = 400
                 logger.error("Generations not configured. Using {}.", generations)
@@ -3610,7 +3650,7 @@ class GeneticOptimization(OptimizationBase):
         home_appliances = [
             HomeAppliance(
                 parameters=appliance_params,
-                optimization_hours=self.config.optimization.genetic.horizon_hours,
+                optimization_hours=self._genetic_cfg.horizon_hours,
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
             )
@@ -3643,7 +3683,7 @@ class GeneticOptimization(OptimizationBase):
         # Prepare device simulation
         self.simulation.prepare(
             parameters=parameters.ems,
-            optimization_hours=self.config.optimization.genetic.horizon_hours,
+            optimization_hours=self._genetic_cfg.horizon_hours,
             prediction_hours=self.control_end_slot,
             inverter=inverter,  # battery is part of inverter
             ev=eauto,
@@ -3762,7 +3802,7 @@ class GeneticOptimization(OptimizationBase):
         return GeneticSolution(
             **{
                 "parameters": parameters,
-                "interval_seconds": self.config.optimization.genetic.interval_sec,
+                "interval_seconds": self._genetic_cfg.interval_sec,
                 "start_hour": start_hour,
                 "extra_data": extra_data,
                 "fitness_history": self.fitness_history,
