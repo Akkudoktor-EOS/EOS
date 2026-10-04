@@ -48,9 +48,9 @@ def _simulate_action(
     """Apply one tail action from one stored-energy state."""
     dc, discharge, ac_rate, export = action
     bat.soc_wh = float(energy_wh)
-    bat._charged_raw_wh_per_slot.fill(0)
+    bat._charged_raw_wh_per_slot[:] = [0.0] * len(bat._charged_raw_wh_per_slot)
     bat._discharged_raw_wh_per_slot.fill(0)
-    bat._charge_limit_raw_wh_per_slot.fill(np.inf)
+    bat._charge_limit_raw_wh_per_slot[:] = [float("inf")] * len(bat._charge_limit_raw_wh_per_slot)
     ac_enabled = inv.ac_to_dc_efficiency > 0 and (
         inv.max_ac_charge_power_w is None or inv.max_ac_charge_power_w > 0
     )
