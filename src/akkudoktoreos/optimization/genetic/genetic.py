@@ -679,6 +679,40 @@ class GeneticSimulation(PydanticBaseModel):
         if battery_fast:
             battery_lcos_per_wh_factor = battery_fast.levelized_cost_of_storage_kwh
 
+        # Aggregate appliance load per slot, summed once per candidate in the
+        # order the loop used to add the appliances (0.0 + first + second ...).
+        # Anything unusual (another appliance class, a curve that does not
+        # cover the simulated slots) keeps the per-slot lookups and their
+        # range check.
+        appliance_load_fast: Optional[list[float]] = None
+        if home_appliance_enabled and start_hour >= 0:
+            appliance_load_fast = [0.0] * end_hour
+            for appliance in home_appliances_fast:
+                curve = getattr(appliance, "load_curve", None)
+                if (
+                    type(appliance).get_load_for_hour is not HomeAppliance.get_load_for_hour
+                    or not isinstance(curve, np.ndarray)
+                    or curve.dtype != np.float64
+                    or curve.ndim != 1
+                    or len(curve) < end_hour
+                    or appliance.prediction_hours < end_hour
+                ):
+                    appliance_load_fast = None
+                    break
+                appliance_load_fast = [
+                    total + load for total, load in zip(appliance_load_fast, curve.tolist())
+                ]
+
+        # State of charge in percent, read directly where the device uses the
+        # plain Battery formula (two method calls per slot otherwise).
+        battery_soc_direct = bool(
+            battery_fast
+            and type(battery_fast).current_soc_percentage is Battery.current_soc_percentage
+        )
+        ev_soc_direct = bool(
+            ev_fast and type(ev_fast).current_soc_percentage is Battery.current_soc_percentage
+        )
+
         for hour in range(start_hour, end_hour):
             hour_idx = hour - start_hour
 
@@ -688,15 +722,22 @@ class GeneticSimulation(PydanticBaseModel):
 
             # Home appliances (sum the per-slot load of all flexible consumers)
             if home_appliance_enabled:
-                ha_load = 0.0
-                for appliance_load in appliance_loads_fast:
-                    ha_load += appliance_load(hour)
+                if appliance_load_fast is not None:
+                    ha_load = appliance_load_fast[hour]
+                else:
+                    ha_load = 0.0
+                    for appliance_load in appliance_loads_fast:
+                        ha_load += appliance_load(hour)
                 consumption += ha_load
                 home_appliance_wh_per_hour[hour_idx] = ha_load
 
             # E-Auto handling
             if ev_fast:
-                soc_ev_per_hour[hour_idx] = ev_fast.current_soc_percentage()  # save begin state
+                # save begin state
+                if ev_soc_direct:
+                    soc_ev_per_hour[hour_idx] = (ev_fast.soc_wh / ev_fast.capacity_wh) * 100
+                else:
+                    soc_ev_per_hour[hour_idx] = ev_fast.current_soc_percentage()
                 ev_charge_factor = ev_charge_hours_fast[hour]
                 if ev_charge_factor > 0:
                     stored_energy_ev, verluste_eauto = ev_fast.charge_energy(
@@ -712,7 +753,10 @@ class GeneticSimulation(PydanticBaseModel):
             # timestamp T reflects what the battery actually had at the START of interval T,
             # not the post-DC result. Consistent with the EV SOC convention above.
             if battery_fast:
-                soc_per_hour[hour_idx] = battery_fast.current_soc_percentage()
+                if battery_soc_direct:
+                    soc_per_hour[hour_idx] = (battery_fast.soc_wh / battery_fast.capacity_wh) * 100
+                else:
+                    soc_per_hour[hour_idx] = battery_fast.current_soc_percentage()
 
             # Process inverter logic
             energy_feedin_grid_actual = energy_consumption_grid_actual = losses = eigenverbrauch = (
