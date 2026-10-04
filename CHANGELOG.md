@@ -71,6 +71,10 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
   bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
   data are imported on first use instead of at server start. Results are unchanged.
+- New setting `optimization.self_consumption_interpolator` (`scipy` by default, `numpy`).
+  With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
+  GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
+  SciPy's Linux builds. The tables are read without SciPy in both cases.
 
 ### Fixed
 
