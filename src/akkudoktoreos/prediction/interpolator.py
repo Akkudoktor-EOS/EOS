@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 
-from akkudoktoreos.core.cache import cache_energy_management
+from akkudoktoreos.core.cache import CacheEnergyManagementStore, cache_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.utils.gridinterpolator import (
     SwitchableGridInterpolator,
@@ -16,6 +16,7 @@ from akkudoktoreos.utils.gridinterpolator import (
 
 class SelfConsumptionProbabilityInterpolator:
     LOAD_DISTRIBUTION_CACHE_SIZE = 4096
+    DIRECT_CONSUMPTION_CACHE_SIZE = 8192
 
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
@@ -32,6 +33,10 @@ class SelfConsumptionProbabilityInterpolator:
         # _load_distribution() per (backend, bounded mean load). The table is
         # static, so an entry never goes stale; the size is bounded.
         self._load_distributions: dict[tuple[str, float], tuple[np.ndarray, np.ndarray]] = {}
+        # calculate_expected_direct_consumption() per (mean load, PV power),
+        # valid for one energy management run (see there).
+        self._direct_consumption: dict[tuple[float, float], float] = {}
+        self._direct_consumption_generation = CacheEnergyManagementStore.generation
 
     def _load_distribution(self, mean_load_power_w: float) -> tuple[np.ndarray, np.ndarray]:
         """Return the conditional minute-load distribution for a mean load.
@@ -111,7 +116,6 @@ class SelfConsumptionProbabilityInterpolator:
         probabilities = self.interpolator(points)
         return float(np.clip(probabilities.sum(), 0.0, 1.0))
 
-    @cache_energy_management
     def calculate_expected_direct_consumption(
         self, mean_load_power_w: float, pv_power_w: float
     ) -> float:
@@ -126,6 +130,13 @@ class SelfConsumptionProbabilityInterpolator:
         forecast mean exactly. This compensates for discretization and the
         finite upper table boundary while retaining the distribution shape.
 
+        The results are cached until the start of the next energy management
+        run, like ``cache_energy_management`` does. The optimizer asks several
+        hundred thousand times per run, so the cache is a plain dictionary of
+        this instance instead of the shared store: no key built from the
+        callable, no callback per call, and room for all slots of a run instead
+        of the last 100 results.
+
         Args:
             mean_load_power_w: Mean load power of the forecast interval [W].
             pv_power_w: Mean PV power of the forecast interval [W].
@@ -133,6 +144,22 @@ class SelfConsumptionProbabilityInterpolator:
         Returns:
             Expected direct PV-to-load power [W].
         """
+        cache = self._direct_consumption
+        if self._direct_consumption_generation != CacheEnergyManagementStore.generation:
+            cache.clear()
+            self._direct_consumption_generation = CacheEnergyManagementStore.generation
+        key = (mean_load_power_w, pv_power_w)
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = self._expected_direct_consumption(mean_load_power_w, pv_power_w)
+        if len(cache) >= self.DIRECT_CONSUMPTION_CACHE_SIZE:
+            cache.clear()
+        cache[key] = result
+        return result
+
+    def _expected_direct_consumption(self, mean_load_power_w: float, pv_power_w: float) -> float:
+        """Calculate the expected direct PV-to-load power in watts, uncached."""
         mean_load_power_w = max(float(mean_load_power_w), 0.0)
         pv_power_w = max(float(pv_power_w), 0.0)
         if mean_load_power_w == 0.0 or pv_power_w == 0.0:

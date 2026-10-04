@@ -81,6 +81,11 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
   GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
   SciPy's Linux builds. The tables are read without SciPy in both cases.
+- Faster GENETIC runs with unchanged plans (about 40 % less run time on a Raspberry Pi 4):
+  the minute-load distribution and the expected direct consumption are cached per run, the
+  slot simulation works on plain numbers instead of single NumPy elements, offspring are
+  created without `deepcopy`, and identical genomes of a generation are evaluated once also
+  when the fitness cache is off.
 
 ### Fixed
 

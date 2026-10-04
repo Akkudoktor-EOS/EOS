@@ -124,6 +124,18 @@ def _pack_genes(values: list[int]) -> PackedGenes:
     gene fits nearly always; any value outside 0-255 switches the whole genome
     to 8 bytes per gene. The leading tag byte keeps both encodings apart.
     """
+    # Nearly every genome is narrow: let bytes() do the range check in C. It
+    # rejects exactly the values the check below rejects (outside 0-255).
+    try:
+        return (
+            b"\x00",
+            *[
+                bytes(values[start : start + _NARROW_CHUNK_GENES])
+                for start in range(0, len(values), _NARROW_CHUNK_GENES)
+            ],
+        )
+    except (TypeError, ValueError):
+        pass
     narrow = all(0 <= value <= 255 for value in values)
     width = _NARROW_CHUNK_GENES if narrow else _WIDE_CHUNK_GENES
     chunks: list[bytes] = []
@@ -134,6 +146,19 @@ def _pack_genes(values: list[int]) -> PackedGenes:
         chunk = bytes(window) if narrow else array("q", window).tobytes()
         chunks.append(chunk)
     return (b"\x00" if narrow else b"\x01", *chunks)
+
+
+def _slot_values(values: Any) -> Any:
+    """Return per-slot values as plain Python numbers for the simulation loop.
+
+    Reading single elements of a NumPy array yields NumPy scalars, whose
+    arithmetic is several times slower than that of Python numbers. The values
+    are the same IEEE doubles (or integers), so the results do not change.
+    Other element types are left as they are.
+    """
+    if isinstance(values, np.ndarray) and (values.dtype == np.float64 or values.dtype.kind in "iu"):
+        return values.tolist()
+    return values
 
 
 def _unpack_genes(packed: PackedGenes) -> list[int]:
@@ -533,21 +558,27 @@ class GeneticSimulation(PydanticBaseModel):
             len(load_energy_array_fast), self.prediction_hours or len(load_energy_array_fast)
         )
         total_hours = end_hour - start_hour
+        if total_hours < 0:
+            raise ValueError("negative dimensions are not allowed")
 
-        # Pre-allocate arrays for the results, optimized for speed
-        loads_energy_per_hour = np.full((total_hours), np.nan)
-        feedin_energy_per_hour = np.full((total_hours), np.nan)
-        consumption_energy_per_hour = np.full((total_hours), np.nan)
-        costs_per_hour = np.full((total_hours), np.nan)
-        revenue_per_hour = np.full((total_hours), np.nan)
-        losses_wh_per_hour = np.full((total_hours), np.nan)
-        electricity_price_per_hour = np.full((total_hours), np.nan)
-        feed_in_tariff_per_hour = np.full((total_hours), np.nan)
+        # Per-slot results are collected in plain lists (element writes into
+        # NumPy arrays are slow) and turned into arrays after the loop.
+        nan = float("nan")
+        loads_energy_per_hour: Any = [nan] * total_hours
+        feedin_energy_per_hour: Any = [nan] * total_hours
+        consumption_energy_per_hour: Any = [nan] * total_hours
+        costs_per_hour: Any = [nan] * total_hours
+        revenue_per_hour: Any = [nan] * total_hours
+        losses_wh_per_hour: Any = [nan] * total_hours
+        electricity_price_per_hour: Any = [nan] * total_hours
+        feed_in_tariff_per_hour: Any = [nan] * total_hours
+        soc_per_hour: Any
+        soc_ev_per_hour: Any
+        home_appliance_wh_per_hour: Any
 
         # Set initial state
         if battery_fast:
-            # Pre-allocate arrays for the results, optimized for speed
-            soc_per_hour = np.full((total_hours), np.nan)
+            soc_per_hour = [nan] * total_hours
 
             soc_per_hour[0] = battery_fast.current_soc_percentage()
 
@@ -605,8 +636,7 @@ class GeneticSimulation(PydanticBaseModel):
             ac_charging_possible = False
 
         if ev_fast:
-            # Pre-allocate arrays for the results, optimized for speed
-            soc_ev_per_hour = np.full((total_hours), np.nan)
+            soc_ev_per_hour = [nan] * total_hours
 
             soc_ev_per_hour[0] = ev_fast.current_soc_percentage()
             # Fill the charge array of the ev
@@ -623,41 +653,59 @@ class GeneticSimulation(PydanticBaseModel):
 
         if home_appliances_fast:
             home_appliance_enabled = True
-            # Pre-allocate the aggregate appliance load array (sum over all
-            # devices). Each appliance already carries its own resampled load
-            # curve, built from the decoded start(s) before this call.
-            home_appliance_wh_per_hour = np.full((total_hours), np.nan)
+            # The aggregate appliance load (sum over all devices). Each
+            # appliance already carries its own resampled load curve, built
+            # from the decoded start(s) before this call.
+            home_appliance_wh_per_hour = [nan] * total_hours
+            appliance_loads_fast = [
+                appliance.get_load_for_hour for appliance in home_appliances_fast
+            ]
         else:
             home_appliance_enabled = False
             # Default return if no home appliance is available
             home_appliance_wh_per_hour = np.full((total_hours), 0)
+            appliance_loads_fast = []
+
+        # The per-slot inputs as plain numbers. They are final here: the loop
+        # itself changes only the charge arrays of the devices, and those after
+        # the slot value was read.
+        load_energy_array_fast = _slot_values(load_energy_array_fast)
+        pv_prediction_wh_fast = _slot_values(pv_prediction_wh_fast)
+        elect_price_hourly_fast = _slot_values(elect_price_hourly_fast)
+        elect_revenue_per_hour_arr_fast = _slot_values(elect_revenue_per_hour_arr_fast)
+        bat_grid_export_hours_fast = _slot_values(bat_grid_export_hours_fast)
+        ac_charge_hours_fast = _slot_values(ac_charge_hours_fast)
+        ev_charge_hours_fast = _slot_values(ev_charge_hours_fast)
+        if battery_fast:
+            battery_lcos_per_wh_factor = battery_fast.levelized_cost_of_storage_kwh
 
         for hour in range(start_hour, end_hour):
             hour_idx = hour - start_hour
 
             # Accumulate loads and PV generation
             consumption = load_energy_array_fast[hour]
-            losses_wh_per_hour[hour_idx] = 0.0
+            slot_losses = 0.0
 
             # Home appliances (sum the per-slot load of all flexible consumers)
             if home_appliance_enabled:
                 ha_load = 0.0
-                for appliance in home_appliances_fast:
-                    ha_load += appliance.get_load_for_hour(hour)
+                for appliance_load in appliance_loads_fast:
+                    ha_load += appliance_load(hour)
                 consumption += ha_load
                 home_appliance_wh_per_hour[hour_idx] = ha_load
 
             # E-Auto handling
             if ev_fast:
                 soc_ev_per_hour[hour_idx] = ev_fast.current_soc_percentage()  # save begin state
-                if ev_charge_hours_fast[hour] > 0:
+                ev_charge_factor = ev_charge_hours_fast[hour]
+                if ev_charge_factor > 0:
                     stored_energy_ev, verluste_eauto = ev_fast.charge_energy(
-                        wh=None, hour=hour, charge_factor=ev_charge_hours_fast[hour]
+                        wh=None, hour=hour, charge_factor=ev_charge_factor
                     )
                     # The inverter/grid must supply the EV charger's raw input,
                     # not only the energy stored after charging losses.
                     consumption += stored_energy_ev + verluste_eauto
-                    losses_wh_per_hour[hour_idx] += verluste_eauto
+                    slot_losses += verluste_eauto
 
             # Save battery SOC before inverter processing = true begin-of-interval state.
             # Must be recorded here (before DC charge/discharge) so the displayed SOC at
@@ -724,7 +772,7 @@ class GeneticSimulation(PydanticBaseModel):
                     ac_energy = stored + ac_charge_losses
                 consumption += ac_energy
                 energy_consumption_grid_actual += ac_energy
-                losses_wh_per_hour[hour_idx] += ac_charge_losses
+                slot_losses += ac_charge_losses
 
             # Update hourly arrays
             if (
@@ -732,12 +780,12 @@ class GeneticSimulation(PydanticBaseModel):
                 and hourly_feed_in_tariff < 0.0
                 and energy_feedin_grid_actual > 0.0
             ):
-                losses_wh_per_hour[hour_idx] += energy_feedin_grid_actual
+                slot_losses += energy_feedin_grid_actual
                 energy_feedin_grid_actual = 0.0
 
             feedin_energy_per_hour[hour_idx] = energy_feedin_grid_actual
             consumption_energy_per_hour[hour_idx] = energy_consumption_grid_actual
-            losses_wh_per_hour[hour_idx] += losses
+            losses_wh_per_hour[hour_idx] = slot_losses + losses
             loads_energy_per_hour[hour_idx] = consumption
             hourly_electricity_price = elect_price_hourly_fast[hour]
             electricity_price_per_hour[hour_idx] = hourly_electricity_price
@@ -751,12 +799,25 @@ class GeneticSimulation(PydanticBaseModel):
             battery_lcos_cost = 0.0
             if battery_fast:
                 battery_lcos_cost = (
-                    battery_fast.discharged_energy_wh(hour)
-                    * battery_fast.levelized_cost_of_storage_kwh
-                    / 1000.0
+                    battery_fast.discharged_energy_wh(hour) * battery_lcos_per_wh_factor / 1000.0
                 )
             costs_per_hour[hour_idx] = grid_cost + battery_lcos_cost
             revenue_per_hour[hour_idx] = energy_feedin_grid_actual * hourly_feed_in_tariff
+
+        loads_energy_per_hour = np.array(loads_energy_per_hour, dtype=float)
+        feedin_energy_per_hour = np.array(feedin_energy_per_hour, dtype=float)
+        consumption_energy_per_hour = np.array(consumption_energy_per_hour, dtype=float)
+        costs_per_hour = np.array(costs_per_hour, dtype=float)
+        revenue_per_hour = np.array(revenue_per_hour, dtype=float)
+        losses_wh_per_hour = np.array(losses_wh_per_hour, dtype=float)
+        electricity_price_per_hour = np.array(electricity_price_per_hour, dtype=float)
+        feed_in_tariff_per_hour = np.array(feed_in_tariff_per_hour, dtype=float)
+        if battery_fast:
+            soc_per_hour = np.array(soc_per_hour, dtype=float)
+        if ev_fast:
+            soc_ev_per_hour = np.array(soc_ev_per_hour, dtype=float)
+        if home_appliance_enabled:
+            home_appliance_wh_per_hour = np.array(home_appliance_wh_per_hour, dtype=float)
 
         total_cost = np.nansum(costs_per_hour)
         total_losses = np.nansum(losses_wh_per_hour)
@@ -2590,28 +2651,73 @@ class GeneticOptimization(OptimizationBase):
                 )
                 self._stop_evaluation_pool()
         pending = [individual for individual in invalid if not individual.fitness.valid]
-        fitnesses = self.toolbox.map(self.toolbox.evaluate, pending)
-        for individual, fitness in zip(pending, fitnesses):
-            individual.fitness.values = fitness
+        if getattr(self, "_fitness_cache_enabled", False):
+            # evaluate() answers repeated genomes from the cache.
+            fitnesses = self.toolbox.map(self.toolbox.evaluate, pending)
+            for individual, fitness in zip(pending, fitnesses):
+                individual.fitness.values = fitness
+            return len(invalid)
+        # Without the cache, identical genomes of this batch are still
+        # evaluated once only (see _group_identical).
+        groups = self._group_identical(pending)
+        firsts = [group[0] for group in groups]
+        fitnesses = self.toolbox.map(self.toolbox.evaluate, firsts)
+        for group, fitness in zip(groups, fitnesses):
+            first = group[0]
+            first.fitness.values = fitness
+            for individual in group[1:]:
+                self._copy_evaluation(first, individual)
         return len(invalid)
+
+    def _group_identical(self, individuals: list[Any]) -> list[list[Any]]:
+        """Group individuals with identical genomes, in order of first occurrence.
+
+        Crossover and mutation regularly produce the same genome several times
+        within one generation. The evaluation is deterministic, so one
+        evaluation per group gives every member the result it would get on its
+        own. Unlike the fitness cache this needs no memory beyond the batch.
+        """
+        groups: list[list[Any]] = []
+        by_genome: dict[tuple[Any, ...], list[Any]] = {}
+        for individual in individuals:
+            genome = tuple(individual)
+            group = by_genome.get(genome)
+            if group is None:
+                group = by_genome[genome] = []
+                groups.append(group)
+            else:
+                self._duplicate_evaluations_skipped = (
+                    getattr(self, "_duplicate_evaluations_skipped", 0) + 1
+                )
+            group.append(individual)
+        return groups
+
+    @staticmethod
+    def _copy_evaluation(source: Any, target: Any) -> None:
+        """Give ``target`` the evaluated genome and results of ``source``."""
+        target[:] = source
+        if hasattr(source, "extra_data"):
+            target.extra_data = source.extra_data
+        elif hasattr(target, "extra_data"):
+            del target.extra_data
+        target.fitness.values = source.fitness.values
 
     def _evaluate_parallel(self, pool: Any, invalid: list[Any]) -> None:
         """Evaluate individuals in the worker processes, same results as evaluate().
 
-        Cache lookups and stores stay in this process. With the cache active,
-        identical genomes are evaluated once, as a serial run would hit the
-        cache for the repeats. Results are applied only when the whole batch
+        Cache lookups and stores stay in this process. Identical genomes are
+        evaluated once: with the cache active as a serial run would hit the
+        cache for the repeats, without it by grouping the batch. Results are applied only when the whole batch
         has returned, so a failed batch leaves nothing half-assigned.
         """
         cache_enabled = getattr(self, "_fitness_cache_enabled", False)
         groups: list[list[Any]] = []
         keys: list[Optional[PackedGenes]] = []
         by_key: dict[PackedGenes, list[Any]] = {}
-        for individual in invalid:
-            if not cache_enabled:
-                groups.append([individual])
-                keys.append(None)
-                continue
+        if not cache_enabled:
+            groups = self._group_identical(invalid)
+            keys = [None] * len(groups)
+        for individual in invalid if cache_enabled else ():
             key = self._fitness_key(individual)
             cached = self._fitness_cache.get(key)
             if cached is not None:
@@ -3226,14 +3332,25 @@ class GeneticOptimization(OptimizationBase):
     def _fitness_key(self, individual: list[int]) -> PackedGenes:
         """Return the fitness-relevant genome, excluding elapsed control slots."""
         start_slot = self._control_start_slot()
-        relevant = list(individual[start_slot : self.control_end_slot])
-        if self.optimize_ev:
-            ev_start = self.control_end_slot + start_slot
-            relevant.extend(individual[ev_start : self.control_end_slot * 2])
+        control_end_slot = self.control_end_slot
         n_appliance_genes = self.appliance_layout.n_genes
-        if n_appliance_genes > 0:
-            relevant.extend(individual[-n_appliance_genes:])
-        return _pack_genes([int(value) for value in relevant])
+        if start_slot == 0 and len(individual) == (
+            control_end_slot * (2 if self.optimize_ev else 1) + n_appliance_genes
+        ):
+            # The whole genome is relevant (the usual case): no copy needed.
+            relevant = individual
+        else:
+            relevant = list(individual[start_slot:control_end_slot])
+            if self.optimize_ev:
+                ev_start = control_end_slot + start_slot
+                relevant.extend(individual[ev_start : control_end_slot * 2])
+            if n_appliance_genes > 0:
+                relevant.extend(individual[-n_appliance_genes:])
+        try:
+            # Genes are plain ints; bytes() rejects anything else.
+            return _pack_genes(relevant)
+        except (TypeError, ValueError):
+            return _pack_genes([int(value) for value in relevant])
 
     def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
         """EV state of charge the target is checked against [%].
@@ -3622,6 +3739,7 @@ class GeneticOptimization(OptimizationBase):
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
         self._fitness_cache_enabled = max_entries != 0
+        self._duplicate_evaluations_skipped = 0
         self._start_evaluation_pool()
         local_evaluations = 0
         local_improvements = 0
@@ -3673,7 +3791,11 @@ class GeneticOptimization(OptimizationBase):
         cache_hit_rate = self._fitness_cache_hits / cache_lookups if cache_lookups > 0 else 0.0
         cache_keys = len(self._fitness_cache)
         if max_entries == 0:
-            logger.info("Fitness cache: disabled (fitness_cache_max_entries = 0).")
+            logger.info(
+                "Fitness cache: disabled (fitness_cache_max_entries = 0); "
+                "{} identical genomes within a generation evaluated once.",
+                getattr(self, "_duplicate_evaluations_skipped", 0),
+            )
         elif max_entries is None:
             logger.info(
                 "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",

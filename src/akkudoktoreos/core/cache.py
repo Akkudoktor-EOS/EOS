@@ -84,6 +84,9 @@ class CacheEnergyManagementStore(SingletonMixin):
     last_value: ClassVar[Any] = None
     hit_count: ClassVar[int] = 0
     miss_count: ClassVar[int] = 0
+    # Counts clear() calls. Callers that keep their own per-run cache compare
+    # it to drop their entries together with this store.
+    generation: ClassVar[int] = 0
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initializes the `CacheEnergyManagementStore` instance with default parameters.
@@ -188,6 +191,7 @@ class CacheEnergyManagementStore(SingletonMixin):
         """
         if hasattr(self.cache, "clear") and callable(getattr(self.cache, "clear")):
             CacheEnergyManagementStore.cache.clear()
+            CacheEnergyManagementStore.generation += 1
             CacheEnergyManagementStore.last_event = None
             CacheEnergyManagementStore.last_key = None
             CacheEnergyManagementStore.last_value = None

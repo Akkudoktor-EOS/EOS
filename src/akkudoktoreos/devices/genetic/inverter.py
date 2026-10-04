@@ -260,75 +260,107 @@ class Inverter:
                 battery and the inverter allow, which is the behaviour when no
                 export rates are configured.
         """
+        # This method runs once per slot of every candidate plan. The bounds
+        # below are written as conditional expressions instead of min()/max()
+        # calls: "0.0 if x < 0.0 else x" is exactly max(x, 0.0) and
+        # "b if b < a else a" is exactly min(a, b), NaN and signed zero included.
         losses = 0.0
         grid_export = 0.0
-        generation = max(float(generation), 0.0)
-        consumption = max(float(consumption), 0.0)
+        generation = float(generation)
+        if generation < 0.0:
+            generation = 0.0
+        consumption = float(consumption)
+        if consumption < 0.0:
+            consumption = 0.0
+        battery = self.battery
+        max_power_wh = self.max_power_wh
 
         # Convert interval energy [Wh] to mean power [W] for the probability
         # lookup, then convert its expected direct power back to slot energy.
         if generation > 0.0 and consumption > 0.0:
+            slot_duration_h = self.slot_duration_h
             expected_direct_power_w = (
                 self.self_consumption_predictor.calculate_expected_direct_consumption(
-                    consumption / self.slot_duration_h,
-                    generation / self.slot_duration_h,
+                    consumption / slot_duration_h,
+                    generation / slot_duration_h,
                 )
             )
-            direct_pv_energy = expected_direct_power_w * self.slot_duration_h
+            direct_pv_energy = expected_direct_power_w * slot_duration_h
         else:
             direct_pv_energy = 0.0
 
         # Direct PV is bounded by both input energies and by the AC energy the
         # inverter can move during this slot.
-        direct_pv_energy = min(
-            max(direct_pv_energy, 0.0),
-            generation,
-            consumption,
-            self.max_power_wh,
-        )
-        remaining_load = max(consumption - direct_pv_energy, 0.0)
-        pv_surplus = max(generation - direct_pv_energy, 0.0)
-        remaining_inverter_ac_capacity = max(self.max_power_wh - direct_pv_energy, 0.0)
+        if direct_pv_energy < 0.0:
+            direct_pv_energy = 0.0
+        if generation < direct_pv_energy:
+            direct_pv_energy = generation
+        if consumption < direct_pv_energy:
+            direct_pv_energy = consumption
+        if max_power_wh < direct_pv_energy:
+            direct_pv_energy = max_power_wh
+        remaining_load = consumption - direct_pv_energy
+        if remaining_load < 0.0:
+            remaining_load = 0.0
+        pv_surplus = generation - direct_pv_energy
+        if pv_surplus < 0.0:
+            pv_surplus = 0.0
+        remaining_inverter_ac_capacity = max_power_wh - direct_pv_energy
+        if remaining_inverter_ac_capacity < 0.0:
+            remaining_inverter_ac_capacity = 0.0
 
         # Load gaps and PV surplus may both occur within the same coarse slot.
         # Cover the load gap first; this preserves the existing chronological
         # approximation and can create headroom for later PV charging.
         battery_discharge_ac = 0.0
-        if remaining_load > 0.0 and self.battery and remaining_inverter_ac_capacity > 0.0:
-            requested_ac_wh = min(remaining_load, remaining_inverter_ac_capacity)
+        if remaining_load > 0.0 and battery and remaining_inverter_ac_capacity > 0.0:
+            requested_ac_wh = (
+                remaining_inverter_ac_capacity
+                if remaining_inverter_ac_capacity < remaining_load
+                else remaining_load
+            )
             battery_discharge_ac, battery_discharge_losses = self._discharge_battery_to_ac(
                 requested_ac_wh, hour
             )
-            remaining_load = max(remaining_load - battery_discharge_ac, 0.0)
-            remaining_inverter_ac_capacity = max(
-                remaining_inverter_ac_capacity - battery_discharge_ac, 0.0
-            )
+            remaining_load = remaining_load - battery_discharge_ac
+            if remaining_load < 0.0:
+                remaining_load = 0.0
+            remaining_inverter_ac_capacity = remaining_inverter_ac_capacity - battery_discharge_ac
+            if remaining_inverter_ac_capacity < 0.0:
+                remaining_inverter_ac_capacity = 0.0
             losses += battery_discharge_losses
 
         grid_import = remaining_load
 
-        # Charge from the probabilistic PV surplus on the DC path. Stored energy
-        # plus charge losses equals the PV energy accepted by the battery.
-        remaining_surplus = pv_surplus
-        if remaining_surplus > 0.0 and self.battery:
-            charged_energy, charge_losses = self.battery.charge_energy(remaining_surplus, hour)
-            remaining_surplus = max(remaining_surplus - charged_energy - charge_losses, 0.0)
-            losses += charge_losses
+        # Without PV surplus (night slots, or all PV consumed directly) there is
+        # nothing to charge, export or curtail. (!= instead of >: a NaN forecast
+        # keeps propagating into the result as before.)
+        if pv_surplus != 0.0:
+            # Charge from the probabilistic PV surplus on the DC path. Stored
+            # energy plus charge losses equals the PV energy accepted by the
+            # battery.
+            remaining_surplus = pv_surplus
+            if remaining_surplus > 0.0 and battery:
+                charged_energy, charge_losses = battery.charge_energy(remaining_surplus, hour)
+                remaining_surplus = max(remaining_surplus - charged_energy - charge_losses, 0.0)
+                losses += charge_losses
 
-        pv_grid_export = min(remaining_surplus, remaining_inverter_ac_capacity)
-        grid_export += pv_grid_export
-        remaining_inverter_ac_capacity = max(remaining_inverter_ac_capacity - pv_grid_export, 0.0)
-        # PV which can neither charge the battery nor pass through the inverter
-        # is curtailed and reported as a loss.
-        losses += max(remaining_surplus - pv_grid_export, 0.0)
+            pv_grid_export = min(remaining_surplus, remaining_inverter_ac_capacity)
+            grid_export += pv_grid_export
+            remaining_inverter_ac_capacity = max(
+                remaining_inverter_ac_capacity - pv_grid_export, 0.0
+            )
+            # PV which can neither charge the battery nor pass through the
+            # inverter is curtailed and reported as a loss.
+            losses += max(remaining_surplus - pv_grid_export, 0.0)
 
-        if allow_battery_grid_export and self.battery and remaining_inverter_ac_capacity > 0.0:
+        if allow_battery_grid_export and battery and remaining_inverter_ac_capacity > 0.0:
             export_factor = min(max(float(battery_grid_export_factor), 0.0), 1.0)
             # Upper bounds of the export. With an efficiency curve, the
             # efficiency is estimated at the DC energy of each bound; the
             # conversion itself in _discharge_battery_to_ac() is exact and is
             # limited by the energy the battery can actually deliver.
-            remaining_battery_dc = self.battery.remaining_discharge_energy_wh(hour)
+            remaining_battery_dc = battery.remaining_discharge_energy_wh(hour)
             remaining_battery_ac = remaining_battery_dc * self.dc_to_ac_efficiency_at(
                 remaining_battery_dc
             )
@@ -336,7 +368,7 @@ class Inverter:
             # power, so it stays a plain power setpoint ("export at 50 %") that
             # does not silently grow when self-consumption used less of the slot.
             # At factor 1.0 this bound never binds; behaviour is unchanged.
-            rated_export_dc = self.battery.rated_discharge_energy_wh() * export_factor
+            rated_export_dc = battery.rated_discharge_energy_wh() * export_factor
             rated_export_ac = rated_export_dc * self.dc_to_ac_efficiency_at(rated_export_dc)
             export_capacity = min(
                 remaining_inverter_ac_capacity, remaining_battery_ac, rated_export_ac

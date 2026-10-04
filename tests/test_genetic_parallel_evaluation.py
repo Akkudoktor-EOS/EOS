@@ -1,5 +1,7 @@
 """Parallel fitness evaluation gives the same result as evaluating in one process."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from akkudoktoreos.config.config import ConfigEOS
@@ -182,3 +184,47 @@ def test_worker_cpu_set(workers, allowed, expected):
     from akkudoktoreos.optimization.genetic.genetic import worker_cpu_set
 
     assert worker_cpu_set(workers, allowed) == expected
+
+
+class _Fitness:
+    def __init__(self) -> None:
+        self.values: tuple[float, ...] = ()
+
+    @property
+    def valid(self):
+        return bool(self.values)
+
+
+class _Individual(list):
+    extra_data: tuple[float, float, float]
+
+    def __init__(self, genes):
+        super().__init__(genes)
+        self.fitness = _Fitness()
+
+
+def test_identical_genomes_of_a_batch_are_evaluated_once_without_cache():
+    """Repeats get the repaired genome and results of the one evaluation."""
+    optimization = GeneticOptimization.__new__(GeneticOptimization)
+    evaluated: list[list[int]] = []
+
+    def evaluate(individual):
+        evaluated.append(list(individual))
+        individual[0] = 9  # an evaluation may repair the genome in place
+        individual.extra_data = (float(sum(individual)), 0.0, 0.0)
+        return (float(sum(individual)),)
+
+    optimization.toolbox = SimpleNamespace(map=map, evaluate=evaluate)
+    population = [_Individual(genes) for genes in ([1, 2, 3], [4, 5, 6], [1, 2, 3], [7, 8, 9])]
+    done = _Individual([0, 0, 0])
+    done.fitness.values = (1.0,)
+
+    assert optimization._evaluate_invalid(population + [done]) == 4
+
+    assert evaluated == [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+    assert optimization._duplicate_evaluations_skipped == 1
+    assert population[2] == population[0] == [9, 2, 3]
+    assert population[2].fitness.values == population[0].fitness.values == (14.0,)
+    assert population[2].extra_data == population[0].extra_data
+    assert population[1].fitness.values == (20.0,)
+    assert done == [0, 0, 0] and done.fitness.values == (1.0,)
