@@ -8,7 +8,7 @@ import random
 import sys
 import time
 from array import array
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Optional
@@ -816,6 +816,9 @@ class GeneticOptimization(OptimizationBase):
         # have changed even when the genome is identical.
         self._fitness_cache_enabled = False
         self._fitness_cache: dict[PackedGenes, FitnessCacheEntry] = {}
+        # Maximum number of cache keys. None keeps the cache unbounded; a bounded
+        # cache is an OrderedDict and evicts the oldest key first (FIFO).
+        self._fitness_cache_max_entries: Optional[int] = None
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
 
@@ -2922,7 +2925,36 @@ class GeneticOptimization(OptimizationBase):
         )
         self._fitness_cache[original_key] = entry
         self._fitness_cache[canonical_key] = entry
+        max_entries = getattr(self, "_fitness_cache_max_entries", None)
+        if max_entries is not None:
+            self._evict_fitness_cache(max_entries)
         return fitness
+
+    def _evict_fitness_cache(self, max_entries: int) -> None:
+        """Drop the oldest cache keys until at most ``max_entries`` remain.
+
+        FIFO instead of LRU: the hit rate of the cache is low (typically below
+        15 %), so tracking recency would cost more than it saves. Evicting a key
+        only means that genome is evaluated again; the evaluation is
+        deterministic, so the optimization result does not change.
+        """
+        cache = self._fitness_cache
+        if isinstance(cache, OrderedDict):
+            while len(cache) > max_entries:
+                cache.popitem(last=False)
+        else:
+            while len(cache) > max_entries:
+                del cache[next(iter(cache))]
+
+    def _configured_fitness_cache_max_entries(self) -> Optional[int]:
+        """Return the configured fitness cache limit (None = unbounded)."""
+        try:
+            max_entries = self.config.optimization.genetic.fitness_cache_max_entries
+        except Exception:
+            return None
+        if max_entries is None:
+            return None
+        return max(int(max_entries), 0)
 
     def _fitness_key(self, individual: list[int]) -> PackedGenes:
         """Return the fitness-relevant genome, excluding elapsed control slots."""
@@ -3311,10 +3343,20 @@ class GeneticOptimization(OptimizationBase):
         # The memoization scope is exactly one optimizer invocation. Always turn
         # it off again, including when DEAP raises, so no later caller can reuse
         # results under changed forecasts or device state.
+        # fitness_cache_max_entries: None = unbounded, 0 = no cache, N = at most
+        # N keys (oldest evicted first). Disabling or bounding the cache only
+        # re-evaluates genomes; it does not change the result.
+        max_entries = self._configured_fitness_cache_max_entries()
+        self._fitness_cache_max_entries = max_entries
         self._fitness_cache.clear()
+        if max_entries is not None:
+            # Only a bounded cache pays for the ordered container (O(1) eviction).
+            self._fitness_cache = OrderedDict()
+        elif isinstance(self._fitness_cache, OrderedDict):
+            self._fitness_cache = {}
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
-        self._fitness_cache_enabled = True
+        self._fitness_cache_enabled = max_entries != 0
         local_evaluations = 0
         local_improvements = 0
         local_initial_fitness = float("nan")
@@ -3363,13 +3405,25 @@ class GeneticOptimization(OptimizationBase):
         cache_lookups = self._fitness_cache_hits + self._fitness_cache_misses
         cache_hit_rate = self._fitness_cache_hits / cache_lookups if cache_lookups > 0 else 0.0
         cache_keys = len(self._fitness_cache)
-        logger.info(
-            "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",
-            self._fitness_cache_hits,
-            self._fitness_cache_misses,
-            cache_hit_rate,
-            cache_keys,
-        )
+        if max_entries == 0:
+            logger.info("Fitness cache: disabled (fitness_cache_max_entries = 0).")
+        elif max_entries is None:
+            logger.info(
+                "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",
+                self._fitness_cache_hits,
+                self._fitness_cache_misses,
+                cache_hit_rate,
+                cache_keys,
+            )
+        else:
+            logger.info(
+                "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys (limit {}).",
+                self._fitness_cache_hits,
+                self._fitness_cache_misses,
+                cache_hit_rate,
+                cache_keys,
+                max_entries,
+            )
 
         # Store fitness history
         self.fitness_history = {

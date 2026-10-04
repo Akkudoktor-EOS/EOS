@@ -257,6 +257,7 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",

@@ -41,6 +41,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
   models the lower DC-to-AC efficiency at low load. Without it the constant
   `dc_to_ac_efficiency` applies unchanged.
+- Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
+  (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
+  a run by up to ~150 MB on small devices without changing the plan.
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.

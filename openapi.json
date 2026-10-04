@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610011739436914"
+    "version": "v0.3.0.dev2610041146637708"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -8769,6 +8769,24 @@
               42
             ]
           },
+          "fitness_cache_max_entries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Cache Max Entries",
+            "description": "Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
+          },
           "measurement_max_age_seconds": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -8915,6 +8933,24 @@
             "examples": [
               null,
               42
+            ]
+          },
+          "fitness_cache_max_entries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Cache Max Entries",
+            "description": "Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices.",
+            "examples": [
+              null,
+              0,
+              5000
             ]
           },
           "measurement_max_age_seconds": {

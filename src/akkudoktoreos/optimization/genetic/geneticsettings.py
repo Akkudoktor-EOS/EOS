@@ -108,6 +108,21 @@ class GeneticCommonSettings(SettingsBaseModel):
         },
     )
 
+    fitness_cache_max_entries: Optional[int] = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "Maximum number of keys in the per-run fitness cache. None = unbounded "
+                "(default), 0 = cache disabled, N > 0 = keep at most N keys and evict the "
+                "oldest first. Every cached evaluation takes one or two keys. The cache "
+                "only saves repeated evaluations; the result for a fixed seed is the same "
+                "with any value. Limit it to cap memory on small devices."
+            ),
+            "examples": [None, 0, 5000],
+        },
+    )
+
     measurement_max_age_seconds: int = Field(
         default=300,
         gt=0,

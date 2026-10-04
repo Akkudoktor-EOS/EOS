@@ -175,6 +175,21 @@ The behavior of the genetic algorithm can be customized using the following conf
     A fixed seed to ensure reproducibility. Runs with the same seed and configuration will
     produce the same results.
 
+- **fitness_cache_max_entries** (`int` or `null`, default: `null`):
+  Limits the fitness cache of one optimization run. The cache remembers the fitness of every
+  evaluated plan so that a repeated plan is not simulated again. It is cleared after each run,
+  but during a run it grows with individuals × generations (roughly 100 MB at 300 × 400) while
+  typically only 5–15 % of the evaluations hit it.
+
+  - If `null`, the cache is unbounded (previous behaviour).
+  - If `0`, the cache is disabled; every plan is simulated.
+  - If a positive integer N, the cache holds at most N keys and drops the oldest first. Each
+    evaluated plan takes one or two keys.
+
+  The value never changes the result: with a fixed seed, all settings give the same plan. Small
+  devices (e.g. 512 MB RAM) should use `0` or a few thousand; this costs a few percent of run
+  time.
+
 - **penalties** (`dict`):
   Defines how penalties are applied to solutions that violate constraints (e.g., undercharged
   batteries). Penalty function parameter values influence the fitness score, discouraging
