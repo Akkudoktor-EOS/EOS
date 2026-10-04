@@ -275,8 +275,8 @@ class Battery:
         """Resets the battery state to its initial values."""
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.soc_wh = min(self.soc_wh, self.max_soc_wh)  # Only clamp to max
-        self.discharge_array = np.full(self.prediction_hours, 0)
-        self.charge_array = np.full(self.prediction_hours, 0)
+        self.discharge_array = np.zeros(self.prediction_hours, dtype=np.int_)
+        self.charge_array = np.zeros(self.prediction_hours, dtype=np.int_)
         self._discharged_raw_wh_per_slot = [0.0] * self.prediction_hours
         self._charged_raw_wh_per_slot = [0.0] * self.prediction_hours
         self._charge_limit_raw_wh_per_slot = [float("inf")] * self.prediction_hours

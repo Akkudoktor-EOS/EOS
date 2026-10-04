@@ -712,6 +712,11 @@ class GeneticSimulation(PydanticBaseModel):
         ev_soc_direct = bool(
             ev_fast and type(ev_fast).current_soc_percentage is Battery.current_soc_percentage
         )
+        battery_lcos_direct = False
+        if battery_fast is not None and type(battery_fast) is Battery:
+            battery_lcos_direct = True
+            battery_discharged_raw_fast = battery_fast._discharged_raw_wh_per_slot
+            battery_discharging_efficiency_fast = battery_fast.discharging_efficiency
 
         for hour in range(start_hour, end_hour):
             hour_idx = hour - start_hour
@@ -767,7 +772,8 @@ class GeneticSimulation(PydanticBaseModel):
             ac_charge_factor = 0.0
             if battery_fast and ac_charging_possible:
                 ac_charge_factor = ac_charge_hours_fast[hour]
-                if inverter_fast:
+                # No AC charging in this slot (the usual case): nothing to cap.
+                if inverter_fast and ac_charge_factor != 0:
                     ac_charge_factor = inverter_fast.ac_charge_factor(ac_charge_factor)
 
             if inverter_fast:
@@ -795,8 +801,8 @@ class GeneticSimulation(PydanticBaseModel):
                     energy_produced,
                     consumption,
                     hour,
-                    allow_battery_grid_export=battery_grid_export_allowed,
-                    battery_grid_export_factor=battery_grid_export_factor,
+                    battery_grid_export_allowed,
+                    battery_grid_export_factor,
                 )
             else:
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
@@ -841,7 +847,15 @@ class GeneticSimulation(PydanticBaseModel):
             # not charged on input energy, internal discharge losses, or the
             # downstream DC-to-AC inverter loss.
             battery_lcos_cost = 0.0
-            if battery_fast:
+            if battery_lcos_direct:
+                # Battery.discharged_energy_wh(), without the call per slot.
+                battery_lcos_cost = (
+                    battery_discharged_raw_fast[hour]
+                    * battery_discharging_efficiency_fast
+                    * battery_lcos_per_wh_factor
+                    / 1000.0
+                )
+            elif battery_fast:
                 battery_lcos_cost = (
                     battery_fast.discharged_energy_wh(hour) * battery_lcos_per_wh_factor / 1000.0
                 )
