@@ -1,3 +1,4 @@
+from bisect import bisect_left
 from typing import Optional
 
 from loguru import logger
@@ -158,8 +159,31 @@ class Inverter:
         """
         if self.dc_to_ac_efficiency_curve is None:
             return self.dc_to_ac_efficiency
+        curve: list[tuple[float, float]] = self.dc_to_ac_efficiency_curve
         load_fraction = ac_wh / self.max_power_wh if self.max_power_wh > 0 else 0.0
-        return interpolate_efficiency_curve(self.dc_to_ac_efficiency_curve, load_fraction)
+        # This runs for every battery discharge of every candidate plan. Find
+        # the curve segment by bisection on the load fractions, split off once
+        # per curve, instead of walking the points. The segment and the
+        # interpolation are those of interpolate_efficiency_curve().
+        if curve is not getattr(self, "_curve_source", None):
+            self._curve_fractions = [point[0] for point in curve]
+            self._curve_efficiencies = [point[1] for point in curve]
+            self._curve_source = curve
+        fractions = self._curve_fractions
+        if load_fraction != load_fraction or len(fractions) != len(curve):
+            # NaN, or a curve changed in place: the plain walk.
+            return interpolate_efficiency_curve(curve, load_fraction)
+        efficiencies = self._curve_efficiencies
+        index = bisect_left(fractions, load_fraction)
+        if index == 0:
+            return efficiencies[0]
+        if index == len(fractions):
+            return efficiencies[-1]
+        lower_fraction = fractions[index - 1]
+        lower_efficiency = efficiencies[index - 1]
+        return lower_efficiency + (load_fraction - lower_fraction) / (
+            fractions[index] - lower_fraction
+        ) * (efficiencies[index] - lower_efficiency)
 
     def ac_charge_factor(self, factor: float) -> float:
         """Return the AC charge factor the inverter can actually execute.
