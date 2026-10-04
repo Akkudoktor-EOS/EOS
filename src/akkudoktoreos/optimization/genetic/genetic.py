@@ -933,6 +933,9 @@ class GeneticOptimization(OptimizationBase):
     # next run.
     _run_genetic_cfg: Any = None
     _run_prediction_hours: Optional[float] = None
+    # control_end_slot of the frozen configuration. It is read several hundred
+    # thousand times per run and cannot change while the snapshot is in place.
+    _run_control_end_slot: Optional[int] = None
 
     @property
     def _genetic_cfg(self) -> Any:
@@ -986,6 +989,8 @@ class GeneticOptimization(OptimizationBase):
     @property
     def control_end_slot(self) -> int:
         """Exclusive control end in run-relative device arrays."""
+        if self._run_control_end_slot is not None:
+            return self._run_control_end_slot
         return self._control_start_slot() + self.control_slots
 
     def _control_start_slot(self) -> int:
@@ -3913,11 +3918,13 @@ class GeneticOptimization(OptimizationBase):
         self.config.validate_optimization_horizons()
         self._run_genetic_cfg = self.config.optimization.genetic.model_copy(deep=True)
         self._run_prediction_hours = self.config.prediction.hours
+        self._run_control_end_slot = self._control_start_slot() + self.control_slots
         try:
             return self._optimize_ems_run(parameters, start_hour, worst_case, ngen, individuals)
         finally:
             self._run_genetic_cfg = None
             self._run_prediction_hours = None
+            self._run_control_end_slot = None
 
     def _optimize_ems_run(
         self,
