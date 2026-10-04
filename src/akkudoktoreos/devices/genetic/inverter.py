@@ -245,18 +245,52 @@ class Inverter:
 
     def _discharge_battery_to_ac(self, requested_ac_wh: float, hour: int) -> tuple[float, float]:
         """Discharge battery energy and convert it to AC energy."""
-        if not self.battery or requested_ac_wh <= 0.0:
+        battery = self.battery
+        if not battery or requested_ac_wh <= 0.0:
             return 0.0, 0.0
-        # Discharge not released in this slot: the battery delivers nothing, so
-        # skip the efficiency lookup and the conversion.
-        if not self.battery.discharge_released(hour):
-            return 0.0, 0.0
+        if type(battery) is not Battery:
+            # Another battery implementation: ask it, step by step.
+            if not battery.discharge_released(hour):
+                return 0.0, 0.0
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
+            dc_request = requested_ac_wh / dc_to_ac_efficiency
+            battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
+            battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
+            inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
+            return battery_discharge_ac, discharge_losses + inverter_discharge_losses
 
+        # This runs for every slot of every candidate plan in which the battery
+        # could serve load or export. For the plain Battery the release check,
+        # the efficiency and Battery.discharge_energy() are computed in one go,
+        # without the nested calls. The arithmetic is that of
+        # Battery.discharge_energy(); keep both in step.
+        if battery.discharge_array[hour] == 0:
+            # Not released in this slot: the battery delivers nothing.
+            return 0.0, 0.0
         # With an efficiency curve, the efficiency is taken at the requested AC
         # energy of this conversion.
-        dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
+        if self.dc_to_ac_efficiency_curve is None:
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency
+        else:
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
         dc_request = requested_ac_wh / dc_to_ac_efficiency
-        battery_discharge_dc, discharge_losses = self.battery.discharge_energy(dc_request, hour)
+
+        soc_wh = battery.soc_wh
+        min_soc_wh = battery.min_soc_wh
+        discharged_raw_wh = battery._discharged_raw_wh_per_slot
+        discharging_efficiency = battery.discharging_efficiency
+        raw_available_wh = max(soc_wh - min_soc_wh, 0.0)
+        max_raw_wh = max(
+            battery.max_charge_power_w * battery.slot_duration_h - discharged_raw_wh[hour], 0.0
+        )
+        max_deliverable_wh = min(raw_available_wh, max_raw_wh) * discharging_efficiency
+        battery_discharge_dc = min(dc_request, max_deliverable_wh)
+        raw_used_wh = battery_discharge_dc / discharging_efficiency
+        soc_wh -= raw_used_wh
+        battery.soc_wh = max(soc_wh, min_soc_wh)
+        discharged_raw_wh[hour] += raw_used_wh
+        discharge_losses = raw_used_wh - battery_discharge_dc
+
         battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
         inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
         return battery_discharge_ac, discharge_losses + inverter_discharge_losses
