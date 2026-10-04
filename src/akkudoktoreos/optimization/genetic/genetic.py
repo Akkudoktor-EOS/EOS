@@ -890,6 +890,7 @@ class GeneticSimulation(PydanticBaseModel):
 class GeneticOptimization(OptimizationBase):
     """GENETIC algorithm to solve energy optimization."""
 
+    APPLIANCE_START_CACHE_SIZE = 4096
     WARM_START_COPIES = 10
     WARM_START_MUTATIONS = 50
     EDUCATED_GUESS_TARGET = 100
@@ -934,6 +935,9 @@ class GeneticOptimization(OptimizationBase):
     # Energy-shift targets per source slot of the current run
     # (see _energy_shift_target_slots).
     _energy_shift_cache: Any = None
+    # Decoded appliance starts and load curves per appliance gene combination
+    # of the current layout (see _apply_appliance_starts).
+    _appliance_start_cache: Any = None
     _run_genetic_cfg: Any = None
     _run_prediction_hours: Optional[float] = None
     # control_end_slot of the frozen configuration. It is read several hundred
@@ -1624,9 +1628,33 @@ class GeneticOptimization(OptimizationBase):
         """Build every appliance's load curve from the decoded starts."""
         if not self.simulation.home_appliances:
             return
+        # The decoded starts, the canonical gene values and the load curves
+        # depend on the appliance genes only, and a run sees few different
+        # combinations of them among tens of thousands of candidates. Each
+        # combination is decoded and built once per run; afterwards the
+        # appliances get the stored starts and curves (never changed in place:
+        # a rebuild starts from a new array).
+        appliances = self.simulation.home_appliances
+        cache = self._appliance_start_cache
+        if cache is None or cache[0] is not self.appliance_layout:
+            entries: dict[tuple[int, ...], Any] = {}
+            cache = (self.appliance_layout, entries)
+            self._appliance_start_cache = cache
+        key = tuple(int(value) for value in appliance_gene_values)
+        entry = cache[1].get(key)
+        if entry is not None and len(entry[1]) == len(appliances):
+            appliance_gene_values[:] = entry[0]
+            for appliance, (start_hours, load_curve) in zip(appliances, entry[1]):
+                appliance.start_hours = list(start_hours)
+                appliance.load_curve = load_curve
+            return
         starts_per_appliance = self._decode_appliance_starts(appliance_gene_values)
-        for appliance_index, appliance in enumerate(self.simulation.home_appliances):
+        built = []
+        for appliance_index, appliance in enumerate(appliances):
             appliance.build_load_curve(starts_per_appliance.get(appliance_index, []))
+            built.append((tuple(appliance.start_hours), appliance.load_curve))
+        if len(cache[1]) < self.APPLIANCE_START_CACHE_SIZE:
+            cache[1][key] = (list(appliance_gene_values), built)
 
     def _start_solution_matches_layout(self, start_solution: list[float]) -> bool:
         """Check that a start solution's appliance tail fits the current layout.
