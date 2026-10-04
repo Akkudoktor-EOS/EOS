@@ -931,6 +931,9 @@ class GeneticOptimization(OptimizationBase):
     # evaluation fails with an IndexError. The snapshot is taken in
     # optimize_ems() and released when the run ends; new values apply to the
     # next run.
+    # Energy-shift targets per source slot of the current run
+    # (see _energy_shift_target_slots).
+    _energy_shift_cache: Any = None
     _run_genetic_cfg: Any = None
     _run_prediction_hours: Optional[float] = None
     # control_end_slot of the frozen configuration. It is read several hundred
@@ -1974,30 +1977,54 @@ class GeneticOptimization(OptimizationBase):
         source_slot: int,
     ) -> list[int]:
         """Return later idle slots where retained battery energy avoids costly import."""
-        try:
-            prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
-            feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
-            pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
-            load = np.asarray(self.simulation.load_energy_array, dtype=float)
-        except Exception:
-            return []
-        if any(values.size < self.control_end_slot for values in (prices, feed_in, pv, load)):
+        # Which later slots are worth it, and in which order, depends on the
+        # forecasts and the source slot only - not on the individual. That
+        # part is worked out once per source slot and run (this is called for
+        # every export slot of every energy-shift mutation); the individual
+        # only filters the ordered slots. The cache is tied to the forecast
+        # arrays and the control end, and dropped at the start of a run.
+        simulation = self.simulation
+        sources = (
+            simulation.elect_price_hourly,
+            simulation.elect_revenue_per_hour_arr,
+            simulation.pv_prediction_wh,
+            simulation.load_energy_array,
+        )
+        control_end_slot = self.control_end_slot
+        cache = self._energy_shift_cache
+        if (
+            cache is None
+            or cache[0] != control_end_slot
+            or any(known is not current for known, current in zip(cache[1], sources))
+        ):
+            try:
+                arrays = tuple(np.asarray(values, dtype=float) for values in sources)
+            except Exception:
+                return []
+            ordered_by_source: dict[int, list[int]] = {}
+            cache = (control_end_slot, sources, arrays, ordered_by_source)
+            self._energy_shift_cache = cache
+        prices, feed_in, pv, load = cache[2]
+        if any(values.size < control_end_slot for values in (prices, feed_in, pv, load)):
             return []
 
+        ordered = cache[3].get(source_slot)
+        if ordered is None:
+            source_tariff = float(feed_in[source_slot])
+            candidates = [
+                slot
+                for slot in range(source_slot + 1, control_end_slot)
+                if load[slot] > pv[slot] and prices[slot] > source_tariff
+            ]
+            ordered = sorted(
+                candidates,
+                key=lambda slot: (float(prices[slot]), float(load[slot] - pv[slot])),
+                reverse=True,
+            )
+            cache[3][source_slot] = ordered
+
         len_bat = len(self.bat_possible_charge_values)
-        source_tariff = float(feed_in[source_slot])
-        candidates = [
-            slot
-            for slot in range(source_slot + 1, self.control_end_slot)
-            if 0 <= int(individual[slot]) < len_bat
-            and load[slot] > pv[slot]
-            and prices[slot] > source_tariff
-        ]
-        return sorted(
-            candidates,
-            key=lambda slot: (float(prices[slot]), float(load[slot] - pv[slot])),
-            reverse=True,
-        )
+        return [slot for slot in ordered if 0 <= int(individual[slot]) < len_bat]
 
     def _mutate_energy_shift(self, individual: list[int]) -> bool:
         """Move battery energy from a weak export into later expensive self-consumption."""
@@ -3789,6 +3816,7 @@ class GeneticOptimization(OptimizationBase):
         self._fitness_cache_misses = 0
         self._fitness_cache_enabled = max_entries != 0
         self._duplicate_evaluations_skipped = 0
+        self._energy_shift_cache = None
         self._start_evaluation_pool()
         local_evaluations = 0
         local_improvements = 0
