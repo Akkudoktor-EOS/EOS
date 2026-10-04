@@ -938,6 +938,8 @@ class GeneticOptimization(OptimizationBase):
     # Decoded appliance starts and load curves per appliance gene combination
     # of the current layout (see _apply_appliance_starts).
     _appliance_start_cache: Any = None
+    # decode_charge_discharge() per battery state of the current layout.
+    _decode_table: Any = None
     _run_genetic_cfg: Any = None
     _run_prediction_hours: Optional[float] = None
     # control_end_slot of the frozen configuration. It is read several hundred
@@ -1937,7 +1939,41 @@ class GeneticOptimization(OptimizationBase):
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Decode the input array into charge, self-consumption discharge and export arrays."""
+        """Decode the input array into charge, self-consumption discharge and export arrays.
+
+        Every slot is decoded on its own from its state. The four results per
+        state are therefore worked out once per state layout
+        (``_decode_states``) and looked up for the slots of a candidate.
+        """
+        states = np.asarray(discharge_hours_bin)
+        if states.ndim == 1 and states.dtype.kind in "iu":
+            layout = self._battery_state_layout()
+            key = (
+                layout,
+                tuple(self.bat_possible_charge_values),
+                tuple(self.bat_possible_grid_export_values),
+            )
+            table = self._decode_table
+            if table is None or table[0] != key:
+                decoded = self._decode_states(np.arange(max(layout.total_states, 1)))
+                table = (key, decoded)
+                self._decode_table = table
+            lookup = table[1]
+            # States outside the table (never produced by the optimizer) keep
+            # the explicit decoding.
+            if states.size and 0 <= states.min() and states.max() < lookup[0].size:
+                return (
+                    lookup[0][states],
+                    lookup[1][states],
+                    lookup[2][states],
+                    lookup[3][states],
+                )
+        return self._decode_states(discharge_hours_bin)
+
+    def _decode_states(
+        self, discharge_hours_bin: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Decode states into charge, self-consumption discharge and export arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
         # Battery AC charge uses its own charge-level list (bat_possible_charge_values).
         len_bat = len(self.bat_possible_charge_values)
