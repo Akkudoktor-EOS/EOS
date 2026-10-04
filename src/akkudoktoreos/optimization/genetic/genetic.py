@@ -1349,6 +1349,24 @@ class GeneticOptimization(OptimizationBase):
             logger.warning(self._terminal_value_reason)
         return curve
 
+    def _terminal_value_credit(self, parameters: GeneticOptimizationParameters) -> float:
+        """Credit for the energy left in the battery, without the report.
+
+        The same credit as ``_terminal_value()`` returns. Every candidate needs
+        the amount only; the report object (component values, diagnostics,
+        curves) is built once, for the final solution.
+        """
+        battery = self.simulation.battery
+        if battery is None:
+            return 0.0
+        energy_wh = battery.current_energy_content()
+        if self.simulation.inverter:
+            energy_wh *= self.simulation.inverter.reference_dc_to_ac_efficiency
+        curve = getattr(self, "_terminal_value_curve", None)
+        if curve is not None and curve.energy_wh:
+            return curve.value(energy_wh)
+        return energy_wh * parameters.ems.price_per_wh_battery
+
     def _terminal_value(
         self,
         parameters: GeneticOptimizationParameters,
@@ -3590,8 +3608,7 @@ class GeneticOptimization(OptimizationBase):
         # replaces the most expensive hour after the horizon, the last one
         # replaces nothing. A scalar cannot express that (see terminalvalue.py).
         if self.simulation.battery:
-            restwert_akku, _ = self._terminal_value(parameters)
-            gesamtbilanz += -restwert_akku
+            gesamtbilanz += -self._terminal_value_credit(parameters)
 
         # --- AC charging break-even penalty ---
         # Penalise AC charging decisions that cannot be economically justified given the
