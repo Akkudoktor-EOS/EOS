@@ -211,7 +211,10 @@ class Battery:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
-        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        # Discharged energy per slot, a plain list: it is read and written one
+        # slot at a time for every candidate plan, where single NumPy elements
+        # (and the NumPy scalars they return) are slow.
+        self._discharged_raw_wh_per_slot: list[float] = [0.0] * self.prediction_hours
         self._charged_raw_wh_per_slot: list[float] = [0.0] * self.prediction_hours
         # Optional per-slot cap on the raw charge energy from all sources. It is
         # unbounded unless an inverter restricts a slot (see limit_slot_charge).
@@ -274,7 +277,7 @@ class Battery:
         self.soc_wh = min(self.soc_wh, self.max_soc_wh)  # Only clamp to max
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
-        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        self._discharged_raw_wh_per_slot = [0.0] * self.prediction_hours
         self._charged_raw_wh_per_slot = [0.0] * self.prediction_hours
         self._charge_limit_raw_wh_per_slot = [float("inf")] * self.prediction_hours
 
@@ -309,6 +312,10 @@ class Battery:
         )
         raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
         return min(raw_power_remaining_wh, raw_soc_available_wh) * self.discharging_efficiency
+
+    def discharge_released(self, hour: int) -> bool:
+        """Whether the plan lets the battery discharge in this slot."""
+        return self.discharge_array[hour] != 0
 
     def discharged_energy_wh(self, hour: int) -> float:
         """Return DC energy delivered by the battery in one optimization slot."""

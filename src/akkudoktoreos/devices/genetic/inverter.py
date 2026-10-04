@@ -223,6 +223,10 @@ class Inverter:
         """Discharge battery energy and convert it to AC energy."""
         if not self.battery or requested_ac_wh <= 0.0:
             return 0.0, 0.0
+        # Discharge not released in this slot: the battery delivers nothing, so
+        # skip the efficiency lookup and the conversion.
+        if not self.battery.discharge_released(hour):
+            return 0.0, 0.0
 
         # With an efficiency curve, the efficiency is taken at the requested AC
         # energy of this conversion.
