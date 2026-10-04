@@ -57,6 +57,8 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   cores, default on). For a fixed seed the plan is identical to a single-process run.
 - Optional `ems.notify_url`: EOS sends an HTTP POST with a small JSON event after every
   completed optimization, so a client can fetch the new plan right away instead of polling.
+- `GET /v1/health` reports `started_at`, the start time of the server process, so a client
+  notices a restart also in a container (where the pid is always 1).
 
 ### Changed / compatibility
 
