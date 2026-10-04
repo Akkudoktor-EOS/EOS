@@ -2361,21 +2361,26 @@ class GeneticOptimization(OptimizationBase):
         if abs(ev_possible_charge_values[zero_charge_index]) > 1e-12:
             return False
 
-        _, ev_charge_indices, _ = self.split_individual(individual)
-        if ev_charge_indices is None:
-            return False
-
         ev_soc = np.asarray(simulation_result.get("EAuto_SoC_pro_Stunde", []), dtype=float)
         start_slot = self._control_start_slot()
         result_slots = min(ev_soc.size, self.control_end_slot - start_slot)
         if result_slots <= 0:
             return False
+        # Nearly every candidate has no slot that begins at full SoC: decide
+        # that before the genome is split.
+        full = ev_soc[:result_slots] >= 100.0 - 1e-9
+        if not full.any():
+            return False
+
+        _, ev_charge_indices, _ = self.split_individual(individual)
+        if ev_charge_indices is None:
+            return False
 
         changed = False
-        for offset in range(result_slots):
-            slot = start_slot + offset
+        for offset in np.flatnonzero(full):
+            slot = start_slot + int(offset)
             charge_index = int(ev_charge_indices[slot])
-            if ev_soc[offset] >= 100.0 - 1e-9 and ev_possible_charge_values[charge_index] > 0.0:
+            if ev_possible_charge_values[charge_index] > 0.0:
                 ev_charge_indices[slot] = zero_charge_index
                 changed = True
 
