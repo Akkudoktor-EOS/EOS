@@ -404,20 +404,33 @@ class Inverter:
             remaining_surplus = pv_surplus
             if remaining_surplus > 0.0 and battery:
                 charged_energy, charge_losses = battery.charge_energy(remaining_surplus, hour)
-                remaining_surplus = max(remaining_surplus - charged_energy - charge_losses, 0.0)
+                remaining_surplus = remaining_surplus - charged_energy - charge_losses
+                if remaining_surplus < 0.0:
+                    remaining_surplus = 0.0
                 losses += charge_losses
 
-            pv_grid_export = min(remaining_surplus, remaining_inverter_ac_capacity)
-            grid_export += pv_grid_export
-            remaining_inverter_ac_capacity = max(
-                remaining_inverter_ac_capacity - pv_grid_export, 0.0
+            pv_grid_export = (
+                remaining_inverter_ac_capacity
+                if remaining_inverter_ac_capacity < remaining_surplus
+                else remaining_surplus
             )
+            grid_export += pv_grid_export
+            remaining_inverter_ac_capacity = remaining_inverter_ac_capacity - pv_grid_export
+            if remaining_inverter_ac_capacity < 0.0:
+                remaining_inverter_ac_capacity = 0.0
             # PV which can neither charge the battery nor pass through the
             # inverter is curtailed and reported as a loss.
-            losses += max(remaining_surplus - pv_grid_export, 0.0)
+            curtailed = remaining_surplus - pv_grid_export
+            if curtailed < 0.0:
+                curtailed = 0.0
+            losses += curtailed
 
         if allow_battery_grid_export and battery and remaining_inverter_ac_capacity > 0.0:
-            export_factor = min(max(float(battery_grid_export_factor), 0.0), 1.0)
+            export_factor = float(battery_grid_export_factor)
+            if export_factor < 0.0:
+                export_factor = 0.0
+            if 1.0 < export_factor:
+                export_factor = 1.0
             # Upper bounds of the export. With an efficiency curve, the
             # efficiency is estimated at the DC energy of each bound; the
             # conversion itself in _discharge_battery_to_ac() is exact and is
@@ -432,9 +445,11 @@ class Inverter:
             # At factor 1.0 this bound never binds; behaviour is unchanged.
             rated_export_dc = battery.rated_discharge_energy_wh() * export_factor
             rated_export_ac = rated_export_dc * self.dc_to_ac_efficiency_at(rated_export_dc)
-            export_capacity = min(
-                remaining_inverter_ac_capacity, remaining_battery_ac, rated_export_ac
-            )
+            export_capacity = remaining_inverter_ac_capacity
+            if remaining_battery_ac < export_capacity:
+                export_capacity = remaining_battery_ac
+            if rated_export_ac < export_capacity:
+                export_capacity = rated_export_ac
             battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
                 export_capacity, hour
             )
