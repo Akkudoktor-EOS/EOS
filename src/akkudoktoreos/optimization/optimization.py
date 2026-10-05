@@ -15,6 +15,7 @@ from akkudoktoreos.optimization.genetic.geneticsettings import (
     normalize_genetic_settings,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
 class OptimizationAlgorithm(StrEnum):
@@ -63,6 +64,20 @@ class OptimizationCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "GENETIC0 optimization algorithm configuration.",
             "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],
+        },
+    )
+
+    self_consumption_interpolator: GridInterpolatorBackend = Field(
+        default=GridInterpolatorBackend.SCIPY,
+        json_schema_extra={
+            "description": (
+                "How the inverter's self-consumption probability table is evaluated "
+                "[scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives "
+                "the same values without importing SciPy, which saves about 35 MB RSS "
+                "after the first optimization run (useful on devices with little RAM); "
+                "a run takes about 2.5 % longer."
+            ),
+            "examples": ["scipy", "numpy"],
         },
     )
 

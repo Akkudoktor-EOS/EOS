@@ -12,6 +12,7 @@
 | genetic | `EOS_OPTIMIZATION__GENETIC` | `GeneticCommonSettings` | `rw` | `required` | GENETIC optimization algorithm configuration. |
 | genetic0 | `EOS_OPTIMIZATION__GENETIC0` | `Genetic0CommonSettings` | `rw` | `required` | GENETIC0 optimization algorithm configuration. |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the solution. |
+| self_consumption_interpolator | `EOS_OPTIMIZATION__SELF_CONSUMPTION_INTERPOLATOR` | `<enum 'GridInterpolatorBackend'>` | `rw` | `scipy` | How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer. |
 :::
 <!-- pyml enable line-length -->
 
@@ -30,6 +31,9 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
+               "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -47,7 +51,8 @@
                "penalties": {
                    "ev_soc_miss": 10
                }
-           }
+           },
+           "self_consumption_interpolator": "scipy"
        }
    }
 ```
@@ -68,6 +73,9 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
+               "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -89,6 +97,7 @@
                "interval_sec": 3600,
                "horizon": 24
            },
+           "self_consumption_interpolator": "scipy",
            "algorithms": [
                "GENETIC",
                "GENETIC0"
@@ -173,6 +182,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| fitness_cache_max_entries | `Optional[int]` | `rw` | `None` | Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices. |
 | generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
 | horizon | `int` | `ro` | `N/A` | Number of optimization steps. |
 | horizon_hours | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
@@ -180,11 +190,13 @@
 | interval_sec | `Literal[900, 3600]` | `rw` | `3600` | The optimization interval [sec]. Defaults to 3600 seconds (1 hour) |
 | measurement_max_age_seconds | `int` | `rw` | `300` | Maximum age of SoC measurements for configuration-based optimization [s]. |
 | penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
+| pin_workers | `bool` | `rw` | `True` | Pin the evaluation workers to the last 'workers' CPU cores. The server process stays unpinned and keeps a core that is not busy with the optimization, so it answers requests during a run, and the run never uses more than 'workers' cores. Needs at least one core more than workers; Linux only. |
 | seed | `Optional[int]` | `rw` | `None` | Random seed for reproducibility. None = random. |
 | tail_horizon_hours | `int` | `rw` | `48` | Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable. |
 | terminal_value_euro_per_kwh | `float` | `rw` | `0.0` | Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Only used with terminal_value_mode = FIXED. Defaults to 0 EUR/kWh. |
 | terminal_value_mode | `<enum 'TerminalValueMode'>` | `rw` | `AUTO` | How to value the energy left in the battery at the end of the control horizon. AUTO solves the forecast tail with an AUTO continuation proxy at its end (or only the proxy if tail is zero); FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO. |
 | terminal_value_window_hours | `int` | `rw` | `24` | Length of the trailing window at the effective tail end the AUTO continuation curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours. |
+| workers | `Optional[int]` | `rw` | `None` | Processes that evaluate candidate solutions in parallel. None = automatic: one CPU core always stays free and at most two are used (1-2 cores -> 1, 3 or more cores -> 2), capped by a container CPU limit. 1 = evaluate in the server process only. The result for a fixed seed is the same with any value. |
 :::
 <!-- pyml enable line-length -->
 
@@ -202,6 +214,9 @@
                "individuals": 300,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
+               "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -230,6 +245,9 @@
                "individuals": 300,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
+               "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
