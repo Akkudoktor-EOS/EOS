@@ -4,11 +4,13 @@ import ctypes
 import ctypes.util
 import gc
 import math
+import multiprocessing
+import os
 import random
 import sys
 import time
 from array import array
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Optional
@@ -160,6 +162,111 @@ def _release_freed_memory() -> None:
     gc.collect()
     if _LIBC is not None:
         _LIBC.malloc_trim(0)
+
+
+# CPU share of a container/systemd limit kept free for the server process:
+# while the workers compute, it still has to answer API requests (a client
+# pushing forecasts timed out when two workers used a 2-core limit fully).
+SERVER_CPU_RESERVE = 0.25
+
+# Parallel fitness evaluation. Workers are forked once per optimization run,
+# after the run is fully prepared, so each one owns a copy of the optimizer with
+# the run's forecasts, devices and terminal-value curve. Only genomes and
+# results cross the process boundary.
+MAX_EVALUATION_WORKERS = 2
+EVALUATION_BATCH_TIMEOUT_SECONDS = 120.0
+_WORKER_OPTIMIZER: Optional[Any] = None
+
+
+def _cpu_cores() -> int:
+    """Return the number of CPU cores this process may run on."""
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except (AttributeError, OSError):
+        return max(1, os.cpu_count() or 1)
+
+
+def _cgroup_cpu_limit(cgroup_root: str = "/sys/fs/cgroup") -> Optional[float]:
+    """Return the CPU limit (cgroup v2 ``cpu.max``) in cores, if any.
+
+    Checks this process's own cgroup and every parent, so a container limit
+    and a systemd ``CPUQuota=`` on a native service both count.
+    """
+    try:
+        with open("/proc/self/cgroup") as own:
+            path = next(
+                (line.split("::", 1)[1].strip() for line in own if line.startswith("0::")), "/"
+            )
+    except OSError:
+        path = "/"
+    limits: list[float] = []
+    while True:
+        try:
+            with open(os.path.join(cgroup_root, path.lstrip("/"), "cpu.max")) as cpu_max:
+                quota, period = cpu_max.read().split()[:2]
+            if quota != "max":
+                limits.append(int(quota) / int(period))
+        except (OSError, ValueError, ZeroDivisionError):
+            pass
+        if path in ("", "/"):
+            break
+        path = os.path.dirname(path.rstrip("/"))
+    return min(limits) if limits else None
+
+
+def auto_evaluation_workers(cores: Optional[int] = None, cpu_limit: Optional[float] = None) -> int:
+    """Number of evaluation processes when ``workers`` is not configured.
+
+    One core always stays free for the rest of the system, and at most
+    ``MAX_EVALUATION_WORKERS`` are used: 1-2 cores -> 1, 3 or more -> 2.
+    A CPU limit caps the result further and keeps ``SERVER_CPU_RESERVE`` of
+    it for the server process (limit 2 -> 1 worker, 2.5 -> 2).
+    """
+    if cores is None:
+        cores = _cpu_cores()
+    if cpu_limit is None:
+        cpu_limit = _cgroup_cpu_limit()
+    workers = min(MAX_EVALUATION_WORKERS, max(1, cores - 1))
+    if cpu_limit is not None:
+        workers = min(workers, max(1, math.floor(cpu_limit - SERVER_CPU_RESERVE)))
+    return workers
+
+
+def worker_cpu_set(workers: int, allowed: Optional[set[int]] = None) -> Optional[set[int]]:
+    """CPU cores the evaluation workers are pinned to, or None for no pinning.
+
+    The workers get the last ``workers`` cores this process may use; the
+    server process itself stays unpinned. It therefore always finds a core
+    that is not busy with the optimization and keeps answering requests, and
+    the optimization never spreads beyond ``workers`` cores (no CPU quota
+    needed). Without a spare core there is nothing to gain: no pinning.
+    """
+    if allowed is None:
+        try:
+            allowed = set(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            return None
+    if workers < 1 or len(allowed) <= workers:
+        return None
+    return set(sorted(allowed)[-workers:])
+
+
+def _evaluation_worker_init(cpus: Optional[set[int]] = None) -> None:
+    """Evaluate without the run cache in a worker; the parent owns the cache."""
+    if _WORKER_OPTIMIZER is not None:
+        _WORKER_OPTIMIZER._fitness_cache_enabled = False
+    if cpus:
+        try:
+            os.sched_setaffinity(0, cpus)
+        except (AttributeError, OSError):
+            pass
+
+
+def _evaluation_worker(genome: list[int]) -> tuple[list[int], tuple[float], Any]:
+    """Evaluate one genome in a worker and return the (repaired) genome and results."""
+    individual = creator.Individual(genome)
+    fitness = _WORKER_OPTIMIZER.toolbox.evaluate(individual)  # type: ignore[union-attr]
+    return list(individual), tuple(fitness), getattr(individual, "extra_data", None)
 
 
 @dataclass(frozen=True)
@@ -710,28 +817,54 @@ class GeneticOptimization(OptimizationBase):
     SOFT_RESTART_SURVIVOR_FRACTION = 0.20
     POINT_MUTATION_EXPECTED_GENES = 3.0
 
+    # Per-run configuration snapshot. The optimization reads horizon, tail,
+    # interval and prediction hours many times during a run. A client that
+    # updates the configuration while a run is in progress (e.g. a shrinking
+    # control horizon as the known price horizon moves on during the night)
+    # must not change these mid-run: genomes and device arrays sized at the
+    # start would no longer match the simulation loop, and the final
+    # evaluation fails with an IndexError. The snapshot is taken in
+    # optimize_ems() and released when the run ends; new values apply to the
+    # next run.
+    _run_genetic_cfg: Any = None
+    _run_prediction_hours: Optional[float] = None
+
+    @property
+    def _genetic_cfg(self) -> Any:
+        """Genetic configuration, frozen for the duration of a run."""
+        if self._run_genetic_cfg is not None:
+            return self._run_genetic_cfg
+        return self.config.optimization.genetic
+
+    @property
+    def _prediction_hours_cfg(self) -> Any:
+        """Prediction hours, frozen for the duration of a run."""
+        if self._run_prediction_hours is not None:
+            return self._run_prediction_hours
+        return self.config.prediction.hours
+
     # Independent forecast and control durations on the optimization grid.
     @property
     def slot_duration_h(self) -> float:
         """Length of one optimization slot in hours (1.0 hourly, 0.25 at 15 min)."""
-        interval = self.config.optimization.genetic.interval_sec or 3600
+        interval = self._genetic_cfg.interval_sec or 3600
         return interval / 3600
 
     @property
     def slots_per_hour(self) -> int:
         """Number of optimization slots per hour (1 hourly, 4 at 15 min)."""
-        interval = self.config.optimization.genetic.interval_sec or 3600
+        interval = self._genetic_cfg.interval_sec or 3600
         return 3600 // interval
 
     @property
     def control_slots(self) -> int:
         """Number of executable control intervals, measured from now."""
-        return self.config.optimization.genetic.horizon_hours * self.slots_per_hour
+        return self._genetic_cfg.horizon_hours * self.slots_per_hour
 
     @property
     def prediction_slots(self) -> int:
         """Forecast duration, independent of the control genome."""
-        return int(self.config.prediction.hours * self.slots_per_hour)
+        return int(self._prediction_hours_cfg * self.slots_per_hour)
 
     @property
     def tail_slots(self) -> int:
@@ -741,7 +874,7 @@ class GeneticOptimization(OptimizationBase):
         tail rather than failing the run, so the shortfall is not reported as
         missing provider data.
         """
-        requested = self.config.optimization.genetic.tail_horizon_hours * self.slots_per_hour
+        requested = self._genetic_cfg.tail_horizon_hours * self.slots_per_hour
         budget = max(0, self.prediction_slots - self.control_slots)
         return min(requested, budget)
 
@@ -766,12 +899,12 @@ class GeneticOptimization(OptimizationBase):
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
-        if self.config.optimization.genetic.interval_sec not in (900, 3600):
+        if self._genetic_cfg.interval_sec not in (900, 3600):
             logger.warning(
                 "Genetic optimization interval {} seconds is unsupported; using 3600 seconds.",
-                self.config.optimization.genetic.interval_sec,
+                self._genetic_cfg.interval_sec,
             )
-            self.config.optimization.genetic.interval_sec = 3600
+            self._genetic_cfg.interval_sec = 3600
         self.opti_param: dict[str, Any] = {}
         # EV genes cover precisely the control horizon; no fixed prediction tail.
         self.fixed_eauto_hours = 0
@@ -816,8 +949,14 @@ class GeneticOptimization(OptimizationBase):
         # have changed even when the genome is identical.
         self._fitness_cache_enabled = False
         self._fitness_cache: dict[PackedGenes, FitnessCacheEntry] = {}
+        # Maximum number of cache keys. None keeps the cache unbounded; a bounded
+        # cache is an OrderedDict and evicts the oldest key first (FIFO).
+        self._fitness_cache_max_entries: Optional[int] = None
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
+        # Evaluation worker processes, forked per run in optimize().
+        self._evaluation_pool: Optional[Any] = None
+        self._evaluation_workers = 1
 
         # Appliance genome layout, built once per optimization run in
         # optimize_ems(). Empty by default so setup_deap_environment() can be
@@ -885,7 +1024,7 @@ class GeneticOptimization(OptimizationBase):
         the total slot grid.
         """
         start_slot = self._control_start_slot()
-        horizon_slots = self.config.optimization.genetic.horizon_hours * self.slots_per_hour
+        horizon_slots = self._genetic_cfg.horizon_hours * self.slots_per_hour
         return min(self.control_end_slot, start_slot + horizon_slots)
 
     def _ev_deadline_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
@@ -963,7 +1102,7 @@ class GeneticOptimization(OptimizationBase):
         self._forecast_reason = ""
         if available < requested:
             self._forecast_reason = (
-                f"Tail forecast shortened: requested {self.config.optimization.genetic.tail_horizon_hours} h, "
+                f"Tail forecast shortened: requested {self._genetic_cfg.tail_horizon_hours} h, "
                 f"effective {self._effective_tail_slots * self.slot_duration_h:g} h; "
                 f"limited by {', '.join(limiting)}. Continuation starts at slot {available}."
             )
@@ -990,8 +1129,8 @@ class GeneticOptimization(OptimizationBase):
             self._terminal_value_reason = "no battery in this optimization"
             return None
         try:
-            mode = self.config.optimization.genetic.terminal_value_mode
-            window_hours = self.config.optimization.genetic.terminal_value_window_hours
+            mode = self._genetic_cfg.terminal_value_mode
+            window_hours = self._genetic_cfg.terminal_value_window_hours
         except Exception:
             self._terminal_value_reason = "terminal value configuration unavailable"
             return None
@@ -999,7 +1138,7 @@ class GeneticOptimization(OptimizationBase):
             self._terminal_value_reason = "terminal_value_mode is FIXED"
             return None
 
-        dc_to_ac = inverter.dc_to_ac_efficiency if inverter else 1.0
+        dc_to_ac = inverter.reference_dc_to_ac_efficiency if inverter else 1.0
         # A full battery, expressed in the same unit as the curve: AC energy
         # that can actually leave the house.
         max_energy_wh = (
@@ -1108,10 +1247,10 @@ class GeneticOptimization(OptimizationBase):
             The credit in EUR and the result object for the solution.
         """
         diagnostics = dict(
-            control_horizon_hours=self.config.optimization.genetic.horizon_hours,
-            requested_tail_hours=self.config.optimization.genetic.tail_horizon_hours,
+            control_horizon_hours=self._genetic_cfg.horizon_hours,
+            requested_tail_hours=self._genetic_cfg.tail_horizon_hours,
             effective_tail_hours=0.0,
-            tail_end_hour=float(self.config.optimization.genetic.horizon_hours),
+            tail_end_hour=float(self._genetic_cfg.horizon_hours),
         )
         battery = self.simulation.battery
         if battery is None:
@@ -1122,7 +1261,7 @@ class GeneticOptimization(OptimizationBase):
         # Usable DC energy, converted to the AC energy that can serve a load.
         energy_wh = battery.current_energy_content()
         if self.simulation.inverter:
-            energy_wh *= self.simulation.inverter.dc_to_ac_efficiency
+            energy_wh *= self.simulation.inverter.reference_dc_to_ac_efficiency
 
         curve = getattr(self, "_terminal_value_curve", None)
         if curve is not None and curve.energy_wh:
@@ -1130,9 +1269,7 @@ class GeneticOptimization(OptimizationBase):
             if isinstance(curve, TailValueCurve):
                 tail_operating_euro, continuation_value_euro = curve.component_values(energy_wh)
                 tail_plan = (
-                    curve.diagnostic_plan(
-                        energy_wh, float(self.config.optimization.genetic.horizon_hours)
-                    )
+                    curve.diagnostic_plan(energy_wh, float(self._genetic_cfg.horizon_hours))
                     if include_tail_plan
                     else []
                 )
@@ -1141,8 +1278,8 @@ class GeneticOptimization(OptimizationBase):
                 tail_plan = []
             return credit, TerminalValueResult(
                 mode="TAIL" if isinstance(curve, TailValueCurve) else "AUTO",
-                control_horizon_hours=self.config.optimization.genetic.horizon_hours,
-                requested_tail_hours=self.config.optimization.genetic.tail_horizon_hours,
+                control_horizon_hours=self._genetic_cfg.horizon_hours,
+                requested_tail_hours=self._genetic_cfg.tail_horizon_hours,
                 effective_tail_hours=getattr(self, "_effective_tail_slots", 0)
                 * self.slot_duration_h,
                 tail_end_hour=(self.control_end_slot + getattr(self, "_effective_tail_slots", 0))
@@ -1462,17 +1599,14 @@ class GeneticOptimization(OptimizationBase):
         ) -> list[float]:
             data = np.asarray(values, dtype=float)
             # API inputs default to hourly; native callers declare their interval.
-            native = (
-                parameters.forecast_interval_seconds
-                == self.config.optimization.genetic.interval_sec
-            )
+            native = parameters.forecast_interval_seconds == self._genetic_cfg.interval_sec
             if parameters.forecast_interval_seconds is None:
-                max_hourly = self.config.prediction.hours + math.ceil(
+                max_hourly = self._prediction_hours_cfg + math.ceil(
                     self._start_day_slot() / self.slots_per_hour
                 )
                 if self.slots_per_hour > 1 and max_hourly < len(data) < self.prediction_slots:
                     raise ValueError(
-                        f"{name}: ambiguous forecast interval; expected either {self.config.prediction.hours} hourly values or {self.prediction_slots} native values. Set forecast_interval_seconds for shortened native forecasts."
+                        f"{name}: ambiguous forecast interval; expected either {self._prediction_hours_cfg} hourly values or {self.prediction_slots} native values. Set forecast_interval_seconds for shortened native forecasts."
                     )
                 native = self.slots_per_hour == 1 or len(data) >= self.prediction_slots
             if parameters.forecast_interval_seconds == 900 and self.slots_per_hour == 1:
@@ -1522,7 +1656,7 @@ class GeneticOptimization(OptimizationBase):
             update={
                 "ems": normalized_ems,
                 "temperature_forecast": temperature_forecast,
-                "forecast_interval_seconds": self.config.optimization.genetic.interval_sec,
+                "forecast_interval_seconds": self._genetic_cfg.interval_sec,
             },
             deep=True,
         )
@@ -1538,8 +1672,7 @@ class GeneticOptimization(OptimizationBase):
         n_appliance_genes = self.appliance_layout.n_genes
         expected_length = self.control_end_slot * (2 if self.optimize_ev else 1) + n_appliance_genes
         hourly_length = (
-            self.config.optimization.genetic.horizon_hours * (2 if self.optimize_ev else 1)
-            + n_appliance_genes
+            self._genetic_cfg.horizon_hours * (2 if self.optimize_ev else 1) + n_appliance_genes
         )
 
         if len(start_solution) == expected_length or self.slots_per_hour == 1:
@@ -1547,10 +1680,10 @@ class GeneticOptimization(OptimizationBase):
         if len(start_solution) != hourly_length:
             return list(start_solution)
 
-        battery_end = self.config.optimization.genetic.horizon_hours
+        battery_end = self._genetic_cfg.horizon_hours
         migrated = np.repeat(start_solution[:battery_end], self.slots_per_hour).tolist()
         if self.optimize_ev:
-            ev_end = battery_end + self.config.optimization.genetic.horizon_hours
+            ev_end = battery_end + self._genetic_cfg.horizon_hours
             migrated.extend(
                 np.repeat(start_solution[battery_end:ev_end], self.slots_per_hour).tolist()
             )
@@ -2444,10 +2577,131 @@ class GeneticOptimization(OptimizationBase):
     def _evaluate_invalid(self, population: list[Any]) -> int:
         """Evaluate invalid individuals and return the number of cache lookups."""
         invalid = [individual for individual in population if not individual.fitness.valid]
-        fitnesses = self.toolbox.map(self.toolbox.evaluate, invalid)
-        for individual, fitness in zip(invalid, fitnesses):
+        pool = getattr(self, "_evaluation_pool", None)
+        if pool is not None and len(invalid) > 1:
+            try:
+                self._evaluate_parallel(pool, invalid)
+                return len(invalid)
+            except Exception as exc:
+                logger.warning(
+                    "Parallel fitness evaluation failed ({}); evaluating serially for the "
+                    "rest of this run.",
+                    exc,
+                )
+                self._stop_evaluation_pool()
+        pending = [individual for individual in invalid if not individual.fitness.valid]
+        fitnesses = self.toolbox.map(self.toolbox.evaluate, pending)
+        for individual, fitness in zip(pending, fitnesses):
             individual.fitness.values = fitness
         return len(invalid)
+
+    def _evaluate_parallel(self, pool: Any, invalid: list[Any]) -> None:
+        """Evaluate individuals in the worker processes, same results as evaluate().
+
+        Cache lookups and stores stay in this process. With the cache active,
+        identical genomes are evaluated once, as a serial run would hit the
+        cache for the repeats. Results are applied only when the whole batch
+        has returned, so a failed batch leaves nothing half-assigned.
+        """
+        cache_enabled = getattr(self, "_fitness_cache_enabled", False)
+        groups: list[list[Any]] = []
+        keys: list[Optional[PackedGenes]] = []
+        by_key: dict[PackedGenes, list[Any]] = {}
+        for individual in invalid:
+            if not cache_enabled:
+                groups.append([individual])
+                keys.append(None)
+                continue
+            key = self._fitness_key(individual)
+            cached = self._fitness_cache.get(key)
+            if cached is not None:
+                individual.fitness.values = self._apply_cached_fitness(individual, cached)
+                continue
+            group = by_key.get(key)
+            if group is not None:
+                group.append(individual)
+                self._fitness_cache_hits += 1
+                continue
+            by_key[key] = [individual]
+            groups.append(by_key[key])
+            keys.append(key)
+            self._fitness_cache_misses += 1
+        if not groups:
+            return
+
+        genomes = [[int(value) for value in group[0]] for group in groups]
+        chunksize = max(1, len(genomes) // (self._evaluation_workers * 4))
+        results = pool.map_async(_evaluation_worker, genomes, chunksize=chunksize).get(
+            timeout=EVALUATION_BATCH_TIMEOUT_SECONDS
+        )
+        for group, cache_key, (genome, fitness, extra_data) in zip(groups, keys, results):
+            for individual in group:
+                individual[:] = genome
+                if extra_data is None:
+                    if hasattr(individual, "extra_data"):
+                        del individual.extra_data
+                else:
+                    individual.extra_data = extra_data
+                individual.fitness.values = fitness
+            if cache_key is not None and extra_data is not None:
+                self._store_fitness_cache(cache_key, group[0], fitness)
+
+    def _configured_evaluation_workers(self) -> int:
+        """Configured number of evaluation processes; automatic when unset."""
+        try:
+            workers = self._genetic_cfg.workers
+        except Exception:
+            workers = None
+        if workers is None:
+            return auto_evaluation_workers()
+        return max(1, int(workers))
+
+    def _start_evaluation_pool(self) -> None:
+        """Fork the evaluation workers for this run (none when one process is enough)."""
+        global _WORKER_OPTIMIZER
+        self._evaluation_pool = None
+        self._evaluation_workers = self._configured_evaluation_workers()
+        if self._evaluation_workers < 2:
+            return
+        try:
+            context = multiprocessing.get_context("fork")
+        except ValueError:
+            logger.warning("Parallel fitness evaluation needs fork(); evaluating serially.")
+            return
+        cpus = worker_cpu_set(self._evaluation_workers) if self._pin_workers() else None
+        _WORKER_OPTIMIZER = self
+        try:
+            self._evaluation_pool = context.Pool(
+                self._evaluation_workers,
+                initializer=_evaluation_worker_init,
+                initargs=(cpus,),
+            )
+        except Exception as exc:
+            _WORKER_OPTIMIZER = None
+            logger.warning("Could not start evaluation workers ({}); evaluating serially.", exc)
+            return
+        logger.info(
+            "Genetic evaluation: {} worker processes{}.",
+            self._evaluation_workers,
+            f" on CPU cores {sorted(cpus)}" if cpus else "",
+        )
+
+    def _pin_workers(self) -> bool:
+        """Whether evaluation workers are pinned to fixed CPU cores."""
+        try:
+            return bool(self._genetic_cfg.pin_workers)
+        except Exception:
+            return True
+
+    def _stop_evaluation_pool(self) -> None:
+        """Stop the evaluation workers of this run."""
+        global _WORKER_OPTIMIZER
+        pool = getattr(self, "_evaluation_pool", None)
+        self._evaluation_pool = None
+        _WORKER_OPTIMIZER = None
+        if pool is not None:
+            pool.terminate()
+            pool.join()
 
     def _fresh_population(self, count: int, *, educated_fraction: float) -> list[Any]:
         """Create a mixed set of current educated guesses and random immigrants."""
@@ -2895,19 +3149,30 @@ class GeneticOptimization(OptimizationBase):
         original_key = self._fitness_key(individual)
         cached = self._fitness_cache.get(original_key)
         if cached is not None:
-            individual[:] = _unpack_genes(cached.genome)
-            individual.extra_data = cached.extra_data  # type: ignore[attr-defined]
-            self._fitness_cache_hits += 1
-            return cached.fitness
+            return self._apply_cached_fitness(individual, cached)
 
         self._fitness_cache_misses += 1
         fitness = self._evaluate_uncached(individual, parameters, start_hour, worst_case)
+        self._store_fitness_cache(original_key, individual, fitness)
+        return fitness
+
+    def _apply_cached_fitness(self, individual: Any, cached: FitnessCacheEntry) -> tuple[float]:
+        """Give an individual the cached canonical genome and results."""
+        individual[:] = _unpack_genes(cached.genome)
+        individual.extra_data = cached.extra_data
+        self._fitness_cache_hits += 1
+        return cached.fitness
+
+    def _store_fitness_cache(
+        self, original_key: PackedGenes, individual: Any, fitness: tuple[float]
+    ) -> None:
+        """Remember a successful evaluation under its original and canonical key."""
         extra_data = getattr(individual, "extra_data", None)
         if extra_data is None:
             # Failed evaluations use the sentinel fitness and are intentionally
             # not cached: an unexpected transient failure must never become a
             # persistent result for the remainder of the run.
-            return fitness
+            return
 
         canonical_key = self._fitness_key(individual)
         extra_value1, extra_value2, extra_value3 = extra_data
@@ -2922,7 +3187,35 @@ class GeneticOptimization(OptimizationBase):
         )
         self._fitness_cache[original_key] = entry
         self._fitness_cache[canonical_key] = entry
-        return fitness
+        max_entries = getattr(self, "_fitness_cache_max_entries", None)
+        if max_entries is not None:
+            self._evict_fitness_cache(max_entries)
+
+    def _evict_fitness_cache(self, max_entries: int) -> None:
+        """Drop the oldest cache keys until at most ``max_entries`` remain.
+
+        FIFO instead of LRU: the hit rate of the cache is low (typically below
+        15 %), so tracking recency would cost more than it saves. Evicting a key
+        only means that genome is evaluated again; the evaluation is
+        deterministic, so the optimization result does not change.
+        """
+        cache = self._fitness_cache
+        if isinstance(cache, OrderedDict):
+            while len(cache) > max_entries:
+                cache.popitem(last=False)
+        else:
+            while len(cache) > max_entries:
+                del cache[next(iter(cache))]
+
+    def _configured_fitness_cache_max_entries(self) -> Optional[int]:
+        """Return the configured fitness cache limit (None = unbounded)."""
+        try:
+            max_entries = self._genetic_cfg.fitness_cache_max_entries
+        except Exception:
+            return None
+        if max_entries is None:
+            return None
+        return max(int(max_entries), 0)
 
     def _fitness_key(self, individual: list[int]) -> PackedGenes:
         """Return the fitness-relevant genome, excluding elapsed control slots."""
@@ -3097,19 +3390,20 @@ class GeneticOptimization(OptimizationBase):
             inv = self.simulation.inverter
             bat = self.simulation.battery
 
-            # Full round-trip efficiency: 1 Wh drawn from grid → η Wh delivered to AC load
+            # Full round-trip efficiency: 1 Wh drawn from grid → η Wh delivered to AC load.
+            # The later discharge has no known size here, so the DC-to-AC part
+            # is the efficiency at the inverter's reference load (equal to
+            # dc_to_ac_efficiency without an efficiency curve).
             round_trip_eff = (
                 inv.ac_to_dc_efficiency
                 * bat.charging_efficiency
                 * bat.discharging_efficiency
-                * inv.dc_to_ac_efficiency
+                * inv.reference_dc_to_ac_efficiency
             )
 
             # Configurable penalty multiplier (default 1 = economic loss in €)
             try:
-                ac_penalty_factor = float(
-                    self.config.optimization.genetic.penalties["ac_charge_break_even"]
-                )
+                ac_penalty_factor = float(self._genetic_cfg.penalties["ac_charge_break_even"])
             except Exception:
                 ac_penalty_factor = 1.0
 
@@ -3128,7 +3422,7 @@ class GeneticOptimization(OptimizationBase):
                 free_ac_wh = (
                     max(0.0, initial_soc_wh - bat.min_soc_wh)
                     * bat.discharging_efficiency
-                    * inv.dc_to_ac_efficiency
+                    * inv.reference_dc_to_ac_efficiency
                 )
 
                 # Prices/loads/free energy are constant within one optimization
@@ -3154,7 +3448,8 @@ class GeneticOptimization(OptimizationBase):
                     # corresponding cost per useful/exported AC Wh.
                     lcos_per_wh_dc = getattr(bat, "levelized_cost_of_storage_kwh", 0.0) / 1000.0
                     break_even_price = (
-                        charge_price / round_trip_eff + lcos_per_wh_dc / inv.dc_to_ac_efficiency
+                        charge_price / round_trip_eff
+                        + lcos_per_wh_dc / inv.reference_dc_to_ac_efficiency
                     )
 
                     best_uncovered_price = best_prices[hour]
@@ -3171,7 +3466,7 @@ class GeneticOptimization(OptimizationBase):
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
-                penalty = self.config.optimization.genetic.penalties["ev_soc_miss"]
+                penalty = self._genetic_cfg.penalties["ev_soc_miss"]
             except:
                 # Use default
                 penalty = 10
@@ -3203,7 +3498,7 @@ class GeneticOptimization(OptimizationBase):
         # Set the number of inviduals in a generation
         if individuals is None:
             try:
-                individuals = self.config.optimization.genetic.individuals
+                individuals = self._genetic_cfg.individuals
                 if individuals is None:
                     raise ValueError("individuals is not configured")
             except Exception:
@@ -3307,10 +3602,21 @@ class GeneticOptimization(OptimizationBase):
         # The memoization scope is exactly one optimizer invocation. Always turn
         # it off again, including when DEAP raises, so no later caller can reuse
         # results under changed forecasts or device state.
+        # fitness_cache_max_entries: None = unbounded, 0 = no cache, N = at most
+        # N keys (oldest evicted first). Disabling or bounding the cache only
+        # re-evaluates genomes; it does not change the result.
+        max_entries = self._configured_fitness_cache_max_entries()
+        self._fitness_cache_max_entries = max_entries
         self._fitness_cache.clear()
+        if max_entries is not None:
+            # Only a bounded cache pays for the ordered container (O(1) eviction).
+            self._fitness_cache = OrderedDict()
+        elif isinstance(self._fitness_cache, OrderedDict):
+            self._fitness_cache = {}
         self._fitness_cache_hits = 0
         self._fitness_cache_misses = 0
-        self._fitness_cache_enabled = True
+        self._fitness_cache_enabled = max_entries != 0
+        self._start_evaluation_pool()
         local_evaluations = 0
         local_improvements = 0
         local_initial_fitness = float("nan")
@@ -3344,6 +3650,7 @@ class GeneticOptimization(OptimizationBase):
             _release_freed_memory()
             raise
         finally:
+            self._stop_evaluation_pool()
             self._fitness_cache_enabled = False
 
         if local_improvements:
@@ -3359,13 +3666,25 @@ class GeneticOptimization(OptimizationBase):
         cache_lookups = self._fitness_cache_hits + self._fitness_cache_misses
         cache_hit_rate = self._fitness_cache_hits / cache_lookups if cache_lookups > 0 else 0.0
         cache_keys = len(self._fitness_cache)
-        logger.info(
-            "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",
-            self._fitness_cache_hits,
-            self._fitness_cache_misses,
-            cache_hit_rate,
-            cache_keys,
-        )
+        if max_entries == 0:
+            logger.info("Fitness cache: disabled (fitness_cache_max_entries = 0).")
+        elif max_entries is None:
+            logger.info(
+                "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",
+                self._fitness_cache_hits,
+                self._fitness_cache_misses,
+                cache_hit_rate,
+                cache_keys,
+            )
+        else:
+            logger.info(
+                "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys (limit {}).",
+                self._fitness_cache_hits,
+                self._fitness_cache_misses,
+                cache_hit_rate,
+                cache_keys,
+                max_entries,
+            )
 
         # Store fitness history
         self.fitness_history = {
@@ -3414,7 +3733,29 @@ class GeneticOptimization(OptimizationBase):
         ngen: Optional[int] = None,
         individuals: Optional[int] = None,
     ) -> GeneticSolution:
-        """Perform EMS (Energy Management System) optimization and visualize results."""
+        """Perform EMS (Energy Management System) optimization and visualize results.
+
+        The genetic configuration and the prediction hours are frozen for the
+        run (see ``_genetic_cfg``); updates made while it runs apply to the next.
+        """
+        self.config.validate_optimization_horizons()
+        self._run_genetic_cfg = self.config.optimization.genetic.model_copy(deep=True)
+        self._run_prediction_hours = self.config.prediction.hours
+        try:
+            return self._optimize_ems_run(parameters, start_hour, worst_case, ngen, individuals)
+        finally:
+            self._run_genetic_cfg = None
+            self._run_prediction_hours = None
+
+    def _optimize_ems_run(
+        self,
+        parameters: GeneticOptimizationParameters,
+        start_hour: Optional[int],
+        worst_case: bool,
+        ngen: Optional[int],
+        individuals: Optional[int],
+    ) -> GeneticSolution:
+        """Run the optimization with the configuration snapshot in place."""
         self.config.validate_optimization_horizons()
         direct_marketing_enabled = self._direct_marketing_enabled()
         parameters = self._parameters_for_config(parameters)
@@ -3439,7 +3780,7 @@ class GeneticOptimization(OptimizationBase):
         generations = ngen
         if generations is None:
             try:
-                generations = self.config.optimization.genetic.generations
+                generations = self._genetic_cfg.generations
             except:
                 generations = 400
                 logger.error("Generations not configured. Using {}.", generations)
@@ -3552,7 +3893,7 @@ class GeneticOptimization(OptimizationBase):
         home_appliances = [
             HomeAppliance(
                 parameters=appliance_params,
-                optimization_hours=self.config.optimization.genetic.horizon_hours,
+                optimization_hours=self._genetic_cfg.horizon_hours,
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
             )
@@ -3585,7 +3926,7 @@ class GeneticOptimization(OptimizationBase):
         # Prepare device simulation
         self.simulation.prepare(
             parameters=parameters.ems,
-            optimization_hours=self.config.optimization.genetic.horizon_hours,
+            optimization_hours=self._genetic_cfg.horizon_hours,
             prediction_hours=self.control_end_slot,
             inverter=inverter,  # battery is part of inverter
             ev=eauto,
@@ -3704,7 +4045,7 @@ class GeneticOptimization(OptimizationBase):
         return GeneticSolution(
             **{
                 "parameters": parameters,
-                "interval_seconds": self.config.optimization.genetic.interval_sec,
+                "interval_seconds": self._genetic_cfg.interval_sec,
                 "start_hour": start_hour,
                 "extra_data": extra_data,
                 "fitness_history": self.fitness_history,

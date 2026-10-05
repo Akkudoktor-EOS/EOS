@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609171762020752"
+    "version": "v0.3.0.dev2610041216878443"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -5947,6 +5947,22 @@
             "examples": [
               "OPTIMIZATION"
             ]
+          },
+          "notify_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Url",
+            "description": "URL that receives an HTTP POST with a small JSON event after every completed optimization, so a client can fetch the new solution right away instead of polling for it. None = off.",
+            "examples": [
+              null,
+              "http://127.0.0.1:8080/api/eos/solution-ready"
+            ]
           }
         },
         "type": "object",
@@ -5977,6 +5993,22 @@
             "description": "Energy management mode [DISABLED | PREDICTION | OPTIMIZATION]. Defaults to DISABLED.",
             "examples": [
               "OPTIMIZATION"
+            ]
+          },
+          "notify_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Url",
+            "description": "URL that receives an HTTP POST with a small JSON event after every completed optimization, so a client can fetch the new solution right away instead of polling for it. None = off.",
+            "examples": [
+              null,
+              "http://127.0.0.1:8080/api/eos/solution-ready"
             ]
           },
           "modes": {
@@ -6737,6 +6769,22 @@
             "title": "Longitude",
             "description": "Longitude in decimal degrees within -180 to 180 (\u00b0)",
             "default": 13.405
+          },
+          "timezone_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone Override",
+            "description": "IANA timezone name, e.g. 'Europe/Berlin'. If set, 'timezone' is this value instead of the timezone looked up from latitude and longitude, and the lookup data (~25 MB) is never loaded. Defaults to None (look up).",
+            "examples": [
+              null,
+              "Europe/Berlin"
+            ]
           }
         },
         "type": "object",
@@ -6829,6 +6877,22 @@
             "description": "Longitude in decimal degrees within -180 to 180 (\u00b0)",
             "default": 13.405
           },
+          "timezone_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone Override",
+            "description": "IANA timezone name, e.g. 'Europe/Berlin'. If set, 'timezone' is this value instead of the timezone looked up from latitude and longitude, and the lookup data (~25 MB) is never loaded. Defaults to None (look up).",
+            "examples": [
+              null,
+              "Europe/Berlin"
+            ]
+          },
           "timezone": {
             "anyOf": [
               {
@@ -6839,7 +6903,7 @@
               }
             ],
             "title": "Timezone",
-            "description": "Computed timezone based on latitude and longitude.",
+            "description": "Timezone: 'timezone_override' if set, else looked up from latitude and longitude.",
             "readOnly": true
           },
           "data_output_path": {
@@ -8769,6 +8833,52 @@
               42
             ]
           },
+          "fitness_cache_max_entries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Cache Max Entries",
+            "description": "Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
+          },
+          "workers": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workers",
+            "description": "Processes that evaluate candidate solutions in parallel. None = automatic: one CPU core always stays free and at most two are used (1-2 cores -> 1, 3 or more cores -> 2), capped by a container CPU limit. 1 = evaluate in the server process only. The result for a fixed seed is the same with any value.",
+            "examples": [
+              null,
+              1,
+              2
+            ]
+          },
+          "pin_workers": {
+            "type": "boolean",
+            "title": "Pin Workers",
+            "description": "Pin the evaluation workers to the last 'workers' CPU cores. The server process stays unpinned and keeps a core that is not busy with the optimization, so it answers requests during a run, and the run never uses more than 'workers' cores. Needs at least one core more than workers; Linux only.",
+            "default": true,
+            "examples": [
+              true,
+              false
+            ]
+          },
           "measurement_max_age_seconds": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -8915,6 +9025,52 @@
             "examples": [
               null,
               42
+            ]
+          },
+          "fitness_cache_max_entries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Cache Max Entries",
+            "description": "Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
+          },
+          "workers": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workers",
+            "description": "Processes that evaluate candidate solutions in parallel. None = automatic: one CPU core always stays free and at most two are used (1-2 cores -> 1, 3 or more cores -> 2), capped by a container CPU limit. 1 = evaluate in the server process only. The result for a fixed seed is the same with any value.",
+            "examples": [
+              null,
+              1,
+              2
+            ]
+          },
+          "pin_workers": {
+            "type": "boolean",
+            "title": "Pin Workers",
+            "description": "Pin the evaluation workers to the last 'workers' CPU cores. The server process stays unpinned and keeps a core that is not busy with the optimization, so it answers requests during a run, and the run never uses more than 'workers' cores. Needs at least one core more than workers; Linux only.",
+            "default": true,
+            "examples": [
+              true,
+              false
             ]
           },
           "measurement_max_age_seconds": {
@@ -9901,6 +10057,15 @@
           "hours"
         ],
         "title": "GesamtlastRequest"
+      },
+      "GridInterpolatorBackend": {
+        "type": "string",
+        "enum": [
+          "scipy",
+          "numpy"
+        ],
+        "title": "GridInterpolatorBackend",
+        "description": "How the self-consumption tables are evaluated."
       },
       "HTTPValidationError": {
         "properties": {
@@ -11227,6 +11392,70 @@
               "GENETIC0"
             ]
           },
+          "dc_to_ac_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc To Ac Efficiency Curve",
+            "description": "Load-dependent efficiency of DC\u2192AC conversion for battery discharging as a list of [load_fraction, efficiency] points. The load fraction is the AC power relative to max_power_w (0\u20131); points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. null keeps the constant dc_to_ac_efficiency. Default null.",
+            "examples": [
+              null,
+              [
+                [
+                  0.02,
+                  0.8
+                ],
+                [
+                  0.07,
+                  0.93
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.95
+                ]
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "dc_to_ac_efficiency_reference_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dc To Ac Efficiency Reference Load Fraction",
+            "description": "Load fraction of max_power_w (0\u20131) at which dc_to_ac_efficiency_curve is evaluated to value stored battery energy without a specific conversion (remaining energy at the end of the horizon, AC charge break-even). Should represent the typical load served by the battery, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
+            "default": 0.06,
+            "examples": [
+              0.06,
+              0.1
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
           "max_ac_charge_power_w": {
             "anyOf": [
               {
@@ -11636,6 +11865,70 @@
             "x-scope": [
               "GENETIC",
               "GENETIC0"
+            ]
+          },
+          "dc_to_ac_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc To Ac Efficiency Curve",
+            "description": "Load-dependent efficiency of DC\u2192AC conversion for battery discharging as a list of [load_fraction, efficiency] points. The load fraction is the AC power relative to max_power_w (0\u20131); points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. null keeps the constant dc_to_ac_efficiency. Default null.",
+            "examples": [
+              null,
+              [
+                [
+                  0.02,
+                  0.8
+                ],
+                [
+                  0.07,
+                  0.93
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.95
+                ]
+              ]
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "dc_to_ac_efficiency_reference_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dc To Ac Efficiency Reference Load Fraction",
+            "description": "Load fraction of max_power_w (0\u20131) at which dc_to_ac_efficiency_curve is evaluated to value stored battery energy without a specific conversion (remaining energy at the end of the horizon, AC charge break-even). Should represent the typical load served by the battery, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
+            "default": 0.06,
+            "examples": [
+              0.06,
+              0.1
+            ],
+            "x-scope": [
+              "GENETIC"
             ]
           },
           "max_ac_charge_power_w": {
@@ -12068,6 +12361,64 @@
             "examples": [
               0.95,
               1.0
+            ]
+          },
+          "dc_to_ac_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc To Ac Efficiency Curve",
+            "description": "Load-dependent efficiency of DC to AC conversion as a list of (load_fraction, efficiency) points. The load fraction is the AC power of the conversion relative to max_power_wh [0.0 ... 1.0]; points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. Default None (constant dc_to_ac_efficiency).",
+            "examples": [
+              null,
+              [
+                [
+                  0.02,
+                  0.8
+                ],
+                [
+                  0.07,
+                  0.93
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.95
+                ]
+              ]
+            ]
+          },
+          "dc_to_ac_efficiency_reference_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dc To Ac Efficiency Reference Load Fraction",
+            "description": "Load fraction at which dc_to_ac_efficiency_curve is evaluated where stored battery energy is valued without a specific conversion (e.g. remaining battery energy at the end of the horizon, AC charge break-even). Should represent the typical load the battery serves, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
+            "default": 0.06,
+            "examples": [
+              0.06,
+              0.1
             ]
           },
           "max_ac_charge_power_w": {
@@ -13023,6 +13374,15 @@
                 }
               }
             ]
+          },
+          "self_consumption_interpolator": {
+            "$ref": "#/components/schemas/GridInterpolatorBackend",
+            "description": "How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer.",
+            "default": "scipy",
+            "examples": [
+              "scipy",
+              "numpy"
+            ]
           }
         },
         "type": "object",
@@ -13061,6 +13421,15 @@
                   "ev_soc_miss": 10
                 }
               }
+            ]
+          },
+          "self_consumption_interpolator": {
+            "$ref": "#/components/schemas/GridInterpolatorBackend",
+            "description": "How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer.",
+            "default": "scipy",
+            "examples": [
+              "scipy",
+              "numpy"
             ]
           },
           "algorithms": {

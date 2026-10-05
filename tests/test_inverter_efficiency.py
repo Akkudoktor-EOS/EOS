@@ -515,6 +515,7 @@ def _make_mock_simulation(
     inv = SimpleNamespace(
         ac_to_dc_efficiency=ac_to_dc_efficiency,
         dc_to_ac_efficiency=dc_to_ac_efficiency,
+        reference_dc_to_ac_efficiency=dc_to_ac_efficiency,
     )
     bat = SimpleNamespace(
         charging_efficiency=charging_efficiency,

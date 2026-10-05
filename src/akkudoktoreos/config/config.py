@@ -17,6 +17,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Optional, Type, Union
 
+import pendulum
 import pydantic_settings
 from loguru import logger
 from platformdirs import user_config_dir, user_data_dir
@@ -53,7 +54,11 @@ from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
 from akkudoktoreos.server.rest.cli import cli_argument_parser
 from akkudoktoreos.server.server import ServerCommonSettings
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_timezone
+from akkudoktoreos.utils.datetimeutil import (
+    _canonicalize_tz_name,
+    to_datetime,
+    to_timezone,
+)
 from akkudoktoreos.utils.utils import UtilsCommonSettings
 
 
@@ -189,11 +194,37 @@ class GeneralSettings(SettingsBaseModel):
         json_schema_extra={"description": "Longitude in decimal degrees within -180 to 180 (°)"},
     )
 
+    timezone_override: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "IANA timezone name, e.g. 'Europe/Berlin'. If set, 'timezone' is this "
+                "value instead of the timezone looked up from latitude and longitude, "
+                "and the lookup data (~25 MB) is never loaded. Defaults to None (look up)."
+            ),
+            "examples": [None, "Europe/Berlin"],
+        },
+    )
+
+    @field_validator("timezone_override", mode="after")
+    @classmethod
+    def validate_timezone_override(cls, value: Optional[str]) -> Optional[str]:
+        """Ensure the timezone override is a known IANA timezone name."""
+        if value is None:
+            return None
+        try:
+            name = pendulum.timezone(value).name
+        except Exception as e:
+            raise ValueError(f"Unknown timezone '{value}'.") from e
+        return _canonicalize_tz_name(name)
+
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
     def timezone(self) -> Optional[str]:
-        """Computed timezone based on latitude and longitude."""
+        """Timezone: 'timezone_override' if set, else looked up from latitude and longitude."""
+        if self.timezone_override is not None:
+            return self.timezone_override
         if self.latitude and self.longitude:
             return to_timezone(location=(self.latitude, self.longitude), as_string=True)
         return None
