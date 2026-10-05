@@ -67,7 +67,6 @@ from pydantic import (
     GetCoreSchemaHandler,
 )
 from pydantic_core import core_schema
-from tzfpy import get_tz
 
 if TYPE_CHECKING:
     # The Pydantic adapters validate Pendulum values; arithmetic and factory
@@ -1408,6 +1407,10 @@ def to_timezone(
             lat, lon = location
             if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                 raise ValueError(f"Invalid latitude/longitude: {lat}, {lon}")
+            # tzfpy loads its timezone polygons (~25 MB) on first use; import it
+            # only when a location lookup is actually needed.
+            from tzfpy import get_tz
+
             tz_name = get_tz(lon, lat)
             if not tz_name:
                 raise ValueError(
