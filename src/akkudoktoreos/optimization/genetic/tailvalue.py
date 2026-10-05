@@ -48,9 +48,9 @@ def _simulate_action(
     """Apply one tail action from one stored-energy state."""
     dc, discharge, ac_rate, export = action
     bat.soc_wh = float(energy_wh)
-    bat._charged_raw_wh_per_slot.fill(0)
-    bat._discharged_raw_wh_per_slot.fill(0)
-    bat._charge_limit_raw_wh_per_slot.fill(np.inf)
+    bat._charged_raw_wh_per_slot[:] = [0.0] * len(bat._charged_raw_wh_per_slot)
+    bat._discharged_raw_wh_per_slot[:] = [0.0] * len(bat._discharged_raw_wh_per_slot)
+    bat._charge_limit_raw_wh_per_slot[:] = [float("inf")] * len(bat._charge_limit_raw_wh_per_slot)
     ac_enabled = inv.ac_to_dc_efficiency > 0 and (
         inv.max_ac_charge_power_w is None or inv.max_ac_charge_power_w > 0
     )
@@ -128,7 +128,7 @@ class TailValueCurve(TerminalValueCurve):
             battery=bat,
             slot_duration_h=context["slot_duration_h"],
         )
-        conversion = bat.discharging_efficiency * inv.dc_to_ac_efficiency
+        conversion = bat.discharging_efficiency * inv.reference_dc_to_ac_efficiency
         state_wh = bat.min_soc_wh + (energy_wh / conversion if conversion > 0 else 0.0)
         state_wh = float(np.clip(state_wh, bat.min_soc_wh, bat.max_soc_wh))
         plan: list[TailPlanSlot] = []
@@ -231,7 +231,9 @@ def build_tail_value_curve(
     bat.charge_array = np.zeros(1, dtype=float)
     inv = Inverter(inverter.parameters, battery=bat, slot_duration_h=battery.slot_duration_h)
     states = np.linspace(bat.min_soc_wh, bat.max_soc_wh, grid_points)
-    usable = (states - bat.min_soc_wh) * bat.discharging_efficiency * inv.dc_to_ac_efficiency
+    usable = (
+        (states - bat.min_soc_wh) * bat.discharging_efficiency * inv.reference_dc_to_ac_efficiency
+    )
     continuation_values = np.array([continuation.value(e) for e in usable])
     operating_values = np.zeros(len(states))
     values = continuation_values.copy()

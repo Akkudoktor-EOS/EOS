@@ -2,9 +2,10 @@
 
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import ConfigScope
+from akkudoktoreos.devices.devicesabc import validate_efficiency_curve
 from akkudoktoreos.devices.settings.devicebasesettings import (
     DevicesBaseSettings,
 )
@@ -60,6 +61,38 @@ class InverterCommonSettings(DevicesBaseSettings):
             ),
             "examples": [0.95, 1.0],
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+        },
+    )
+    dc_to_ac_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Load-dependent efficiency of DC→AC conversion for battery discharging as "
+                "a list of [load_fraction, efficiency] points. The load fraction is the AC "
+                "power relative to max_power_w (0–1); points must be strictly increasing in "
+                "load fraction, efficiencies in (0, 1]. Values are interpolated linearly and "
+                "clamped to the first/last point. When set, the curve replaces "
+                "dc_to_ac_efficiency. null keeps the constant dc_to_ac_efficiency. "
+                "Default null."
+            ),
+            "examples": [None, [[0.02, 0.8], [0.07, 0.93], [0.3, 0.96], [1.0, 0.95]]],
+            "x-scope": [str(ConfigScope.GENETIC)],
+        },
+    )
+    dc_to_ac_efficiency_reference_load_fraction: float = Field(
+        default=0.06,
+        ge=0,
+        le=1,
+        json_schema_extra={
+            "description": (
+                "Load fraction of max_power_w (0–1) at which dc_to_ac_efficiency_curve is "
+                "evaluated to value stored battery energy without a specific conversion "
+                "(remaining energy at the end of the horizon, AC charge break-even). Should "
+                "represent the typical load served by the battery, e.g. the night-time base "
+                "load. Only used with dc_to_ac_efficiency_curve. Default 0.06."
+            ),
+            "examples": [0.06, 0.1],
+            "x-scope": [str(ConfigScope.GENETIC)],
         },
     )
     max_ac_charge_power_w: Optional[float] = Field(
@@ -351,6 +384,13 @@ class InverterCommonSettings(DevicesBaseSettings):
     # Validators
     # ------------------------------------------------------------------
 
+    @field_validator("dc_to_ac_efficiency_curve")
+    @classmethod
+    def _validate_dc_to_ac_efficiency_curve(
+        cls, value: Optional[list[tuple[float, float]]]
+    ) -> Optional[list[tuple[float, float]]]:
+        return validate_efficiency_curve(value)
+
     @model_validator(mode="after")
     def _validate_soc_factors(self) -> "InverterCommonSettings":
         if self.battery_min_soc_factor >= self.battery_max_soc_factor:
@@ -375,6 +415,10 @@ class InverterCommonSettings(DevicesBaseSettings):
             battery_id=self.battery_id,
             ac_to_dc_efficiency=self.ac_to_dc_efficiency,
             dc_to_ac_efficiency=self.dc_to_ac_efficiency,
+            dc_to_ac_efficiency_curve=self.dc_to_ac_efficiency_curve,
+            dc_to_ac_efficiency_reference_load_fraction=(
+                self.dc_to_ac_efficiency_reference_load_fraction
+            ),
             max_ac_charge_power_w=self.max_ac_charge_power_w,
             ac_charge_limits_total_charge=self.ac_charge_limits_total_charge,
         )
