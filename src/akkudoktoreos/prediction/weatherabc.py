@@ -11,7 +11,6 @@ from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-import pvlib
 from pydantic import Field
 
 from akkudoktoreos.prediction.predictionabc import PredictionProvider, PredictionRecord
@@ -170,6 +169,8 @@ class WeatherProvider(PredictionProvider[WeatherDataRecord]):
             This method is based on the implementation from PVLib and is adapted from
             https://github.com/davidusb-geek/emhass/blob/master/src/emhass/forecast.py (MIT License).
         """
+        import pvlib
+
         # Adjust offset percentage to scaling factor
         offset_fraction = offset / 100.0
 
@@ -212,4 +213,6 @@ class WeatherProvider(PredictionProvider[WeatherDataRecord]):
     def estimate_preciptable_water(
         cls, temperature: pd.Series, relative_humidity: pd.Series
     ) -> pd.Series:
+        import pvlib
+
         return pvlib.atmosphere.gueymard94_pw(temperature, relative_humidity)

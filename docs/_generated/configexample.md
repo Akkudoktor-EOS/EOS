@@ -180,7 +180,8 @@
        "ems": {
            "startup_delay": 5.0,
            "interval": 300.0,
-           "mode": "OPTIMIZATION"
+           "mode": "OPTIMIZATION",
+           "notify_url": null
        },
        "feedintariff": {
            "direct_marketing_enabled": false,
@@ -210,7 +211,8 @@
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",
            "latitude": 52.52,
-           "longitude": 13.405
+           "longitude": 13.405,
+           "timezone_override": null
        },
        "load": {
            "provider": "LoadAkkudoktor",
@@ -257,6 +259,9 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
+               "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -274,7 +279,8 @@
                "penalties": {
                    "ev_soc_miss": 10
                }
-           }
+           },
+           "self_consumption_interpolator": "scipy"
        },
        "prediction": {
            "hours": 48,

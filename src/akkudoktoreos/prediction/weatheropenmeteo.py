@@ -10,7 +10,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import pvlib
 import requests
 from loguru import logger
 
@@ -251,6 +250,8 @@ class WeatherOpenMeteo(WeatherProvider):
         are used directly without additional calculation. The final mapped and processed
         data is inserted into the sequence as `WeatherDataRecord`.
         """
+        import pvlib
+
         # Retrieve Open-Meteo weather data for the given coordinates
         openmeteo_data = self._request_forecast(force_update=force_update)  # type: ignore
 

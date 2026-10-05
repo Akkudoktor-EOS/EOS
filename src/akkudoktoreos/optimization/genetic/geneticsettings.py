@@ -108,6 +108,49 @@ class GeneticCommonSettings(SettingsBaseModel):
         },
     )
 
+    fitness_cache_max_entries: Optional[int] = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "Maximum number of keys in the per-run fitness cache. None = unbounded "
+                "(default), 0 = cache disabled, N > 0 = keep at most N keys and evict the "
+                "oldest first. Every cached evaluation takes one or two keys. The cache "
+                "only saves repeated evaluations; the result for a fixed seed is the same "
+                "with any value. Limit it to cap memory on small devices."
+            ),
+            "examples": [None, 0, 5000],
+        },
+    )
+
+    workers: Optional[int] = Field(
+        default=None,
+        ge=1,
+        json_schema_extra={
+            "description": (
+                "Processes that evaluate candidate solutions in parallel. None = automatic: "
+                "one CPU core always stays free and at most two are used (1-2 cores -> 1, "
+                "3 or more cores -> 2), capped by a container CPU limit. 1 = evaluate in the "
+                "server process only. The result for a fixed seed is the same with any value."
+            ),
+            "examples": [None, 1, 2],
+        },
+    )
+
+    pin_workers: bool = Field(
+        default=True,
+        json_schema_extra={
+            "description": (
+                "Pin the evaluation workers to the last 'workers' CPU cores. The server "
+                "process stays unpinned and keeps a core that is not busy with the "
+                "optimization, so it answers requests during a run, and the run never "
+                "uses more than 'workers' cores. Needs at least one core more than "
+                "workers; Linux only."
+            ),
+            "examples": [True, False],
+        },
+    )
+
     measurement_max_age_seconds: int = Field(
         default=300,
         gt=0,

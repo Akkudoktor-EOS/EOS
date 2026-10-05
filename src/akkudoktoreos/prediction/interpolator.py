@@ -1,24 +1,42 @@
 #!/usr/bin/env python
-import pickle
+import threading
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
 
-from akkudoktoreos.core.cache import cache_energy_management
+from akkudoktoreos.core.cache import CacheEnergyManagementStore, cache_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.utils.gridinterpolator import (
+    SwitchableGridInterpolator,
+    configured_grid_interpolator_backend,
+    load_grid_interpolator,
+)
 
 
 class SelfConsumptionProbabilityInterpolator:
+    LOAD_DISTRIBUTION_CACHE_SIZE = 4096
+    DIRECT_CONSUMPTION_CACHE_SIZE = 8192
+
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
-        # Load the RegularGridInterpolator
-        with open(self.filepath, "rb") as file:
-            self.interpolator: RegularGridInterpolator = pickle.load(file)  # noqa: S301
+        # The table is a pickled SciPy RegularGridInterpolator. It is read
+        # without SciPy; optimization.self_consumption_interpolator decides
+        # whether SciPy (default) or NumPy evaluates it.
+        self.interpolator = SwitchableGridInterpolator(
+            load_grid_interpolator(self.filepath), configured_grid_interpolator_backend
+        )
         self.load_power_min_w = float(self.interpolator.grid[0][0])
         self.load_power_max_w = float(self.interpolator.grid[0][-1])
         self.minute_load_levels_w = np.asarray(self.interpolator.grid[1], dtype=float)
         self.minute_load_max_w = float(self.interpolator.grid[1][-1])
+        # _load_distribution() per (backend, bounded mean load). The table is
+        # static, so an entry never goes stale; the size is bounded.
+        self._load_distributions: dict[tuple[str, float], tuple[np.ndarray, np.ndarray]] = {}
+        # calculate_expected_direct_consumption() per (mean load, PV power),
+        # valid for one energy management run (see there).
+        self._direct_consumption: dict[tuple[float, float], float] = {}
+        self._direct_consumption_generation = CacheEnergyManagementStore.generation
 
     def _load_distribution(self, mean_load_power_w: float) -> tuple[np.ndarray, np.ndarray]:
         """Return the conditional minute-load distribution for a mean load.
@@ -28,9 +46,18 @@ class SelfConsumptionProbabilityInterpolator:
         numerical deviations, so negative masses are removed and the result is
         normalized explicitly.
         """
-        bounded_mean_load_w = float(
-            np.clip(mean_load_power_w, self.load_power_min_w, self.load_power_max_w)
+        # The distribution depends on the mean load only, not on the PV power.
+        # An optimization asks for the same few loads (one per forecast slot,
+        # plus appliance combinations) with ever-changing PV values, so the
+        # table lookup over all minute-load bins is done once per load. Callers
+        # must not modify the returned arrays.
+        bounded_mean_load_w = min(
+            max(float(mean_load_power_w), self.load_power_min_w), self.load_power_max_w
         )
+        key = (str(configured_grid_interpolator_backend()), bounded_mean_load_w)
+        cached = self._load_distributions.get(key)
+        if cached is not None:
+            return cached
         points = np.column_stack(
             (
                 np.full(self.minute_load_levels_w.shape, bounded_mean_load_w),
@@ -40,8 +67,14 @@ class SelfConsumptionProbabilityInterpolator:
         probabilities = np.maximum(np.asarray(self.interpolator(points), dtype=float), 0.0)
         probability_sum = float(probabilities.sum())
         if probability_sum <= 0.0:
-            return self.minute_load_levels_w, probabilities
-        return self.minute_load_levels_w, probabilities / probability_sum
+            distribution = (self.minute_load_levels_w, probabilities)
+        else:
+            distribution = (self.minute_load_levels_w, probabilities / probability_sum)
+        if bounded_mean_load_w == bounded_mean_load_w:  # not NaN: NaN never matches a key
+            if len(self._load_distributions) >= self.LOAD_DISTRIBUTION_CACHE_SIZE:
+                self._load_distributions.clear()
+            self._load_distributions[key] = distribution
+        return distribution
 
     def _generate_points(
         self, mean_load_power_w: float, pv_power_w: float
@@ -83,7 +116,6 @@ class SelfConsumptionProbabilityInterpolator:
         probabilities = self.interpolator(points)
         return float(np.clip(probabilities.sum(), 0.0, 1.0))
 
-    @cache_energy_management
     def calculate_expected_direct_consumption(
         self, mean_load_power_w: float, pv_power_w: float
     ) -> float:
@@ -98,6 +130,13 @@ class SelfConsumptionProbabilityInterpolator:
         forecast mean exactly. This compensates for discretization and the
         finite upper table boundary while retaining the distribution shape.
 
+        The results are cached until the start of the next energy management
+        run, like ``cache_energy_management`` does. The optimizer asks several
+        hundred thousand times per run, so the cache is a plain dictionary of
+        this instance instead of the shared store: no key built from the
+        callable, no callback per call, and room for all slots of a run instead
+        of the last 100 results.
+
         Args:
             mean_load_power_w: Mean load power of the forecast interval [W].
             pv_power_w: Mean PV power of the forecast interval [W].
@@ -105,6 +144,22 @@ class SelfConsumptionProbabilityInterpolator:
         Returns:
             Expected direct PV-to-load power [W].
         """
+        cache = self._direct_consumption
+        if self._direct_consumption_generation != CacheEnergyManagementStore.generation:
+            cache.clear()
+            self._direct_consumption_generation = CacheEnergyManagementStore.generation
+        key = (mean_load_power_w, pv_power_w)
+        cached = cache.get(key)
+        if cached is not None:
+            return cached
+        result = self._expected_direct_consumption(mean_load_power_w, pv_power_w)
+        if len(cache) >= self.DIRECT_CONSUMPTION_CACHE_SIZE:
+            cache.clear()
+        cache[key] = result
+        return result
+
+    def _expected_direct_consumption(self, mean_load_power_w: float, pv_power_w: float) -> float:
+        """Calculate the expected direct PV-to-load power in watts, uncached."""
         mean_load_power_w = max(float(mean_load_power_w), 0.0)
         pv_power_w = max(float(pv_power_w), 0.0)
         if mean_load_power_w == 0.0 or pv_power_w == 0.0:
@@ -121,7 +176,8 @@ class SelfConsumptionProbabilityInterpolator:
         expected_direct_power_w = float(
             np.dot(probabilities, np.minimum(normalized_load_levels_w, pv_power_w))
         )
-        return float(np.clip(expected_direct_power_w, 0.0, min(mean_load_power_w, pv_power_w)))
+        # Scalar bounds: min/max instead of np.clip (same result, no array round trip).
+        return min(max(expected_direct_power_w, 0.0), min(mean_load_power_w, pv_power_w))
 
     # def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
     #     """Calculate the PV self-consumption rate using RegularGridInterpolator.
@@ -170,9 +226,15 @@ class EOSLoadInterpolator(SelfConsumptionProbabilityInterpolator, SingletonMixin
         super().__init__(filename)
 
 
-# Initialize the Energy Management System, it is a singleton.
-eos_load_interpolator = EOSLoadInterpolator()
+# Created on first use.
+_eos_load_interpolator: Optional[EOSLoadInterpolator] = None
+_eos_load_interpolator_lock = threading.Lock()
 
 
 def get_eos_load_interpolator() -> EOSLoadInterpolator:
-    return eos_load_interpolator
+    global _eos_load_interpolator
+    if _eos_load_interpolator is None:
+        with _eos_load_interpolator_lock:
+            if _eos_load_interpolator is None:
+                _eos_load_interpolator = EOSLoadInterpolator()
+    return _eos_load_interpolator

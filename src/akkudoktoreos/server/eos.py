@@ -62,14 +62,8 @@ from akkudoktoreos.optimization.genetic0.genetic0solution import (
     Genetic0Solution,
     Genetic0SolutionLegacy,
 )
-from akkudoktoreos.optimization.genetic0.genetic0visualize import (
-    genetic0_prepare_visualize,
-)
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.genetic.geneticvisualize import (
-    genetic_prepare_visualize,
-)
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
@@ -495,6 +489,12 @@ async def fastapi_admin_server_shutdown_post() -> dict:
     }
 
 
+# Start of this server process. A client that pushes data to EOS (forecasts,
+# configuration) has to notice a restart and push again. The pid cannot tell:
+# in a container the server is always pid 1.
+SERVER_STARTED_AT = to_datetime(as_string=True)
+
+
 @app.get("/v1/health", tags=["health"])
 def fastapi_health_get():  # type: ignore
     """Health check endpoint to verify that the EOS server is alive."""
@@ -502,6 +502,7 @@ def fastapi_health_get():  # type: ignore
         {
             "status": "alive",
             "pid": psutil.Process().pid,
+            "started_at": SERVER_STARTED_AT,
             "version": __version__,
             "energy-management": {
                 "start_datetime": to_datetime(get_ems().start_datetime, as_string=True),
@@ -1893,6 +1894,11 @@ async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> R
             detail="Can not get the 'GENETIC' optimization solution.",
         )
     snapshot = retained.model_copy(deep=True)
+    # matplotlib is only needed for the PDF report; import it on first use.
+    from akkudoktoreos.optimization.genetic.geneticvisualize import (
+        genetic_prepare_visualize,
+    )
+
     pdf = await asyncio.to_thread(genetic_prepare_visualize, solution=snapshot)
     return Response(
         content=pdf,
@@ -2313,6 +2319,11 @@ def get_pdf() -> Response:
             title="Optimization solution report retrieval failed",
             detail="Can not get the 'GENETIC0' optimization solution.",
         )
+
+    # matplotlib is only needed for the PDF report; import it on first use.
+    from akkudoktoreos.optimization.genetic0.genetic0visualize import (
+        genetic0_prepare_visualize,
+    )
 
     pdf = genetic0_prepare_visualize(solution=genetic0_solution)
 

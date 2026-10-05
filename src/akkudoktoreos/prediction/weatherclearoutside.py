@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 from loguru import logger
 
 from akkudoktoreos.core.cache import cache_in_file
@@ -140,7 +139,9 @@ class WeatherClearOutside(WeatherProvider):
         # Get ClearOutside web content - either from site or cached
         response = self._request_forecast(force_update=force_update)  # type: ignore
 
-        # Scrape the data
+        # Scrape the data (bs4/lxml are only needed by this provider)
+        from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(response.content, "html.parser")
 
         # Find generation data

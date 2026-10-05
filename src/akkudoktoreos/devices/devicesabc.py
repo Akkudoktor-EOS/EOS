@@ -134,6 +134,75 @@ def validate_home_appliance_load_definition(
             raise ValueError("load_profile_power_w must not contain negative values.")
 
 
+def validate_efficiency_curve(
+    curve: Optional[list[tuple[float, float]]],
+) -> Optional[list[tuple[float, float]]]:
+    """Validate a load-dependent conversion efficiency curve.
+
+    A curve is a list of ``(load_fraction, efficiency)`` points. The load
+    fraction is the converted power relative to the rated power of the device
+    (0.0 = idle, 1.0 = rated power), the efficiency is the conversion
+    efficiency at that load.
+
+    Rules:
+        - At least two points.
+        - Load fractions are finite, within [0, 1] and strictly increasing
+          (sorted, no duplicates).
+        - Efficiencies are finite and within (0, 1].
+
+    Args:
+        curve: The curve points, or None for no curve.
+
+    Returns:
+        The unchanged curve, or None.
+
+    Raises:
+        ValueError: If the curve violates one of the rules.
+    """
+    if curve is None:
+        return None
+    if len(curve) < 2:
+        raise ValueError("An efficiency curve needs at least two points.")
+    previous_fraction: Optional[float] = None
+    for fraction, efficiency in curve:
+        if not math.isfinite(fraction) or not 0.0 <= fraction <= 1.0:
+            raise ValueError(f"Efficiency curve load fraction {fraction} is outside of [0, 1].")
+        if not math.isfinite(efficiency) or not 0.0 < efficiency <= 1.0:
+            raise ValueError(f"Efficiency curve efficiency {efficiency} is outside of (0, 1].")
+        if previous_fraction is not None and fraction <= previous_fraction:
+            raise ValueError(
+                "Efficiency curve load fractions must be strictly increasing "
+                f"(sorted, no duplicates); got {fraction} after {previous_fraction}."
+            )
+        previous_fraction = fraction
+    return curve
+
+
+def interpolate_efficiency_curve(curve: list[tuple[float, float]], load_fraction: float) -> float:
+    """Return the efficiency of a curve at a load fraction.
+
+    Interpolates linearly between the curve points. Load fractions below the
+    first or above the last point are clamped to the efficiency of that point.
+
+    Args:
+        curve: Points as validated by ``validate_efficiency_curve``.
+        load_fraction: Converted power relative to the rated power.
+
+    Returns:
+        The efficiency at ``load_fraction``.
+    """
+    first_fraction, first_efficiency = curve[0]
+    if load_fraction <= first_fraction:
+        return first_efficiency
+    for fraction, efficiency in curve[1:]:
+        if load_fraction <= fraction:
+            return first_efficiency + (load_fraction - first_fraction) / (
+                fraction - first_fraction
+            ) * (efficiency - first_efficiency)
+        first_fraction, first_efficiency = fraction, efficiency
+    return first_efficiency
+
+
 class ConsumerScheduleMode(StrEnum):
     """Schedule mode of a flexible consumer (home appliance).
 
