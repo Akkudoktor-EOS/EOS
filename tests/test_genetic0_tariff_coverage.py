@@ -32,7 +32,7 @@ async def test_dvhub_tariff_requires_real_control_horizon(
             },
         }
     )
-    start = to_datetime("2026-08-01T00:00:00+00:00")
+    start = to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC")
     get_ems().set_start_datetime(start)
     prices = pd.Series(
         np.arange(published_hours * 4, dtype=float) / 1_000_000,
