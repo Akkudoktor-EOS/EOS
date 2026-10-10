@@ -6,6 +6,7 @@ from pydantic import Field, field_validator
 
 from akkudoktoreos.devices.devicesabc import (
     interpolate_efficiency_curve,
+    solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
 from akkudoktoreos.devices.genetic.battery import Battery
@@ -243,6 +244,27 @@ class Inverter:
         ac_energy = dc_energy / self.ac_to_dc_efficiency
         return ac_energy, battery_losses + (ac_energy - dc_energy)
 
+    def _delivered_ac_wh(
+        self,
+        battery_discharge_dc: float,
+        dc_request: float,
+        requested_ac_wh: float,
+        dc_to_ac_efficiency: float,
+    ) -> float:
+        """Return the AC energy of a discharge that delivered ``battery_discharge_dc``.
+
+        If the battery delivered less than requested (low state of charge or its
+        power limit), the conversion runs at a lower AC load than requested. With
+        an efficiency curve the efficiency must then be the one at the AC energy
+        that is actually delivered, not at the request.
+        """
+        curve = self.dc_to_ac_efficiency_curve
+        if curve is not None and battery_discharge_dc < dc_request * (1.0 - 1e-12):
+            return solve_ac_for_dc_energy(
+                curve, battery_discharge_dc, self.max_power_wh, requested_ac_wh
+            )
+        return battery_discharge_dc * dc_to_ac_efficiency
+
     def _discharge_battery_to_ac(self, requested_ac_wh: float, hour: int) -> tuple[float, float]:
         """Discharge battery energy and convert it to AC energy."""
         battery = self.battery
@@ -255,7 +277,9 @@ class Inverter:
             dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
             dc_request = requested_ac_wh / dc_to_ac_efficiency
             battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
-            battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
+            battery_discharge_ac = self._delivered_ac_wh(
+                battery_discharge_dc, dc_request, requested_ac_wh, dc_to_ac_efficiency
+            )
             inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
             return battery_discharge_ac, discharge_losses + inverter_discharge_losses
 
@@ -291,7 +315,19 @@ class Inverter:
         discharged_raw_wh[hour] += raw_used_wh
         discharge_losses = raw_used_wh - battery_discharge_dc
 
-        battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
+        # Same rule as _delivered_ac_wh(), without the call: a limited discharge
+        # is converted with the efficiency at the AC energy actually delivered.
+        if self.dc_to_ac_efficiency_curve is not None and battery_discharge_dc < dc_request * (
+            1.0 - 1e-12
+        ):
+            battery_discharge_ac = solve_ac_for_dc_energy(
+                self.dc_to_ac_efficiency_curve,
+                battery_discharge_dc,
+                self.max_power_wh,
+                requested_ac_wh,
+            )
+        else:
+            battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
         inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
         return battery_discharge_ac, discharge_losses + inverter_discharge_losses
 

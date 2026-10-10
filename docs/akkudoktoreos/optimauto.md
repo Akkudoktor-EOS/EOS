@@ -305,7 +305,10 @@ The inverter supports separate AC↔DC conversion efficiencies:
   night-time base load. The points must be strictly increasing in load fraction (0-1) with
   efficiencies in (0, 1]; values in between are interpolated linearly, values outside are
   clamped to the first/last point. When set, the curve replaces `dc_to_ac_efficiency` for
-  battery discharge. Default `null` (constant `dc_to_ac_efficiency`, unchanged behaviour).
+  battery discharge. The efficiency is always the one at the AC power that is delivered: if
+  the battery limits a discharge (low state of charge or its power limit), the conversion is
+  evaluated at that lower load, not at the requested one. Default `null` (constant
+  `dc_to_ac_efficiency`, unchanged behaviour).
 - `dc_to_ac_efficiency_reference_load_fraction`: Load fraction at which the curve is evaluated
   where stored energy is valued without a specific discharge, e.g. the energy left in the
   battery at the end of the horizon and the AC charge break-even. Choose the typical load

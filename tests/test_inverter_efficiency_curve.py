@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from akkudoktoreos.devices.devicesabc import (
     interpolate_efficiency_curve,
+    solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
@@ -470,3 +471,196 @@ class TestSettings:
             config_eos.set_nested_value(
                 "devices/inverters/inverter1/dc_to_ac_efficiency_curve", [[0.5, 0.9]]
             )
+
+
+# ---------------------------------------------------------------------------
+# Discharge limited by the battery (low state of charge, power limit)
+# ---------------------------------------------------------------------------
+
+# Rising up to half load, flat above: efficiency(x) = 0.8 + 0.3 * x for x <= 0.5.
+RISING_CURVE = [(0.0, 0.80), (0.5, 0.95), (1.0, 0.95)]
+
+
+def _real_battery(
+    *,
+    capacity_wh: int = 1000,
+    soc_percentage: int = 100,
+    max_power_w: float = 1000.0,
+    discharging_efficiency: float = 1.0,
+    slot_duration_h: float = 1.0,
+) -> Battery:
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=capacity_wh,
+            initial_soc_percentage=soc_percentage,
+            min_soc_percentage=0,
+            charging_efficiency=1.0,
+            discharging_efficiency=discharging_efficiency,
+            max_charge_power_w=max_power_w,
+        ),
+        prediction_hours=1,
+        slot_duration_h=slot_duration_h,
+    )
+    battery.reset()
+    battery.discharge_array = np.ones(1)
+    return battery
+
+
+def _real_inverter(battery: Battery, curve=None, slot_duration_h: float = 1.0, **kwargs) -> Inverter:
+    predictor = Mock()
+    predictor.calculate_expected_direct_consumption.side_effect = min
+    with patch(
+        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        return_value=predictor,
+    ):
+        return Inverter(
+            InverterParameters(
+                device_id="inverter1",
+                max_power_wh=1000.0,
+                battery_id="battery1",
+                dc_to_ac_efficiency_curve=curve,
+                **kwargs,
+            ),
+            battery=battery,
+            slot_duration_h=slot_duration_h,
+        )
+
+
+class TestSolveAcForDcEnergy:
+    def test_rising_piece(self):
+        # a = 100 * (0.8 + 0.3 * a / 1000)  =>  a = 80 / 0.97
+        assert solve_ac_for_dc_energy(RISING_CURVE, 100.0, 1000.0, 500.0) == pytest.approx(
+            80.0 / 0.97
+        )
+
+    def test_clamped_ends(self):
+        curve = [(0.2, 0.90), (0.6, 0.96)]
+        # Below the first point the efficiency is constant.
+        assert solve_ac_for_dc_energy(curve, 100.0, 1000.0, 1000.0) == pytest.approx(90.0)
+        # Above the last point as well.
+        assert solve_ac_for_dc_energy(curve, 800.0, 1000.0, 1000.0) == pytest.approx(768.0)
+
+    def test_falling_piece(self):
+        curve = [(0.0, 0.90), (0.5, 0.96), (1.0, 0.90)]
+        ac = solve_ac_for_dc_energy(curve, 900.0, 1000.0, 1000.0)
+        assert ac == pytest.approx(900.0 * interpolate_efficiency_curve(curve, ac / 1000.0))
+        assert 0.5 <= ac / 1000.0 <= 1.0
+
+    def test_never_exceeds_the_bound(self):
+        assert solve_ac_for_dc_energy(RISING_CURVE, 900.0, 1000.0, 300.0) <= 300.0 + 1e-6
+
+    @pytest.mark.parametrize("dc_wh", [0.0, -5.0])
+    def test_nothing_from_nothing(self, dc_wh):
+        assert solve_ac_for_dc_energy(RISING_CURVE, dc_wh, 1000.0, 500.0) == 0.0
+
+    @pytest.mark.parametrize("curve", [CURVE, RISING_CURVE, [(0.1, 0.7), (0.3, 0.97), (1.0, 0.9)]])
+    @pytest.mark.parametrize("dc_wh", [1.0, 37.0, 180.0, 420.0, 760.0, 1050.0])
+    def test_result_is_consistent_with_the_curve(self, curve, dc_wh):
+        ac = solve_ac_for_dc_energy(curve, dc_wh, 1000.0, 1000.0)
+        if ac < 1000.0 - 1e-6:
+            assert ac == pytest.approx(dc_wh * interpolate_efficiency_curve(curve, ac / 1000.0))
+
+
+class TestBatteryLimitedDischarge:
+    """The efficiency follows the AC load that is delivered, not the request."""
+
+    def test_low_soc_hourly_slot(self):
+        # 100 Wh DC left, 500 Wh AC requested from a 1000 W inverter.
+        battery = _real_battery(soc_percentage=10)
+        inverter = _real_inverter(battery, RISING_CURVE)
+
+        ac, losses = inverter._discharge_battery_to_ac(500.0, 0)
+
+        assert ac == pytest.approx(80.0 / 0.97)  # 82.474 Wh
+        assert ac / 100.0 == pytest.approx(inverter.dc_to_ac_efficiency_at(ac))
+        assert ac + losses == pytest.approx(100.0)
+        assert battery.soc_wh == pytest.approx(0.0)
+
+    def test_low_soc_quarter_hour_slot(self):
+        # Same 100 Wh DC, but a 15-minute slot: rated AC energy is 250 Wh, so the
+        # same energy is a four times higher load.
+        battery = _real_battery(soc_percentage=10, slot_duration_h=0.25)
+        inverter = _real_inverter(battery, RISING_CURVE, slot_duration_h=0.25)
+
+        ac, losses = inverter._discharge_battery_to_ac(125.0, 0)
+
+        # a = 100 * (0.8 + 0.3 * a / 250)  =>  a = 80 / 0.88
+        assert ac == pytest.approx(80.0 / 0.88)
+        assert ac / 100.0 == pytest.approx(inverter.dc_to_ac_efficiency_at(ac))
+        assert ac + losses == pytest.approx(100.0)
+
+    def test_power_limited_hourly_slot(self):
+        # Full battery, but it can only discharge with 200 W.
+        battery = _real_battery(capacity_wh=10000, max_power_w=200.0)
+        inverter = _real_inverter(battery, RISING_CURVE)
+
+        ac, losses = inverter._discharge_battery_to_ac(500.0, 0)
+
+        # a = 200 * (0.8 + 0.3 * a / 1000)  =>  a = 160 / 0.94
+        assert ac == pytest.approx(160.0 / 0.94)
+        assert ac / 200.0 == pytest.approx(inverter.dc_to_ac_efficiency_at(ac))
+        assert ac + losses == pytest.approx(200.0)
+
+    def test_power_limited_quarter_hour_slot(self):
+        battery = _real_battery(capacity_wh=10000, max_power_w=200.0, slot_duration_h=0.25)
+        inverter = _real_inverter(battery, RISING_CURVE, slot_duration_h=0.25)
+
+        ac, losses = inverter._discharge_battery_to_ac(125.0, 0)
+
+        # 50 Wh DC per slot: a = 50 * (0.8 + 0.3 * a / 250)  =>  a = 40 / 0.94
+        assert ac == pytest.approx(40.0 / 0.94)
+        assert ac / 50.0 == pytest.approx(inverter.dc_to_ac_efficiency_at(ac))
+        assert ac + losses == pytest.approx(50.0)
+
+    def test_battery_discharge_losses_stay_separate(self):
+        # Battery delivers 90 Wh DC of its 100 Wh; the curve applies to those 90 Wh.
+        battery = _real_battery(soc_percentage=10, discharging_efficiency=0.9)
+        inverter = _real_inverter(battery, RISING_CURVE)
+
+        ac, losses = inverter._discharge_battery_to_ac(500.0, 0)
+
+        assert ac == pytest.approx(90.0 * 0.8 / (1.0 - 90.0 * 0.3 / 1000.0))
+        assert ac / 90.0 == pytest.approx(inverter.dc_to_ac_efficiency_at(ac))
+        assert ac + losses == pytest.approx(100.0)
+
+    def test_load_is_covered_with_the_delivered_energy(self):
+        battery = _real_battery(soc_percentage=10)
+        inverter = _real_inverter(battery, RISING_CURVE)
+
+        grid_export, grid_import, losses, self_consumption = inverter.process_energy(0.0, 500.0, 0)
+
+        assert self_consumption == pytest.approx(80.0 / 0.97)
+        assert grid_import == pytest.approx(500.0 - 80.0 / 0.97)
+        assert grid_export == 0.0
+        assert self_consumption + losses == pytest.approx(100.0)
+
+    def test_unlimited_discharge_is_unchanged(self):
+        battery = _real_battery(capacity_wh=10000)
+        inverter = _real_inverter(battery, RISING_CURVE)
+
+        ac, losses = inverter._discharge_battery_to_ac(500.0, 0)
+
+        assert ac == pytest.approx(500.0)
+        assert losses == pytest.approx(500.0 / 0.95 - 500.0)
+
+    @pytest.mark.parametrize("slot_duration_h", [1.0, 0.25])
+    @pytest.mark.parametrize("efficiency", [1.0, 0.95, 0.8])
+    def test_constant_efficiency_is_unchanged(self, slot_duration_h, efficiency):
+        # Without a curve a limited discharge converts with the constant, as before.
+        low = _real_battery(soc_percentage=10, slot_duration_h=slot_duration_h)
+        inverter = _real_inverter(
+            low, None, slot_duration_h=slot_duration_h, dc_to_ac_efficiency=efficiency
+        )
+        ac, losses = inverter._discharge_battery_to_ac(500.0 * slot_duration_h, 0)
+        assert ac == pytest.approx(100.0 * efficiency)
+        assert losses == pytest.approx(100.0 * (1.0 - efficiency))
+
+        limited = _real_battery(
+            capacity_wh=10000, max_power_w=200.0, slot_duration_h=slot_duration_h
+        )
+        inverter = _real_inverter(
+            limited, None, slot_duration_h=slot_duration_h, dc_to_ac_efficiency=efficiency
+        )
+        ac, losses = inverter._discharge_battery_to_ac(500.0 * slot_duration_h, 0)
+        assert ac == pytest.approx(200.0 * slot_duration_h * efficiency)
