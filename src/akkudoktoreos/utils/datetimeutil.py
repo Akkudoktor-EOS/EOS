@@ -67,7 +67,6 @@ from pydantic import (
     GetCoreSchemaHandler,
 )
 from pydantic_core import core_schema
-from tzfpy import get_tz
 
 if TYPE_CHECKING:
     # The Pydantic adapters validate Pendulum values; arithmetic and factory
@@ -672,12 +671,15 @@ def to_time(
             - pendulum.Time or pendulum.DateTime
             - datetime.time or datetime.datetime
             - strings like "14:30", "2:30 PM", "1430", "14:30:00.123", "2PM", "14h30"
+            - date/time strings (e.g. "2026-01-15T23:45")
             - int (e.g. 14 → 14:00)
             - float (e.g. 14.5 → 14:30)
             - tuple like (14,), (14, 30), (14, 30, 15)
 
         in_timezone: Optional timezone name or object (e.g., "Europe/Berlin").
-            Defaults to the local timezone.
+            Defaults to the local timezone. Date/time strings without an offset use this
+            timezone as their wall time; strings with `Z` or an offset represent an instant
+            that is converted to this timezone.
 
         to_naive: If True, return a timezone-naive Time object.
 
@@ -812,16 +814,18 @@ def to_time(
 
             # Fallback to pendulum's parser
             try:
-                dt = cast(pendulum.DateTime, pendulum.parse(value, strict=False)).in_tz(timezone)
+                dt = cast(
+                    pendulum.DateTime, pendulum.parse(value, tz=timezone, strict=False)
+                ).in_tz(timezone)
                 return finalize(dt.time())
             except Exception as e:
                 logger.trace(f"Pendulum parser failed for '{value}': {e}")
 
             # Try parsing with ISO time prefix
             try:
-                dt = cast(pendulum.DateTime, pendulum.parse(f"T{value}", strict=False)).in_tz(
-                    timezone
-                )
+                dt = cast(
+                    pendulum.DateTime, pendulum.parse(f"T{value}", tz=timezone, strict=False)
+                ).in_tz(timezone)
                 return finalize(dt.time())
             except Exception as e:
                 logger.trace(f"ISO time parser failed for 'T{value}': {e}")
@@ -829,7 +833,8 @@ def to_time(
             # Try parsing as part of a full datetime
             try:
                 dt = cast(
-                    pendulum.DateTime, pendulum.parse(f"2000-01-01 {value}", strict=False)
+                    pendulum.DateTime,
+                    pendulum.parse(f"2000-01-01 {value}", tz=timezone, strict=False),
                 ).in_tz(timezone)
                 return finalize(dt.time())
             except Exception as e:
@@ -1408,6 +1413,10 @@ def to_timezone(
             lat, lon = location
             if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                 raise ValueError(f"Invalid latitude/longitude: {lat}, {lon}")
+            # tzfpy loads its timezone polygons (~25 MB) on first use; import it
+            # only when a location lookup is actually needed.
+            from tzfpy import get_tz
+
             tz_name = get_tz(lon, lat)
             if not tz_name:
                 raise ValueError(

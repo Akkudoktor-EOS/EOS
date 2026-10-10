@@ -44,6 +44,11 @@ compatibility changes and a short test procedure before testing this candidate.
   and coverage information. A capacity estimate does not overwrite configured capacity.
 - Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
   backend remains the default.
+- Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
+  (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
+  a run by up to ~150 MB on small devices without changing the plan.
+- Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
+  instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
@@ -66,6 +71,13 @@ compatibility changes and a short test procedure before testing this candidate.
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
 - Runtime configuration changes now take priority over environment and file values for
   explicitly updated keys; command-line settings retain higher priority.
+- Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
+  bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
+  data are imported on first use instead of at server start. Results are unchanged.
+- New setting `optimization.self_consumption_interpolator` (`scipy` by default, `numpy`).
+  With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
+  GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
+  SciPy's Linux builds. The tables are read without SciPy in both cases.
 
 ### Fixed
 

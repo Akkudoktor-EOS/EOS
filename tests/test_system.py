@@ -18,7 +18,7 @@ FILE_TESTDATA_EOSSERVER_CONFIG_1 = DIR_TESTDATA.joinpath("eosserver_config_1.jso
 
 class TestSystem:
 
-    def test_prediction_brightsky(self, server_setup_for_class, is_system_test):
+    def test_prediction_brightsky(self, server_setup_for_class, is_system_test, is_in_test_dir):
         """Test weather prediction by BrightSky."""
         server = server_setup_for_class["server"]
         eos_dir = server_setup_for_class["eos_dir"]
@@ -30,7 +30,7 @@ class TestSystem:
         config_json = result.json()
         config_folder_path = Path(config_json["general"]["config_folder_path"])
         # Assure we are working in test environment
-        assert str(config_folder_path).startswith(eos_dir)
+        assert is_in_test_dir(config_folder_path, eos_dir)
 
         result = requests.put(f"{server}/v1/config/weather/provider", json="BrightSky")
         assert result.status_code == HTTPStatus.OK

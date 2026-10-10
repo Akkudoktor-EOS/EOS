@@ -8,11 +8,6 @@ from typing import ClassVar, Literal, Optional, Union
 import numpy as np
 import pandas as pd
 from loguru import logger
-from pvlib.location import Location
-from pvlib.modelchain import ModelChain
-from pvlib.pvsystem import PVSystem, retrieve_sam
-from pvlib.solarposition import get_solarposition
-from pvlib.temperature import TEMPERATURE_MODEL_PARAMETERS
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import PredictionMixin, get_config
@@ -57,6 +52,8 @@ def _update_cec_database() -> None:
 
     Script taken from https://github.com/davidusb-geek/emhass/blob/master/scripts/save_pvlib_module_inverter_database.py
     """
+    from pvlib.pvsystem import retrieve_sam
+
     data_path = Path(__file__).parent.parent / "data"
 
     logger.info("Reading original outdated database bundled with PVLib")
@@ -269,6 +266,13 @@ class PVForecastPVLib(PredictionMixin, PVForecastProvider):
         Note:
             Taken from emhass
         """
+        # pvlib is imported on first use, so a server without this provider does
+        # not load it.
+        from pvlib.location import Location
+        from pvlib.modelchain import ModelChain
+        from pvlib.pvsystem import PVSystem
+        from pvlib.temperature import TEMPERATURE_MODEL_PARAMETERS
+
         # Validate weather data
         required = [
             "temp_air",
@@ -418,6 +422,8 @@ class PVForecastPVLib(PredictionMixin, PVForecastProvider):
         :param longitude: Longitude of the PV system.
         :return: DataFrame with added solar elevation and azimuth.
         """
+        from pvlib.solarposition import get_solarposition
+
         df = df.copy()
         solpos = get_solarposition(df.index, latitude, longitude)
         df["solar_elevation"] = solpos["elevation"]

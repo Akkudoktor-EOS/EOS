@@ -10,6 +10,11 @@ ARG PYTHON_VERSION=3.13.15
 # If BUILD_FROM is set (Home Assistant), use it; otherwise use python-slim.
 FROM ${BUILD_FROM:-python:${PYTHON_VERSION}-slim} AS builder
 
+# Home Assistant supplies BUILD_VERSION from config.yaml. Use it for the
+# installed package as well as the dashboard when building an add-on.
+ARG BUILD_VERSION=dev
+ENV EOS_BUILD_VERSION=${BUILD_VERSION}
+
 # uv: pinned, copied as a static binary (no extra Python packages installed).
 COPY --from=ghcr.io/astral-sh/uv:0.12.7 /uv /bin/uv
 
@@ -63,6 +68,8 @@ LABEL \
     org.opencontainers.image.source="https://github.com/Akkudoktor-EOS/EOS" \
     org.opencontainers.image.licenses="Apache-2.0"
 
+ENV EOS_BUILD_VERSION=${BUILD_VERSION}
+
 ENV EOS_DIR="/opt/eos"
 # Create persistent data directory similar to home assistant add-on
 # - EOS_DATA_DIR: Persistent data directory
@@ -77,6 +84,10 @@ ENV MPLCONFIGDIR="${EOS_DATA_DIR}/mplconfigdir"
 
 # Overwrite when starting the container in a production environment
 ENV EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
+# EOSdash must listen on all interfaces so HA ingress can reach it.
+# server.eosdash_host defaults to 127.0.0.1 (not None), so it does not
+# inherit --host 0.0.0.0 from the CLI.
+ENV EOS_SERVER__EOSDASH_HOST=0.0.0.0
 
 # Set environment variables to reduce threading needs
 ENV OPENBLAS_NUM_THREADS=1

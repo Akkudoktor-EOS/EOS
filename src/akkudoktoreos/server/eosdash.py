@@ -264,7 +264,7 @@ def get_eosdash(request: Request):  # type: ignore
                 "About": "/eosdash/about",
             },
             About(),
-            Footer(*eos_server()),
+            Footer(*eos_server(), request.url.hostname or "localhost"),
             "/eosdash/footer",
         ),
     )
@@ -280,7 +280,7 @@ def get_eosdash_footer(request: Request):  # type: ignore
     Returns:
         Footer: The Footer component.
     """
-    return Footer(*eos_server())
+    return Footer(*eos_server(), request.url.hostname or "localhost")
 
 
 @app.get("/eosdash/about")

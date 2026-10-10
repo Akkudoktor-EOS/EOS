@@ -207,9 +207,19 @@ class TestElecPriceAkkudokor:
 
 
     @pytest.mark.asyncio
-    async def test_key_to_array_resampling(self, provider):
+    @patch("requests.get")
+    async def test_key_to_array_resampling(self, mock_get, provider, sample_akkudoktor_1_json):
         """Test resampling of forecast data to NumPy array."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(sample_akkudoktor_1_json)
+        mock_get.return_value = mock_response
+
+        get_ems().set_start_datetime(
+            to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin")
+        )
         await provider.update_data(force_update=True)
+        mock_get.assert_called_once()
         array = await provider.key_to_array(
             key="elecprice_marketprice_wh",
             start_datetime=provider.ems_start_datetime,

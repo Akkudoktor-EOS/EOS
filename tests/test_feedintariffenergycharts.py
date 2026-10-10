@@ -1,6 +1,7 @@
 # ruff: noqa: S101
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -106,6 +107,151 @@ class TestFeedInTariffEnergyCharts:
             )
             is expected
         )
+
+    @pytest.mark.parametrize(
+        ("old_minutes", "recent_minutes", "expected_seconds"),
+        [
+            (60, [15, 15, 15, 15], 900),
+            (15, [60, 60, 60, 60], 3600),
+            (60, [15, 15, 60, 15, 15], 900),
+            (15, [60, 60, 120, 60, 60], 3600),
+            (60, [15, 15, 15], 3600),
+            (60, [15, 60, 15, 60, 15], 3600),
+        ],
+    )
+    def test_coverage_resolution_handles_transitions_and_gaps(
+        self, provider, old_minutes, recent_minutes, expected_seconds
+    ):
+        """A short consistent run overrides old history; ambiguous runs use its median."""
+        transition = pd.Timestamp("2026-01-15 18:00", tz="Europe/Berlin")
+        old_index = pd.date_range(
+            start=transition - pd.Timedelta(days=1), end=transition, freq=f"{old_minutes}min"
+        )
+        recent_index = transition + pd.to_timedelta(np.cumsum(recent_minutes), unit="min")
+        source = pd.Series(0.0001, index=old_index.append(recent_index))
+        assert provider._coverage_resolution_seconds(source) == expected_seconds
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
+    @pytest.mark.parametrize("history_interval_minutes", [15, 60])
+    @pytest.mark.parametrize("recent_source_points", [None, 5])
+    @pytest.mark.parametrize(
+        ("now", "last_price", "interval_minutes", "needs_update"),
+        [
+            ("2026-01-15 13:59:59", "2026-01-15 23:00", 15, True),
+            ("2026-01-15 13:59:59", "2026-01-15 23:45", 15, False),
+            ("2026-01-15 13:59:59", "2026-01-15 23:00", 60, False),
+            ("2026-01-15 14:00:00", "2026-01-16 23:00", 15, True),
+            ("2026-01-15 14:00:00", "2026-01-16 23:45", 15, False),
+            ("2026-01-15 14:00:00", "2026-01-16 23:00", 60, False),
+            ("2026-03-28 14:00:00", "2026-03-29 23:45", 15, False),
+            ("2026-03-28 14:00:00", "2026-03-29 23:30", 15, True),
+            ("2026-10-24 14:00:00", "2026-10-25 23:45", 15, False),
+            ("2026-10-24 14:00:00", "2026-10-25 23:30", 15, True),
+        ],
+    )
+    async def test_update_data_uses_source_cadence_for_coverage(
+        self,
+        provider,
+        set_other_timezone: Callable[[str], str],
+        host_timezone,
+        history_interval_minutes,
+        recent_source_points,
+        now,
+        last_price,
+        interval_minutes,
+        needs_update,
+    ):
+        """Refresh incomplete original prices, independent of host zone or predicted tail."""
+        set_other_timezone(host_timezone)
+        fixed_now = pd.Timestamp(now, tz="Europe/Berlin")
+        start = to_datetime(fixed_now, in_timezone="Europe/Berlin").start_of("day")
+        last_original = to_datetime(
+            pd.Timestamp(last_price, tz="Europe/Berlin"), in_timezone="Europe/Berlin"
+        )
+        get_ems().set_start_datetime(start)
+        source_start = (
+            start
+            if recent_source_points is None
+            else last_original.subtract(minutes=(recent_source_points - 1) * interval_minutes)
+        )
+        source_index = pd.date_range(
+            start=source_start, end=last_original, freq=f"{interval_minutes}min"
+        )
+        history_index = pd.date_range(
+            start=start.subtract(days=35),
+            end=source_index[0],
+            freq=f"{history_interval_minutes}min",
+            inclusive="left",
+        )
+        await provider.key_from_series(
+            "feed_in_tariff_raw_wh", pd.Series(0.0001, index=history_index.append(source_index))
+        )
+        provider.highest_orig_datetime = last_original
+
+        # The predicted tail uses the same key and must not influence source coverage.
+        predicted_minutes = 60 if interval_minutes == 15 else 15
+        predicted_index = pd.date_range(
+            start=last_original.add(minutes=predicted_minutes),
+            periods=120,
+            freq=f"{predicted_minutes}min",
+        )
+        await provider.key_from_series(
+            "feed_in_tariff_raw_wh", pd.Series(0.00005, index=predicted_index)
+        )
+
+        published_end = start.add(days=1 if fixed_now.hour < 14 else 2)
+        response_index = pd.date_range(
+            start=start, end=published_end, freq=f"{interval_minutes}min", inclusive="left"
+        )
+        response = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(timestamp.timestamp()) for timestamp in response_index],
+            price=[200.0] * len(response_index),
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+
+        def predict(history: np.ndarray, hours: int, slots_per_hour: int = 1) -> np.ndarray:
+            return np.full(hours, 0.00005)
+
+        original_read = FeedInTariffEnergyCharts.key_to_raw_series
+        source_reads = []
+
+        async def read_source(self, *args, **kwargs):
+            if "start_datetime" not in kwargs:
+                source_reads.append(kwargs)
+            return await original_read(self, *args, **kwargs)
+
+        with (
+            patch("akkudoktoreos.prediction.feedintariffenergycharts.pd", wraps=pd) as pandas,
+            patch.object(provider, "_request_forecast", return_value=response) as request,
+            patch.object(provider, "_predict", side_effect=predict),
+            patch.object(FeedInTariffEnergyCharts, "key_to_raw_series", read_source),
+        ):
+            pandas.Timestamp.now.return_value = fixed_now
+            await provider._update_data(force_update=False)
+
+        assert len(source_reads) == (2 if needs_update else 1)
+        if needs_update:
+            request.assert_called_once_with(
+                start_date=start.in_timezone(host_timezone).format("YYYY-MM-DD"),
+                force_update=False,
+            )
+            assert pd.Timestamp(provider.highest_orig_datetime) == response_index[-1]
+            fetched = await provider.key_to_raw_series(
+                key="feed_in_tariff_raw_wh",
+                start_datetime=last_original,
+                end_datetime=published_end,
+            )
+            expected_index = response_index[response_index >= pd.Timestamp(last_original)].tz_convert(
+                "UTC"
+            )
+            assert fetched.index.equals(expected_index)
+            np.testing.assert_allclose(fetched.to_numpy(), 0.0002)
+        else:
+            request.assert_not_called()
+            assert provider.highest_orig_datetime == last_original
 
 
     @patch("requests.get")
