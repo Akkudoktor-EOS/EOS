@@ -5,6 +5,7 @@ from pydantic import Field, field_validator
 
 from akkudoktoreos.devices.devicesabc import (
     interpolate_efficiency_curve,
+    solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
 from akkudoktoreos.devices.genetic.battery import Battery
@@ -229,7 +230,21 @@ class Inverter:
         dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
         dc_request = requested_ac_wh / dc_to_ac_efficiency
         battery_discharge_dc, discharge_losses = self.battery.discharge_energy(dc_request, hour)
-        battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
+        if self.dc_to_ac_efficiency_curve is not None and battery_discharge_dc < dc_request * (
+            1.0 - 1e-12
+        ):
+            # The battery delivered less than requested (low state of charge or
+            # its power limit). The conversion then runs at a lower AC load than
+            # requested, so the efficiency must be the one at the AC energy that
+            # is actually delivered, not at the request.
+            battery_discharge_ac = solve_ac_for_dc_energy(
+                self.dc_to_ac_efficiency_curve,
+                battery_discharge_dc,
+                self.max_power_wh,
+                requested_ac_wh,
+            )
+        else:
+            battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
         inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
         return battery_discharge_ac, discharge_losses + inverter_discharge_losses
 
