@@ -9970,6 +9970,15 @@
         ],
         "title": "GesamtlastRequest"
       },
+      "GridInterpolatorBackend": {
+        "type": "string",
+        "enum": [
+          "scipy",
+          "numpy"
+        ],
+        "title": "GridInterpolatorBackend",
+        "description": "How the self-consumption tables are evaluated."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -13091,6 +13100,15 @@
                 }
               }
             ]
+          },
+          "self_consumption_interpolator": {
+            "$ref": "#/components/schemas/GridInterpolatorBackend",
+            "description": "How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer.",
+            "default": "scipy",
+            "examples": [
+              "scipy",
+              "numpy"
+            ]
           }
         },
         "type": "object",
@@ -13129,6 +13147,15 @@
                   "ev_soc_miss": 10
                 }
               }
+            ]
+          },
+          "self_consumption_interpolator": {
+            "$ref": "#/components/schemas/GridInterpolatorBackend",
+            "description": "How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer.",
+            "default": "scipy",
+            "examples": [
+              "scipy",
+              "numpy"
             ]
           },
           "algorithms": {

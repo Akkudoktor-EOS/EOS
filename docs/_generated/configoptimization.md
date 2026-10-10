@@ -12,6 +12,7 @@
 | genetic | `EOS_OPTIMIZATION__GENETIC` | `GeneticCommonSettings` | `rw` | `required` | GENETIC optimization algorithm configuration. |
 | genetic0 | `EOS_OPTIMIZATION__GENETIC0` | `Genetic0CommonSettings` | `rw` | `required` | GENETIC0 optimization algorithm configuration. |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the solution. |
+| self_consumption_interpolator | `EOS_OPTIMIZATION__SELF_CONSUMPTION_INTERPOLATOR` | `<enum 'GridInterpolatorBackend'>` | `rw` | `scipy` | How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer. |
 :::
 <!-- pyml enable line-length -->
 
@@ -48,7 +49,8 @@
                "penalties": {
                    "ev_soc_miss": 10
                }
-           }
+           },
+           "self_consumption_interpolator": "scipy"
        }
    }
 ```
@@ -91,6 +93,7 @@
                "interval_sec": 3600,
                "horizon": 24
            },
+           "self_consumption_interpolator": "scipy",
            "algorithms": [
                "GENETIC",
                "GENETIC0"
