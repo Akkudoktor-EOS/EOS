@@ -705,12 +705,14 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                 # Get the file path from the cache file object
                 file_path = search_item.cache_file.name
                 del self._store[cache_file_key]
-                if file_path and os.path.exists(file_path):
-                    try:
+                try:
+                    # Windows cannot unlink a file while the store still holds it open.
+                    search_item.cache_file.close()
+                    if file_path and os.path.exists(file_path):
                         os.remove(file_path)
                         logger.debug(f"Deleted cache file: {file_path}")
-                    except OSError as e:
-                        logger.error(f"Error deleting cache file {file_path}: {e}")
+                except OSError as e:
+                    logger.error(f"Error deleting cache file {file_path}: {e}")
 
     def clear(
         self,
@@ -766,13 +768,14 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                         )
                         continue
 
-                    if not os.path.exists(file_path):
-                        # Already deleted
-                        logger.warning(f"The cache file '{file_path}' was already deleted.")
-                        continue
-
                     # Finally remove the file
                     try:
+                        # Close first, including files that disappear on close.
+                        cache_item.cache_file.close()
+                        if not os.path.exists(file_path):
+                            # Already deleted
+                            logger.debug(f"The cache file '{file_path}' was already deleted.")
+                            continue
                         os.remove(file_path)
                         logger.debug(f"Deleted cache file: {file_path}")
                     except OSError as e:
