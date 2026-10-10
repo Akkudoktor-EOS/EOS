@@ -1,9 +1,14 @@
 #!/usr/bin/env python
 import pickle
+import threading
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
+
+if TYPE_CHECKING:
+    # Unpickling the table imports scipy when it is first loaded.
+    from scipy.interpolate import RegularGridInterpolator
 
 from akkudoktoreos.core.cache import cache_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
@@ -92,9 +97,15 @@ class Genetic0LoadInterpolator(SelfConsumptionProbabilityInterpolator, Singleton
         super().__init__(filename)
 
 
-# Initialize the Energy Management System, it is a singleton.
-genetic0_load_interpolator = Genetic0LoadInterpolator()
+# Created on first use: loading the table imports scipy.
+_genetic0_load_interpolator: Optional[Genetic0LoadInterpolator] = None
+_genetic0_load_interpolator_lock = threading.Lock()
 
 
 def get_genetic0_load_interpolator() -> Genetic0LoadInterpolator:
-    return genetic0_load_interpolator
+    global _genetic0_load_interpolator
+    if _genetic0_load_interpolator is None:
+        with _genetic0_load_interpolator_lock:
+            if _genetic0_load_interpolator is None:
+                _genetic0_load_interpolator = Genetic0LoadInterpolator()
+    return _genetic0_load_interpolator
