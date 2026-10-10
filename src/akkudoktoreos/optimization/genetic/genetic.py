@@ -344,7 +344,9 @@ class GeneticSimulation(PydanticBaseModel):
         if self.battery:
             self.battery.reset()
 
-    def simulate(self, start_hour: int) -> dict[str, Any]:
+    def simulate(
+        self, start_hour: int, prefer_dc_charge_when_neutral: bool = False
+    ) -> dict[str, Any]:
         """Simulate energy usage and costs for the given start hour.
 
         akku_soc_pro_stunde begin of the hour, initial hour state!
@@ -598,7 +600,17 @@ class GeneticSimulation(PydanticBaseModel):
                     hour,
                     allow_battery_grid_export=battery_grid_export_allowed,
                     battery_grid_export_factor=battery_grid_export_factor,
+                    prefer_dc_charge_when_neutral=prefer_dc_charge_when_neutral,
                 )
+                if (
+                    prefer_dc_charge_when_neutral
+                    and battery_fast
+                    and battery_fast.charge_array[hour] > 0.0
+                ):
+                    # AC charging already permits the PV path in this model.
+                    # Also report the inverter's neutral DC default, so the
+                    # controller executes the same permissions we simulated.
+                    dc_charge_hours_fast[hour] = 1
             else:
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
 
@@ -2879,7 +2891,9 @@ class GeneticOptimization(OptimizationBase):
         # Do the simulation and return result. simulate()'s argument is a slot
         # index into the prediction/charge arrays, not an hour-of-day, so pass
         # the start_day_slot to keep sub-hourly runs aligned.
-        return self.simulation.simulate(self._control_start_slot())
+        return self.simulation.simulate(
+            self._control_start_slot(), prefer_dc_charge_when_neutral=True
+        )
 
     def evaluate(
         self,

@@ -174,6 +174,7 @@ class Inverter:
         hour: int,
         allow_battery_grid_export: bool = False,
         battery_grid_export_factor: float = 1.0,
+        prefer_dc_charge_when_neutral: bool = False,
     ) -> tuple[float, float, float, float]:
         """Process one slot using probabilistic direct PV-to-load overlap.
 
@@ -193,6 +194,9 @@ class Inverter:
                 rated discharge power [0.0 ... 1.0]. 1.0 exports as much as the
                 battery and the inverter allow, which is the behaviour when no
                 export rates are configured.
+            prefer_dc_charge_when_neutral: Enable DC permission when no PV surplus
+                can be stored. Checked after local discharge, which can create
+                charging headroom even when the slot starts with a full battery.
         """
         losses = 0.0
         grid_export = 0.0
@@ -244,6 +248,14 @@ class Inverter:
         # Charge from the probabilistic PV surplus on the DC path. Stored energy
         # plus charge losses equals the PV energy accepted by the battery.
         remaining_surplus = pv_surplus
+        if (
+            prefer_dc_charge_when_neutral
+            and self.battery
+            and self.battery.charge_array[hour] == 0
+            and (remaining_surplus <= 0.0 or self.battery.soc_wh >= self.battery.max_soc_wh)
+        ):
+            # This changes permission only: charging still cannot transfer energy.
+            self.battery.charge_array[hour] = 1
         if remaining_surplus > 0.0 and self.battery:
             charged_energy, charge_losses = self.battery.charge_energy(remaining_surplus, hour)
             remaining_surplus = max(remaining_surplus - charged_energy - charge_losses, 0.0)
