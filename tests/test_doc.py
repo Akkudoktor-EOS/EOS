@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -15,6 +16,59 @@ DIR_DOCS_GENERATED = DIR_PROJECT_ROOT / "docs" / "_generated"
 DIR_TEST_GENERATED = DIR_TESTDATA / "docs" / "_generated"
 
 GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS")
+
+
+def _normalize_development_version(version: str) -> str:
+    """Ignore the commit-derived suffix, while retaining the release version."""
+    return re.sub(r"^(v?\d+\.\d+\.\d+)\.dev\d+$", r"\1.dev", version)
+
+
+def _comparable_openapi_spec(spec: dict) -> dict:
+    """Normalize only info.version; preserve the rest of the schema verbatim."""
+    return spec | {
+        "info": spec["info"]
+        | {"version": _normalize_development_version(spec["info"]["version"])}
+    }
+
+
+def _comparable_openapi_md(markdown: str) -> str:
+    """Normalize only the generated document's version header."""
+    return re.sub(
+        r"(?m)^(\*\*Version\*\*: `)([^`]+)(`)$",
+        lambda match: match[1] + _normalize_development_version(match[2]) + match[3],
+        markdown,
+        count=1,
+    )
+
+
+def test_openapi_version_comparison():
+    expected = {"info": {"version": "v0.3.0.dev123", "title": "EOS"}, "paths": {"/a": {}}}
+    actual = {"info": {"version": "v0.3.0.dev456", "title": "EOS"}, "paths": {"/a": {}}}
+    assert _comparable_openapi_spec(actual) == _comparable_openapi_spec(expected)
+    assert _comparable_openapi_spec(actual | {"paths": {"/b": {}}}) != _comparable_openapi_spec(
+        expected
+    )
+    assert _comparable_openapi_spec(
+        actual | {"info": {"version": "v0.4.0.dev456"}}
+    ) != _comparable_openapi_spec(expected)
+    assert _comparable_openapi_spec(
+        actual | {"info": {"version": "v0.3.0"}}
+    ) != _comparable_openapi_spec(expected)
+
+
+def test_openapi_markdown_version_comparison():
+    expected = "# EOS\n\n**Version**: `v0.3.0.dev123`\n\n## Endpoint A\n"
+    actual = expected.replace("dev123", "dev456")
+    assert _comparable_openapi_md(actual) == _comparable_openapi_md(expected)
+    assert _comparable_openapi_md(actual.replace("Endpoint A", "Endpoint B")) != _comparable_openapi_md(
+        expected
+    )
+    assert _comparable_openapi_md(actual.replace("v0.3.0", "v0.4.0")) != _comparable_openapi_md(
+        expected
+    )
+    assert _comparable_openapi_md(actual + "v0.3.0.dev456") != _comparable_openapi_md(
+        expected + "v0.3.0.dev123"
+    )
 
 
 def test_config_documentation_requires_a_timezone_name(
@@ -75,7 +129,9 @@ def test_openapi_spec_current(config_eos, set_other_timezone):
     expected_spec_str = json.dumps(expected_spec, indent=4, sort_keys=True)
 
     try:
-        assert json.loads(spec_str) == json.loads(expected_spec_str)
+        assert _comparable_openapi_spec(json.loads(spec_str)) == _comparable_openapi_spec(
+            json.loads(expected_spec_str)
+        )
     except AssertionError as e:
         pytest.fail(
             f"Expected {new_spec_path} to equal {expected_spec_path}.\n"
@@ -107,7 +163,7 @@ def test_openapi_md_current(config_eos, set_other_timezone):
         f_new.write(spec_md)
 
     try:
-        assert spec_md == expected_spec_md
+        assert _comparable_openapi_md(spec_md) == _comparable_openapi_md(expected_spec_md)
     except AssertionError as e:
         pytest.fail(
             f"Expected {new_spec_md_path} to equal {expected_spec_md_path}.\n"
