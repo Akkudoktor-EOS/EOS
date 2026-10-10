@@ -484,6 +484,32 @@ class TestCacheFileStore:
         assert cache_file_store.get("file1") is None
         assert cache_file_store.get("file2") is None
 
+    @pytest.mark.parametrize("operation", ["delete", "clear_all", "clear_expired"])
+    @pytest.mark.parametrize("delete_on_close", [False, True])
+    def test_cache_removal_closes_and_deletes_disk_file(
+        self, cache_file_store, operation, delete_on_close
+    ):
+        """Removing a record also releases its handle and deletes its disk file."""
+        expiry = to_datetime().subtract(hours=1)
+        cache_file = cache_file_store.create(
+            "expired", until_datetime=expiry, delete=delete_on_close
+        )
+        file_path = Path(cache_file.name)
+        retained_file = cache_file_store.create("retained", with_ttl="1 day")
+
+        if operation == "delete":
+            cache_file_store.delete("expired")
+        elif operation == "clear_all":
+            cache_file_store.clear(clear_all=True)
+        else:
+            cache_file_store.clear(before_datetime=to_datetime())
+
+        assert cache_file.closed
+        assert not file_path.exists()
+        if operation != "clear_all":
+            assert not retained_file.closed
+            assert cache_file_store.get("retained") is retained_file
+
     def test_cache_file_with_date(self, cache_file_store):
         """Test creating and retrieving cache files with a specific date."""
         # Use a specific date for cache file creation
