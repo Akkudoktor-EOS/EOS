@@ -545,10 +545,12 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             return BatteryOperationMode.IDLE, 1.0
 
         if battery_grid_export_allowed:
-            if ac_charge > 0.0 or dc_charge > 0.0:
+            if ac_charge > 0.0:
                 raise ValueError(
-                    "Illegal state: battery_grid_export_allowed cannot be combined with charging"
+                    "Illegal state: battery_grid_export_allowed cannot be combined with AC charging"
                 )
+            # DC is permission, not a request to charge. It can remain enabled
+            # during export when the simulation proved it has no energy effect.
             return BatteryOperationMode.GRID_SUPPORT_EXPORT, min(
                 max(float(battery_grid_export_factor), 0.0), 1.0
             )
