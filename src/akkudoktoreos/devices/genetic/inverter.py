@@ -56,6 +56,18 @@ class InverterParameters(DeviceParameters):
             "examples": [None, 0, 5000],
         },
     )
+    ac_charge_limits_total_charge: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "True if the AC charge setpoint caps the battery's total charge power, "
+                "PV included. PV surplus above it is exported, not stored. False keeps "
+                "the default model: PV surplus charges first and the grid adds "
+                "ac_charge x max_charge_power_w on top."
+            ),
+            "examples": [False, True],
+        },
+    )
 
 
 class Inverter:
@@ -84,6 +96,65 @@ class Inverter:
         # This value remains a power [W]. GeneticSimulation converts it into a
         # slot-independent charge-factor limit.
         self.max_ac_charge_power_w = self.parameters.max_ac_charge_power_w
+        self.ac_charge_limits_total_charge = self.parameters.ac_charge_limits_total_charge
+
+    def ac_charge_factor(self, factor: float) -> float:
+        """Return the AC charge factor the inverter can actually execute.
+
+        The factor is a fraction of the battery's ``max_charge_power_w``. It is
+        capped so that the AC input stays within ``max_ac_charge_power_w`` and
+        is 0.0 when AC charging is impossible.
+        """
+        if factor <= 0.0 or not self.battery or self.ac_to_dc_efficiency <= 0.0:
+            return 0.0
+        if self.max_ac_charge_power_w is not None and self.battery.max_charge_power_w > 0:
+            # DC power = max_charge_power_w * factor
+            # AC power = DC power / ac_to_dc_eff <= max_ac_charge_power_w
+            factor = min(
+                factor,
+                self.max_ac_charge_power_w
+                * self.ac_to_dc_efficiency
+                / self.battery.max_charge_power_w,
+            )
+        return max(factor, 0.0)
+
+    def begin_ac_charge_slot(self, hour: int, factor: float) -> None:
+        """Apply the AC charge setpoint of a slot before its PV is processed.
+
+        On inverters whose grid charge setpoint caps the total charge power, the
+        battery takes at most ``factor`` of its rated charge power in this slot,
+        PV included. Call ``process_energy`` afterwards so PV surplus above the
+        cap is exported, as the inverter does.
+        """
+        if self.ac_charge_limits_total_charge and self.battery and factor > 0.0:
+            self.battery.limit_slot_charge(
+                hour, self.battery.max_charge_power_w * self.slot_duration_h * factor
+            )
+
+    def charge_battery_from_grid(self, hour: int, factor: float) -> tuple[float, float]:
+        """Charge the battery from the grid after PV was processed in this slot.
+
+        Default model: the grid adds ``factor`` of the rated charge power on top
+        of the PV charge. With ``ac_charge_limits_total_charge`` the grid only
+        fills what PV left of the slot cap set by ``begin_ac_charge_slot``.
+
+        Returns:
+            tuple[float, float]: AC energy drawn from the grid [Wh] and the
+            battery plus AC-to-DC conversion losses [Wh].
+        """
+        if not self.battery or factor <= 0.0:
+            return 0.0, 0.0
+        if self.ac_charge_limits_total_charge:
+            stored, battery_losses = self.battery.charge_energy(
+                self.battery.max_charge_power_w * self.slot_duration_h * factor, hour
+            )
+        else:
+            stored, battery_losses = self.battery.charge_energy(None, hour, charge_factor=factor)
+        # DC energy entering the battery (before battery internal efficiency)
+        dc_energy = stored + battery_losses
+        # AC energy consumed from grid (accounts for AC->DC conversion loss)
+        ac_energy = dc_energy / self.ac_to_dc_efficiency
+        return ac_energy, battery_losses + (ac_energy - dc_energy)
 
     def _discharge_battery_to_ac(self, requested_ac_wh: float, hour: int) -> tuple[float, float]:
         """Discharge battery energy and convert it to AC energy."""

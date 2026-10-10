@@ -10,6 +10,7 @@ import traceback
 from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
+from urllib.parse import urlsplit
 
 import psutil
 import uvicorn
@@ -2376,38 +2377,96 @@ def _sanitize_redirect_path(path: str) -> Optional[str]:
     return "/".join(parts)
 
 
+def _trusted_request_hosts() -> set[str]:
+    """Host names that may be taken from a request to address EOSdash.
+
+    The `Host` header is sent by the client and is not trusted. Reflecting it into an
+    absolute redirect would turn every EOS server into an open redirect. Only hosts that
+    the configuration already knows are accepted. Deployments behind a reverse proxy
+    announce their public address by `server.eosdash_public_url` instead.
+
+    Returns:
+        set[str]: Lower case host names, without brackets around IPv6 addresses.
+    """
+    settings = get_config().server
+    hosts = {"localhost", "127.0.0.1", "::1"}
+    for host in (settings.host, settings.eosdash_host):
+        if host and str(host) not in ("0.0.0.0", "::"):  # noqa: S104
+            hosts.add(str(host).lower())
+    hosts.add(get_host_ip())
+    return hosts
+
+
+def _eosdash_base_url(request: Request) -> Optional[str]:
+    """Return the configured public dashboard URL or a direct-access URL.
+
+    A proxy's public dashboard route cannot be inferred from its EOS API route.
+    Configure eosdash_public_url for TLS termination, port mappings or prefixes.
+
+    Args:
+        request: The request to take the host from for direct access.
+
+    Returns:
+        Optional[str]: Base URL of EOSdash without trailing slash. `None` if the request
+        host is not a trusted host and no public URL is configured.
+    """
+    settings = get_config().server
+    if settings.eosdash_public_url:
+        return settings.eosdash_public_url.rstrip("/")
+    port = settings.eosdash_port or 8504
+    scheme = request.url.scheme
+    if scheme not in ("http", "https"):
+        scheme = "http"
+    # Request.url honours the Host header and parses bracketed IPv6 correctly.
+    # Proxy scheme handling belongs to the ASGI server's trusted proxy middleware;
+    # do not trust arbitrary raw X-Forwarded-* headers here.
+    host = urlsplit(str(request.url)).hostname or ""
+    if not host or host in ("0.0.0.0", "::"):  # noqa: S104
+        host = str(settings.eosdash_host or settings.host)
+        if host in ("0.0.0.0", "::"):  # noqa: S104
+            host = get_host_ip()
+    if host.lower() not in _trusted_request_hosts():
+        return None
+    if ":" in host:
+        host = f"[{host}]"
+    return f"{scheme}://{host}:{port}"
+
+
+def _eosdash_unknown_page(request: Request, status_code: int) -> HTMLResponse:
+    """Error page for a request that can not be answered with an EOSdash address."""
+    error_page = create_error_page(
+        status_code=str(status_code),
+        error_title="EOSdash Address Unknown",
+        error_message=(
+            f"URL is unknown: '{request.url}'. EOSdash can not be addressed for host "
+            f"'{request.url.netloc}'. Set 'server.eosdash_public_url' to the public "
+            "address of EOSdash."
+        ),
+        error_details="Untrusted request host",
+    )
+    return HTMLResponse(content=error_page, status_code=status_code)
+
+
 def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
+    base_url = _eosdash_base_url(request)
+
     # Path is not for EOSdash
     if not (path.startswith("eosdash") or path == ""):
-        host = get_config().server.eosdash_host
-        if host is None:
-            host = get_config().server.host
-        host = str(host)
-        port = get_config().server.eosdash_port
-        if port is None:
-            port = 8504
-        if host == "0.0.0.0":  # noqa: S104
-            # Use IP of EOS host
-            host = get_host_ip()
-        url = f"http://{host}:{port}/"
+        if base_url is None:
+            return _eosdash_unknown_page(request, 404)
         error_page = create_error_page(
             status_code="404",
             error_title="Page Not Found",
-            error_message=f"""<pre>
-URL is unknown: '{request.url}'
-Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
-</pre>
-""",
+            error_message=f"URL is unknown: '{request.url}'. Did you want to connect to EOSdash?",
             error_details="Unknown URL",
+            link_url=f"{base_url}/",
+            link_label="Open EOSdash",
         )
         return HTMLResponse(content=error_page, status_code=404)
 
-    host = str(get_config().server.eosdash_host)
-    if host == "0.0.0.0":  # noqa: S104
-        # Use IP of EOS host
-        host = get_host_ip()
-    if host and get_config().server.eosdash_port:
-        base_url = f"http://{host}:{get_config().server.eosdash_port}"
+    if get_config().server.eosdash_port:
+        if base_url is None:
+            return _eosdash_unknown_page(request, 404)
         safe_path = _sanitize_redirect_path(path) or ""
         url = f"{base_url}/{safe_path}"
         return RedirectResponse(url=url, status_code=303)

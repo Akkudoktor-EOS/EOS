@@ -74,6 +74,21 @@ class InverterCommonSettings(DevicesBaseSettings):
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
+    ac_charge_limits_total_charge: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "True if the AC charge setpoint caps the battery's total charge power, "
+                "PV included. Some hybrid inverters (e.g. Deye in time-of-use grid "
+                "charging) limit the whole charge current to the grid charge current; "
+                "PV surplus above it is exported, not stored. False keeps the default "
+                "model: PV surplus charges first and the grid adds "
+                "ac_charge x max_charge_power_w on top."
+            ),
+            "examples": [False, True],
+            "x-scope": [str(ConfigScope.GENETIC)],
+        },
+    )
     battery_id: Optional[str] = Field(
         default=None,
         json_schema_extra={
@@ -361,6 +376,7 @@ class InverterCommonSettings(DevicesBaseSettings):
             ac_to_dc_efficiency=self.ac_to_dc_efficiency,
             dc_to_ac_efficiency=self.dc_to_ac_efficiency,
             max_ac_charge_power_w=self.max_ac_charge_power_w,
+            ac_charge_limits_total_charge=self.ac_charge_limits_total_charge,
         )
 
     # ------------------------------------------------------------------
