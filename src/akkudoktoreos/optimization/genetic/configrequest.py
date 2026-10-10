@@ -152,7 +152,9 @@ class ConfigOptimizationRequest(
             samples = [
                 (date, count)
                 for date, count in zip(dates, counts)
-                if date.timestamp() <= observation_time.timestamp()
+                # Shared measurement records can contain other channels while
+                # this optional counter is unset. Keep the last actual count.
+                if count is not None and date.timestamp() <= observation_time.timestamp()
             ]
             if not samples:
                 continue

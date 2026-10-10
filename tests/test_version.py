@@ -1,4 +1,5 @@
 # tests/test_version.py
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -297,6 +298,33 @@ def test_get_version_prints_non_empty():
     version = result.stdout.strip()
     assert version, "get_version.py should print a non-empty version"
     assert len(version.split(".")) >= 3, "Version should have at least MAJOR.MINOR.PATCH"
+
+
+def test_get_version_uses_home_assistant_build_version():
+    """The installed package and EOSdash use the add-on's advertised version."""
+    expected = "0.3.0.dev2608221553448643"
+    env = {**os.environ, "EOS_BUILD_VERSION": expected}
+    result = subprocess.run(
+        [sys.executable, str(GET_VERSION_SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
+    assert result.stdout.strip() == expected
+
+
+def test_get_version_ignores_unversioned_docker_build():
+    """The default Docker build argument must not become the package version."""
+    env = {**os.environ, "EOS_BUILD_VERSION": "dev"}
+    result = subprocess.run(
+        [sys.executable, str(GET_VERSION_SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
+    assert result.stdout.strip() == _version_calculate()
 
 
 # --- 2️⃣ Test update_version.py on multiple file types ---

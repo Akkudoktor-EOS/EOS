@@ -1,4 +1,5 @@
 from typing import Optional, Union
+from urllib.parse import urlunsplit
 
 import requests
 from loguru import logger
@@ -38,11 +39,15 @@ def get_alive(eos_host: str, eos_port: Union[str, int]) -> str:
     return alive
 
 
-def Footer(eos_host: Optional[str], eos_port: Optional[Union[str, int]]) -> str:
+def Footer(eos_host: Optional[str], eos_port: Optional[Union[str, int]], request_host: str) -> str:
     if eos_host is None:
         eos_host = get_config().server.host
     if eos_port is None:
         eos_port = get_config().server.port
+    # A bind address is useful inside the container, but cannot be opened by a browser.
+    public_host = request_host if eos_host in ("0.0.0.0", "::") else eos_host  # noqa: S104
+    url_host = f"[{public_host}]" if public_host and ":" in public_host else public_host
+    docs_url = urlunsplit(("http", f"{url_host}:{eos_port}", "/docs", "", ""))
     alive_icon = None
     if eos_host is None or eos_port is None:
         alive = "EOS server not given: {eos_host}:{eos_port}"
@@ -55,7 +60,7 @@ def Footer(eos_host: Optional[str], eos_port: Optional[Union[str, int]]) -> str:
                     LoadingT.sm,
                 ),
             )
-            alive = f"EOS {eos_host}:{eos_port}"
+            alive = f"EOS {url_host}:{eos_port}"
     if alive_icon:
         alive_cls = f"{ButtonT.primary} uk-link rounded-md"
     else:
@@ -63,7 +68,7 @@ def Footer(eos_host: Optional[str], eos_port: Optional[Union[str, int]]) -> str:
     return DivFullySpaced(
         P(
             alive_icon,
-            A(alive, href=f"http://{eos_host}:{eos_port}/docs", target="_blank", cls=alive_cls),
+            A(alive, href=docs_url, target="_blank", cls=alive_cls),
         ),
         P(
             A(

@@ -12,6 +12,7 @@
 | genetic | `EOS_OPTIMIZATION__GENETIC` | `GeneticCommonSettings` | `rw` | `required` | GENETIC optimization algorithm configuration. |
 | genetic0 | `EOS_OPTIMIZATION__GENETIC0` | `Genetic0CommonSettings` | `rw` | `required` | GENETIC0 optimization algorithm configuration. |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the solution. |
+| self_consumption_interpolator | `EOS_OPTIMIZATION__SELF_CONSUMPTION_INTERPOLATOR` | `<enum 'GridInterpolatorBackend'>` | `rw` | `scipy` | How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer. |
 :::
 <!-- pyml enable line-length -->
 
@@ -30,6 +31,7 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -47,7 +49,8 @@
                "penalties": {
                    "ev_soc_miss": 10
                }
-           }
+           },
+           "self_consumption_interpolator": "scipy"
        }
    }
 ```
@@ -68,6 +71,7 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -89,6 +93,7 @@
                "interval_sec": 3600,
                "horizon": 24
            },
+           "self_consumption_interpolator": "scipy",
            "algorithms": [
                "GENETIC",
                "GENETIC0"
@@ -173,6 +178,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| fitness_cache_max_entries | `Optional[int]` | `rw` | `None` | Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices. |
 | generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
 | horizon | `int` | `ro` | `N/A` | Number of optimization steps. |
 | horizon_hours | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
@@ -202,6 +208,7 @@
                "individuals": 300,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -230,6 +237,7 @@
                "individuals": 300,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",

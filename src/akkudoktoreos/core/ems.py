@@ -17,7 +17,6 @@ from akkudoktoreos.core.coreabc import (
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0Optimization
 from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
@@ -428,6 +427,12 @@ class EnergyManagement(
 
                 # --- Optimization (CPU-bound → MUST offload) ---
                 try:
+                    # Imported on first use: a server that runs GENETIC never needs
+                    # the GENETIC0 optimizer and its simulation.
+                    from akkudoktoreos.optimization.genetic0.genetic0 import (
+                        Genetic0Optimization,
+                    )
+
                     genetic0_optimization = Genetic0Optimization(
                         verbose=bool(self.config.server.verbose),
                         fixed_seed=genetic0_seed,

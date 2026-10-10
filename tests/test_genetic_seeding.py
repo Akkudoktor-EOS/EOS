@@ -1,3 +1,4 @@
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -7,7 +8,12 @@ from deap import creator, tools
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.genetic import (
+    GeneticOptimization,
+    _pack_genes,
+    _release_freed_memory,
+    _unpack_genes,
+)
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
@@ -54,6 +60,53 @@ def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEO
     assert evaluate.call_count == 2
     assert fitness == pytest.approx((1.0,))
     assert individual[opt.control_slots :] == [0] * opt.control_slots
+
+
+@pytest.mark.parametrize(
+    "genes",
+    [
+        [],
+        [0, 1, 255],
+        [3] * 192,
+        [0, 256, 1],
+        [70000, 2, 0],
+        [7] * 480,  # 60 h at 15 min with EV genes, all one-byte
+        [7] * 479 + [256],  # same length, one value forces the 8-byte encoding
+        [-1, 0, 300],  # negatives also take the signed 8-byte path
+    ],
+)
+def test_pack_genes_roundtrip(genes: list[int]):
+    assert _unpack_genes(_pack_genes(genes)) == genes
+
+
+@pytest.mark.parametrize(
+    "genes",
+    [
+        [7] * 480,  # narrow: ~60 h at 15 min with EV genes, all one-byte
+        [7] * 479 + [256],  # wide: one value forces 8 bytes for the whole genome
+    ],
+)
+def test_pack_genes_key_and_chunks_stay_below_pymalloc_limit(genes: list[int]):
+    # A 60 h/15 min horizon with EV genes reaches ~480 genes. The packed key and
+    # every chunk must stay small objects (<= 512 B), otherwise ~100k cache
+    # entries per run go to glibc malloc and are never given back to the OS.
+    packed = _pack_genes(genes)
+    assert sys.getsizeof(packed) <= 512
+    for chunk in packed:
+        assert sys.getsizeof(chunk) <= 512
+    assert _unpack_genes(packed) == genes
+
+
+def test_pack_genes_encodings_do_not_collide():
+    small = _pack_genes([1, 0, 0, 0, 0, 0, 0, 0])
+    wide = _pack_genes([1, 256])
+    assert _pack_genes([1]) != _pack_genes([1, 0])
+    assert small != wide
+    assert _unpack_genes(wide) == [1, 256]
+
+
+def test_release_freed_memory_is_safe_to_call():
+    _release_freed_memory()
 
 
 def test_fitness_cache_restores_canonical_ev_genome(config_eos: ConfigEOS):

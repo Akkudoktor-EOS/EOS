@@ -1,7 +1,7 @@
 import html
 import traceback
 from dataclasses import dataclass
-from typing import cast
+from typing import Optional, cast
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -186,6 +186,7 @@ ERROR_PAGE_TEMPLATE = """
         <h2 class="error-title">ERROR_TITLE</h2>
         <p class="error-message">ERROR_MESSAGE</p>
         <div class="error-details">ERROR_DETAILS</div>
+        ERROR_LINK
         <a href="/docs" class="back-button">Back to Home</a>
     </div>
 </body>
@@ -194,11 +195,39 @@ ERROR_PAGE_TEMPLATE = """
 
 
 def create_error_page(
-    status_code: str, error_title: str, error_message: str, error_details: str
+    status_code: str,
+    error_title: str,
+    error_message: str,
+    error_details: str,
+    link_url: Optional[str] = None,
+    link_label: str = "Open link",
 ) -> str:
-    """Create an error page by replacing placeholders in the template."""
+    """Create an error page by replacing placeholders in the template.
+
+    The message and the details are escaped, so they are always shown as text. Markup in
+    them is not rendered. Use `link_url` to offer a link on the page.
+
+    Args:
+        status_code: The HTTP status code to display.
+        error_title: The title of the error.
+        error_message: The error message, shown as text.
+        error_details: The error details, shown as text.
+        link_url: Target of an extra link on the page. No link is added for `None`.
+        link_label: The label of the extra link.
+
+    Returns:
+        str: The error page as HTML.
+    """
+    link = ""
+    if link_url:
+        link = (
+            f'<a href="{html.escape(link_url, quote=True)}" class="back-button">'
+            f"{html.escape(link_label)}</a>"
+        )
+    # Insert the link first, so escaped text of the other placeholders is never replaced.
     return (
-        ERROR_PAGE_TEMPLATE.replace("STATUS_CODE", status_code)
+        ERROR_PAGE_TEMPLATE.replace("ERROR_LINK", link)
+        .replace("STATUS_CODE", status_code)
         .replace("ERROR_TITLE", error_title)
         .replace("ERROR_MESSAGE", html.escape(error_message))
         .replace("ERROR_DETAILS", html.escape(error_details))

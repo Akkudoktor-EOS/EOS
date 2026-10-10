@@ -30,13 +30,15 @@ homeassistant: true
 homeassistant_api: true
 
 # Ports exposed by the add-on
+# 8504 is listed without a host port, so it stays unpublished by default. Users that run
+# an external reverse proxy can map it in the add-on network settings.
 ports:
   8503/tcp: 8503
-#  8504/tcp: 8504
+  8504/tcp: null
 
 ports_description:
   8503/tcp: "EOS REST server"
-#  8504/tcp: "EOSdash dashboard server"
+  8504/tcp: "EOSdash dashboard server (optional, needed for an external reverse proxy)"
 
 # EOSdash interface (if not ingress)
 # webui: "http://[HOST]:[PORT:8504]"

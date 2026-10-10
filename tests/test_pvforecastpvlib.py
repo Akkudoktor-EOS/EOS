@@ -1308,8 +1308,8 @@ class TestCalculation:
         assert isinstance(result, pd.DataFrame)
         assert result.empty
 
-    @patch("akkudoktoreos.prediction.pvforecastpvlib.ModelChain")
-    @patch("akkudoktoreos.prediction.pvforecastpvlib.Location")
+    @patch("pvlib.modelchain.ModelChain")
+    @patch("pvlib.location.Location")
     def test_location_created(
         self,
         mock_location,
@@ -1352,7 +1352,7 @@ class TestCalculation:
 
         mock_location.assert_called_once()
 
-    @patch("akkudoktoreos.prediction.pvforecastpvlib.ModelChain")
+    @patch("pvlib.modelchain.ModelChain")
     def test_modelchain_run_called(
         self,
         mock_modelchain,
@@ -1395,7 +1395,7 @@ class TestCalculation:
 
         mc.run_model.assert_called_once_with(weather)
 
-    @patch("akkudoktoreos.prediction.pvforecastpvlib.ModelChain")
+    @patch("pvlib.modelchain.ModelChain")
     def test_negative_power_clipped(
         self,
         mock_modelchain,
@@ -1444,7 +1444,7 @@ class TestCalculation:
         assert (result["pv_dc_power"] >= 0).all()
         assert (result["ac_power"] >= 0).all()
 
-    @patch("akkudoktoreos.prediction.pvforecastpvlib.ModelChain")
+    @patch("pvlib.modelchain.ModelChain")
     def test_dataframe_columns(
         self,
         mock_modelchain,
@@ -1489,7 +1489,7 @@ class TestCalculation:
         assert "pv_dc_power" in result.columns
         assert "ac_power" in result.columns
 
-    @patch("akkudoktoreos.prediction.pvforecastpvlib.ModelChain")
+    @patch("pvlib.modelchain.ModelChain")
     def test_result_index_preserved(
         self,
         mock_modelchain,

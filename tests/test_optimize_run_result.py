@@ -9,11 +9,21 @@ import pytest
 
 from akkudoktoreos.core import ems as ems_module
 from akkudoktoreos.core.emsettings import EnergyManagementMode
+from akkudoktoreos.optimization.genetic0 import genetic0 as genetic0_module
 from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.utils.datetimeutil import to_datetime
+
+
+def _patch_optimizer(monkeypatch, prefix: str, constructor: Any) -> None:
+    """Replace the optimizer class that EnergyManagement.run() instantiates.
+
+    GENETIC0 is imported on first use inside run(), so it is patched at its source.
+    """
+    module = genetic0_module if prefix == "Genetic0" else ems_module
+    monkeypatch.setattr(module, prefix + "Optimization", constructor)
 
 
 @pytest.fixture
@@ -110,7 +120,7 @@ async def test_optimization_routes_only_selected_algorithm(
         constructor = Mock()
         constructor.return_value.optimize_ems.return_value = solution
         constructors[prefix] = constructor
-        monkeypatch.setattr(ems_module, prefix + "Optimization", constructor)
+        _patch_optimizer(monkeypatch, prefix, constructor)
         prepare = AsyncMock(return_value=sentinel_parameters)
         preparers[prefix] = prepare
         monkeypatch.setattr(
@@ -170,8 +180,8 @@ async def test_optimization_routes_only_selected_algorithm(
 @pytest.mark.parametrize("mode", [EnergyManagementMode.DISABLED, EnergyManagementMode.PREDICTION])
 async def test_non_optimization_modes_never_optimize(monkeypatch, offline_ems, mode):
     constructors = [Mock(), Mock()]
-    monkeypatch.setattr(ems_module, "GeneticOptimization", constructors[0])
-    monkeypatch.setattr(ems_module, "Genetic0Optimization", constructors[1])
+    _patch_optimizer(monkeypatch, "Genetic", constructors[0])
+    _patch_optimizer(monkeypatch, "Genetic0", constructors[1])
     offline_ems.config.ems.mode = mode
     await ems_module.EnergyManagement.run(offline_ems)
     for constructor in constructors:
@@ -187,7 +197,7 @@ async def test_non_optimization_modes_never_optimize(monkeypatch, offline_ems, m
 @pytest.mark.parametrize("prefix", ["Genetic", "Genetic0"])
 async def test_missing_preparation_does_not_dispatch_controls(monkeypatch, offline_ems, prefix):
     constructor = Mock()
-    monkeypatch.setattr(ems_module, prefix + "Optimization", constructor)
+    _patch_optimizer(monkeypatch, prefix, constructor)
     prepare = AsyncMock(return_value=None)
     monkeypatch.setattr(getattr(ems_module, prefix + "OptimizationParameters"), "prepare", prepare)
     await ems_module.EnergyManagement.run(
@@ -273,7 +283,7 @@ async def test_failed_legacy_http_run_never_reports_previous_solution(
         native.optimization_solution.side_effect = error
     else:
         native.energy_management_plan.side_effect = error
-    monkeypatch.setattr(ems_module, "Genetic0Optimization", constructor)
+    _patch_optimizer(monkeypatch, "Genetic0", constructor)
     offline_ems.run = MethodType(cls.run, offline_ems)
     offline_ems.genetic0_solution = cls.genetic0_solution
     monkeypatch.setattr(eos, "get_ems", lambda: offline_ems)
@@ -311,7 +321,7 @@ async def test_conversion_failure_preserves_consistent_previous_results(
         solution.energy_management_plan.side_effect = RuntimeError("synthetic plan failure")
     constructor = Mock()
     constructor.return_value.optimize_ems.return_value = solution
-    monkeypatch.setattr(ems_module, prefix + "Optimization", constructor)
+    _patch_optimizer(monkeypatch, prefix, constructor)
     supplied_parameters: dict[str, Any] = {suffix + "_parameters": object()}
     result = await cls.run(
         offline_ems,

@@ -337,6 +337,25 @@ In the dashboard, go to:
 Config
 ```
 
+### 6) Access EOSdash through an external reverse proxy (M5)
+
+Home Assistant Ingress needs no further setup. An external reverse proxy needs two
+settings, because EOSdash runs on its own port:
+
+1. Map the optional add-on port `8504` in:
+
+   ```bash
+   Settings → Add-ons → Akkudoktor-EOS → Configuration → Network
+   ```
+
+   The port is unpublished by default. Route the proxy to it and set
+   `server.eosdash_host` to `0.0.0.0`, so EOSdash accepts connections from the proxy.
+
+2. Set `server.eosdash_public_url` to the address the browser uses, for example
+   `https://eos.example.com:8504`. EOS redirects to that address instead of guessing one
+   from the request. Without it, EOS only redirects to hosts it knows, such as
+   `localhost` or its own IP address, and answers with an error page otherwise.
+
 ## Helpful Docker Commands
 
 ### View logs
