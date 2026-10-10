@@ -117,6 +117,7 @@ async def test_missing_appliance_cycle_values_do_not_override_observations(
         counts,
     )
     parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.home_appliances is not None
     assert parameters.home_appliances[0].completed_cycles == expected
 
 
