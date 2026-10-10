@@ -98,6 +98,40 @@ def test_static_http_overrides_are_rejected(field):
         ConfigOptimizationRequest.model_validate({field: {}})
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("counts,expected", [([None], 0), ([1, None], 1), ([0, None], 0)])
+async def test_missing_appliance_cycle_values_do_not_override_observations(
+    configured_request, counts, expected
+):
+    config, ems, measurement, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"home_appliances": {"dishwasher": {"consumption_wh": 500, "duration_h": 1}}}}
+    )
+    # Other channels in the shared measurement records leave this optional
+    # counter unset, including records newer than the last real counter.
+    measurement.key_to_lists.return_value = (
+        [
+            ems.observation_datetime.subtract(seconds=len(counts) - index)
+            for index in range(len(counts))
+        ],
+        counts,
+    )
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.home_appliances[0].completed_cycles == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [-1, 2, 0.5, np.nan, np.inf])
+async def test_present_invalid_appliance_cycle_values_are_rejected(configured_request, count):
+    config, ems, measurement, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"home_appliances": {"dishwasher": {"consumption_wh": 500, "duration_h": 1}}}}
+    )
+    measurement.key_to_lists.return_value = ([ems.observation_datetime], [count])
+    with pytest.raises(ValueError, match="Invalid completed cycle count"):
+        await ConfigOptimizationRequest.model_validate(data).resolve()
+
+
 @pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
 def test_warmstart_timestamp_retains_explicit_zone_and_json_instant(
     set_other_timezone, host_timezone
