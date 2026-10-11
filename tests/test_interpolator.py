@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
 
 
@@ -103,3 +104,32 @@ def test_genetic_inverter_boundary_flows_remain_nonnegative(load, pv):
     inverter = Inverter(InverterParameters(device_id="boundary", max_power_wh=25000))
     flows = inverter.process_energy(generation=pv, consumption=load, hour=0)
     assert all(np.isfinite(value) and value >= 0.0 for value in flows)
+
+
+def test_expected_direct_consumption_cache_matches_uncached_and_follows_the_run_cache():
+    """The per-run cache returns the computed value and is dropped with the EMS cache."""
+    interpolator = get_eos_load_interpolator()
+    CacheEnergyManagementStore().clear()
+
+    first = interpolator.calculate_expected_direct_consumption(800.0, 1200.0)
+    assert first == interpolator._expected_direct_consumption(800.0, 1200.0)
+    assert interpolator._direct_consumption[(800.0, 1200.0)] == first
+    assert interpolator.calculate_expected_direct_consumption(800.0, 1200.0) == first
+
+    CacheEnergyManagementStore().clear()
+    assert interpolator.calculate_expected_direct_consumption(900.0, 1200.0) > 0.0
+    assert (800.0, 1200.0) not in interpolator._direct_consumption
+
+
+def test_expected_direct_consumption_cache_is_bounded(monkeypatch):
+    interpolator = get_eos_load_interpolator()
+    CacheEnergyManagementStore().clear()
+    monkeypatch.setattr(interpolator, "DIRECT_CONSUMPTION_CACHE_SIZE", 3)
+
+    for pv_power_w in (500.0, 600.0, 700.0, 800.0, 900.0):
+        interpolator.calculate_expected_direct_consumption(800.0, pv_power_w)
+
+    assert len(interpolator._direct_consumption) <= 3
+    assert interpolator.calculate_expected_direct_consumption(
+        800.0, 500.0
+    ) == interpolator._expected_direct_consumption(800.0, 500.0)

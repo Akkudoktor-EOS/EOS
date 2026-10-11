@@ -84,6 +84,12 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
   bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
   data are imported on first use instead of at server start. Results are unchanged.
+- Faster GENETIC runs with unchanged plans (about 60 % less run time on a Raspberry Pi 4):
+  table lookups, the appliance starts and the battery state decoding are worked out once per
+  run instead of once per candidate, the slot simulation and the battery bookkeeping work on
+  plain numbers instead of single NumPy elements, the terminal value report is built for the
+  final solution only, offspring are created without `deepcopy`, and identical genomes of a
+  generation are evaluated once also when the fitness cache is off.
 
 ### Fixed
 
