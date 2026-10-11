@@ -79,6 +79,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
   GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
   SciPy's Linux builds. The tables are read without SciPy in both cases.
+- Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
+  bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
+  data are imported on first use instead of at server start. Results are unchanged.
 
 ### Fixed
 
@@ -293,7 +296,6 @@ In addition, bugs were fixed and new features were added:
   - API to list backups
   - API to revert to a specific backup
   - EOSdash Admin tab integration
-
 - Pendulum date types via `pydantic_extra_types.pendulum_dt`
 - `Time`, `TimeWindow`, `TimeWindowSequence`, and `to_time` helpers in `datetimeutil`
 - Extended `DataRecord` with configurable field-like semantics
@@ -304,7 +306,6 @@ In addition, bugs were fixed and new features were added:
   - Predictions tab
   - Cache management in Admin tab
   - About tab
-
 - Pydantic merge model tests
 - Developer profiling entry in Makefile
 - Changelog & docs updated for commitizen release flow
@@ -317,11 +318,9 @@ In addition, bugs were fixed and new features were added:
 
   - Performance improvements
   - Charge + start times now reflect realistic simulation
-
 - Appliance simulation:
 
   - Time windows may roll over to next day
-
 - Revised load prediction by splitting original `LoadAkkudoktor` into:
 
   - `LoadAkkudoktor`
@@ -336,7 +335,6 @@ In addition, bugs were fixed and new features were added:
   - Interval execution + locking + new endpoints
   - Properly loads required data
   - EV charge-rate migration for proper availability
-
 - Genetic common settings consistently available
 - Config markdown generation
 - Recognize environment variables on EOS server startup
