@@ -1,0 +1,209 @@
+[
+  {
+    "id": "eos_price_preflight",
+    "type": "tab",
+    "label": "EOS: validate prices before optimization",
+    "disabled": false,
+    "info": "15-minute raw price preflight. Connect the two link outputs as described in the integration guide.",
+    "env": [
+      {
+        "name": "EOS_BASE_URL",
+        "value": "http://127.0.0.1:8503",
+        "type": "str"
+      }
+    ]
+  },
+  {
+    "id": "rc_optimize_tick",
+    "type": "inject",
+    "z": "eos_price_preflight",
+    "name": "Check before optimization",
+    "props": [
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "topic": "rc_optimize",
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "x": 170,
+    "y": 100,
+    "wires": [
+      [
+        "rc_price_raw_url"
+      ]
+    ]
+  },
+  {
+    "id": "rc_price_requests",
+    "type": "link in",
+    "z": "eos_price_preflight",
+    "name": "Price check requests",
+    "links": [],
+    "x": 65,
+    "y": 180,
+    "wires": [
+      [
+        "rc_price_raw_url"
+      ]
+    ]
+  },
+  {
+    "id": "rc_price_raw_url",
+    "type": "function",
+    "z": "eos_price_preflight",
+    "name": "Read raw prices for today's exact window",
+    "func": "const base = String(env.get(\"EOS_BASE_URL\") || \"\").replace(/\\/$/, \"\");\nif (!/^https?:\\/\\/[^/]+(?:\\/.*)?$/.test(base)) {\n    node.error(\"Configure EOS_BASE_URL before checking prices\", msg);\n    return null;\n}\nconst start = new Date();\nstart.setHours(0, 0, 0, 0);\nconst end = new Date(start);\nend.setDate(end.getDate() + 1);\nmsg.rcPriceWindow = {start: start.getTime(), end: end.getTime()};\nmsg.method = \"GET\";\nmsg.url = base + \"/v1/prediction/series?key=elecprice_marketprice_raw_wh&processing=raw\"\n    + \"&start_datetime=\" + encodeURIComponent(start.toISOString())\n    + \"&end_datetime=\" + encodeURIComponent(end.toISOString());\ndelete msg.payload;\ndelete msg.headers;\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 450,
+    "y": 100,
+    "wires": [
+      [
+        "rc_price_raw_http"
+      ]
+    ]
+  },
+  {
+    "id": "rc_price_raw_http",
+    "type": "http request",
+    "z": "eos_price_preflight",
+    "name": "GET raw price series",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "headers": [],
+    "senderr": true,
+    "requestTimeout": "30000",
+    "x": 720,
+    "y": 100,
+    "wires": [
+      [
+        "rc_price_raw_check"
+      ]
+    ]
+  },
+  {
+    "id": "rc_price_raw_check",
+    "type": "function",
+    "z": "eos_price_preflight",
+    "name": "Validate prices before emitting optimization trigger",
+    "func": "const now = Date.now();\nconst window = msg.rcPriceWindow;\nconst validWindow = window && Number.isFinite(window.start) && Number.isFinite(window.end)\n    && window.end > window.start && now >= window.start && now < window.end;\nconst interval = 900000;\nconst expected = validWindow ? (window.end - window.start) / interval : 0;\nconst idx = validWindow ? Math.floor((now - window.start) / interval) : 0;\nconst values = msg.payload && msg.payload.data;\nconst finite = value => typeof value === \"number\" && Number.isFinite(value);\nconst entries = values && typeof values === \"object\" && !Array.isArray(values) ? Object.entries(values) : null;\nconst validValues = entries && entries.every(([time, value]) => Number.isFinite(Date.parse(time))\n    && (value === null || finite(value)));\nconst prices = new Map(validValues ? entries.map(([time, value]) => [Date.parse(time), value]) : []);\nlet remaining = 0;\nif (validWindow && Number.isInteger(expected)) {\n    for (let i = idx; i < expected; i++) {\n        if (finite(prices.get(window.start + i * interval))) remaining++;\n    }\n}\nconst complete = msg.statusCode === 200 && validWindow && validValues\n    && Number.isInteger(expected) && expected > idx && remaining === expected - idx;\nflow.set(\"rcPriceCoverage\", {\n    time: now,\n    date: validWindow ? new Date(window.start).toDateString() : null,\n    complete: !!complete,\n    current_slot: idx,\n    expected_slots: expected,\n    remaining_source_slots: remaining\n});\nif (complete) {\n    return msg.topic === \"rc_optimize\" ? [null, {topic: \"rc_optimize\"}] : null;\n}\nflow.set(\"rcError\", {time: now, message: \"EOS raw prices are missing for today's remaining slots\"});\nconst empty = msg.statusCode === 200 && validWindow && validValues\n    && !Array.from(prices).some(([time, value]) => time >= window.start && time < window.end && finite(value));\nconst previous = flow.get(\"rcPredictionRecovery\");\nif (empty && !flow.get(\"rcBusy\") && (!previous || now - previous.started >= 300000)) {\n    const base = String(env.get(\"EOS_BASE_URL\") || \"\").replace(/\\/$/, \"\");\n    if (!/^https?:\\/\\/[^/]+(?:\\/.*)?$/.test(base)) {\n        node.error(\"Configure EOS_BASE_URL before updating predictions\", msg);\n        return null;\n    }\n    flow.set(\"rcPredictionRecovery\", {started: now, status: \"loading\"});\n    node.status({fill: \"yellow\", shape: \"ring\", text: \"Loading EOS predictions\"});\n    return [{method: \"POST\", url: base + \"/v1/prediction/update\", payload: \"{}\",\n        headers: {\"Content-Type\": \"application/json\"}}, null];\n}\nnode.error(\"EOS raw price coverage check failed\", msg);\nreturn null;\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1050,
+    "y": 100,
+    "wires": [
+      [
+        "rc_prediction_recovery_http"
+      ],
+      [
+        "rc_optimize_ready"
+      ]
+    ]
+  },
+  {
+    "id": "rc_optimize_ready",
+    "type": "link out",
+    "z": "eos_price_preflight",
+    "name": "Validated: build fresh optimize request",
+    "mode": "link",
+    "links": [],
+    "x": 1335,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "rc_prediction_recovery_http",
+    "type": "http request",
+    "z": "eos_price_preflight",
+    "name": "POST prediction update after cold start",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "headers": [],
+    "senderr": true,
+    "requestTimeout": "240000",
+    "x": 1030,
+    "y": 220,
+    "wires": [
+      [
+        "rc_prediction_recovery_done"
+      ]
+    ]
+  },
+  {
+    "id": "rc_prediction_recovery_done",
+    "type": "function",
+    "z": "eos_price_preflight",
+    "name": "Refresh input forecasts after successful update",
+    "func": "const state = flow.get(\"rcPredictionRecovery\") || {};\nflow.set(\"rcPredictionRecovery\", {...state, finished: Date.now(),\n    status: msg.statusCode === 200 ? \"loaded\" : \"failed\", http_status: msg.statusCode});\nif (msg.statusCode !== 200) {\n    node.error(\"EOS prediction update failed: \" + msg.statusCode, msg);\n    return null;\n}\nreturn {topic: \"refresh\"};\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1030,
+    "y": 300,
+    "wires": [
+      [
+        "rc_refresh_forecasts"
+      ]
+    ]
+  },
+  {
+    "id": "rc_refresh_forecasts",
+    "type": "link out",
+    "z": "eos_price_preflight",
+    "name": "Reload all forecast inputs",
+    "mode": "link",
+    "links": [],
+    "x": 1335,
+    "y": 300,
+    "wires": []
+  },
+  {
+    "id": "rc_price_errors",
+    "type": "catch",
+    "z": "eos_price_preflight",
+    "name": "Price/update errors",
+    "scope": null,
+    "uncaught": false,
+    "x": 220,
+    "y": 300,
+    "wires": [
+      [
+        "rc_price_debug"
+      ]
+    ]
+  },
+  {
+    "id": "rc_price_debug",
+    "type": "debug",
+    "z": "eos_price_preflight",
+    "name": "Preflight errors",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "error",
+    "targetType": "msg",
+    "x": 480,
+    "y": 300,
+    "wires": []
+  }
+]
