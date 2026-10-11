@@ -276,7 +276,8 @@
                "penalties": {
                    "ev_soc_miss": 10
                }
-           }
+           },
+           "self_consumption_interpolator": "scipy"
        },
        "prediction": {
            "hours": 48,
