@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610102076594622"
+    "version": "v0.3.0.dev2610021392659061"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -8801,6 +8801,24 @@
               42
             ]
           },
+          "fitness_cache_max_entries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Cache Max Entries",
+            "description": "Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
+          },
           "measurement_max_age_seconds": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -8947,6 +8965,24 @@
             "examples": [
               null,
               42
+            ]
+          },
+          "fitness_cache_max_entries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness Cache Max Entries",
+            "description": "Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices.",
+            "examples": [
+              null,
+              0,
+              5000
             ]
           },
           "measurement_max_age_seconds": {
@@ -9933,6 +9969,15 @@
           "hours"
         ],
         "title": "GesamtlastRequest"
+      },
+      "GridInterpolatorBackend": {
+        "type": "string",
+        "enum": [
+          "scipy",
+          "numpy"
+        ],
+        "title": "GridInterpolatorBackend",
+        "description": "How the self-consumption tables are evaluated."
       },
       "HTTPValidationError": {
         "properties": {
@@ -13241,6 +13286,15 @@
                 }
               }
             ]
+          },
+          "self_consumption_interpolator": {
+            "$ref": "#/components/schemas/GridInterpolatorBackend",
+            "description": "How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer.",
+            "default": "scipy",
+            "examples": [
+              "scipy",
+              "numpy"
+            ]
           }
         },
         "type": "object",
@@ -13279,6 +13333,15 @@
                   "ev_soc_miss": 10
                 }
               }
+            ]
+          },
+          "self_consumption_interpolator": {
+            "$ref": "#/components/schemas/GridInterpolatorBackend",
+            "description": "How the inverter's self-consumption probability table is evaluated [scipy | numpy]. 'scipy' (default) uses scipy.interpolate. 'numpy' gives the same values without importing SciPy, which saves about 35 MB RSS after the first optimization run (useful on devices with little RAM); a run takes about 2.5 % longer.",
+            "default": "scipy",
+            "examples": [
+              "scipy",
+              "numpy"
             ]
           },
           "algorithms": {
