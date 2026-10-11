@@ -51,6 +51,10 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+- Parallel fitness evaluation for GENETIC: `optimization.genetic.workers` (unset = automatic:
+  at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
+  process as before) and `optimization.genetic.pin_workers` (workers pinned to the last
+  cores, default on). For a fixed seed the plan is identical to a single-process run.
 
 ### Changed / compatibility
 

@@ -259,6 +259,8 @@
                "generations": 400,
                "seed": null,
                "fitness_cache_max_entries": null,
+               "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
