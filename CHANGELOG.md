@@ -38,6 +38,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   and coverage information. A capacity estimate does not overwrite configured capacity.
 - Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
   backend remains the default.
+- Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
+  models the lower DC-to-AC efficiency at low load. Without it the constant
+  `dc_to_ac_efficiency` applies unchanged.
 - Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
   (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
   a run by up to ~150 MB on small devices without changing the plan.
@@ -65,6 +68,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
 - Runtime configuration changes now take priority over environment and file values for
   explicitly updated keys; command-line settings retain higher priority.
+- Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
+  bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
+  data are imported on first use instead of at server start. Results are unchanged.
 - New setting `optimization.self_consumption_interpolator` (`scipy` by default, `numpy`).
   With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
   GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
@@ -283,7 +289,6 @@ In addition, bugs were fixed and new features were added:
   - API to list backups
   - API to revert to a specific backup
   - EOSdash Admin tab integration
-
 - Pendulum date types via `pydantic_extra_types.pendulum_dt`
 - `Time`, `TimeWindow`, `TimeWindowSequence`, and `to_time` helpers in `datetimeutil`
 - Extended `DataRecord` with configurable field-like semantics
@@ -294,7 +299,6 @@ In addition, bugs were fixed and new features were added:
   - Predictions tab
   - Cache management in Admin tab
   - About tab
-
 - Pydantic merge model tests
 - Developer profiling entry in Makefile
 - Changelog & docs updated for commitizen release flow
@@ -307,11 +311,9 @@ In addition, bugs were fixed and new features were added:
 
   - Performance improvements
   - Charge + start times now reflect realistic simulation
-
 - Appliance simulation:
 
   - Time windows may roll over to next day
-
 - Revised load prediction by splitting original `LoadAkkudoktor` into:
 
   - `LoadAkkudoktor`
@@ -326,7 +328,6 @@ In addition, bugs were fixed and new features were added:
   - Interval execution + locking + new endpoints
   - Properly loads required data
   - EV charge-rate migration for proper availability
-
 - Genetic common settings consistently available
 - Config markdown generation
 - Recognize environment variables on EOS server startup
