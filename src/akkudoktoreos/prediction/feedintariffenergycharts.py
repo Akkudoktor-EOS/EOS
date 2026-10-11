@@ -55,6 +55,31 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         """Return the unique identifier for the Energy-Charts feed-in tariff provider."""
         return "FeedInTariffEnergyCharts"
 
+    def _coverage_resolution_seconds(self, source_series: pd.Series) -> int:
+        """Infer the recent source cadence without changing prediction resolution.
+
+        The caller excludes predicted timestamps. Four matching spacings among the
+        latest five identify a short cadence transition, allowing one exceptional
+        gap. Otherwise use the median over the last 24 hours; sparse data uses
+        the shared resolution helper's hourly fallback.
+        """
+        if source_series.empty:
+            return 3600
+
+        recent_series = source_series.sort_index()
+        recent_series = recent_series[
+            recent_series.index >= recent_series.index[-1] - pd.Timedelta(hours=24)
+        ]
+        index = pd.DatetimeIndex(recent_series.index).drop_duplicates()
+        deltas = index.to_series().diff().dropna().dt.total_seconds().tail(5)
+        counts = deltas.value_counts()
+        if not counts.empty and counts.iloc[0] >= 4:
+            resolution = float(counts.index[0])
+            if resolution > 0 and 3600 % resolution == 0:
+                return int(resolution)
+
+        return self._resolution_seconds(recent_series)
+
     def _has_complete_published_horizon(
         self, *, now: pd.Timestamp, resolution_seconds: int
     ) -> bool:
@@ -186,12 +211,18 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
         # Determine if update is needed and what start date is really necessary
         needs_update = False
+        raw_series: Optional[pd.Series] = None
         if self.highest_orig_datetime:
-            raw_history = await self.key_to_raw_series(
+            source_end = to_datetime(self.highest_orig_datetime).add(seconds=1)
+            raw_series = await self.key_to_raw_series(
                 key="feed_in_tariff_raw_wh",
-                start_datetime=start_datetime,
-                end_datetime=gross_start_datetime,
+                end_datetime=max(gross_start_datetime, source_end),
             )
+            raw_history = raw_series[
+                (raw_series.index >= pd.Timestamp(start_datetime))
+                & (raw_series.index < pd.Timestamp(gross_start_datetime))
+            ]
+            raw_series = raw_series[raw_series.index <= pd.Timestamp(self.highest_orig_datetime)]
 
             if raw_history.empty:
                 # We need the default start date (35 days in past)
@@ -209,12 +240,14 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
                 elif force_update:
                     # Use default start date in case of forced update
                     needs_update = True
-                elif not self._has_complete_published_horizon(
-                    now=now, resolution_seconds=resolution_seconds
-                ):
-                    # We have enough history, but not every expected source interval.
-                    start_datetime = gross_start_datetime
-                    needs_update = True
+                else:
+                    source_resolution_seconds = self._coverage_resolution_seconds(raw_series)
+                    if not self._has_complete_published_horizon(
+                        now=now, resolution_seconds=source_resolution_seconds
+                    ):
+                        # We have enough history, but not every expected source interval.
+                        start_datetime = gross_start_datetime
+                        needs_update = True
         else:
             needs_update = True
 
@@ -244,6 +277,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
                     raise ValueError("No Energy-Charts feed-in tariff data available")
                 self.highest_orig_datetime = to_datetime(series_data.index.max())
                 await self.key_from_series("feed_in_tariff_raw_wh", series_data)
+                raw_series = None  # Reload the newly fetched source before forecasting.
                 # Newly fetched data widens the window that needs its gross
                 # (fee-inclusive) values recomputed.
                 gross_start_datetime = to_datetime(series_data.index.min())
@@ -268,10 +302,11 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        raw_series = await self.key_to_raw_series(
-            key="feed_in_tariff_raw_wh",
-            end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
-        )
+        if raw_series is None:
+            raw_series = await self.key_to_raw_series(
+                key="feed_in_tariff_raw_wh",
+                end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
+            )
         resolution_seconds = self._resolution_seconds(raw_series)
         slots_per_hour = 3600 // resolution_seconds
 
