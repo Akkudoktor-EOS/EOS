@@ -6737,6 +6737,22 @@
             "title": "Longitude",
             "description": "Longitude in decimal degrees within -180 to 180 (\u00b0)",
             "default": 13.405
+          },
+          "timezone_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone Override",
+            "description": "IANA timezone name, e.g. 'Europe/Berlin'. If set, 'timezone' is this value instead of the timezone looked up from latitude and longitude, and the lookup data (~25 MB) is never loaded. Defaults to None (look up).",
+            "examples": [
+              null,
+              "Europe/Berlin"
+            ]
           }
         },
         "type": "object",
@@ -6829,6 +6845,22 @@
             "description": "Longitude in decimal degrees within -180 to 180 (\u00b0)",
             "default": 13.405
           },
+          "timezone_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone Override",
+            "description": "IANA timezone name, e.g. 'Europe/Berlin'. If set, 'timezone' is this value instead of the timezone looked up from latitude and longitude, and the lookup data (~25 MB) is never loaded. Defaults to None (look up).",
+            "examples": [
+              null,
+              "Europe/Berlin"
+            ]
+          },
           "timezone": {
             "anyOf": [
               {
@@ -6839,7 +6871,7 @@
               }
             ],
             "title": "Timezone",
-            "description": "Computed timezone based on latitude and longitude.",
+            "description": "Timezone: 'timezone_override' if set, else looked up from latitude and longitude.",
             "readOnly": true
           },
           "data_output_path": {

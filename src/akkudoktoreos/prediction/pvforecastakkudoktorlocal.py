@@ -38,7 +38,6 @@ from typing import Any, Literal, Optional, Self
 import numpy as np
 import pandas as pd
 import pendulum
-import pvlib
 import requests
 from loguru import logger
 from pydantic import Field, field_validator, model_validator
@@ -525,6 +524,8 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
     @staticmethod
     def _tracked_orientation(plane: Any, solpos: pd.DataFrame) -> tuple[Any, Any]:
         """Return (surface_tilt, surface_azimuth) honouring the plane's tracking type."""
+        import pvlib
+
         tilt = float(plane.surface_tilt if plane.surface_tilt is not None else 30.0)
         azimuth = float(plane.surface_azimuth if plane.surface_azimuth is not None else 180.0)
         tracking = plane.trackingtype
@@ -575,6 +576,8 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         airmass: pd.Series,
     ) -> tuple[pd.Series, pd.Series]:
         """Run the pvlib chain for one plane, returning (dc_power_w, ac_power_w)."""
+        import pvlib
+
         settings = self._settings
 
         peakpower_kw = plane.peakpower
@@ -673,6 +676,8 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                 fittable. Pass False to obtain the raw model output, which is what the
                 fit itself compares against.
         """
+        import pvlib
+
         settings = self._settings
         weather = self._weather_frame(data)
         if weather.empty:

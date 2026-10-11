@@ -11,7 +11,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import pvlib
 import requests
 from loguru import logger
 
@@ -166,6 +165,8 @@ class WeatherBrightSky(WeatherProvider):
 
         The final mapped and processed data is inserted into the sequence as `WeatherDataRecord`.
         """
+        import pvlib
+
         # Get BrightSky weather data for the given coordinates
         brightsky_data = self._request_forecast(force_update=force_update)  # type: ignore
 
