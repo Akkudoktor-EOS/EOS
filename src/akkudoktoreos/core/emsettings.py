@@ -4,8 +4,9 @@ Kept in an extra module to avoid cyclic dependencies on package import.
 """
 
 from enum import StrEnum
+from typing import Optional
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel, is_home_assistant_addon
 
@@ -59,6 +60,28 @@ class EnergyManagementCommonSettings(SettingsBaseModel):
             "examples": ["OPTIMIZATION"],
         },
     )
+
+    notify_url: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "URL that receives an HTTP POST with a small JSON event after every "
+                "completed optimization, so a client can fetch the new solution right "
+                "away instead of polling for it. None = off."
+            ),
+            "examples": [None, "http://127.0.0.1:8080/api/eos/solution-ready"],
+        },
+    )
+
+    @field_validator("notify_url")
+    @classmethod
+    def _validate_notify_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value.strip() == "":
+            return None
+        value = value.strip()
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("notify_url must be an http:// or https:// URL")
+        return value
 
     @computed_field  # type: ignore[prop-decorator]
     @property

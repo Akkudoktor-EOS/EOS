@@ -211,11 +211,17 @@ class Battery:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
-        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
-        self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        # Discharged energy per slot, a plain list: it is read and written one
+        # slot at a time for every candidate plan, where single NumPy elements
+        # (and the NumPy scalars they return) are slow.
+        self._discharged_raw_wh_per_slot: list[float] = [0.0] * self.prediction_hours
+        self._charged_raw_wh_per_slot: list[float] = [0.0] * self.prediction_hours
         # Optional per-slot cap on the raw charge energy from all sources. It is
         # unbounded unless an inverter restricts a slot (see limit_slot_charge).
-        self._charge_limit_raw_wh_per_slot = np.full(self.prediction_hours, np.inf)
+        # Like the charged energy it is kept in a plain list: both are read and
+        # written one slot at a time for every candidate plan, where single
+        # NumPy elements (and the NumPy scalars they return) are slow.
+        self._charge_limit_raw_wh_per_slot: list[float] = [float("inf")] * self.prediction_hours
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.min_soc_wh = (self.min_soc_percentage / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percentage / 100) * self.capacity_wh
@@ -238,6 +244,18 @@ class Battery:
         # Yield values before idx in reverse (descending)
         return (charge_rates_fast[j] for j in range(idx - 1, -1, -1))
 
+    def _charge_rates_descending(self) -> tuple[float, ...]:
+        """Return the charge rates from highest to lowest as plain numbers.
+
+        Built once per ``charge_rates`` array instead of searching and slicing
+        the array for every charge request that does not fit.
+        """
+        rates = self.charge_rates
+        if rates is not getattr(self, "_charge_rates_desc_source", None):
+            self._charge_rates_desc = tuple(float(rate) for rate in rates[::-1])
+            self._charge_rates_desc_source = rates
+        return self._charge_rates_desc
+
     def to_dict(self) -> dict[str, Any]:
         """Converts the object to a dictionary representation."""
         return {
@@ -257,11 +275,11 @@ class Battery:
         """Resets the battery state to its initial values."""
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.soc_wh = min(self.soc_wh, self.max_soc_wh)  # Only clamp to max
-        self.discharge_array = np.full(self.prediction_hours, 0)
-        self.charge_array = np.full(self.prediction_hours, 0)
-        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
-        self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
-        self._charge_limit_raw_wh_per_slot = np.full(self.prediction_hours, np.inf)
+        self.discharge_array = np.zeros(self.prediction_hours, dtype=np.int_)
+        self.charge_array = np.zeros(self.prediction_hours, dtype=np.int_)
+        self._discharged_raw_wh_per_slot = [0.0] * self.prediction_hours
+        self._charged_raw_wh_per_slot = [0.0] * self.prediction_hours
+        self._charge_limit_raw_wh_per_slot = [float("inf")] * self.prediction_hours
 
     def limit_slot_charge(self, hour: int, raw_wh: float) -> None:
         """Cap the raw energy the battery may take in one slot, from all sources.
@@ -294,6 +312,10 @@ class Battery:
         )
         raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
         return min(raw_power_remaining_wh, raw_soc_available_wh) * self.discharging_efficiency
+
+    def discharge_released(self, hour: int) -> bool:
+        """Whether the plan lets the battery discharge in this slot."""
+        return self.discharge_array[hour] != 0
 
     def discharged_energy_wh(self, hour: int) -> float:
         """Return DC energy delivered by the battery in one optimization slot."""
@@ -464,9 +486,13 @@ class Battery:
             raw_request_wh = max_charge_per_slot_wh_fast * charge_factor
             raw_charge_wh = max(self.max_soc_wh - soc_wh_fast, 0.0) / charging_efficiency_fast
             if raw_request_wh > raw_charge_wh:
-                # Use a lower charge factor
-                lower_charge_factors = self._lower_charge_rates_desc(charge_factor)
-                for charge_factor in lower_charge_factors:
+                # Use a lower charge factor: the rates below the requested
+                # one, highest first (as _lower_charge_rates_desc yields them).
+                requested_charge_factor = charge_factor
+                for lower_charge_factor in self._charge_rates_descending():
+                    if lower_charge_factor >= requested_charge_factor:
+                        continue
+                    charge_factor = lower_charge_factor
                     raw_request_wh = max_charge_per_slot_wh_fast * charge_factor
                     if raw_request_wh <= raw_charge_wh:
                         self.charge_array[hour] = charge_factor
