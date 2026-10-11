@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+## 0.4.0rc2 - 2026-10-11
+
+Source-only prerelease for a one-week live test. Check out `v0.4.0rc2`; RC tags do not publish Docker images or update existing installations.
+
+### Changes since RC1
+
+- Correct battery-limited inverter discharge with an optional load-dependent efficiency curve. The 100 Wh reference case now delivers the curve-consistent 82.4742268041 Wh AC.
+- Faster GENETIC simulation, bounded fitness-cache settings and optional Linux fork workers, with a serial fallback on unsupported platforms. Optimization uses a stable configuration snapshot. Heavy optional imports are delayed until needed; process startup is reported by `/v1/health`.
+- DC charging remains an optimization decision. Permissions default to DC=1 where a restriction cannot change energy flow, including zero-PV slots; effective PV restrictions remain available to the optimizer.
+- Windows cache cleanup closes files before removing them. Missing optional measurement samples no longer abort an otherwise valid optimization.
+- Price coverage and interval handling improvements for DVhub and Energy-Charts, target-timezone parsing fixes, synchronized dependencies and additional guidance for small devices.
+- An optional completion notification and a portable Node-RED example validate raw timestamped price coverage before optimization and reload forecasts after an EOS restart. Adapt examples to the local installation and validate device limits and outputs before enabling control.
+
 ## 0.4.0rc1 - 2026-09-18
 
 This is a source-only release candidate for local testing, not a stable release.
@@ -44,27 +57,11 @@ compatibility changes and a short test procedure before testing this candidate.
   and coverage information. A capacity estimate does not overwrite configured capacity.
 - Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
   backend remains the default.
-- Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
-  models the lower DC-to-AC efficiency at low load. Without it the constant
-  `dc_to_ac_efficiency` applies unchanged.
-- Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
-  (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
-  a run by up to ~150 MB on small devices without changing the plan.
-- Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
-  instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
-- Parallel fitness evaluation for GENETIC: `optimization.genetic.workers` (unset = automatic:
-  at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
-  process as before) and `optimization.genetic.pin_workers` (workers pinned to the last
-  cores, default on). For a fixed seed the plan is identical to a single-process run.
-- Optional `ems.notify_url`: EOS sends an HTTP POST with a small JSON event after every
-  completed optimization, so a client can fetch the new plan right away instead of polling.
-- `GET /v1/health` reports `started_at`, the start time of the server process, so a client
-  notices a restart also in a container (where the pid is always 1).
 
 ### Changed / compatibility
 
@@ -82,22 +79,6 @@ compatibility changes and a short test procedure before testing this candidate.
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
 - Runtime configuration changes now take priority over environment and file values for
   explicitly updated keys; command-line settings retain higher priority.
-- Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
-  bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
-  data are imported on first use instead of at server start. Results are unchanged.
-- New setting `optimization.self_consumption_interpolator` (`scipy` by default, `numpy`).
-  With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
-  GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
-  SciPy's Linux builds. The tables are read without SciPy in both cases.
-- Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
-  bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
-  data are imported on first use instead of at server start. Results are unchanged.
-- Faster GENETIC runs with unchanged plans (about 60 % less run time on a Raspberry Pi 4):
-  table lookups, the appliance starts and the battery state decoding are worked out once per
-  run instead of once per candidate, the slot simulation and the battery bookkeeping work on
-  plain numbers instead of single NumPy elements, the terminal value report is built for the
-  final solution only, offspring are created without `deepcopy`, and identical genomes of a
-  generation are evaluated once also when the fitness cache is off.
 
 ### Fixed
 
@@ -109,9 +90,6 @@ compatibility changes and a short test procedure before testing this candidate.
   ([#1303](https://github.com/Akkudoktor-EOS/EOS/issues/1303)).
 - Environment variables are applied to the configuration on server startup instead of taking effect
   only after the first configuration change.
-- GENETIC reads its horizon, interval and prediction settings once at the start of a run. A
-  configuration change during a run (for example a client adapting the control horizon) no
-  longer fails the run with an out-of-bounds error; it applies to the next run.
 
 ## 0.3.0 (2026-03-17)
 
