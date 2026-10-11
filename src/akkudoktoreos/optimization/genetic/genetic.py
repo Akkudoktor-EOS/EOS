@@ -676,6 +676,7 @@ class GeneticSimulation(PydanticBaseModel):
         elect_price_hourly_fast = _slot_values(elect_price_hourly_fast)
         elect_revenue_per_hour_arr_fast = _slot_values(elect_revenue_per_hour_arr_fast)
         bat_grid_export_hours_fast = _slot_values(bat_grid_export_hours_fast)
+        ac_charge_controls_fast = ac_charge_hours_fast
         ac_charge_hours_fast = _slot_values(ac_charge_hours_fast)
         ev_charge_hours_fast = _slot_values(ev_charge_hours_fast)
         if battery_fast:
@@ -778,6 +779,10 @@ class GeneticSimulation(PydanticBaseModel):
                 if inverter_fast and ac_charge_factor != 0:
                     ac_charge_factor = inverter_fast.ac_charge_factor(ac_charge_factor)
 
+                # Controllers execute the returned array, not this local factor.
+                # Report the same inverter limit that the simulation uses.
+                ac_charge_controls_fast[hour] = ac_charge_factor
+
             if inverter_fast:
                 # Some inverters cap the total charge power with the AC setpoint;
                 # that cap has to be in place before PV charges the battery.
@@ -835,6 +840,15 @@ class GeneticSimulation(PydanticBaseModel):
                 consumption += ac_energy
                 energy_consumption_grid_actual += ac_energy
                 slot_losses += ac_charge_losses
+
+                if ac_energy == 0.0 and battery_fast.soc_wh >= battery_fast.max_soc_wh:
+                    # The full battery cannot take grid energy. Keep the DC and
+                    # discharge permissions, but do not ask a controller to turn
+                    # on grid charging that this slot never simulated.
+                    ac_charge_controls_fast[hour] = 0.0
+                    # AC charging also permitted the PV path. Preserve that
+                    # permission when its redundant AC setpoint is removed.
+                    dc_charge_hours_fast[hour] = 1.0
 
             # Update hourly arrays
             if (
