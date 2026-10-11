@@ -33,6 +33,8 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Forecast continuation and AUTO/FIXED valuation of energy left in the battery, separate
   from battery wear costs. Continuation helps choose the plan; it does not add commands
   beyond the configured control horizon.
+- Optional `ems.notify_url`: EOS sends an HTTP POST with a small JSON event after every
+  completed optimization, so a client can fetch the new plan right away instead of polling.
 - Configuration-driven `POST /v1/optimize` and a PDF report of the stored GENETIC result.
 - Measurement sample, energy, household-balance and battery-capacity APIs with data-quality
   and coverage information. A capacity estimate does not overwrite configured capacity.
@@ -46,6 +48,8 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   a run by up to ~150 MB on small devices without changing the plan.
 - Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
   instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
+- `GET /v1/health` reports `started_at`, the start time of the server process, so a client
+  notices a restart also in a container (where the pid is always 1).
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
@@ -55,10 +59,6 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
   process as before) and `optimization.genetic.pin_workers` (workers pinned to the last
   cores, default on). For a fixed seed the plan is identical to a single-process run.
-- Optional `ems.notify_url`: EOS sends an HTTP POST with a small JSON event after every
-  completed optimization, so a client can fetch the new plan right away instead of polling.
-- `GET /v1/health` reports `started_at`, the start time of the server process, so a client
-  notices a restart also in a container (where the pid is always 1).
 
 ### Changed / compatibility
 
@@ -83,6 +83,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
   GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
   SciPy's Linux builds. The tables are read without SciPy in both cases.
+- Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
+  bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
+  data are imported on first use instead of at server start. Results are unchanged.
 - Faster GENETIC runs with unchanged plans (about 60 % less run time on a Raspberry Pi 4):
   table lookups, the appliance starts and the battery state decoding are worked out once per
   run instead of once per candidate, the slot simulation and the battery bookkeeping work on
@@ -303,7 +306,6 @@ In addition, bugs were fixed and new features were added:
   - API to list backups
   - API to revert to a specific backup
   - EOSdash Admin tab integration
-
 - Pendulum date types via `pydantic_extra_types.pendulum_dt`
 - `Time`, `TimeWindow`, `TimeWindowSequence`, and `to_time` helpers in `datetimeutil`
 - Extended `DataRecord` with configurable field-like semantics
@@ -314,7 +316,6 @@ In addition, bugs were fixed and new features were added:
   - Predictions tab
   - Cache management in Admin tab
   - About tab
-
 - Pydantic merge model tests
 - Developer profiling entry in Makefile
 - Changelog & docs updated for commitizen release flow
@@ -327,11 +328,9 @@ In addition, bugs were fixed and new features were added:
 
   - Performance improvements
   - Charge + start times now reflect realistic simulation
-
 - Appliance simulation:
 
   - Time windows may roll over to next day
-
 - Revised load prediction by splitting original `LoadAkkudoktor` into:
 
   - `LoadAkkudoktor`
@@ -346,7 +345,6 @@ In addition, bugs were fixed and new features were added:
   - Interval execution + locking + new endpoints
   - Properly loads required data
   - EV charge-rate migration for proper availability
-
 - Genetic common settings consistently available
 - Config markdown generation
 - Recognize environment variables on EOS server startup

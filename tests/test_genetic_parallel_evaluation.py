@@ -1,5 +1,6 @@
 """Parallel fitness evaluation gives the same result as evaluating in one process."""
 
+import multiprocessing
 from types import SimpleNamespace
 
 import pytest
@@ -114,6 +115,7 @@ def _run(config_eos: ConfigEOS, workers: int, cache_entries):
 
 
 @pytest.mark.parametrize("cache_entries", [None, 0])
+@pytest.mark.skipif("fork" not in multiprocessing.get_all_start_methods(), reason="requires fork")
 def test_parallel_evaluation_matches_serial(config_eos: ConfigEOS, cache_entries):
     serial, serial_used = _run(config_eos, 1, cache_entries)
     parallel, parallel_used = _run(config_eos, 2, cache_entries)
@@ -129,6 +131,7 @@ def test_parallel_evaluation_matches_serial(config_eos: ConfigEOS, cache_entries
     assert parallel.battery_grid_export_factor == serial.battery_grid_export_factor
 
 
+@pytest.mark.skipif("fork" not in multiprocessing.get_all_start_methods(), reason="requires fork")
 def test_failed_batch_falls_back_to_serial(config_eos: ConfigEOS, monkeypatch):
     serial, _ = _run(config_eos, 1, None)
 
@@ -141,6 +144,23 @@ def test_failed_batch_falls_back_to_serial(config_eos: ConfigEOS, monkeypatch):
     assert used == [2]
     assert fallback.start_solution == serial.start_solution
     assert fallback.ac_charge == serial.ac_charge
+
+
+def test_unsupported_fork_falls_back_to_serial(config_eos: ConfigEOS, monkeypatch):
+    serial, _ = _run(config_eos, 1, None)
+
+    def unsupported_context(method):
+        assert method == "fork"
+        raise ValueError("fork is unavailable")
+
+    monkeypatch.setattr(genetic_module.multiprocessing, "get_context", unsupported_context)
+    fallback, used = _run(config_eos, 2, None)
+
+    assert used == [0]
+    assert fallback.start_solution == serial.start_solution
+    assert fallback.result.total_balance == serial.result.total_balance
+    assert fallback.ac_charge == serial.ac_charge
+    assert fallback.dc_charge == serial.dc_charge
 
 
 def test_cgroup_cpu_limit_reads_own_and_parent_cgroups(tmp_path, monkeypatch):
