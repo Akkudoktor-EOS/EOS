@@ -30,6 +30,7 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -68,6 +69,7 @@
                "individuals": 400,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -173,6 +175,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| fitness_cache_max_entries | `Optional[int]` | `rw` | `None` | Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices. |
 | generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
 | horizon | `int` | `ro` | `N/A` | Number of optimization steps. |
 | horizon_hours | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
@@ -202,6 +205,7 @@
                "individuals": 300,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
@@ -230,6 +234,7 @@
                "individuals": 300,
                "generations": 400,
                "seed": null,
+               "fitness_cache_max_entries": null,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",

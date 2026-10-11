@@ -38,6 +38,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   and coverage information. A capacity estimate does not overwrite configured capacity.
 - Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
   backend remains the default.
+- Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
+  (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
+  a run by up to ~150 MB on small devices without changing the plan.
 - Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
   instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
