@@ -489,6 +489,12 @@ async def fastapi_admin_server_shutdown_post() -> dict:
     }
 
 
+# Start of this server process. A client that pushes data to EOS (forecasts,
+# configuration) has to notice a restart and push again. The pid cannot tell:
+# in a container the server is always pid 1.
+SERVER_STARTED_AT = to_datetime(as_string=True)
+
+
 @app.get("/v1/health", tags=["health"])
 def fastapi_health_get():  # type: ignore
     """Health check endpoint to verify that the EOS server is alive."""
@@ -496,6 +502,7 @@ def fastapi_health_get():  # type: ignore
         {
             "status": "alive",
             "pid": psutil.Process().pid,
+            "started_at": SERVER_STARTED_AT,
             "version": __version__,
             "energy-management": {
                 "start_datetime": to_datetime(get_ems().start_datetime, as_string=True),

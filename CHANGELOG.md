@@ -48,6 +48,8 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   a run by up to ~150 MB on small devices without changing the plan.
 - Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
   instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
+- `GET /v1/health` reports `started_at`, the start time of the server process, so a client
+  notices a restart also in a container (where the pid is always 1).
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
