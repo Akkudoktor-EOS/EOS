@@ -180,7 +180,8 @@
        "ems": {
            "startup_delay": 5.0,
            "interval": 300.0,
-           "mode": "OPTIMIZATION"
+           "mode": "OPTIMIZATION",
+           "notify_url": null
        },
        "feedintariff": {
            "direct_marketing_enabled": false,
@@ -259,6 +260,8 @@
                "generations": 400,
                "seed": null,
                "fitness_cache_max_entries": null,
+               "workers": null,
+               "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
                "terminal_value_mode": "AUTO",
