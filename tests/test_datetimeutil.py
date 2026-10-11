@@ -675,6 +675,36 @@ class TestToTime:
         assert result.minute == 30
         assert result.second == 45
 
+    @pytest.mark.parametrize("host_timezone", ["UTC", "America/New_York"])
+    @pytest.mark.parametrize(
+        "value, expected_time, expected_microsecond",
+        [
+            ("2026-01-15T23:45", "23:45:00", 0),
+            ("2026-07-15 23:45", "23:45:00", 0),
+            ("2026-01-15 23:45:30", "23:45:30", 0),
+            ("2026-07-15T23:45:30.123456", "23:45:30", 123456),
+            ("2026-07-15T23:45Z", "01:45:00", 0),
+            ("2026-01-15 23:45+00:00", "00:45:00", 0),
+            ("2026-07-15T23:45:30.123456+03:00", "22:45:30", 123456),
+        ],
+    )
+    def test_to_time_datetime_strings_use_target_timezone(
+        self, set_other_timezone, host_timezone, value, expected_time, expected_microsecond
+    ):
+        set_other_timezone(host_timezone)
+        result = to_time(value, in_timezone="Europe/Berlin")
+        assert isinstance(result, Time)
+        assert result.format("HH:mm:ss") == expected_time
+        assert result.microsecond == expected_microsecond
+
+    @pytest.mark.parametrize("local_timezone", ["Europe/Berlin", "America/New_York"])
+    def test_to_time_naive_datetime_string_defaults_to_local_timezone(
+        self, set_other_timezone, local_timezone
+    ):
+        set_other_timezone(local_timezone)
+        assert to_time("2026-01-15T23:45", as_string="HH:mm:ss") == "23:45:00"
+        assert to_time("23:45", as_string="HH:mm:ss") == "23:45:00"
+
     @patch('akkudoktoreos.utils.datetimeutil.logger.trace')
     def test_to_time_logging_on_parse_failures(self, mock_trace):
         """Test that parsing failures are logged appropriately."""
