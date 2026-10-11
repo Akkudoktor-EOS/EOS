@@ -42,8 +42,8 @@ class FeedInTariffDvhubOnline(FeedInTariffProvider):
     market price is stored as ``feed_in_tariff_wh`` (EUR/Wh) — like
     ``FeedInTariffEnergyCharts`` this intentionally adds no import charges or
     VAT, so the series is the direct-marketing revenue the optimizer needs.
-    Slots beyond the published day-ahead horizon are left to the consumer's
-    forward-fill (same behaviour as ``FeedInTariffImport``).
+    Only published slots are stored. Automatic optimization requires real
+    tariff coverage for the GENETIC or GENETIC0 control horizon.
     """
 
     highest_orig_datetime: Optional[datetime] = None
@@ -124,24 +124,11 @@ class FeedInTariffDvhubOnline(FeedInTariffProvider):
         )
         end_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
 
-        try:
-            dvhub_data = self._request_forecast(
-                start_date=start_date, end_date=end_date, force_update=force_update
-            )  # type: ignore[call-arg]
-            series_data = self._parse_data(dvhub_data)
-            if series_data.empty:
-                raise ValueError("No dvhub.online feed-in tariff data available")
-            self.highest_orig_datetime = series_data.index.max()
-            await self.key_from_series("feed_in_tariff_wh", series_data)
-        except Exception as exc:
-            if self.highest_orig_datetime is None:
-                # Cold start: nothing to fall back to — a failed fetch is fatal.
-                raise
-            # Transient outage with existing history: keep the history and let
-            # downstream forward-fill cover the remaining slots.
-            logger.warning(
-                "dvhub.online feed-in tariff update failed ({}); keeping existing "
-                "history until {}.",
-                exc,
-                self.highest_orig_datetime,
-            )
+        dvhub_data = self._request_forecast(
+            start_date=start_date, end_date=end_date, force_update=force_update
+        )  # type: ignore[call-arg]
+        series_data = self._parse_data(dvhub_data)
+        if series_data.empty:
+            raise ValueError("No dvhub.online feed-in tariff data available")
+        await self.key_from_series("feed_in_tariff_wh", series_data)
+        self.highest_orig_datetime = series_data.index.max()

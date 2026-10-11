@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pypdf import PdfReader
 
+from akkudoktoreos.optimization.genetic import geneticvisualize
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.server import eos
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -70,7 +71,8 @@ async def test_render_is_offloaded_and_uses_an_owned_copy(config_eos, monkeypatc
         solution.ac_charge[0] = 0.123
         return b"%PDF-isolated-render"
 
-    monkeypatch.setattr(eos, "genetic_prepare_visualize", render)
+    # The PDF stack is imported on first use, so patch it at its source.
+    monkeypatch.setattr(geneticvisualize, "genetic_prepare_visualize", render)
     response = await eos.fastapi_energy_management_optimization_solution_genetic_pdf_get()
     assert response.body == b"%PDF-isolated-render"
     assert captured[0][0] != caller_thread

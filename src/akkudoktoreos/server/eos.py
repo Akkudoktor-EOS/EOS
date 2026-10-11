@@ -62,14 +62,8 @@ from akkudoktoreos.optimization.genetic0.genetic0solution import (
     Genetic0Solution,
     Genetic0SolutionLegacy,
 )
-from akkudoktoreos.optimization.genetic0.genetic0visualize import (
-    genetic0_prepare_visualize,
-)
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.genetic.geneticvisualize import (
-    genetic_prepare_visualize,
-)
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
@@ -1893,6 +1887,11 @@ async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> R
             detail="Can not get the 'GENETIC' optimization solution.",
         )
     snapshot = retained.model_copy(deep=True)
+    # matplotlib is only needed for the PDF report; import it on first use.
+    from akkudoktoreos.optimization.genetic.geneticvisualize import (
+        genetic_prepare_visualize,
+    )
+
     pdf = await asyncio.to_thread(genetic_prepare_visualize, solution=snapshot)
     return Response(
         content=pdf,
@@ -2313,6 +2312,11 @@ def get_pdf() -> Response:
             title="Optimization solution report retrieval failed",
             detail="Can not get the 'GENETIC0' optimization solution.",
         )
+
+    # matplotlib is only needed for the PDF report; import it on first use.
+    from akkudoktoreos.optimization.genetic0.genetic0visualize import (
+        genetic0_prepare_visualize,
+    )
 
     pdf = genetic0_prepare_visualize(solution=genetic0_solution)
 

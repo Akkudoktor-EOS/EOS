@@ -6,7 +6,6 @@ from typing import Generic, cast
 import numpy as np
 import pandas as pd
 from loguru import logger
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.core.coreabc import PredictionMixin
 from akkudoktoreos.core.dataabc import DataRecordT
@@ -114,6 +113,9 @@ class PricePredictionProviderBase(
                 f"{seasonal_periods}: got {len(history)}, "
                 f"need at least {required_observations}"
             )
+        # statsmodels is only needed for this fallback forecast; import it on use.
+        from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
         clean_history = self._cap_outliers(history)
         model = ExponentialSmoothing(
             clean_history, seasonal="add", seasonal_periods=seasonal_periods

@@ -24,8 +24,21 @@ from akkudoktoreos.server.server import (
 )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Directory symlinks require privileges on Windows")
+def test_temp_directory_alias_is_contained(tmp_path, is_in_test_dir):
+    """Resolved path containment accepts aliases but rejects sibling directories."""
+    target = tmp_path / "server"
+    target.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(target, target_is_directory=True)
+
+    assert is_in_test_dir(alias / "config.json", str(target))
+    assert is_in_test_dir(target / "config.json", str(alias))
+    assert not is_in_test_dir(tmp_path / "server-other" / "config.json", str(target))
+
+
 class TestServer:
-    def test_server_setup_for_class(self, server_setup_for_class):
+    def test_server_setup_for_class(self, server_setup_for_class, is_in_test_dir):
         """Ensure server is started."""
         server = server_setup_for_class["server"]
         eos_dir = server_setup_for_class["eos_dir"]
@@ -47,10 +60,10 @@ class TestServer:
         data_folder_path = Path(config_json["general"]["data_folder_path"])
         data_ouput_path = Path(config_json["general"]["data_output_path"])
         # Assure we are working in test environment
-        assert str(config_folder_path).startswith(eos_dir)
-        assert str(config_file_path).startswith(eos_dir)
-        assert str(data_folder_path).startswith(eos_dir)
-        assert str(data_ouput_path).startswith(eos_dir)
+        assert is_in_test_dir(config_folder_path, eos_dir)
+        assert is_in_test_dir(config_file_path, eos_dir)
+        assert is_in_test_dir(data_folder_path, eos_dir)
+        assert is_in_test_dir(data_ouput_path, eos_dir)
 
 
 class TestServerSettingsValidation:
@@ -238,7 +251,7 @@ class TestServerStartStop:
                 await asyncio.wait_for(starteosdash.eosdash_proc.wait(), timeout=timeout)
 
     @pytest.mark.skipif(os.name == "nt", reason="Server restart not supported on Windows")
-    def test_server_restart(self, server_setup_for_function, is_system_test):
+    def test_server_restart(self, server_setup_for_function, is_system_test, is_in_test_dir):
         """Test server restart."""
         server = server_setup_for_function["server"]
         eos_dir = server_setup_for_function["eos_dir"]
@@ -257,10 +270,10 @@ class TestServerStartStop:
             "cachefilestore.json"
         )
         # Assure we are working in test environment
-        assert str(config_folder_path).startswith(eos_dir)
-        assert str(config_file_path).startswith(eos_dir)
-        assert str(data_folder_path).startswith(eos_dir)
-        assert str(data_ouput_path).startswith(eos_dir)
+        assert is_in_test_dir(config_folder_path, eos_dir)
+        assert is_in_test_dir(config_file_path, eos_dir)
+        assert is_in_test_dir(data_folder_path, eos_dir)
+        assert is_in_test_dir(data_ouput_path, eos_dir)
 
         if is_system_test:
             # Prepare cache entry and get cached data

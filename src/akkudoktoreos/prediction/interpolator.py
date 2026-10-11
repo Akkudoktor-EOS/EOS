@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+import threading
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -176,9 +178,15 @@ class EOSLoadInterpolator(SelfConsumptionProbabilityInterpolator, SingletonMixin
         super().__init__(filename)
 
 
-# Initialize the Energy Management System, it is a singleton.
-eos_load_interpolator = EOSLoadInterpolator()
+# Created on first use.
+_eos_load_interpolator: Optional[EOSLoadInterpolator] = None
+_eos_load_interpolator_lock = threading.Lock()
 
 
 def get_eos_load_interpolator() -> EOSLoadInterpolator:
-    return eos_load_interpolator
+    global _eos_load_interpolator
+    if _eos_load_interpolator is None:
+        with _eos_load_interpolator_lock:
+            if _eos_load_interpolator is None:
+                _eos_load_interpolator = EOSLoadInterpolator()
+    return _eos_load_interpolator
