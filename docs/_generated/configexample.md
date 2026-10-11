@@ -180,7 +180,8 @@
        "ems": {
            "startup_delay": 5.0,
            "interval": 300.0,
-           "mode": "OPTIMIZATION"
+           "mode": "OPTIMIZATION",
+           "notify_url": null
        },
        "feedintariff": {
            "direct_marketing_enabled": false,

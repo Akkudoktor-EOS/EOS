@@ -33,6 +33,8 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Forecast continuation and AUTO/FIXED valuation of energy left in the battery, separate
   from battery wear costs. Continuation helps choose the plan; it does not add commands
   beyond the configured control horizon.
+- Optional `ems.notify_url`: EOS sends an HTTP POST with a small JSON event after every
+  completed optimization, so a client can fetch the new plan right away instead of polling.
 - Configuration-driven `POST /v1/optimize` and a PDF report of the stored GENETIC result.
 - Measurement sample, energy, household-balance and battery-capacity APIs with data-quality
   and coverage information. A capacity estimate does not overwrite configured capacity.
