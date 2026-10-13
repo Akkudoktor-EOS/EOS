@@ -188,7 +188,7 @@
 | horizon_hours | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
 | individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
 | interval_sec | `Literal[900, 3600]` | `rw` | `3600` | The optimization interval [sec]. Defaults to 3600 seconds (1 hour) |
-| measurement_max_age_seconds | `int` | `rw` | `300` | Maximum age of SoC measurements for configuration-based optimization [s]. |
+| measurement_max_age_seconds | `int` | `rw` | `300` | Maximum age of SoC measurements used for configuration-based optimization [s]. Without an explicit SoC or usable measurement, the initial SoC defaults to 0%. |
 | penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
 | pin_workers | `bool` | `rw` | `True` | Pin the evaluation workers to the last 'workers' CPU cores. The server process stays unpinned and keeps a core that is not busy with the optimization, so it answers requests during a run, and the run never uses more than 'workers' cores. Needs at least one core more than workers; Linux only. |
 | seed | `Optional[int]` | `rw` | `None` | Random seed for reproducibility. None = random. |

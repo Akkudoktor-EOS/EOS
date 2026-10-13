@@ -1385,7 +1385,9 @@ Optimize GENETIC using configured devices and optional fresh runtime inputs.
 Static settings belong in configuration; query overrides are rejected.
 Forecast arrays start at local
 midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
-An empty body uses configured providers and fresh measured states of charge.
+An empty body uses configured providers. Explicit SoC values take precedence over
+fresh measured states of charge; missing usable measurements default to an assumed
+initial SoC of 0% without blocking a plan.
 The deprecated /optimize endpoint continues to run hourly GENETIC0.
 """
 ```

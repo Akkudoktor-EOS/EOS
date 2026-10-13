@@ -3,6 +3,7 @@
 import math
 from typing import Annotated, Any, Optional
 
+from loguru import logger
 from pydantic import AliasChoices, Field, field_validator
 
 from akkudoktoreos.core.coreabc import (
@@ -48,7 +49,11 @@ class RuntimeForecasts(GeneticParametersBaseModel):
 class ConfigOptimizationRequest(
     ConfigMixin, MeasurementMixin, PredictionMixin, GeneticParametersBaseModel
 ):
-    """Supply observations while hardware, tariffs and scheduling remain in config."""
+    """Supply observations while hardware, tariffs and scheduling remain in config.
+
+    Explicit SoC values take precedence over fresh measurements. Without a usable
+    measurement, assume 0% initial SoC for the affected device and continue.
+    """
 
     soc: dict[str, Annotated[int, Field(ge=0, le=100)]] = Field(default_factory=dict)
     forecasts: RuntimeForecasts = Field(default_factory=RuntimeForecasts)
@@ -115,9 +120,13 @@ class ConfigOptimizationRequest(
                     raise ValueError("Invalid or stale SoC factor")
                 return int(value * 100)
             except (ValueError, KeyError) as exc:
-                raise ValueError(
-                    f"Fresh SoC missing for {device.device_id}; supply soc or a measurement."
-                ) from exc
+                logger.warning(
+                    "No usable fresh SoC for {}; assuming 0% initial SoC for this "
+                    "optimization (not a measurement): {}",
+                    device.device_id,
+                    exc,
+                )
+                return 0
 
         battery = None
         if groups["batteries"]:
