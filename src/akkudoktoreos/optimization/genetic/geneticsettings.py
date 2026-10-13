@@ -154,7 +154,10 @@ class GeneticCommonSettings(SettingsBaseModel):
     measurement_max_age_seconds: int = Field(
         default=300,
         gt=0,
-        description="Maximum age of SoC measurements for configuration-based optimization [s].",
+        description=(
+            "Maximum age of SoC measurements used for configuration-based optimization [s]. "
+            "Without an explicit SoC or usable measurement, the initial SoC defaults to 0%."
+        ),
     )
 
     tail_horizon_hours: int = Field(
