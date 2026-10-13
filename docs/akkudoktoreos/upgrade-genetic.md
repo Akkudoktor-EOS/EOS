@@ -53,22 +53,28 @@ the old feature branch migrate into the GENETIC section; explicit nested setting
 
 The new request accepts `soc`, `forecasts`, `start_solution` and
 `start_solution_datetime`. Hardware, device limits and schedules belong in configuration.
-An empty JSON object uses configured providers and fresh measurements. Hardware overrides
+An empty JSON object uses configured providers and measured or assumed initial SoC. Hardware overrides
 in the body and query-string overrides are rejected. Do not migrate by changing only the URL.
 
 The legacy endpoint remains available, but the surrounding configuration has changed.
 That is not a promise that every old script works unchanged.
 
-### 3. Fresh measurements and complete forecasts are required
+### 3. SoC measurements are optional; complete forecasts are required
 
 Request SoC values are integer percentages from 0 to 100, keyed by device ID. Automatic
 measurement lookup instead reads a factor from 0 to 1 using the configured measurement
 key, by default `<device_id>-soc-factor`. For example, 50% is `50` in the request and
 `0.5` in that measurement channel.
 
-Without a request override, a missing, future, invalid or stale SoC cancels the run.
-The default freshness limit is 300 seconds, controlled by
-`optimization.genetic.measurement_max_age_seconds`. Check the measurement update rate.
+Explicit request SoC values take precedence over measurements. Without an override,
+EOS uses the latest valid fresh measurement. If the measurement is missing, future,
+invalid or stale, the run assumes **0% initial SoC** for that battery or EV and continues.
+The fallback is logged as an assumption and is never written as a measurement or a
+configuration change. SoC updates are therefore optional for planning.
+
+The default measurement freshness limit is 300 seconds, controlled by
+`optimization.genetic.measurement_max_age_seconds`. This limit determines whether a
+measurement can be used; it does not require an update before every run.
 
 Missing forecasts within the control period also stop the run. A shorter forecast
 continuation is allowed and reported. Failed calls return an error; they no longer look

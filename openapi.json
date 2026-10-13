@@ -3024,7 +3024,7 @@
           "optimize"
         ],
         "summary": "Fastapi Optimize Config",
-        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers and fresh measured states of charge.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
+        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers. Explicit SoC values take precedence over\nfresh measured states of charge; missing usable measurements default to an assumed\ninitial SoC of 0% without blocking a plan.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
         "operationId": "fastapi_optimize_config_v1_optimize_post",
         "requestBody": {
           "content": {
@@ -4163,7 +4163,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ConfigOptimizationRequest",
-        "description": "Supply observations while hardware, tariffs and scheduling remain in config."
+        "description": "Supply observations while hardware, tariffs and scheduling remain in config.\n\nExplicit SoC values take precedence over fresh measurements. Without a usable\nmeasurement, assume 0% initial SoC for the affected device and continue."
       },
       "ConfigSaveMode": {
         "type": "string",
@@ -8883,7 +8883,7 @@
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age Seconds",
-            "description": "Maximum age of SoC measurements for configuration-based optimization [s].",
+            "description": "Maximum age of SoC measurements used for configuration-based optimization [s]. Without an explicit SoC or usable measurement, the initial SoC defaults to 0%.",
             "default": 300
           },
           "tail_horizon_hours": {
@@ -9077,7 +9077,7 @@
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age Seconds",
-            "description": "Maximum age of SoC measurements for configuration-based optimization [s].",
+            "description": "Maximum age of SoC measurements used for configuration-based optimization [s]. Without an explicit SoC or usable measurement, the initial SoC defaults to 0%.",
             "default": 300
           },
           "tail_horizon_hours": {
