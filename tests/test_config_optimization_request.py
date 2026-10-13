@@ -150,8 +150,11 @@ def test_warmstart_timestamp_retains_explicit_zone_and_json_instant(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("age,value", [(301, 0.45), (-1, 0.45), (1, None), (1, np.nan), (1, 1.1)])
-async def test_missing_stale_future_or_invalid_soc_never_becomes_zero(
+@pytest.mark.parametrize(
+    "age,value",
+    [(301, 0.45), (-1, 0.45), (1, None), (1, np.nan), (1, np.inf), (1, -0.1), (1, 1.1)],
+)
+async def test_stale_future_or_invalid_soc_defaults_to_zero(
     configured_request, age, value
 ):
     _, ems, measurement, data = configured_request
@@ -160,8 +163,9 @@ async def test_missing_stale_future_or_invalid_soc_never_becomes_zero(
         [ems.observation_datetime.subtract(seconds=age)],
         [value],
     )
-    with pytest.raises(ValueError, match="Fresh SoC missing"):
-        await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 0
 
 
 @pytest.mark.asyncio
@@ -182,7 +186,7 @@ async def test_soc_freshness_uses_actual_run_time_inside_quarter_hour(configured
 
 
 @pytest.mark.asyncio
-async def test_future_soc_in_repeated_hour_is_rejected(configured_request):
+async def test_future_soc_in_repeated_hour_defaults_to_zero(configured_request):
     _, ems, measurement, data = configured_request
     data["soc"] = {}
     ems.observation_datetime = to_datetime("2026-10-25T02:45:00+02:00", in_timezone="Europe/Berlin")
@@ -190,8 +194,9 @@ async def test_future_soc_in_repeated_hour_is_rejected(configured_request):
         [to_datetime("2026-10-25T02:15:00+01:00", in_timezone="Europe/Berlin")],
         [0.8],
     )
-    with pytest.raises(ValueError, match="Fresh SoC missing"):
-        await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 0
 
 
 @pytest.mark.asyncio
@@ -405,12 +410,15 @@ async def test_automatic_run_reads_real_resolver_provider_units_and_measured_soc
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("missing_soc", [False, True])
 async def test_http_real_genetic_result_serializes_native_quarter_hour_contract(
-    configured_request, monkeypatch
+    configured_request, monkeypatch, missing_soc
 ):
     from akkudoktoreos.server import eos
 
     _, fake, _, data = configured_request
+    if missing_soc:
+        data["soc"] = {}
     ems = EnergyManagement()
     monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
     monkeypatch.setattr(EnergyManagement, "_genetic_solution", None)
@@ -431,3 +439,50 @@ async def test_http_real_genetic_result_serializes_native_quarter_hour_contract(
     assert result["controls_start_at_now"] is True
     assert len(result["ac_charge"]) == 4
     assert result["parameters"]["pv_battery"]["device_id"] == "storage"
+    assert result["parameters"]["pv_battery"]["initial_soc_percentage"] == (
+        0 if missing_soc else 42
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing_key", [False, True])
+async def test_missing_soc_defaults_to_zero_without_mutating_inputs(
+    configured_request, missing_key, caplog
+):
+    config, _, measurement, data = configured_request
+    data["soc"] = {}
+    before = config.model_dump_json()
+    if missing_key:
+        measurement.key_to_lists.side_effect = KeyError("SoC channel unavailable")
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 0
+    assert config.model_dump_json() == before
+    assert "assuming 0% initial SoC" in caplog.text
+    assert "not a measurement" in caplog.text
+    measurement.update_value.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("soc", [0, 42, 100])
+async def test_explicit_soc_overrides_measurements(configured_request, soc):
+    _, _, measurement, data = configured_request
+    data["soc"] = {"storage": soc}
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == soc
+    measurement.key_to_lists.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_ev_soc_does_not_replace_explicit_battery_soc(configured_request):
+    config, _, _, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"max_electric_vehicles": 1,
+                     "electric_vehicles": {"car": {"capacity_wh": 60000}}}}
+    )
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.ev is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42
+    assert parameters.ev.initial_soc_percentage == 0
