@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Fixed
+
+- GENETIC planning continues with an assumed 0% initial SoC when a battery or EV
+  has no usable fresh measurement. Explicit request values and fresh measurements
+  retain priority. The assumption is logged and does not overwrite measurements.
+
 ## 0.4.0rc2 - 2026-10-11
 
 Source-only prerelease for a one-week live test. Check out `v0.4.0rc2`; RC tags do not publish Docker images or update existing installations.
