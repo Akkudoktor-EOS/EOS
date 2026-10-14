@@ -11,6 +11,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - GENETIC planning continues with an assumed 0% initial SoC when a battery or EV
   has no usable fresh measurement. Explicit request values and fresh measurements
   retain priority. The assumption is logged and does not overwrite measurements.
+- Charging targets may equal the configured maximum SoC, including 100%, while
+  inverted limits and percentages outside 0-100 remain invalid
+  ([#1407](https://github.com/Akkudoktor-EOS/EOS/pull/1407)).
+- API problem responses omit server tracebacks at every logging level and use a
+  generic detail for unexpected errors. Full diagnostics remain in server logs
+  ([#1405](https://github.com/Akkudoktor-EOS/EOS/pull/1405)).
+- EOSdash redirects reject scheme-bearing paths after normalization and preserve
+  the configured dashboard host and proxy prefix
+  ([#1406](https://github.com/Akkudoktor-EOS/EOS/pull/1406)).
+
+### Changed
+
+- Document external Node-RED planning with the latest valid EV SoC without an age
+  limit for the value or its last database read, retaining original timestamps.
+  Also document restoring saved charging targets and recovering missing forecasts
+  after an EOS restart ([#1407](https://github.com/Akkudoktor-EOS/EOS/pull/1407)).
 
 ## 0.4.0rc2 - 2026-10-11
 

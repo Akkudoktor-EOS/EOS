@@ -1,5 +1,4 @@
 import html
-import traceback
 from dataclasses import dataclass
 from typing import Optional, cast
 
@@ -7,8 +6,6 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
-
-from akkudoktoreos.core.coreabc import get_config
 
 
 @dataclass(slots=True)
@@ -44,9 +41,6 @@ def _problem_response(
 
     if cause is not None:
         logger.exception(cause)
-
-        if get_config().logging.api_level in ("TRACE", "DEBUG"):
-            body["traceback"] = traceback.format_exception(cause)
 
     return JSONResponse(
         status_code=status,
@@ -86,7 +80,7 @@ async def unexpected_exception_handler(request: Request, exc: Exception) -> JSON
         request=request,
         status=500,
         title="Internal Server Error",
-        detail=str(exc),
+        detail="An unexpected error occurred.",
         cause=exc,
         type="/problems/internal-server-error",
     )
