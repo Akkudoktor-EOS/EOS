@@ -6,8 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+## 0.4.0rc3 - 2026-10-14
+
+Source-only prerelease containing the reviewed fixes since the published RC2.
+Check out `v0.4.0rc3`; RC tags do not publish Docker images or update existing
+installations. Existing integration requirements remain in the
+[upgrade guide](docs/akkudoktoreos/upgrade-genetic.md).
+
 ### Fixed
 
+- Executable GENETIC AC charging controls now match the simulated grid energy
+  and inverter limits. Redundant full-battery charging is removed while effective
+  PV permissions remain intact
+  ([#1401](https://github.com/Akkudoktor-EOS/EOS/pull/1401)).
 - GENETIC planning continues with an assumed 0% initial SoC when a battery or EV
   has no usable fresh measurement. Explicit request values and fresh measurements
   retain priority. The assumption is logged and does not overwrite measurements.
