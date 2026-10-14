@@ -1,5 +1,4 @@
 import html
-import traceback
 from dataclasses import dataclass
 from typing import Optional, cast
 
@@ -44,9 +43,6 @@ def _problem_response(
 
     if cause is not None:
         logger.exception(cause)
-
-        if get_config().logging.api_level in ("TRACE", "DEBUG"):
-            body["traceback"] = traceback.format_exception(cause)
 
     return JSONResponse(
         status_code=status,
