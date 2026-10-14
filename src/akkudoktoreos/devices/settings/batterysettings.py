@@ -315,8 +315,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
 
     @model_validator(mode="after")
     def _validate_soc_range(self) -> "BatteriesCommonSettings":
-        if self.min_soc_percentage >= self.max_soc_percentage:
-            raise ValueError("min_soc_percentage must be < max_soc_percentage")
+        if self.min_soc_percentage > self.max_soc_percentage:
+            raise ValueError("min_soc_percentage must be <= max_soc_percentage")
         if (
             self.min_charge_power_w is not None
             and self.max_charge_power_w is not None

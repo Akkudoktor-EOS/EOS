@@ -451,3 +451,43 @@ async def test_missing_ev_soc_does_not_replace_explicit_battery_soc(configured_r
     assert parameters.ev is not None
     assert parameters.pv_battery.initial_soc_percentage == 42
     assert parameters.ev.initial_soc_percentage == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("soc", [70, 100])
+async def test_http_config_and_real_optimizer_allow_full_ev_target(configured_request,
+                                                                  monkeypatch, soc):
+    from akkudoktoreos.server import eos
+
+    config, fake, _, data = configured_request
+    config.merge_settings_from_dict({"devices": {"max_electric_vehicles": 1,
+        "electric_vehicles": {"ev": {"capacity_wh": 1000, "max_charge_power_w": 1000,
+            "charging_efficiency": 1, "min_soc_percentage": 0,
+            "max_soc_percentage": 100}}}})
+    data["soc"]["ev"] = soc
+    ems = EnergyManagement()
+    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(EnergyManagement, "_genetic_solution", None)
+    monkeypatch.setattr(EnergyManagement, "prediction", Mock(update_data=AsyncMock()))
+    monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
+
+    async def run(**kwargs):
+        return await ems.run(start_datetime=fake.start_datetime, **kwargs)
+
+    from types import SimpleNamespace
+    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(run=run))
+    monkeypatch.setattr(eos, "get_config", lambda: config)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=eos.app),
+                                base_url="http://test") as client:
+        updated = await client.put("/v1/config/devices/electric_vehicles/ev/min_soc_percentage",
+                                   json=100)
+        assert updated.status_code == 200, updated.text
+        assert config.devices.electric_vehicles["ev"].min_soc_percentage == 100
+        result = await client.post("/v1/optimize", json=data)
+    assert result.status_code == 200, result.text
+    plan = result.json()
+    assert plan["parameters"]["ev"]["min_soc_percentage"] == 100
+    assert plan["parameters"]["ev"]["initial_soc_percentage"] == soc
+    assert len(plan["result"]["ev_soc_per_hour"]) == 4
+    assert all(0 <= value <= 100 for value in plan["result"]["ev_soc_per_hour"])
+    assert plan["result"]["ev_soc_per_hour"][-1] == pytest.approx(100)

@@ -398,3 +398,33 @@ def test_pv_converter_preserves_id_lcos_charge_and_export_rates():
     assert parameters.levelized_cost_of_storage_kwh == pytest.approx(0.123)
     battery = Battery(parameters, prediction_hours=4, slot_duration_h=0.25)
     assert battery.levelized_cost_of_storage_kwh == pytest.approx(0.123)
+
+
+@pytest.mark.parametrize("target", [0, 50, 100])
+def test_equal_soc_limits_are_valid(target):
+    settings = BatteriesCommonSettings(device_id="ev", min_soc_percentage=target,
+                                      max_soc_percentage=target)
+    assert settings.to_genetic_ev_bat_param().min_soc_percentage == target
+    assert settings.to_genetic0_ev_bat_param().min_soc_percentage == target
+
+
+@pytest.mark.parametrize("minimum,maximum", [(100, 99), (81, 80), (101, 100), (-1, 100)])
+def test_inverted_or_out_of_range_limits_still_fail(minimum, maximum):
+    with pytest.raises(ValidationError):
+        BatteriesCommonSettings(device_id="ev", min_soc_percentage=minimum,
+                                max_soc_percentage=maximum)
+
+
+def test_full_target_charges_to_capacity_without_overcharge():
+    settings = BatteriesCommonSettings(device_id="ev", capacity_wh=1000,
+        min_soc_percentage=100, max_soc_percentage=100, max_charge_power_w=1000,
+        charging_efficiency=1)
+    params = settings.to_genetic_ev_bat_param()
+    params.initial_soc_percentage = 70
+    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery.charge_array = np.ones(4)
+    for slot in range(4):
+        battery.charge_energy(wh=1000, hour=slot)
+        assert battery.current_soc_percentage() <= 100
+    assert battery.current_soc_percentage() == pytest.approx(100)
+    assert battery.charge_energy(wh=1000, hour=3) == (0, 0)
