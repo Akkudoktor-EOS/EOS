@@ -81,6 +81,12 @@ continuation is allowed and reported. Failed calls return an error; they no long
 like a successful new run by returning an older result. Existing automations should
 handle errors and verify the timestamp of any separately retrieved stored plan.
 
+A charging target may equal the configured maximum SoC. For example,
+`devices.electric_vehicles.car.min_soc_percentage = 100` is valid when
+`max_soc_percentage = 100`. A target above the maximum remains invalid.
+The target is a planning objective; the achievable SoC also depends on the available
+time, charging power and supported charge rates.
+
 ### 4. Check units, timestamps and result consumers
 
 - Runtime forecast arrays start at local midnight and use the configured slot interval.

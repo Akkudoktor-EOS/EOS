@@ -100,6 +100,62 @@ EOS does **not** directly control devices.
 It provides **structured optimisation results**, while your tool of choice remains
 responsible for executing the actual control actions.
 
+## 5. Calling the planner from an external Node-RED schedule
+
+An existing Node-RED scheduler can call `POST /v1/optimize` with device SoC and
+forecast overrides. Hardware settings and the desired charging target remain in EOS
+configuration. See the [upgrade guide](../upgrade-genetic.md) for the request contract.
+
+### Reuse the latest available EV SoC
+
+Some vehicle integrations store a new database row only when the battery percentage
+changes. A parked vehicle can therefore have an older value-change timestamp even
+when the database is being read regularly. A fixed 15-minute age limit on that row
+can prevent both EV and household planning indefinitely.
+
+Pass the latest available valid EV percentage explicitly in the request's `soc` map
+when that is the intended source policy. EOS accepts explicit SoC without requiring
+a separate fresh measurement. There is no maximum age for the explicitly supplied
+EV SoC, whether measured or read minutes, days or months ago. Keep the latest available
+valid stored value; neither its source timestamp nor its last database-read time
+should block planning because of age.
+
+Keep the database's original timestamp for diagnostics; rereading the same row does
+not make it a newly observed measurement. Validate that the percentage exists and is
+within 0 to 100. Apply any stationary-battery freshness policy independently of this
+EV value-change timestamp.
+
+### Preserve the charging target when deploying a flow
+
+Store the desired EV charging target in Node-RED flow or node context using
+`flow.set()` or `context.set()`, and restore it when the request function initializes.
+A property assigned directly to a Function node's `context` wrapper is not stored
+through the context API and can be lost when that node is redeployed. Choose a
+persistent context store if values must also survive a Node-RED process restart.
+Reload the saved target instead of silently defaulting an active order to zero.
+
+With `max_soc_percentage = 100`, a target of `min_soc_percentage = 100` is valid.
+Remove an obsolete client-side restriction to values below 100 rather than lowering
+the requested target before sending it to EOS.
+
+### Recover missing forecasts after an EOS restart
+
+Prediction retrieval can fail or return no data while EOS is restarting or a provider
+is unavailable. An external scheduler that waits for complete raw price coverage
+should route both unsuccessful HTTP reads and empty successful reads through its
+existing prediction-recovery path. That path calls `POST /v1/prediction/update`, waits
+for completion, then reloads the forecast series and checks coverage again.
+
+Rate-limit recovery attempts, for example to at most once every five minutes, and
+avoid starting a second run while optimization is busy. A successful update HTTP
+response alone does not establish complete forecasts; providers can still report
+failures in the EOS log. Only resume planning after the required series cover the
+control period. Preserve the site's interval, time zone and actual source timestamps
+when checking raw prices, including daylight-saving transition days.
+
+Prediction recovery must not send device commands or change operator permissions.
+Keep existing handling for failed or stale plans until a new successful plan arrives.
+
 ### Summary
 
 * **EOS** focuses on **forecasting, simulation, and optimisation**
