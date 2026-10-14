@@ -7,8 +7,6 @@ from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from akkudoktoreos.core.coreabc import get_config
-
 
 @dataclass(slots=True)
 class EOSProblem(Exception):
@@ -82,7 +80,7 @@ async def unexpected_exception_handler(request: Request, exc: Exception) -> JSON
         request=request,
         status=500,
         title="Internal Server Error",
-        detail=str(exc),
+        detail="An unexpected error occurred.",
         cause=exc,
         type="/problems/internal-server-error",
     )
