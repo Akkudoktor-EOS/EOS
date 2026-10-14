@@ -10,7 +10,7 @@ import traceback
 from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import psutil
 import uvicorn
@@ -2387,7 +2387,13 @@ def _sanitize_redirect_path(path: str) -> Optional[str]:
             depth += 1
         if depth < 0:
             return None
-    return "/".join(parts)
+    safe_path = "/".join(parts)
+    # urljoin treats a colon in the first segment as a scheme, even without "://".
+    # Check after normalization, which can expose a scheme hidden by "./".
+    parsed = urlsplit(safe_path)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return safe_path
 
 
 def _trusted_request_hosts() -> set[str]:
@@ -2480,8 +2486,10 @@ def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectRespons
     if get_config().server.eosdash_port:
         if base_url is None:
             return _eosdash_unknown_page(request, 404)
-        safe_path = _sanitize_redirect_path(path) or ""
-        url = f"{base_url}/{safe_path}"
+        safe_path = _sanitize_redirect_path(path)
+        if safe_path is None:
+            return _eosdash_unknown_page(request, 404)
+        url = urljoin(f"{base_url.rstrip('/')}/", safe_path)
         return RedirectResponse(url=url, status_code=303)
 
     # Redirect the root URL to the site map

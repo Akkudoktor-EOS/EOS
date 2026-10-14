@@ -464,6 +464,31 @@ class TestEosdashRedirect:
         assert response.status_code == HTTPStatus.SEE_OTHER
         assert response.headers["location"] == "http://localhost:8504/eosdash/health"
 
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/eosdash:payload",
+            "/eosdash+custom:payload",
+            "/eosdash:%09payload",
+            "/eosdash:%0Apayload",
+        ],
+    )
+    def test_scheme_bearing_path_is_rejected(self, client, path):
+        """User paths must not replace the configured dashboard URL with a scheme."""
+        response = client.get(path, headers={"Host": "localhost:8503"})
+        assert response.status_code == HTTPStatus.NOT_FOUND
+        assert "location" not in response.headers
+
+    @pytest.mark.parametrize(
+        "path",
+        ["eosdash:payload", "./eosdash:payload", "eosdash:\tpayload", "eosdash:\npayload"],
+    )
+    def test_sanitizer_rejects_schemes_after_normalization(self, path):
+        """Normalization must not turn an accepted path into a scheme-bearing URL."""
+        from akkudoktoreos.server.eos import _sanitize_redirect_path
+
+        assert _sanitize_redirect_path(path) is None
+
     def test_unknown_path_error_page_links_to_request_host(self, client):
         """The 404 page links to EOSdash on the host the client used."""
         response = client.get("/no-such-page", headers={"Host": "localhost:8503"})
