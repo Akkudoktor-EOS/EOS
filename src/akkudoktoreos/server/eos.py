@@ -10,7 +10,7 @@ import traceback
 from contextlib import asynccontextmanager
 from enum import Enum
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import psutil
 import uvicorn
@@ -2480,8 +2480,10 @@ def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectRespons
     if get_config().server.eosdash_port:
         if base_url is None:
             return _eosdash_unknown_page(request, 404)
-        safe_path = _sanitize_redirect_path(path) or ""
-        url = f"{base_url}/{safe_path}"
+        safe_path = _sanitize_redirect_path(path)
+        if safe_path is None:
+            return _eosdash_unknown_page(request, 404)
+        url = urljoin(f"{base_url.rstrip('/')}/", safe_path)
         return RedirectResponse(url=url, status_code=303)
 
     # Redirect the root URL to the site map
