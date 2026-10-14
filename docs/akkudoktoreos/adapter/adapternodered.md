@@ -115,10 +115,15 @@ can prevent both EV and household planning indefinitely.
 
 Pass the latest available valid EV percentage explicitly in the request's `soc` map
 when that is the intended source policy. EOS accepts explicit SoC without requiring
-a separate fresh measurement. Keep the database's original timestamp for diagnostics;
-rereading the same row does not make it a newly observed measurement. Validate the
-value and database-read availability, and apply any stationary-battery freshness
-policy independently of this EV value-change timestamp.
+a separate fresh measurement. There is no maximum age for the explicitly supplied
+EV SoC, whether measured or read minutes, days or months ago. Keep the latest available
+valid stored value; neither its source timestamp nor its last database-read time
+should block planning because of age.
+
+Keep the database's original timestamp for diagnostics; rereading the same row does
+not make it a newly observed measurement. Validate that the percentage exists and is
+within 0 to 100. Apply any stationary-battery freshness policy independently of this
+EV value-change timestamp.
 
 ### Preserve the charging target when deploying a flow
 

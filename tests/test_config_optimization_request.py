@@ -491,3 +491,26 @@ async def test_http_config_and_real_optimizer_allow_full_ev_target(configured_re
     assert len(plan["result"]["ev_soc_per_hour"]) == 4
     assert all(0 <= value <= 100 for value in plan["result"]["ev_soc_per_hour"])
     assert plan["result"]["ev_soc_per_hour"][-1] == pytest.approx(100)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("age_seconds", [901, 86400, 365 * 86400])
+async def test_explicit_ev_soc_has_no_measurement_age_limit(configured_request, age_seconds):
+    config, ems, measurement, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"max_electric_vehicles": 1,
+                     "electric_vehicles": {"car": {"capacity_wh": 60000,
+                                                 "min_soc_percentage": 100,
+                                                 "max_soc_percentage": 100}}}}
+    )
+    old_sample = ems.observation_datetime.subtract(seconds=age_seconds)
+    measurement.key_to_lists.return_value = ([old_sample], [0.35])
+    data["soc"]["car"] = 70
+    config_before = config.model_dump_json()
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.ev is not None
+    assert parameters.ev.initial_soc_percentage == 70
+    assert parameters.ev.min_soc_percentage == 100
+    measurement.key_to_lists.assert_not_awaited()
+    measurement.update_value.assert_not_called()
+    assert config.model_dump_json() == config_before
