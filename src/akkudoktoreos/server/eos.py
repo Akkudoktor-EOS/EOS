@@ -2387,7 +2387,13 @@ def _sanitize_redirect_path(path: str) -> Optional[str]:
             depth += 1
         if depth < 0:
             return None
-    return "/".join(parts)
+    safe_path = "/".join(parts)
+    # urljoin treats a colon in the first segment as a scheme, even without "://".
+    # Check after normalization, which can expose a scheme hidden by "./".
+    parsed = urlsplit(safe_path)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return safe_path
 
 
 def _trusted_request_hosts() -> set[str]:
