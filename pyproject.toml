@@ -16,7 +16,7 @@ classifiers = [
 dependencies = [
     "babel==2.18.0",
     "beautifulsoup4==4.15.0",
-    "cachebox==6.2.7",
+    "cachebox==6.2.8",
     "numpy==2.4.6",
     "numpydantic==1.10.0",
     "matplotlib==3.11.2",
@@ -31,15 +31,15 @@ dependencies = [
     "bokeh==3.9.2",
     "uvicorn==0.54.0",
     "scipy==1.17.1",
-    "tzfpy==2.1.0",
+    "tzfpy==2.1.1",
     "deap==1.4.4",
     "requests==2.34.2",
     "pandas==3.0.6",
     "pendulum==3.2.0",
-    "platformdirs==4.12.2",
+    "platformdirs==4.13.0",
     "psutil==7.2.2",
     "pvlib==0.16.1",
-    "pydantic==2.13.5",
+    "pydantic==2.14.1",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.15.0",
     "pydantic-settings==2.15.0",
@@ -61,7 +61,7 @@ dev = [
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
     "pre-commit==4.6.2",
     "mypy==2.4.0",
-    "types-requests==2.33.0.20260906", # for mypy
+    "types-requests==2.33.0.20261006", # for mypy
     "pandas-stubs==3.0.5.260914", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.23.0.20260923", # for mypy
