@@ -7,6 +7,9 @@ from pydantic import Field, computed_field, field_validator, model_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
+from akkudoktoreos.prediction.pvforecastadaptiveakkudoktor import (
+    PVForecastAdaptiveAkkudoktorCommonSettings,
+)
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     PVForecastAkkudoktorLocalCommonSettings,
     normalize_akkudoktor_settings,
@@ -32,6 +35,7 @@ def pvforecast_provider_ids() -> list[str]:
         # Prediction may not be initialized
         # Return at least provider used in example
         return [
+            "PVForecastAdaptiveAkkudoktor",
             "PVForecastAkkudoktor",
             "PVForecastForecastSolar",
             "PVForecastHomeAssistant",
@@ -51,6 +55,26 @@ def pvforecast_provider_ids() -> list[str]:
 
 class PVForecastPlaneSetting(SettingsBaseModel):
     """PV Forecast Plane Configuration."""
+
+    name: Optional[str] = Field(
+        default=None, description="Readable PV string name.", examples=[None]
+    )
+    measurement_key: Optional[str] = Field(
+        default=None,
+        description="Matching EOS power measurement key for adaptive learning.",
+        examples=[None],
+    )
+    nowcast_reference: bool = Field(
+        default=False, description="Use this independent array as a local weather reference."
+    )
+    curtailment_sensitive: bool = Field(
+        default=False,
+        description="Battery-full curtailment possible; exclude from unrestricted weather learning.",
+    )
+    parameters_estimated: bool = Field(
+        default=False,
+        description="Geometry and peak power are effective fitted model estimates, not verified nameplate data.",
+    )
 
     # latitude: Optional[float] = Field(default=None, json_schema_extra={ "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)" })
     surface_tilt: Optional[float] = Field(
@@ -211,6 +235,11 @@ class PVForecastCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "Akkudoktor forecast backend and local calibration settings",
         },
+    )
+
+    adaptive: PVForecastAdaptiveAkkudoktorCommonSettings = Field(
+        default_factory=PVForecastAdaptiveAkkudoktorCommonSettings,
+        description="Adaptive Akkudoktor: configure string measurements and independent reference flags on the planes.",
     )
 
     pvforecastimport: PVForecastImportCommonSettings = Field(

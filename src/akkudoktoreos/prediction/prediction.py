@@ -53,6 +53,9 @@ from akkudoktoreos.prediction.loadakkudoktor import (
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
+from akkudoktoreos.prediction.pvforecastadaptiveakkudoktor import (
+    PVForecastAdaptiveAkkudoktor,
+)
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecasthomeassistant import PVForecastHomeAssistant
@@ -106,6 +109,7 @@ loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
 loadforecast_vrm = LoadVrm()
 loadforecast_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
+pvforecast_adaptive_akkudoktor = PVForecastAdaptiveAkkudoktor()
 pvforecast_vrm = PVForecastVrm()
 pvforecast_homeassistant = PVForecastHomeAssistant()
 pvforecast_pvlib = PVForecastPVLib()
@@ -140,6 +144,7 @@ PredictionProviderType = Union[
     LoadImport,
     LoadVrm,
     PVForecastAkkudoktor,
+    PVForecastAdaptiveAkkudoktor,
     PVForecastForecastSolar,
     PVForecastHomeAssistant,
     PVForecastImport,
@@ -180,6 +185,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         loadforecast_vrm, \
         loadforecast_import, \
         pvforecast_akkudoktor, \
+        pvforecast_adaptive_akkudoktor, \
         pvforecast_vrm, \
         pvforecast_homeassistant, \
         pvforecast_pvlib, \
@@ -221,6 +227,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         loadforecast_import,
         loadforecast_vrm,
         pvforecast_akkudoktor,
+        pvforecast_adaptive_akkudoktor,
         pvforecast_forecastsolar,
         pvforecast_homeassistant,
         pvforecast_import,

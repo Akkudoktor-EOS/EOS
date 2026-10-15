@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2610021392659061`
+**Version**: `v0.3.0.dev2610151047591727`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -1696,6 +1696,117 @@ Args:
 - **200**: Successful Response
 
 - **422**: Validation Error
+
+---
+
+## GET /v1/prediction/pv-adaptive/comparisons
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/comparisons_v1_prediction_pv-adaptive_comparisons_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/comparisons_v1_prediction_pv-adaptive_comparisons_get)
+<!-- pyml enable line-length -->
+
+Comparisons
+
+<!-- pyml disable line-length -->
+```python
+"""
+Export genuinely issued forecasts with later measured truth, issuance and lead.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `days` (query, optional): No description provided.
+
+- `limit` (query, optional): No description provided.
+
+- `since_ms` (query, optional): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/prediction/pv-adaptive/latest
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/latest_v1_prediction_pv-adaptive_latest_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/latest_v1_prediction_pv-adaptive_latest_get)
+<!-- pyml enable line-length -->
+
+Latest
+
+<!-- pyml disable line-length -->
+```python
+"""
+Latest complete output curve; validation uses the separate immutable archive.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## PUT /v1/prediction/pv-adaptive/samples
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/samples_v1_prediction_pv-adaptive_samples_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/samples_v1_prediction_pv-adaptive_samples_put)
+<!-- pyml enable line-length -->
+
+Samples
+
+<!-- pyml disable line-length -->
+```python
+"""
+Store original power readings in the bounded adaptive archive, without zero filling.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "items": {
+    "$ref": "#/components/schemas/MeasurementSample"
+  },
+  "type": "array",
+  "maxItems": 10000,
+  "title": "Values"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/prediction/pv-adaptive/status
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/status_v1_prediction_pv-adaptive_status_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/status_v1_prediction_pv-adaptive_status_get)
+<!-- pyml enable line-length -->
+
+Status
+
+<!-- pyml disable line-length -->
+```python
+"""
+Status contains honest cold-start counts and matched per-lead error metrics.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
 
 ---
 
