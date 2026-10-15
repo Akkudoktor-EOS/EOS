@@ -111,8 +111,58 @@ Missing readings stay missing. Use the `linear` integration method instead of
 
 ## Install this branch on a Linux NUC
 
+### Update an existing source installation
+
+Stop EOS and back up its configuration and data directory. In your existing
+EOS checkout, update to the PR branch and synchronize dependencies:
+
+```bash
+git fetch origin
+git switch feat/adaptive-pv-learning
+git pull --ff-only
+uv sync --frozen
+git rev-parse HEAD
+```
+
+Record the printed commit for a reproducible installation. Keep any local
+changes safe before switching branches. For a fresh checkout, clone the branch
+with the command shown in the Docker section below, then run `uv sync --frozen`.
+
+Merge the PV configuration into the existing `EOS.config.json`, retaining your
+devices, tariffs and native data paths. In particular, preserve
+`general.data_folder_path`, `general.data_output_subpath` and the environment
+variables used by your existing launcher, including `EOS_CONFIG_DIR` and
+`EOS_DATA_DIR` where set. Select `PVForecastAdaptiveAkkudoktor` as the provider
+and configure the per-plane measurement channels above.
+
+To retain an existing adaptive instance's learning, transfer its configuration
+and SQLite archive together. Stop the source instance while copying, or use
+SQLite's backup API for a consistent live copy. With the target EOS stopped,
+back up any existing target archive and copy the transferred `learning.sqlite3`
+to `<data_folder_path>/<data_output_subpath>/adaptive-pv/learning.sqlite3`.
+The default output subpath is `output`; the destination must be writable by
+the user running EOS. A configuration patch alone does not transfer learning.
+
+Restart EOS with your existing service or launcher. For a manual LAN start
+from the checkout, using the same configuration environment as before:
+
+```bash
+uv run python -m akkudoktoreos.server.eos --host 0.0.0.0 --eosdash-host 0.0.0.0
+```
+
+Retain your existing port options if customized. Check the adaptive `status`
+and `latest` endpoints below, including tomorrow's forecast, then redirect
+Node-RED's EOS measurement delivery, optimizer requests and diagnostic export
+to the NUC's EOS host and port. Remove any external `pv_forecast_wh` override
+from optimizer requests so the native provider supplies the PV forecast.
+Switch control and export delivery to one EOS instance when activating it.
+Check that a valid optimization plan is produced using the adaptive provider.
+This provider does not require changing battery or optimizer settings.
+
+### Optional Docker build
+
 The PR branch is source code, not an automatically published DockerHub image.
-With Docker already installed, build it locally:
+For a container installation with Docker already installed, build it locally:
 
 ```bash
 git clone --branch feat/adaptive-pv-learning --single-branch \
@@ -126,8 +176,8 @@ docker run -d --name eos-adaptive-pv --restart unless-stopped \
   -v eos-adaptive-data:/data eos:adaptive-pv
 ```
 
-Record the printed commit for a reproducible installation. These example host
-ports allow a separate instance; select available ports on your NUC. Configure
+These example host ports allow a separate instance; select available ports on
+your NUC. Configure
 it through EOS before switching measurement delivery and the optimizer client
 to the new instance. A fresh volume begins without your plant configuration.
 
@@ -144,9 +194,8 @@ paths of the new data volume while the target instance is stopped. Set
 `output` in the container configuration. Check other machine-specific paths
 in the existing configuration before starting the target.
 
-Keep the original instance and its data available until the new installation
-has produced a valid forecast and an optimization using that forecast. This
-provider does not require changing battery or optimizer settings.
+Keep the original instance's configuration and data available until the new
+installation has produced a valid forecast and an optimization using it.
 
 ## Learning progress and Grafana
 
@@ -180,5 +229,5 @@ native output is mean power in W per interval; daily kWh is the sum of W times
 0.25 divided by 1000 for a complete local day. Keep time stamps when aligning
 with the optimizer, including on daylight-saving transitions.
 
-To revert, select the previous PV provider and restore its configuration. Do
-not delete the data volume; it contains the configuration and learned archive.
+To revert, select the previous PV provider and restore its configuration.
+Retain the data directory or container volume with the learned archive.
