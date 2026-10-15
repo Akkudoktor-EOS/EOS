@@ -7,6 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| adaptive | `EOS_PVFORECAST__ADAPTIVE` | `PVForecastAdaptiveAkkudoktorCommonSettings` | `rw` | `required` | Adaptive Akkudoktor: configure string measurements and independent reference flags on the planes. |
 | akkudoktor | `EOS_PVFORECAST__AKKUDOKTOR` | `PVForecastAkkudoktorLocalCommonSettings` | `rw` | `required` | Akkudoktor forecast backend and local calibration settings |
 | forecastsolar | `EOS_PVFORECAST__FORECASTSOLAR` | `PVForecastForecastSolarCommonSettings` | `rw` | `required` | ForecastSolar provider settings |
 | homeassistant | `EOS_PVFORECAST__HOMEASSISTANT` | `PVForecastHomeAssistantCommonSettings` | `rw` | `required` | Home Assistant provider settings |
@@ -61,6 +62,42 @@
                "calibration_min_factor": 0.5,
                "calibration_max_factor": 1.5
            },
+           "adaptive": {
+               "backend": "local",
+               "resolution_minutes": 15,
+               "forecast_days": null,
+               "past_days": null,
+               "weather_models": [
+                   "best_match",
+                   "icon_d2"
+               ],
+               "transposition_model": "perez",
+               "albedo": 0.25,
+               "inverter_efficiency": 0.96,
+               "temperature_coefficient": -0.36,
+               "apply_iam": true,
+               "shift_to_interval_start": true,
+               "calibration_enabled": false,
+               "calibration_days": 30,
+               "calibration_reference_days": 30,
+               "calibration_outage_filter_enabled": true,
+               "calibration_outage_threshold": 0.55,
+               "calibration_min_healthy_days": 3,
+               "calibration_azimuth_bin_degrees": 45,
+               "calibration_prior_kwh": 5.0,
+               "calibration_min_factor": 0.5,
+               "calibration_max_factor": 1.5,
+               "regional_weather_model": "icon_d2",
+               "regional_horizon_hours": 6,
+               "learning_days": 21,
+               "min_training_days": 5,
+               "max_ac_power_w": 0,
+               "nominal_total_peakpower_kw": null,
+               "diagnostics_days": 7,
+               "archive_retention_days": 60,
+               "nowcast_enabled": true,
+               "trend_enabled": true
+           },
            "pvforecastimport": {
                "import_file_path": null,
                "import_json": null
@@ -93,6 +130,11 @@
            },
            "planes": [
                {
+                   "name": null,
+                   "measurement_key": null,
+                   "nowcast_reference": false,
+                   "curtailment_sensitive": false,
+                   "parameters_estimated": false,
                    "surface_tilt": 10.0,
                    "surface_azimuth": 180.0,
                    "userhorizon": [
@@ -115,6 +157,11 @@
                    "strings_per_inverter": 2
                },
                {
+                   "name": null,
+                   "measurement_key": null,
+                   "nowcast_reference": false,
+                   "curtailment_sensitive": false,
+                   "parameters_estimated": false,
                    "surface_tilt": 20.0,
                    "surface_azimuth": 90.0,
                    "userhorizon": [
@@ -177,6 +224,42 @@
                "calibration_min_factor": 0.5,
                "calibration_max_factor": 1.5
            },
+           "adaptive": {
+               "backend": "local",
+               "resolution_minutes": 15,
+               "forecast_days": null,
+               "past_days": null,
+               "weather_models": [
+                   "best_match",
+                   "icon_d2"
+               ],
+               "transposition_model": "perez",
+               "albedo": 0.25,
+               "inverter_efficiency": 0.96,
+               "temperature_coefficient": -0.36,
+               "apply_iam": true,
+               "shift_to_interval_start": true,
+               "calibration_enabled": false,
+               "calibration_days": 30,
+               "calibration_reference_days": 30,
+               "calibration_outage_filter_enabled": true,
+               "calibration_outage_threshold": 0.55,
+               "calibration_min_healthy_days": 3,
+               "calibration_azimuth_bin_degrees": 45,
+               "calibration_prior_kwh": 5.0,
+               "calibration_min_factor": 0.5,
+               "calibration_max_factor": 1.5,
+               "regional_weather_model": "icon_d2",
+               "regional_horizon_hours": 6,
+               "learning_days": 21,
+               "min_training_days": 5,
+               "max_ac_power_w": 0,
+               "nominal_total_peakpower_kw": null,
+               "diagnostics_days": 7,
+               "archive_retention_days": 60,
+               "nowcast_enabled": true,
+               "trend_enabled": true
+           },
            "pvforecastimport": {
                "import_file_path": null,
                "import_json": null
@@ -209,6 +292,11 @@
            },
            "planes": [
                {
+                   "name": null,
+                   "measurement_key": null,
+                   "nowcast_reference": false,
+                   "curtailment_sensitive": false,
+                   "parameters_estimated": false,
                    "surface_tilt": 10.0,
                    "surface_azimuth": 180.0,
                    "userhorizon": [
@@ -231,6 +319,11 @@
                    "strings_per_inverter": 2
                },
                {
+                   "name": null,
+                   "measurement_key": null,
+                   "nowcast_reference": false,
+                   "curtailment_sensitive": false,
+                   "parameters_estimated": false,
                    "surface_tilt": 20.0,
                    "surface_azimuth": 90.0,
                    "userhorizon": [
@@ -256,6 +349,7 @@
            "max_planes": 1,
            "providers": [
                "PVForecastAkkudoktor",
+               "PVForecastAdaptiveAkkudoktor",
                "PVForecastForecastSolar",
                "PVForecastHomeAssistant",
                "PVForecastImport",
@@ -459,14 +553,19 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | albedo | `Optional[float]` | `rw` | `0.2` | Proportion of the light hitting the ground that it reflects back. |
+| curtailment_sensitive | `bool` | `rw` | `False` | Battery-full curtailment possible; exclude from unrestricted weather learning. |
 | inverter_model | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
 | inverter_paco | `Optional[int]` | `rw` | `None` | AC power rating of the inverter [W]. |
 | loss | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
+| measurement_key | `Optional[str]` | `rw` | `None` | Matching EOS power measurement key for adaptive learning. |
 | module_model | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
 | modules_per_string | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
 | mountingplace | `Optional[str]` | `rw` | `building` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
+| name | `Optional[str]` | `rw` | `None` | Readable PV string name. |
+| nowcast_reference | `bool` | `rw` | `False` | Use this independent array as a local weather reference. |
 | optimal_surface_tilt | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
 | optimalangles | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
+| parameters_estimated | `bool` | `rw` | `False` | Geometry and peak power are effective fitted model estimates, not verified nameplate data. |
 | peakpower | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
 | pvtechchoice | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
 | strings_per_inverter | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
@@ -487,6 +586,11 @@
        "pvforecast": {
            "planes": [
                {
+                   "name": null,
+                   "measurement_key": null,
+                   "nowcast_reference": false,
+                   "curtailment_sensitive": false,
+                   "parameters_estimated": false,
                    "surface_tilt": 10.0,
                    "surface_azimuth": 180.0,
                    "userhorizon": [
@@ -649,6 +753,98 @@
                "calibration_prior_kwh": 5.0,
                "calibration_min_factor": 0.5,
                "calibration_max_factor": 1.5
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Automatic defaults; configure measurements and reference flags on each plane
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::adaptive
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| albedo | `float` | `rw` | `0.25` | Ground albedo used for planes that do not set their own. |
+| apply_iam | `bool` | `rw` | `True` | Apply the ASHRAE incidence-angle modifier to the beam component. |
+| archive_retention_days | `int` | `rw` | `60` | None |
+| backend | `Literal['remote', 'local']` | `rw` | `local` | None |
+| calibration_azimuth_bin_degrees | `int` | `rw` | `45` | Width of the solar-azimuth bins for the correction. 0 fits a single global factor only. |
+| calibration_days | `int` | `rw` | `30` | Length of the measurement window used to fit the correction. |
+| calibration_enabled | `bool` | `rw` | `False` | None |
+| calibration_max_factor | `float` | `rw` | `1.5` | Upper clamp on any fitted correction factor. |
+| calibration_min_factor | `float` | `rw` | `0.5` | Lower clamp on any fitted correction factor. |
+| calibration_min_healthy_days | `int` | `rw` | `3` | Minimum number of healthy days used for a fit. Older healthy days from the reference window are added when the recent window contains fewer. |
+| calibration_outage_filter_enabled | `bool` | `rw` | `True` | Exclude days whose measured production is far below the recent healthy plant level. This prevents inverter, battery and curtailment events from being learned as permanent PV model losses. |
+| calibration_outage_threshold | `float` | `rw` | `0.55` | A day is treated as unavailable when its measured/modelled energy ratio is below this fraction of the robust healthy reference ratio. |
+| calibration_prior_kwh | `float` | `rw` | `5.0` | Shrinkage strength: a bin needs this much modelled energy before its own factor outweighs the global one. Higher is more conservative. |
+| calibration_reference_days | `int` | `rw` | `30` | Lookback used to distinguish healthy production from outages or curtailment. If the calibration window contains too few healthy days, the most recent healthy days from this reference window are used. |
+| diagnostics_days | `int` | `rw` | `7` | None |
+| forecast_days | `Optional[int]` | `rw` | `None` | Forecast horizon in days (1-16). Leave empty to derive it from `prediction.hours`, which is what keeps the optimizer's tail horizon fed. |
+| inverter_efficiency | `float` | `rw` | `0.96` | Nominal inverter efficiency (PVWatts eta_inv_nom). |
+| learning_days | `int` | `rw` | `21` | None |
+| max_ac_power_w | `float` | `rw` | `0` | None |
+| min_training_days | `int` | `rw` | `5` | None |
+| nominal_total_peakpower_kw | `Optional[float]` | `rw` | `None` | Known installed nameplate total; fitted plane powers may be effective estimates. |
+| nowcast_enabled | `bool` | `rw` | `True` | None |
+| past_days | `Optional[int]` | `rw` | `None` | Days of past data to request (0-92). Leave empty to derive it from `prediction.historic_hours`. |
+| regional_horizon_hours | `float` | `rw` | `6` | None |
+| regional_weather_model | `Optional[str]` | `rw` | `icon_d2` | None |
+| resolution_minutes | `int` | `rw` | `15` | Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block. |
+| shift_to_interval_start | `bool` | `rw` | `True` | Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not. |
+| temperature_coefficient | `float` | `rw` | `-0.36` | Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses. |
+| transposition_model | `str` | `rw` | `perez` | pvlib sky-diffuse transposition model: isotropic, klucher, haydavies, reindl, king or perez. |
+| trend_enabled | `bool` | `rw` | `True` | None |
+| weather_models | `list[str]` | `rw` | `['best_match']` | Open-Meteo weather models to request. Listing more than one turns the input into a poor-man's ensemble: the members are averaged per variable, which is the cheapest reliable way to cut irradiance forecast error. Costs no extra API calls. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "adaptive": {
+               "backend": "local",
+               "resolution_minutes": 15,
+               "forecast_days": null,
+               "past_days": null,
+               "weather_models": [
+                   "best_match",
+                   "icon_d2"
+               ],
+               "transposition_model": "perez",
+               "albedo": 0.25,
+               "inverter_efficiency": 0.96,
+               "temperature_coefficient": -0.36,
+               "apply_iam": true,
+               "shift_to_interval_start": true,
+               "calibration_enabled": false,
+               "calibration_days": 30,
+               "calibration_reference_days": 30,
+               "calibration_outage_filter_enabled": true,
+               "calibration_outage_threshold": 0.55,
+               "calibration_min_healthy_days": 3,
+               "calibration_azimuth_bin_degrees": 45,
+               "calibration_prior_kwh": 5.0,
+               "calibration_min_factor": 0.5,
+               "calibration_max_factor": 1.5,
+               "regional_weather_model": "icon_d2",
+               "regional_horizon_hours": 6.0,
+               "learning_days": 21,
+               "min_training_days": 5,
+               "max_ac_power_w": 0.0,
+               "nominal_total_peakpower_kw": null,
+               "diagnostics_days": 7,
+               "archive_retention_days": 60,
+               "nowcast_enabled": true,
+               "trend_enabled": true
            }
        }
    }
