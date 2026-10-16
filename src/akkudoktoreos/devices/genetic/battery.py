@@ -418,9 +418,10 @@ class Battery:
 
         - `wh is None` and `charge_factor > 0`
         - The raw requested energy is `max_charge_power_w * charge_factor`.
-        - If the request exceeds remaining capacity, the algorithm tries to find a lower
-          `charge_factor` that is compatible. If such a charge factor exists, this hour’s
-          `charge_factor` is replaced.
+        - An electric vehicle may finish within a slot at the requested current;
+          its accepted energy is capped at the remaining capacity.
+        - For stationary batteries, requests above the remaining capacity try a lower
+          compatible `charge_factor`, replacing this slot's factor.
         - If no charge factor can accommodate charging, the request is ignored (``(0.0, 0.0)`` is
           returned) and a penalty is applied elsewhere.
 
@@ -485,7 +486,14 @@ class Battery:
         elif wh is None and charge_factor > 0.0:  # mode 2
             raw_request_wh = max_charge_per_slot_wh_fast * charge_factor
             raw_charge_wh = max(self.max_soc_wh - soc_wh_fast, 0.0) / charging_efficiency_fast
-            if raw_request_wh > raw_charge_wh:
+            if isinstance(self.parameters, ElectricVehicleParameters):
+                # The vehicle BMS ends charging when full, even within a slot.
+                # Keep the feasible pilot/current setting; cap only the energy
+                # below instead of inventing a current below the EV minimum.
+                if raw_charge_wh <= 0.0:
+                    self.charge_array[hour] = 0
+                    return 0.0, 0.0
+            elif raw_request_wh > raw_charge_wh:
                 # Use a lower charge factor: the rates below the requested
                 # one, highest first (as _lower_charge_rates_desc yields them).
                 requested_charge_factor = charge_factor
