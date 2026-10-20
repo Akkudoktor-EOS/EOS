@@ -10,11 +10,6 @@ ARG PYTHON_VERSION=3.13.15
 # If BUILD_FROM is set (Home Assistant), use it; otherwise use python-slim.
 FROM ${BUILD_FROM:-python:${PYTHON_VERSION}-slim} AS builder
 
-# Home Assistant supplies BUILD_VERSION from config.yaml. Use it for the
-# installed package as well as the dashboard when building an add-on.
-ARG BUILD_VERSION=dev
-ENV EOS_BUILD_VERSION=${BUILD_VERSION}
-
 # uv: pinned, copied as a static binary (no extra Python packages installed).
 COPY --from=ghcr.io/astral-sh/uv:0.12.7 /uv /bin/uv
 
@@ -44,6 +39,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Project sources and generated version (pyproject reads version from version.txt).
 COPY src/ ./src
 COPY scripts/get_version.py ./scripts/get_version.py
+# Keep release metadata after dependency installation: ARG values enter the
+# environment of later RUN instructions, even when the command does not use them.
+# Home Assistant supplies this version from config.yaml for the package/dashboard.
+ARG BUILD_VERSION=dev
+ENV EOS_BUILD_VERSION=${BUILD_VERSION}
 RUN python scripts/get_version.py > version.txt
 
 # Install the project itself. Editable, because akkudoktoreos.core.version
@@ -54,21 +54,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 
 FROM ${BUILD_FROM:-python:${PYTHON_VERSION}-slim} AS runtime
-
-# Supplied by Home Assistant, docker-compose and CI; "dev" marks an
-# unversioned local build. CI stamps org.opencontainers.image.version via
-# docker/metadata-action, so it is not set here.
-ARG BUILD_VERSION=dev
-
-LABEL \
-    io.hass.version="${BUILD_VERSION}" \
-    io.hass.type="addon" \
-    io.hass.arch="aarch64|amd64" \
-    source="https://github.com/Akkudoktor-EOS/EOS" \
-    org.opencontainers.image.source="https://github.com/Akkudoktor-EOS/EOS" \
-    org.opencontainers.image.licenses="Apache-2.0"
-
-ENV EOS_BUILD_VERSION=${BUILD_VERSION}
 
 ENV EOS_DIR="/opt/eos"
 # Create persistent data directory similar to home assistant add-on
@@ -116,6 +101,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 # Editable install: the venv only points at the source tree, so it must be present.
 COPY src/ ./src
+
+# Apply release metadata after the reusable runtime libraries and application
+# layers. Version changes must not reinstall OS packages in this stage either.
+# CI stamps org.opencontainers.image.version via docker/metadata-action.
+ARG BUILD_VERSION=dev
+ENV EOS_BUILD_VERSION=${BUILD_VERSION}
+LABEL \
+    io.hass.version="${BUILD_VERSION}" \
+    io.hass.type="addon" \
+    io.hass.arch="aarch64|amd64" \
+    source="https://github.com/Akkudoktor-EOS/EOS" \
+    org.opencontainers.image.source="https://github.com/Akkudoktor-EOS/EOS" \
+    org.opencontainers.image.licenses="Apache-2.0"
 
 ENTRYPOINT []
 
