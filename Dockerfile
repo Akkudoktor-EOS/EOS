@@ -39,9 +39,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Project sources and generated version (pyproject reads version from version.txt).
 COPY src/ ./src
 COPY scripts/get_version.py ./scripts/get_version.py
-# Keep release metadata after dependency installation: ARG values enter the
-# environment of later RUN instructions, even when the command does not use them.
-# Home Assistant supplies this version from config.yaml for the package/dashboard.
+# Home Assistant supplies BUILD_VERSION from config.yaml. Use it for the
+# installed package as well as the dashboard when building an add-on.
 ARG BUILD_VERSION=dev
 ENV EOS_BUILD_VERSION=${BUILD_VERSION}
 RUN python scripts/get_version.py > version.txt
@@ -102,11 +101,11 @@ COPY --from=builder /opt/venv /opt/venv
 # Editable install: the venv only points at the source tree, so it must be present.
 COPY src/ ./src
 
-# Apply release metadata after the reusable runtime libraries and application
-# layers. Version changes must not reinstall OS packages in this stage either.
-# CI stamps org.opencontainers.image.version via docker/metadata-action.
+# Supplied by Home Assistant, docker-compose and CI; "dev" marks an
+# unversioned local build. CI stamps org.opencontainers.image.version via
+# docker/metadata-action, so it is not set here.
 ARG BUILD_VERSION=dev
-ENV EOS_BUILD_VERSION=${BUILD_VERSION}
+
 LABEL \
     io.hass.version="${BUILD_VERSION}" \
     io.hass.type="addon" \
@@ -114,6 +113,8 @@ LABEL \
     source="https://github.com/Akkudoktor-EOS/EOS" \
     org.opencontainers.image.source="https://github.com/Akkudoktor-EOS/EOS" \
     org.opencontainers.image.licenses="Apache-2.0"
+
+ENV EOS_BUILD_VERSION=${BUILD_VERSION}
 
 ENTRYPOINT []
 
