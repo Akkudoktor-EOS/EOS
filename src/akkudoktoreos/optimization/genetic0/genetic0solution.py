@@ -547,11 +547,12 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
             if headroom_wh <= 0.0:
                 effective_ac = 0.0
             else:
-                inv_list = self.config.devices.inverters
-                ac_to_dc_eff = float(inv_list[0].ac_to_dc_efficiency) if inv_list else 1.0
+                inv_dict = self.config.devices.inverters
+                inv = list(inv_dict.values())[0] if inv_dict else None
+                ac_to_dc_eff = float(inv.ac_to_dc_efficiency) if inv else 1.0
                 max_ac_cp_w = (
-                    float(inv_list[0].max_ac_charge_power_w)
-                    if inv_list and inv_list[0].max_ac_charge_power_w is not None
+                    float(inv.max_ac_charge_power_w)
+                    if inv and inv.max_ac_charge_power_w is not None
                     else float(bat.max_charge_power_w)
                 )
                 max_dc_per_h_wh = effective_ac * max_ac_cp_w * ac_to_dc_eff * ch_eff
