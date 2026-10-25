@@ -7,10 +7,12 @@ import httpx
 import numpy as np
 import pandas as pd
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from akkudoktoreos.config.configmigrate import migrate_config_data
+from akkudoktoreos.core.coreabc import get_measurement
 from akkudoktoreos.core.ems import EnergyManagement, EnergyManagementStage
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic import configrequest
@@ -20,6 +22,17 @@ from akkudoktoreos.optimization.optimization import (
     OptimizationCommonSettings,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
+
+
+@pytest_asyncio.fixture
+async def isolated_measurement(config_eos):
+    """Keep synthetic records out of the process-wide measurement singleton."""
+    measurement = get_measurement()
+    await measurement.delete_by_datetime(None, None)
+    try:
+        yield measurement
+    finally:
+        await measurement.delete_by_datetime(None, None)
 
 
 @pytest.fixture
@@ -514,3 +527,129 @@ async def test_explicit_ev_soc_has_no_measurement_age_limit(configured_request, 
     measurement.key_to_lists.assert_not_awaited()
     measurement.update_value.assert_not_called()
     assert config.model_dump_json() == config_before
+
+
+@pytest.mark.asyncio
+async def test_home_assistant_soc_read_mid_slot_is_fresh_for_resolver(
+    configured_request, monkeypatch, isolated_measurement
+):
+    """Adapter measurements carry the run time, not the rounded slot start (#1447)."""
+    from akkudoktoreos.adapter.homeassistant import HomeAssistantAdapter
+
+    config, _, _, data = configured_request
+    data["soc"] = {}
+    config.merge_settings_from_dict(
+        {
+            "adapter": {
+                "homeassistant": {
+                    "device_measurement_entity_ids": {"storage-soc-factor": "sensor.akku_soc"}
+                }
+            }
+        }
+    )
+    monkeypatch.setattr(EnergyManagement, "_start_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_stage", EnergyManagementStage.DATA_ACQUISITION)
+    ems = EnergyManagement()
+    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    # Run 11 minutes into the 10:15 slot: older than measurement_max_age_seconds (300 s)
+    # if the reading were stamped with the slot start.
+    run_time = to_datetime("2026-09-12T10:26:00Z", in_timezone="UTC")
+    ems.set_start_datetime(run_time, interval_seconds=900)
+    assert ems.start_datetime == run_time.subtract(minutes=11)
+    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", isolated_measurement)
+    monkeypatch.setattr(HomeAssistantAdapter, "get_entity_state", lambda self, entity_id: "0.42")
+
+    await HomeAssistantAdapter()._update_data()
+
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42
+
+
+@pytest.mark.asyncio
+async def test_meter_only_adapter_reading_does_not_mask_api_soc(
+    configured_request, monkeypatch, isolated_measurement
+):
+    """A newer record without SoC (meter reading) must not hide a fresh SoC (#1447)."""
+    from akkudoktoreos.adapter.homeassistant import HomeAssistantAdapter
+
+    config, _, _, data = configured_request
+    data["soc"] = {}
+    config.merge_settings_from_dict(
+        {"adapter": {"homeassistant": {"load_emr_entity_ids": ["sensor.load_meter"]}}}
+    )
+    monkeypatch.setattr(EnergyManagement, "_start_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_stage", EnergyManagementStage.DATA_ACQUISITION)
+    ems = EnergyManagement()
+    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    # Run one minute into the 10:15 slot: the adapter's meter reading (slot start)
+    # is newer than the SoC supplied four minutes earlier, still within 300 s.
+    run_time = to_datetime("2026-09-12T10:16:00Z", in_timezone="UTC")
+    ems.set_start_datetime(run_time, interval_seconds=900)
+    measurement = isolated_measurement
+    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", measurement)
+    # SoC arrives through the measurement API, the meter through Home Assistant.
+    await measurement.update_value(run_time.subtract(minutes=4), "storage-soc-factor", 0.42)
+    monkeypatch.setattr(HomeAssistantAdapter, "get_entity_state", lambda self, entity_id: "1234.5")
+
+    await HomeAssistantAdapter()._update_data()
+
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42
+
+
+@pytest.mark.asyncio
+async def test_home_assistant_meter_readings_stay_on_slot_start(
+    configured_request, monkeypatch, isolated_measurement
+):
+    """Meter readings keep the slot start: energy is aggregated per slot (#1447)."""
+    from akkudoktoreos.adapter.homeassistant import HomeAssistantAdapter
+
+    config, _, _, _ = configured_request
+    config.merge_settings_from_dict(
+        {"adapter": {"homeassistant": {"load_emr_entity_ids": ["sensor.load_meter"]}}}
+    )
+    monkeypatch.setattr(EnergyManagement, "_start_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_stage", EnergyManagementStage.DATA_ACQUISITION)
+    ems = EnergyManagement()
+    run_time = to_datetime("2026-09-12T10:26:00Z", in_timezone="UTC")
+    ems.set_start_datetime(run_time, interval_seconds=900)
+    monkeypatch.setattr(
+        HomeAssistantAdapter, "get_entity_state", lambda self, entity_id: "1234.5"
+    )
+
+    await HomeAssistantAdapter()._update_data()
+
+    dates, values = await isolated_measurement.key_to_lists(
+        key="sensor.load_meter",
+        start_datetime=run_time.subtract(hours=1),
+        end_datetime=run_time.add(hours=1),
+    )
+    assert values == [1234.5]
+    assert dates[0].timestamp() == ems.start_datetime.timestamp()
+
+
+@pytest.mark.asyncio
+async def test_missing_newest_soc_value_falls_back_to_older_fresh_sample(
+    configured_request, monkeypatch, isolated_measurement
+):
+    """A newest SoC stored as pandas NA is a missing value, not a crash (#1447)."""
+    _, _, _, data = configured_request
+    data["soc"] = {}
+    monkeypatch.setattr(EnergyManagement, "_start_datetime", None)
+    monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
+    ems = EnergyManagement()
+    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    run_time = to_datetime("2026-09-12T10:26:00Z", in_timezone="UTC")
+    ems.set_start_datetime(run_time, interval_seconds=900)
+    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", isolated_measurement)
+    await isolated_measurement.update_value(run_time.subtract(minutes=2), "storage-soc-factor", 0.42)
+    await isolated_measurement.update_value(run_time.subtract(minutes=1), "storage-soc-factor", pd.NA)
+
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42

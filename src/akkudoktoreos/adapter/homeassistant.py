@@ -438,6 +438,10 @@ class HomeAssistantAdapter(AdapterProvider):
     async def _update_data(self) -> None:
         stage = self.ems.stage()
         if stage == EnergyManagementStage.DATA_ACQUISITION:
+            # Device states (e.g. SoC) are read now: stamp them with the unrounded run
+            # time, not the slot start, so freshness checks see their real age (#1447).
+            # Meter readings stay on the slot start: energy is aggregated per slot.
+            measured_at = self.ems.observation_datetime
             # Sync configuration
             entity_ids = self.config.adapter.homeassistant.config_entity_ids
             if entity_ids:
@@ -468,7 +472,7 @@ class HomeAssistantAdapter(AdapterProvider):
                             if state:
                                 measurement_value = float(state)
                                 await self.measurement.update_value(
-                                    self.ems_start_datetime, measurement_key, measurement_value
+                                    measured_at, measurement_key, measurement_value
                                 )
                         except Exception as e:
                             logger.error(f"{e}")
