@@ -66,8 +66,8 @@ async def test_soc_read_late_in_slot_beats_previous_reading(config_eos, isolated
         parameters = await Genetic0OptimizationParameters.prepare()
 
     assert parameters is not None
-    assert parameters.pv_akku is not None
-    assert parameters.pv_akku.initial_soc_percentage == 42
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42
 
 
 @pytest.mark.asyncio
@@ -112,8 +112,8 @@ async def test_meter_only_record_does_not_mask_soc(config_eos, isolated_measurem
         parameters = await Genetic0OptimizationParameters.prepare()
 
     assert parameters is not None
-    assert parameters.pv_akku is not None
-    assert parameters.pv_akku.initial_soc_percentage == 42
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42
 
 
 @pytest.mark.asyncio
@@ -156,5 +156,5 @@ async def test_older_missing_value_does_not_spoil_current_soc(config_eos, isolat
         parameters = await Genetic0OptimizationParameters.prepare()
 
     assert parameters is not None
-    assert parameters.pv_akku is not None
-    assert parameters.pv_akku.initial_soc_percentage == 42
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42
