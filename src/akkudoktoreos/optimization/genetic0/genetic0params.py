@@ -304,7 +304,15 @@ class Genetic0OptimizationParameters(
         # Add forecast and device data
         interval = to_duration(cls.config.optimization.genetic0.interval_sec)
         power_to_energy_per_interval_factor = cls.config.optimization.genetic0.interval_sec / 3600
-        parameter_start_datetime = ems.start_datetime.set(hour=0, second=0, microsecond=0)
+        # GENETIC0 indexes the parameter arrays by wall-clock hour (the simulation
+        # starts at ``ems.start_datetime.hour``), while the arrays themselves are
+        # sampled in elapsed time. On a DST transition day local midnight is 23 or
+        # 25 elapsed hours away from the same wall-clock hour, so step back
+        # ``hour`` elapsed hours instead of setting the hour to midnight. This keeps
+        # array index ``ems.start_datetime.hour`` aligned with the start slot.
+        parameter_start_datetime = ems.start_datetime.set(second=0, microsecond=0).subtract(
+            hours=ems.start_datetime.hour
+        )
         parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
         max_retries = 10
 
