@@ -301,11 +301,14 @@ class TimeWindow(SettingsBaseModel):
         """
         start_day = reference_date.start_of("day")
 
+        # Use Pendulum's default (second occurrence) for ambiguous boundaries,
+        # independently of the fold carried by the reference datetime.
         start = start_day.replace(
             hour=self.start_time.hour,
             minute=self.start_time.minute,
             second=self.start_time.second,
             microsecond=self.start_time.microsecond,
+            fold=1,
         )
 
         duration_end = start + self.duration
@@ -334,9 +337,13 @@ class TimeWindow(SettingsBaseModel):
             minute=self.end_time.minute,
             second=self.end_time.second,
             microsecond=self.end_time.microsecond,
+            fold=1,
         )
 
-        return start, max(duration_end, explicit_end)
+        # Same-timezone datetime ordering ignores fold during the repeated DST
+        # hour. Pendulum subtraction measures elapsed time between the instants.
+        end = explicit_end if (explicit_end - duration_end).total_seconds() > 0 else duration_end
+        return start, end
 
     def _matches_start_date(self, start_date: DateTime) -> bool:
         """Check whether a candidate window start date satisfies all restrictions.
@@ -394,10 +401,10 @@ class TimeWindow(SettingsBaseModel):
 
             start, end = self._window_start_end(start_day)
 
-            if not (start <= date_time < end):
+            if (date_time - start).total_seconds() < 0 or (end - date_time).total_seconds() <= 0:
                 continue
 
-            if duration is not None and date_time + duration > end:
+            if duration is not None and (date_time + duration - end).total_seconds() > 0:
                 continue
 
             return True
@@ -454,7 +461,7 @@ class TimeWindow(SettingsBaseModel):
 
         latest_start = window_end - duration
 
-        if latest_start < window_start:
+        if (latest_start - window_start).total_seconds() < 0:
             return None
 
         return latest_start
@@ -752,7 +759,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[TimeWindowT]):
 
         result = []
         current = start_datetime
-        while current < end_datetime:
+        while (end_datetime - current).total_seconds() > 0:
             result.append(1.0 if self.contains(current) else 0.0)
             current = current.add(seconds=interval_s)
 
@@ -817,7 +824,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[TimeWindowT]):
         values: list[float] = []
 
         current = start_datetime
-        while current < end_datetime:
+        while (end_datetime - current).total_seconds() > 0:
             timestamps.append(current)
             values.append(1.0 if self.contains(current) else 0.0)
             current = current.add(seconds=interval_s)
@@ -1000,7 +1007,7 @@ class ValueTimeWindowSequence(TimeWindowSequence[ValueTimeWindow]):
 
         result = []
         current = start_datetime
-        while current < end_datetime:
+        while (end_datetime - current).total_seconds() > 0:
             step_value: Optional[float] = None
             matched = False
             for window in self.windows:
@@ -1091,7 +1098,7 @@ class ValueTimeWindowSequence(TimeWindowSequence[ValueTimeWindow]):
         result: list[float] = []
 
         current = start_datetime
-        while current < end_datetime:
+        while (end_datetime - current).total_seconds() > 0:
             step_value: Optional[float] = None
             matched = False
 
