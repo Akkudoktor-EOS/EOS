@@ -106,6 +106,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - GENETIC reads its horizon, interval and prediction settings once at the start of a run. A
   configuration change during a run (for example a client adapting the control horizon) no
   longer fails the run with an out-of-bounds error; it applies to the next run.
+- Updating a read-only computed configuration field, e.g. `adapter.homeassistant.eos_solution_entity_ids`
+  via `PUT /v1/config/{path}`, now reports a read-only error instead of claiming the field does
+  not exist ([#913](https://github.com/Akkudoktor-EOS/EOS/issues/913)).
 
 ## 0.3.0 (2026-03-17)
 
