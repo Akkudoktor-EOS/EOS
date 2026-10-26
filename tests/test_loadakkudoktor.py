@@ -256,3 +256,66 @@ class TestLoadAkkudoktorAdjusted:
             # Test execution
             await loadakkudoktoradjusted._update_data()
             assert mock_adjust.called
+
+
+
+@pytest_asyncio.fixture
+async def empty_measurement(config_eos):
+    """Own, empty measurement store (the singleton is shared between tests)."""
+    measurement = get_measurement()
+    await measurement.delete_by_datetime(None, None)
+    config_eos.merge_settings_from_dict(
+        {"devices": {"max_batteries": 1, "batteries": {"storage": {"capacity_wh": 2000}}}}
+    )
+    try:
+        yield measurement
+    finally:
+        await measurement.delete_by_datetime(None, None)
+
+
+async def _adjustment_window(adjusted, measurement):
+    measurement_class = type(measurement)
+    original = measurement_class.load_total_kwh
+    calls = []
+
+    async def spy(self, *args, **kwargs):
+        calls.append(kwargs)
+        return await original(self, *args, **kwargs)
+
+    with patch.object(measurement_class, "load_total_kwh", spy):
+        result = await adjusted._calculate_adjustment(np.random.rand(365, 2, 24))
+    return result, calls
+
+
+@pytest.mark.asyncio
+async def test_adjustment_buckets_stay_on_full_hours(loadakkudoktoradjusted, empty_measurement):
+    """A newer off-hour record (e.g. a device SoC) must not shift the hourly buckets (#1447)."""
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(25):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+    await empty_measurement.update_value(
+        to_datetime("2024-01-02T00:11:00"), "storage-soc-factor", 0.42
+    )
+    _, calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+    assert calls
+    assert calls[0]["start_datetime"] == to_datetime("2024-01-01T00:00:00")
+    assert calls[0]["end_datetime"] == to_datetime("2024-01-02T00:00:00")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "records",
+    [
+        [("14:15", "load0_mr", 1000.0), ("14:26", "storage-soc-factor", 0.42)],
+        [("14:11", "storage-soc-factor", 0.42)],
+    ],
+)
+async def test_adjustment_within_first_hour_returns_zero(
+    loadakkudoktoradjusted, empty_measurement, records
+):
+    """Less than one full hour of data yields no adjustment instead of an error."""
+    for time, key, value in records:
+        await empty_measurement.update_value(to_datetime(f"2026-08-01T{time}:00"), key, value)
+    (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+    assert calls == []
+    assert not weekday.any() and not weekend.any()

@@ -3,7 +3,7 @@ from typing import Any, Optional
 import pandas as pd
 import pendulum
 import pytest
-from pydantic import Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, computed_field
 
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
@@ -198,6 +198,20 @@ class TestPydanticModelNestedValueMixin:
         """Test _get_key_types raises an error for non-existent field."""
         with pytest.raises(TypeError):
             PydanticModelNestedValueMixin._get_key_types(User, "unknown_field")
+
+    def test_get_key_types_for_computed_field(self):
+        """Test _get_key_types reports a computed field as read-only."""
+
+        class WithComputed(BaseModel):
+            value: int = 1
+
+            @computed_field  # type: ignore[prop-decorator]
+            @property
+            def doubled(self) -> int:
+                return self.value * 2
+
+        with pytest.raises(TypeError, match="read-only computed field"):
+            PydanticModelNestedValueMixin._get_key_types(WithComputed, "doubled")
 
     def test_get_key_types_for_instance_raises(self, user_instance):
         """Test _get_key_types raises an error for an instance."""

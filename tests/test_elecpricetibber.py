@@ -217,6 +217,26 @@ class TestElecPriceTibber:
         assert normalized.iloc[1] == pytest.approx(0.50)
 
 
+    def test_tibber_normalize_series_handles_dst_change(self, provider, set_other_timezone):
+        """Prices spanning a DST change (mixed UTC offsets) are normalized, not rejected."""
+        set_other_timezone("Europe/Berlin")
+        index = [
+            to_datetime("2026-10-25T02:45:00+02:00", in_timezone="Europe/Berlin"),
+            to_datetime("2026-10-25T02:00:00+01:00", in_timezone="Europe/Berlin"),
+            to_datetime("2026-10-25T02:15:00+01:00", in_timezone="Europe/Berlin"),
+        ]
+        series = pd.Series([0.10, 0.20, 0.30], index=index)
+
+        normalized = provider._normalize_series(series)
+
+        assert normalized.tolist() == pytest.approx([0.10, 0.20, 0.30])
+        assert [ts.timestamp() for ts in normalized.index] == [
+            to_datetime("2026-10-25T00:45:00+00:00").timestamp(),
+            to_datetime("2026-10-25T01:00:00+00:00").timestamp(),
+            to_datetime("2026-10-25T01:15:00+00:00").timestamp(),
+        ]
+        assert provider._resolution_seconds(normalized) == 900
+
     def test_empty_tomorrow_stores_only_today_and_warns(self, provider):
         """An empty tomorrow list does not create fake values before forecasting."""
         response = TibberGraphQLResponse.model_validate(

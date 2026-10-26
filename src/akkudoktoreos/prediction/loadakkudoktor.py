@@ -120,11 +120,18 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         min_dt = await self.measurement.min_datetime()
 
         # compare predictions with real measurement - try to use last 7 days
-        compare_start = max_dt - to_duration("7 days")
+        # Keep the hourly buckets on full hours: the newest record may be an off-hour
+        # device state (e.g. SoC stamped with the run time, #1447).
+        compare_end = max_dt.start_of("hour")
+        compare_start = compare_end - to_duration("7 days")
         if compare_datetimes(compare_start, min_dt).lt:
             # Not enough measurements for 7 days - use what is available
-            compare_start = min_dt
-        compare_end = max_dt
+            compare_start = min_dt.start_of("hour")
+            if compare_datetimes(compare_start, min_dt).lt:
+                compare_start = compare_start.add(hours=1)
+        if not compare_datetimes(compare_start, compare_end).lt:
+            # Less than one full hour of measurements - no adjustment yet
+            return (weekday_adjust, weekend_adjust)
         compare_interval = to_duration("1 hour")
 
         load_total_kwh_array = await self.measurement.load_total_kwh(

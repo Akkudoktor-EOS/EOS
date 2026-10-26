@@ -569,6 +569,11 @@ class PydanticModelNestedValueMixin:
             raise TypeError(f"Model '{model}' is not of class type.")
 
         if key not in model.model_fields:
+            if key in model.model_computed_fields:
+                raise TypeError(
+                    f"Field '{key}' of model '{model.__name__}' is a read-only computed "
+                    "field and cannot be updated."
+                )
             raise TypeError(f"Field '{key}' does not exist in model '{model.__name__}'.")
 
         field_annotation = model.model_fields[key].annotation

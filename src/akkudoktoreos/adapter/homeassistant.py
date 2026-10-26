@@ -6,7 +6,7 @@ from typing import Optional, Union
 import pandas as pd
 import requests
 from loguru import logger
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, PrivateAttr, computed_field, field_validator
 
 from akkudoktoreos.adapter.adapterabc import AdapterProvider
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -223,6 +223,8 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
 
 
 class HomeAssistantAdapter(AdapterProvider):
+    _legacy_device_measurement_key_warning_emitted: bool = PrivateAttr(default=False)
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the adapter provider."""
@@ -458,6 +460,10 @@ class HomeAssistantAdapter(AdapterProvider):
     async def _update_data(self) -> None:
         stage = self.ems.stage()
         if stage == EnergyManagementStage.DATA_ACQUISITION:
+            # Device states (e.g. SoC) are read now: stamp them with the unrounded run
+            # time, not the slot start, so freshness checks see their real age (#1447).
+            # Meter readings stay on the slot start: energy is aggregated per slot.
+            measured_at = self.ems.observation_datetime
             # Sync configuration
             entity_ids = self.config.adapter.homeassistant.config_entity_ids
             if entity_ids:
@@ -482,9 +488,18 @@ class HomeAssistantAdapter(AdapterProvider):
                     measurement_key,
                     entity_id,
                 ) in entity_ids.items():
-                    measurement_key = self._resolve_device_measurement_key(
+                    resolved_measurement_key = self._resolve_device_measurement_key(
                         measurement_key, registered_measurement_keys
                     )
+                    if resolved_measurement_key != measurement_key:
+                        if not self._legacy_device_measurement_key_warning_emitted:
+                            logger.warning(
+                                "Legacy device measurement key '{}' mapped to registered key '{}'.",
+                                measurement_key,
+                                resolved_measurement_key,
+                            )
+                            self._legacy_device_measurement_key_warning_emitted = True
+                        measurement_key = resolved_measurement_key
                     if entity_id:
                         try:
                             state = self.get_entity_state(entity_id)
@@ -492,7 +507,7 @@ class HomeAssistantAdapter(AdapterProvider):
                             if state:
                                 measurement_value = float(state)
                                 await self.measurement.update_value(
-                                    self.ems_start_datetime, measurement_key, measurement_value
+                                    measured_at, measurement_key, measurement_value
                                 )
                         except Exception as e:
                             logger.error(f"{e}")

@@ -11,6 +11,7 @@ forecasts, and fallback defaults, preparing them for optimization runs.
 import math
 from typing import Optional, Union
 
+import pandas as pd
 from loguru import logger
 from pydantic import (
     AliasChoices,
@@ -38,7 +39,7 @@ from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
 from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
 from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
-from akkudoktoreos.utils.datetimeutil import to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
 # Do not import directly from akkudoktoreos.core.coreabc
 # EnergyManagementSystemMixin - Creates circular dependency with ems.py
@@ -210,6 +211,30 @@ class Genetic0OptimizationParameters(
         return start_solution
 
     @classmethod
+    async def _nearest_soc_factor(cls, key: str, target: DateTime) -> float:
+        """SoC factor nearest to the run time within +/-24 h.
+
+        Readings carry their real time, not the slot start, and records without a
+        SoC value (e.g. an adapter's meter reading) are skipped (#1447).
+        """
+        window = to_duration("24 hours")
+        dates, values = await cls.measurement.key_to_lists(
+            key=key,
+            start_datetime=target - window,
+            end_datetime=target + window,
+            dropna=False,
+        )
+        samples = [
+            (abs(date.timestamp() - target.timestamp()), value)
+            for date, value in zip(dates, values)
+            if value is not None and value is not pd.NA
+        ]
+        if not samples:
+            raise ValueError(f"No SoC value for '{key}' within 24 hours of {target}.")
+        # Convert only the selected sample: an unrelated older value must not fail.
+        return float(min(samples, key=lambda sample: sample[0])[1])
+
+    @classmethod
     async def prepare(cls) -> "Optional[Genetic0OptimizationParameters]":
         """Prepare optimization parameters from config, forecast and measurement data.
 
@@ -279,7 +304,15 @@ class Genetic0OptimizationParameters(
         # Add forecast and device data
         interval = to_duration(cls.config.optimization.genetic0.interval_sec)
         power_to_energy_per_interval_factor = cls.config.optimization.genetic0.interval_sec / 3600
-        parameter_start_datetime = ems.start_datetime.set(hour=0, second=0, microsecond=0)
+        # GENETIC0 indexes the parameter arrays by wall-clock hour (the simulation
+        # starts at ``ems.start_datetime.hour``), while the arrays themselves are
+        # sampled in elapsed time. On a DST transition day local midnight is 23 or
+        # 25 elapsed hours away from the same wall-clock hour, so step back
+        # ``hour`` elapsed hours instead of setting the hour to midnight. This keeps
+        # array index ``ems.start_datetime.hour`` aligned with the start slot.
+        parameter_start_datetime = ems.start_datetime.set(second=0, microsecond=0).subtract(
+            hours=ems.start_datetime.hour
+        )
         parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
         max_retries = 10
 
@@ -578,10 +611,8 @@ class Genetic0OptimizationParameters(
                 battery_lcos_kwh = battery_config.levelized_cost_of_storage_amt_kwh
                 # Initial SOC
                 try:
-                    initial_soc_factor = await cls.measurement.key_to_value(
-                        key=battery_config.measurement_key_soc_factor,
-                        target_datetime=ems.start_datetime,
-                        time_window=to_duration(to_duration("48 hours")),
+                    initial_soc_factor = await cls._nearest_soc_factor(
+                        battery_config.measurement_key_soc_factor, ems.observation_datetime
                     )
                     if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
                         logger.error(
@@ -643,10 +674,8 @@ class Genetic0OptimizationParameters(
                     continue
                 # Initial SOC
                 try:
-                    initial_soc_factor = await cls.measurement.key_to_value(
-                        key=electric_vehicle_config.measurement_key_soc_factor,
-                        target_datetime=ems.start_datetime,
-                        time_window=to_duration(to_duration("48 hours")),
+                    initial_soc_factor = await cls._nearest_soc_factor(
+                        electric_vehicle_config.measurement_key_soc_factor, ems.observation_datetime
                     )
                     if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
                         logger.error(

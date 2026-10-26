@@ -415,3 +415,54 @@ async def test_profile_zero_power_phase_keeps_device_running_until_complete(
         if isinstance(item, DDBCInstruction)
     ]
     assert commands == [(0, 0, "OFF"), (1, 0, "RUN"), (1, 45, "OFF")]
+
+
+@pytest.mark.asyncio
+async def test_meter_only_record_does_not_hide_completed_cycles(
+    config_eos: ConfigEOS, isolated_measurement: Measurement
+) -> None:
+    """A newer record without a cycle count (meter reading) must not abort the run (#1447)."""
+    configure(config_eos)
+    config_eos.merge_settings_from_dict(
+        {
+            "measurement": {"load_emr_keys": ["load_meter"]},
+            "devices": {
+                "max_batteries": 0,
+                "batteries": {},
+                "max_electric_vehicles": 0,
+                "electric_vehicles": {},
+                "max_inverters": 1,
+                "inverters": {"inv": {"max_power_w": 10000}},
+                "max_home_appliances": 1,
+                "home_appliances": {
+                    "washer": profile(
+                        num_cycles=2,
+                        cycle_time_windows={
+                            "windows": [
+                                {"start_time": "01:00", "duration": "30 minutes", "value": 0},
+                                {"start_time": "02:00", "duration": "30 minutes", "value": 1},
+                            ]
+                        },
+                    )
+                },
+            },
+        }
+    )
+    run_time = get_ems().start_datetime.add(minutes=26)
+    get_ems().set_start_datetime(run_time, interval_seconds=900)
+    measurement = isolated_measurement
+    # Cycle count through the measurement API, then the adapter's meter reading.
+    await measurement.update_value(run_time.subtract(seconds=30), "washer.cycles_completed", 1.0)
+    await measurement.update_value(run_time, "load_meter", 1234.5)
+    prepared = await ConfigOptimizationRequest.model_validate(
+        {
+            "forecasts": {
+                "pv_forecast_wh": [0.0] * 20,
+                "total_load": [0.0] * 20,
+                "electricity_price_per_wh": [0.0003] * 20,
+                "feed_in_tariff_per_wh": [0.0001] * 20,
+            }
+        }
+    ).resolve()
+    assert prepared.home_appliances is not None
+    assert prepared.home_appliances[0].completed_cycles == 1
