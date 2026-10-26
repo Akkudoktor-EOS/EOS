@@ -1,12 +1,7 @@
 """Tests for fixed electricity fee prediction module."""
 
-import asyncio
-import json
-from pathlib import Path
-from unittest.mock import Mock, patch
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from akkudoktoreos.config.configabc import ValueTimeWindow, ValueTimeWindowSequence
@@ -16,10 +11,7 @@ from akkudoktoreos.prediction.elecfeefixed import (
     ElecFeeFixed,
     ElecFeeFixedCommonSettings,
 )
-from akkudoktoreos.utils.datetimeutil import Duration, to_datetime
-
-DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
-FILE_TESTDATA_ELECFEEFIXED_CONFIG_JSON = DIR_TESTDATA.joinpath("elecfeefixed_config.json")
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
 class TestElecFeeFixedCommonSettings:
@@ -368,96 +360,3 @@ class TestElecFeeFixed:
         )
         assert len(percent_array) == 24
         assert np.allclose(percent_array, 5.0)
-
-
-class TestElecFeeFixedIntegration:
-    """Integration tests for ElecFeeFixed."""
-
-    @pytest.mark.skip(reason="For development only")
-    async def test_fixed_fee_development(self, config_eos):
-        """Test fixed fee provider with real configuration."""
-        # Create provider with config
-        provider = ElecFeeFixed()
-
-        # Setup realistic test scenario
-        ems_eos = get_ems()
-        start_dt = to_datetime("2024-01-01 00:00:00", in_timezone="Europe/Berlin")
-        ems_eos.set_start_datetime(start_dt)
-
-        # Configure with realistic German electricity fees (2024)
-        consumption_amt_kwh = ValueTimeWindowSequence(
-            windows=[
-                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="8 hours", value=0.288)),
-                ValueTimeWindow.model_validate(dict(start_time="08:00", duration="16 hours", value=0.34)),
-            ]
-        )
-        consumption_percent_amt = ValueTimeWindowSequence(
-            windows=[
-                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=19.0)),
-            ]
-        )
-        feedin_amt_kwh = ValueTimeWindowSequence(
-            windows=[
-                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="8 hours", value=0.08)),
-                ValueTimeWindow.model_validate(dict(start_time="08:00", duration="16 hours", value=0.10)),
-            ]
-        )
-        feedin_percent_amt = ValueTimeWindowSequence(
-            windows=[
-                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=5.0)),
-            ]
-        )
-
-        config_eos.elecfee.elecfeefixed = ElecFeeFixedCommonSettings(
-            consumption_amt_kwh=consumption_amt_kwh,
-            consumption_percent_amt=consumption_percent_amt,
-            feedin_amt_kwh=feedin_amt_kwh,
-            feedin_percent_amt=feedin_percent_amt,
-        )
-        config_eos.prediction.hours = 168  # 7 days
-
-        # Update data
-        await provider.update_data(force_enable=True, force_update=True)
-
-        # Verify data
-        expected_intervals = 168 * 4  # 7 days * 24h * 4 intervals
-        assert len(provider) == expected_intervals
-
-        # Save configuration for documentation
-        config_data = {
-            "consumption_amt_kwh": [
-                {
-                    "start_time": str(window.start_time),
-                    "duration": str(window.duration),
-                    "value": window.value,
-                }
-                for window in config_eos.elecfee.elecfeefixed.consumption_amt_kwh.windows
-            ],
-            "consumption_percent_amt": [
-                {
-                    "start_time": str(window.start_time),
-                    "duration": str(window.duration),
-                    "value": window.value,
-                }
-                for window in config_eos.elecfee.elecfeefixed.consumption_percent_amt.windows
-            ],
-            "feedin_amt_kwh": [
-                {
-                    "start_time": str(window.start_time),
-                    "duration": str(window.duration),
-                    "value": window.value,
-                }
-                for window in config_eos.elecfee.elecfeefixed.feedin_amt_kwh.windows
-            ],
-            "feedin_percent_amt": [
-                {
-                    "start_time": str(window.start_time),
-                    "duration": str(window.duration),
-                    "value": window.value,
-                }
-                for window in config_eos.elecfee.elecfeefixed.feedin_percent_amt.windows
-            ],
-        }
-
-        with FILE_TESTDATA_ELECFEEFIXED_CONFIG_JSON.open("w", encoding="utf-8") as f:
-            json.dump(config_data, f, indent=4)

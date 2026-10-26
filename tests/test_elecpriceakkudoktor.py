@@ -1,4 +1,3 @@
-import asyncio
 import json
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -228,22 +227,3 @@ class TestElecPriceAkkudokor:
         )
         assert isinstance(array, np.ndarray)
         assert len(array) == provider.total_hours
-
-
-    # ------------------------------------------------
-    # Development Akkudoktor
-    # ------------------------------------------------
-
-
-    @pytest.mark.skip(reason="For development only")
-    def test_akkudoktor_development_forecast_data(self, provider):
-        """Fetch data from real Akkudoktor server."""
-        # Preset, as this is usually done by update_data()
-        provider.ems_start_datetime = to_datetime("2024-10-26 00:00:00")
-
-        akkudoktor_data = provider._request_forecast()
-
-        with FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON.open(
-            "w", encoding="utf-8", newline="\n"
-        ) as f_out:
-            json.dump(akkudoktor_data, f_out, indent=4)

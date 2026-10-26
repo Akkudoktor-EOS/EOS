@@ -21,10 +21,9 @@ from akkudoktoreos.utils.datetimeutil import (
 
 
 class TestMeasurementDataRecord:
-    """Test suite for the MeasurementDataRecord class.
+    """Measurement-specific keys, values, and serialization.
 
-    Ensuring that both dictionary-like and attribute-style access work correctly for fields and
-    configured measurements.
+    Generic native-field access is covered by TestDataRecord in test_dataabcrecord.py.
     """
 
     @pytest.fixture
@@ -69,11 +68,6 @@ class TestMeasurementDataRecord:
         with pytest.raises(KeyError):
             _ = record["nonexistent"]
 
-    def test_setitem_field(self, record):
-        """Test setting a native field using __setitem__."""
-        record["date_time"] = "2025-01-01T12:00:00+00:00"
-        assert str(record.date_time).startswith("2025-01-01")
-
     def test_setitem_measurement(self, record):
         """Test setting a known measurement key using __setitem__."""
         record["temp"] = 25.5
@@ -84,12 +78,6 @@ class TestMeasurementDataRecord:
         with pytest.raises(KeyError):
             record["unknown_key"] = 123
 
-    def test_delitem_field(self, record):
-        """Test deleting a native field using __delitem__."""
-        record["date_time"] = "2025-01-01T12:00:00+00:00"
-        del record["date_time"]
-        assert record.date_time is None
-
     def test_delitem_measurement(self, record):
         """Test deleting a known measurement key using __delitem__."""
         del record["solar_power"]
@@ -99,11 +87,6 @@ class TestMeasurementDataRecord:
         """Test that __delitem__ raises KeyError for unknown keys."""
         with pytest.raises(KeyError):
             del record["nonexistent"]
-
-    def test_attribute_get_existing_field(self, record):
-        """Test accessing a native field via attribute."""
-        record.date_time = "2025-01-01T12:00:00+00:00"
-        assert record.date_time is not None
 
     def test_attribute_get_existing_measurement(self, record):
         """Test accessing an existing measurement via attribute."""
@@ -118,11 +101,6 @@ class TestMeasurementDataRecord:
         with pytest.raises(AttributeError):
             _ = record.nonexistent
 
-    def test_attribute_set_existing_field(self, record):
-        """Test setting a native field via attribute."""
-        record.date_time = "2025-06-25T12:00:00+00:00"
-        assert record.date_time is not None
-
     def test_attribute_set_existing_measurement(self, record):
         """Test setting a known measurement key via attribute."""
         record.temp = 99.9
@@ -132,12 +110,6 @@ class TestMeasurementDataRecord:
         """Test setting an unknown attribute raises AttributeError."""
         with pytest.raises(AttributeError):
             record.invalid = 123
-
-    def test_delattr_field(self, record):
-        """Test deleting a native field via attribute."""
-        record.date_time = "2025-06-25T12:00:00+00:00"
-        del record.date_time
-        assert record.date_time is None
 
     def test_delattr_measurement(self, record):
         """Test deleting a known measurement key via attribute."""
@@ -155,12 +127,6 @@ class TestMeasurementDataRecord:
         keys = list(iter(record))
         assert set(record.record_keys_writable()) == set(keys)
         assert len(record) == len(keys)
-
-    def test_in_operator_includes_measurements(self, record):
-        """Test that 'in' operator includes measurement keys."""
-        assert "dish_washer_mr" in record
-        assert "temp" in record  # known key, even if not yet set
-        assert "nonexistent" not in record
 
     def test_hasattr_behavior(self, record):
         """Test that hasattr returns True for fields and known measurements."""
@@ -185,11 +151,6 @@ class TestMeasurementDataRecord:
         assert copied.temp == 22.2
         assert copied is not record
 
-    def test_equality_includes_measurements(self, record):
-        """Test that equality includes the `measurements` content."""
-        other = record.model_copy()
-        assert record == other
-
     def test_inequality_differs_with_measurements(self, record):
         """Test that records with different measurements are not equal."""
         other = record.model_copy(deep=True)
@@ -204,13 +165,6 @@ class TestMeasurementDataRecord:
         assert "date_time" in record  # standard field
         assert "temp" in record       # allowed but not yet set
         assert "unknown" not in record
-
-    def test_hasattr_equivalence_to_getattr(self, record):
-        """hasattr should return True for all valid keys/measurements."""
-        assert hasattr(record, "dish_washer_mr")
-        assert hasattr(record, "temp")
-        assert hasattr(record, "date_time")
-        assert not hasattr(record, "nonexistent")
 
     def test_dir_includes_measurement_keys(self, record):
         """`dir(record)` should include measurement keys for introspection.
@@ -454,7 +408,7 @@ class TestMeasurementFileRestore:
     @pytest.mark.asyncio
     async def test_json_roundtrip_restores_records_into_existing_singleton(self, file_measurements):
         measurement = file_measurements
-        await measurement.update_value("2026-09-16T08:00:00Z", "meter", 123.5)
+        await measurement.update_value(to_datetime("2026-09-16T08:00:00Z"), "meter", 123.5)
         await measurement.update_value("2026-09-16T09:00:00Z", "meter", 124.0)
         assert await measurement.save()
         measurement._db_reset_state()
@@ -505,18 +459,6 @@ class TestMeasurementFileRestore:
     @pytest.mark.asyncio
     async def test_missing_json_reports_not_loaded(self, file_measurements):
         assert await file_measurements.load() is False
-
-
-    @pytest.mark.asyncio
-    async def test_measurement_json_roundtrip(self, file_measurements):
-        """Restore a single record when its timestamp was supplied as a DateTime."""
-        measurement = file_measurements
-        await measurement.update_value(to_datetime("2026-09-16T08:00:00Z"), "meter", 123.5)
-        assert await measurement.save()
-        measurement._db_reset_state()
-        assert await measurement.load()
-        assert len(measurement.records) == 1
-        assert measurement.records[0]["meter"] == 123.5
 
 
 CHANNELS = {
