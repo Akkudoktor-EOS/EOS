@@ -16259,7 +16259,7 @@
               }
             ],
             "title": "End Time",
-            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time follows local wall-clock time across daylight saving time changes. If None (the default), the window ends at start_time + duration.",
             "examples": [
               null,
               "12:00:00"
@@ -16368,7 +16368,7 @@
               }
             ],
             "title": "End Time",
-            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time follows local wall-clock time across daylight saving time changes. If None (the default), the window ends at start_time + duration.",
             "examples": [
               null,
               "12:00:00"
@@ -16552,7 +16552,7 @@
               }
             ],
             "title": "End Time",
-            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time follows local wall-clock time across daylight saving time changes. If None (the default), the window ends at start_time + duration.",
             "examples": [
               null,
               "12:00:00"
@@ -16677,7 +16677,7 @@
               }
             ],
             "title": "End Time",
-            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time follows local wall-clock time across daylight saving time changes. If None (the default), the window ends at start_time + duration.",
             "examples": [
               null,
               "12:00:00"

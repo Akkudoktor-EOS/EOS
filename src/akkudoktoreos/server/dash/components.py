@@ -823,10 +823,10 @@ def make_config_update_time_windows_windows_form(
                         const monthRaw = document.querySelector("[name='{wid}_month']").value;
                         const date     = document.querySelector("[name='{wid}_date']").value.trim();
                         const locale   = document.querySelector("[name='{wid}_locale']").value.trim();
-                        if (!start || !dur || {val_js_guard}) return {json.dumps(json.dumps(current_windows))};
+                        if (!start || {val_js_guard}) return {json.dumps(json.dumps(current_windows))};
                         const edited = {{
                             start_time:  start,
-                            duration:    dur,
+                            duration:    dur !== "" ? dur : "PT0S",
                             end_time:    end      !== "" ? end                : null,
                             {val_js_field}
                             day_of_week: dowRaw   !== "" ? parseInt(dowRaw)   : null,
@@ -917,7 +917,7 @@ def make_config_update_time_windows_windows_form(
 
         header_cols = [
             P("start time *", cls="text-xs text-muted-foreground font-semibold"),
-            P("duration *", cls="text-xs text-muted-foreground font-semibold"),
+            P("duration", cls="text-xs text-muted-foreground font-semibold"),
             P("end time", cls="text-xs text-muted-foreground font-semibold"),
         ]
         add_input_cols = [
@@ -1001,10 +1001,10 @@ def make_config_update_time_windows_windows_form(
                         const monthRaw = document.querySelector("[name='{add_wid}_month']").value;
                         const date     = document.querySelector("[name='{add_wid}_date']").value.trim();
                         const locale   = document.querySelector("[name='{add_wid}_locale']").value.trim();
-                        if (!start || !dur || {add_val_js_guard}) return {current_json};
+                        if (!start || {add_val_js_guard}) return {current_json};
                         const newWin = {{
                             start_time:  start,
-                            duration:    dur,
+                            duration:    dur !== "" ? dur : "PT0S",
                             end_time:    end      !== "" ? end                : null,
                             {add_val_js_field}
                             day_of_week: dowRaw   !== "" ? parseInt(dowRaw)   : null,
