@@ -180,6 +180,16 @@ async def test_hardware_costs_and_state_are_resolved_without_config_changes(conf
     assert config.model_dump_json() == before
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("limit", [None, 8000.0])
+async def test_grid_import_limit_is_resolved_from_inverter_config(configured_request, limit):
+    config, _, _, data = configured_request
+    config.devices.inverters["inverter"].max_grid_import_power_w = limit
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.inverter is not None
+    assert parameters.inverter.max_grid_import_power_w == limit
+
+
 @pytest.mark.parametrize("field", ["devices", "optimization", "pv_battery", "inverter", "ems"])
 def test_static_http_overrides_are_rejected(field):
     with pytest.raises(ValidationError):

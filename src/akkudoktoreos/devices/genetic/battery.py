@@ -355,6 +355,22 @@ class Battery:
         raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
         return min(raw_power_remaining_wh, raw_soc_available_wh) * self.discharging_efficiency
 
+    def remaining_charge_budget_wh(self, hour: int) -> float:
+        """Return the raw charge energy the power limits still allow in one slot.
+
+        The budget of ``charge_energy()`` before efficiency and SoC headroom:
+        ``max_charge_power_w`` x slot duration, capped by ``limit_slot_charge()``,
+        minus what the battery already took in this slot.
+        """
+        return max(
+            min(
+                self.max_charge_power_w * self.slot_duration_h,
+                self._charge_limit_raw_wh_per_slot[hour],
+            )
+            - self._charged_raw_wh_per_slot[hour],
+            0.0,
+        )
+
     def discharge_released(self, hour: int) -> bool:
         """Whether the plan lets the battery discharge in this slot."""
         return self.discharge_array[hour] != 0

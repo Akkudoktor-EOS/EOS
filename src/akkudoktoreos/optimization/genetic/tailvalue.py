@@ -9,7 +9,10 @@ import numpy as np
 from pydantic import PrivateAttr
 
 from akkudoktoreos.devices.genetic.battery import Battery
-from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.devices.genetic.inverter import (
+    GRID_IMPORT_LIMIT_TOLERANCE_WH,
+    Inverter,
+)
 from akkudoktoreos.optimization.genetic.terminalvalue import (
     TailPlanSlot,
     TerminalValueCurve,
@@ -44,8 +47,14 @@ def _simulate_action(
     pv: float,
     tariff: float,
     direct_marketing: bool,
+    grid_import_penalty_euro_per_wh: float = 0.0,
 ) -> dict[str, float]:
-    """Apply one tail action from one stored-energy state."""
+    """Apply one tail action from one stored-energy state.
+
+    With a grid import limit on the inverter, import above it is charged with
+    ``grid_import_penalty_euro_per_wh``, as in the fitness of the control
+    horizon, so the tail values the reserve a later peak needs.
+    """
     dc, discharge, ac_rate, export = action
     bat.soc_wh = float(energy_wh)
     bat._charged_raw_wh_per_slot[:] = [0.0] * len(bat._charged_raw_wh_per_slot)
@@ -70,7 +79,9 @@ def _simulate_action(
     if ac_rate > 0 and inv.ac_to_dc_efficiency > 0:
         bat.charge_array[0] = rate
         if rate > 0:
-            ac_grid_charge_wh, ac_losses = inv.charge_battery_from_grid(0, rate)
+            ac_grid_charge_wh, ac_losses = inv.charge_battery_from_grid(
+                0, rate, slot_grid_import_wh=bought
+            )
             bought += ac_grid_charge_wh
             losses += ac_losses
     if direct_marketing and tariff < 0:
@@ -79,6 +90,12 @@ def _simulate_action(
     reward = (
         sold * tariff - bought * price - (discharged_wh * bat.levelized_cost_of_storage_kwh / 1000)
     )
+    max_grid_import_wh = inv.max_grid_import_wh
+    if (
+        max_grid_import_wh is not None
+        and bought > max_grid_import_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH
+    ):
+        reward -= (bought - max_grid_import_wh) * grid_import_penalty_euro_per_wh
     return {
         "next_state_wh": bat.soc_wh,
         "reward_euro": reward,
@@ -151,6 +168,7 @@ class TailValueCurve(TerminalValueCurve):
                     pv=pv,
                     tariff=tariff,
                     direct_marketing=context["direct_marketing"],
+                    grid_import_penalty_euro_per_wh=context["grid_import_penalty_euro_per_wh"],
                 )
                 remaining = float(
                     np.interp(
@@ -214,12 +232,15 @@ def build_tail_value_curve(
     export_rates: list[float],
     direct_marketing: bool,
     grid_points: int = 101,
+    grid_import_penalty_euro_per_wh: float = 0.0,
 ) -> TailValueCurve:
     """Solve the finite tail once, backwards in time, without mutating run devices.
 
     LCOS uses delivered DC energy, exactly as in GeneticSimulation. State grid
     endpoints include battery minimum and maximum SOC. Continuous next states are
     interpolated rather than rounded (which would invent or destroy energy).
+    Import above the inverter's grid import limit is charged with
+    ``grid_import_penalty_euro_per_wh``, as in the fitness.
     """
     arrays = [
         np.asarray(a, dtype=float)
@@ -266,6 +287,7 @@ def build_tail_value_curve(
                     pv=pv,
                     tariff=tariff,
                     direct_marketing=direct_marketing,
+                    grid_import_penalty_euro_per_wh=grid_import_penalty_euro_per_wh,
                 )
                 rewards[i] = action_result["reward_euro"]
                 next_states[i] = action_result["next_state_wh"]
@@ -300,5 +322,6 @@ def build_tail_value_curve(
         "pv": arrays[2],
         "tariffs": arrays[3],
         "direct_marketing": direct_marketing,
+        "grid_import_penalty_euro_per_wh": grid_import_penalty_euro_per_wh,
     }
     return result
