@@ -43,6 +43,12 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
   models the lower DC-to-AC efficiency at low load. Without it the constant
   `dc_to_ac_efficiency` applies unchanged.
+- Optional grid import power limit for GENETIC: `max_grid_import_power_w` on the inverter
+  (W, unset = no limit). Plans reduce AC charging so that load plus charging stays within the
+  limit. Each kWh imported above it costs
+  `optimization.genetic.penalties.grid_import_limit_excess` (EUR/kWh, default 10) in the
+  fitness, so the optimizer releases the battery for peaks and keeps reserve for them. Unset
+  (default), plans are unchanged.
 - Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
   (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
   a run by up to ~150 MB on small devices without changing the plan.
