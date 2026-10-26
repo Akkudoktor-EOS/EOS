@@ -313,6 +313,42 @@
                "calibration_min_factor": 0.5,
                "calibration_max_factor": 1.5
            },
+           "adaptive": {
+               "backend": "local",
+               "resolution_minutes": 15,
+               "forecast_days": null,
+               "past_days": null,
+               "weather_models": [
+                   "best_match",
+                   "icon_d2"
+               ],
+               "transposition_model": "perez",
+               "albedo": 0.25,
+               "inverter_efficiency": 0.96,
+               "temperature_coefficient": -0.36,
+               "apply_iam": true,
+               "shift_to_interval_start": true,
+               "calibration_enabled": false,
+               "calibration_days": 30,
+               "calibration_reference_days": 30,
+               "calibration_outage_filter_enabled": true,
+               "calibration_outage_threshold": 0.55,
+               "calibration_min_healthy_days": 3,
+               "calibration_azimuth_bin_degrees": 45,
+               "calibration_prior_kwh": 5.0,
+               "calibration_min_factor": 0.5,
+               "calibration_max_factor": 1.5,
+               "regional_weather_model": "icon_d2",
+               "regional_horizon_hours": 6,
+               "learning_days": 21,
+               "min_training_days": 5,
+               "max_ac_power_w": 0,
+               "nominal_total_peakpower_kw": null,
+               "diagnostics_days": 7,
+               "archive_retention_days": 60,
+               "nowcast_enabled": true,
+               "trend_enabled": true
+           },
            "pvforecastimport": {
                "import_file_path": null,
                "import_json": null
@@ -345,6 +381,11 @@
            },
            "planes": [
                {
+                   "name": null,
+                   "measurement_key": null,
+                   "nowcast_reference": false,
+                   "curtailment_sensitive": false,
+                   "parameters_estimated": false,
                    "surface_tilt": 10.0,
                    "surface_azimuth": 180.0,
                    "userhorizon": [
@@ -367,6 +408,11 @@
                    "strings_per_inverter": 2
                },
                {
+                   "name": null,
+                   "measurement_key": null,
+                   "nowcast_reference": false,
+                   "curtailment_sensitive": false,
+                   "parameters_estimated": false,
                    "surface_tilt": 20.0,
                    "surface_azimuth": 90.0,
                    "userhorizon": [
