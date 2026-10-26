@@ -3,6 +3,7 @@
 import math
 from typing import Annotated, Any, Optional
 
+import pandas as pd
 from loguru import logger
 from pydantic import AliasChoices, Field, field_validator
 
@@ -104,16 +105,20 @@ class ConfigOptimizationRequest(
                     end_datetime=observation_time.add(seconds=1),
                     dropna=False,
                 )
+                # Records without a SoC value (e.g. a meter reading stored by an
+                # adapter, or pandas NA) must not hide an older SoC within the age
+                # limit (#1447). An explicit NaN stays an invalid sample.
                 samples = [
                     (date, value)
                     for date, value in zip(dates, values)
                     if date.timestamp() <= observation_time.timestamp()
+                    and value is not None
+                    and value is not pd.NA
                 ]
                 date, value = max(samples, key=lambda sample: sample[0].timestamp())
                 if (
                     observation_time.timestamp() - date.timestamp()
                     > settings.measurement_max_age_seconds
-                    or value is None
                     or not math.isfinite(value)
                     or not 0 <= value <= 1
                 ):
@@ -158,17 +163,19 @@ class ConfigOptimizationRequest(
                 )
             except KeyError:
                 continue
+            # Skip records without a count (e.g. an adapter's meter reading, #1447).
             samples = [
                 (date, count)
                 for date, count in zip(dates, counts)
                 if date.timestamp() <= observation_time.timestamp()
+                and count is not None
+                and count is not pd.NA
             ]
             if not samples:
                 continue
             count = max(samples, key=lambda item: item[0].timestamp())[1]
             if (
-                count is None
-                or not math.isfinite(count)
+                not math.isfinite(count)
                 or int(count) != count
                 or not 0 <= count <= appliance.num_cycles
             ):
