@@ -1,6 +1,7 @@
 """Abstract and base classes for configuration."""
 
 import calendar
+import math
 import os
 import sys
 from enum import StrEnum
@@ -126,7 +127,7 @@ class TimeWindow(SettingsBaseModel):
             "description": (
                 "Optional exclusive end time of the window. "
                 "The effective end is the later of end_time and start_time + duration. "
-                "End time is dalight saving time change save, whereas duration is always fixed. "
+                "End time follows local wall-clock time across daylight saving time changes. "
                 "If None (the default), the window ends at start_time + duration."
             ),
             "examples": [None, "12:00:00"],
@@ -279,7 +280,7 @@ class TimeWindow(SettingsBaseModel):
     @field_serializer("duration")
     def serialize_duration(self, value: Duration) -> str:
         """Serialize duration to string."""
-        return str(value)
+        return "PT0S" if value.total_seconds() == 0 else str(value)
 
     def _window_start_end(self, reference_date: DateTime) -> tuple[DateTime, DateTime]:
         """Return the effective start and exclusive end of the time window.
@@ -312,13 +313,6 @@ class TimeWindow(SettingsBaseModel):
         if self.end_time is None:
             return start, duration_end
 
-        explicit_end = start_day.replace(
-            hour=self.end_time.hour,
-            minute=self.end_time.minute,
-            second=self.end_time.second,
-            microsecond=self.end_time.microsecond,
-        )
-
         start_clock = (
             self.start_time.hour,
             self.start_time.minute,
@@ -332,9 +326,15 @@ class TimeWindow(SettingsBaseModel):
             self.end_time.microsecond,
         )
 
-        # An end time at or before the start time belongs to the next day.
-        if end_clock <= start_clock:
-            explicit_end = explicit_end.add(days=1)
+        # Choose the date before setting the time: a nonexistent clock time on
+        # the start day must not be normalized and carried into the following day.
+        end_day = start_day.add(days=1) if end_clock <= start_clock else start_day
+        explicit_end = end_day.replace(
+            hour=self.end_time.hour,
+            minute=self.end_time.minute,
+            second=self.end_time.second,
+            microsecond=self.end_time.microsecond,
+        )
 
         return start, max(duration_end, explicit_end)
 
@@ -384,12 +384,11 @@ class TimeWindow(SettingsBaseModel):
         """
         current_day = date_time.start_of("day")
 
-        # Check both today's window and a window that began yesterday.
-        # The previous-day candidate is necessary for overnight windows.
-        for start_day in (
-            current_day,
-            current_day.subtract(days=1),
-        ):
+        # Include earlier starts for overnight and multi-day durations. One
+        # extra calendar day covers shorter days at daylight saving transitions.
+        days_back = max(1, math.ceil(self.duration.total_seconds() / 86400) + 1)
+        for offset in range(days_back + 1):
+            start_day = current_day.subtract(days=offset)
             if not self._matches_start_date(start_day):
                 continue
 
@@ -1187,61 +1186,22 @@ class CycleTimeWindowSequence(ValueTimeWindowSequence):
             ``1.0`` at step ``t`` means step ``t`` falls inside a window
             belonging to ``cycle``; ``0.0`` otherwise.
         """
-        import math
+        if interval.total_seconds() <= 0:
+            return np.zeros(0, dtype=np.float64)
 
-        interval_s = interval.total_seconds()
-
-        if align_to_interval and interval_s > 0:
-            # Floor purely in wall-clock seconds — identical to to_array's
-            # alignment so all three methods produce consistent grids.
-            wall_s = (
-                start_datetime.hour * 3600
-                + start_datetime.minute * 60
-                + start_datetime.second
-                + start_datetime.microsecond / 1_000_000
-            )
-            remainder_s = wall_s % interval_s
-            if remainder_s:
-                start_datetime = start_datetime.subtract(seconds=remainder_s)
-
-        # Use ceil so a partially-covered final step is included, matching the
-        # while-loop semantics of to_array.
-        steps = (
-            math.ceil((end_datetime - start_datetime).total_seconds() / interval_s)
-            if interval_s > 0
-            else 0
+        windows = TimeWindowSequence[ValueTimeWindow](
+            windows=[
+                window
+                for window in self.windows
+                if window.value is not None and int(window.value) == cycle
+            ]
         )
-        result = np.zeros(steps, dtype=np.float64)
-
-        # Anchor window start times to the calendar day of the (aligned) grid start.
-        base_day = start_datetime.start_of("day")
-
-        for window in self.windows:
-            if window.value is None:
-                continue
-            if int(window.value) != cycle:
-                continue
-
-            t = window.start_time
-            win_start = base_day.replace(
-                hour=t.hour,
-                minute=t.minute,
-                second=t.second,
-                microsecond=t.microsecond,
-            )
-            win_end = win_start + window.duration
-
-            # Convert to step indices relative to the aligned grid start.
-            idx_start = int((win_start - start_datetime).total_seconds() / interval_s)
-            idx_end = math.ceil((win_end - start_datetime).total_seconds() / interval_s)
-
-            idx_start = max(idx_start, 0)
-            idx_end = min(idx_end, steps)
-
-            if idx_start < idx_end:
-                result[idx_start:idx_end] = 1.0
-
-        return result
+        return windows.to_array(
+            start_datetime,
+            end_datetime,
+            interval,
+            align_to_interval=align_to_interval,
+        )
 
     def cycles_to_matrix(
         self,
@@ -1275,8 +1235,6 @@ class CycleTimeWindowSequence(ValueTimeWindowSequence):
               ``matrix[k, t] == 1.0`` iff step ``t`` falls inside a window
               belonging to ``cycle_indices[k]``; ``0.0`` otherwise.
         """
-        import math
-
         interval_s = interval.total_seconds()
 
         if interval_s > 0:
@@ -1299,34 +1257,13 @@ class CycleTimeWindowSequence(ValueTimeWindowSequence):
         )
         matrix = np.zeros((len(cycles), steps), dtype=np.float64)
 
-        cycle_index = {c: i for i, c in enumerate(cycles)}
-
-        # Anchor window start times to the calendar day of the aligned grid start.
-        base_day = start_datetime.start_of("day")
-
-        for window in self.windows:
-            if window.value is None:
-                continue
-
-            c = int(window.value)
-            row = cycle_index[c]
-
-            t = window.start_time
-            win_start = base_day.replace(
-                hour=t.hour,
-                minute=t.minute,
-                second=t.second,
-                microsecond=t.microsecond,
+        for row, cycle in enumerate(cycles):
+            matrix[row] = self.cycle_to_array(
+                cycle,
+                start_datetime,
+                end_datetime,
+                interval,
+                align_to_interval=False,
             )
-            win_end = win_start + window.duration
-
-            idx_start = int((win_start - start_datetime).total_seconds() / interval_s)
-            idx_end = math.ceil((win_end - start_datetime).total_seconds() / interval_s)
-
-            idx_start = max(idx_start, 0)
-            idx_end = min(idx_end, steps)
-
-            if idx_start < idx_end:
-                matrix[row, idx_start:idx_end] = 1.0
 
         return cycles, matrix

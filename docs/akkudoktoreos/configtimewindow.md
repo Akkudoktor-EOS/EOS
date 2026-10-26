@@ -45,7 +45,8 @@ The example defines a daily window from 09:00 to 11:00 without calendar restrict
 Each `TimeWindow` object supports the following fields:
 
 - **`start_time`** (required): Local time when the window begins.
-- **`duration`** (required): Duration of the window, expressed as a time interval.
+- **`duration`** (optional): Duration of the window, expressed as a time interval. Defaults to zero,
+  so it can be omitted when `end_time` defines the window.
 - **`end_time`** (optional): Explicit end time of the window. The effective end is the later
   of this time and the end calculated from `start_time` plus `duration`.
 - **`day_of_week`** (optional): Restricts the window's start date to a weekday.
