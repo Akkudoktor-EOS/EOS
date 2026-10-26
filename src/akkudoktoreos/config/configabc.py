@@ -431,7 +431,8 @@ class TimeWindow(SettingsBaseModel):
 
         window_start, window_end = self._window_start_end(reference_date)
 
-        if duration > window_end - window_start:
+        # Add first so calendar durations retain their meaning across DST.
+        if (window_start + duration - window_end).total_seconds() > 0:
             return None
 
         return window_start

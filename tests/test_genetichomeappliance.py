@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import Mock
 
 import numpy as np
+import pendulum
 import pytest
 
 from akkudoktoreos.config.configabc import CycleTimeWindowSequence, ValueTimeWindow
@@ -180,6 +181,83 @@ class TestExplicitCycleWindow:
         assert not allowed.any()
         assert appliance.start_earliest[0] == 0
         assert appliance.start_latest[0] == 24 - 3
+
+
+class TestDSTAllowedStartSlots:
+    """The optimizer must distinguish both occurrences of the autumn hour."""
+
+    @staticmethod
+    def _appliance(window_field, windows, run_minutes=15):
+        if window_field == "time_windows":
+            windows = [{**window, "value": 0} for window in windows]
+        return HomeAppliance(
+            parameters=HomeApplianceParameters.model_validate(
+                {
+                    "device_id": "dishwasher",
+                    "load_profile_power_w": [1000],
+                    "load_profile_interval_seconds": run_minutes * 60,
+                    window_field: {"windows": windows},
+                }
+            ),
+            optimization_hours=25,
+            prediction_hours=100,
+            slot_duration_h=0.25,
+        )
+
+    @pytest.mark.parametrize("window_field", ["shared_time_windows", "time_windows"])
+    def test_first_fold_starts_before_second_fold_opening_are_rejected(self, window_field):
+        appliance = self._appliance(
+            window_field, [{"start_time": "02:30", "end_time": "04:00"}]
+        )
+        zero = pendulum.datetime(2026, 10, 25, tz="Europe/Berlin")
+
+        allowed = appliance.allowed_start_slots(
+            slot0_datetime=zero, earliest_slot=0, horizon_end_slot=24, cycle_index=0
+        )
+
+        # The second 02:30 is slot 14. The first 02:30/02:45 are slots 10/11
+        # and precede the configured opening despite their matching clock times.
+        assert allowed == list(range(14, 20))
+
+    @pytest.mark.parametrize("window_field", ["shared_time_windows", "time_windows"])
+    def test_first_fold_starts_before_second_fold_closing_are_retained(self, window_field):
+        appliance = self._appliance(
+            window_field, [{"start_time": "01:00", "end_time": "02:30"}]
+        )
+        zero = pendulum.datetime(2026, 10, 25, tz="Europe/Berlin")
+
+        allowed = appliance.allowed_start_slots(
+            slot0_datetime=zero, earliest_slot=0, horizon_end_slot=24, cycle_index=0
+        )
+
+        # Includes a run from the first 02:30 to the first 02:45 (slot 10),
+        # which finishes before the second 02:30 closing boundary.
+        assert allowed == list(range(4, 14))
+
+    @pytest.mark.parametrize(
+        ("first_duration", "expected"), [("1 hour", []), ("2 hours", [9])]
+    )
+    def test_cycle_window_union_distinguishes_touching_instants_from_clock_times(
+        self, first_duration, expected
+    ):
+        appliance = self._appliance(
+            "time_windows",
+            [
+                {"start_time": "01:30", "duration": first_duration},
+                {"start_time": "02:30", "end_time": "03:30"},
+            ],
+            run_minutes=90,
+        )
+        zero = pendulum.datetime(2026, 10, 25, tz="Europe/Berlin")
+
+        allowed = appliance.allowed_start_slots(
+            slot0_datetime=zero, earliest_slot=9, horizon_end_slot=15, cycle_index=0
+        )
+
+        # The only candidate runs from the first 02:15 to the second 02:45.
+        # A one-hour first window ends at the first 02:30, leaving a real
+        # one-hour gap; a two-hour first window touches the second opening.
+        assert allowed == expected
 
 
 # ---------------------------------------------------------------------------
