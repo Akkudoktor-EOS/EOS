@@ -486,6 +486,18 @@ def test_set_nested_key(path, value, expected, exception, config_eos):
                 f"Expected exception {exception}, but got {type(e)}: {e}"
             )
 
+def test_set_nested_key_read_only_computed_field(config_eos):
+    """Setting a computed field is reported as read-only, not as missing."""
+    path = "adapter/homeassistant/eos_device_instruction_entity_ids"
+    with pytest.raises(TypeError, match="read-only computed field"):
+        config_eos.set_nested_value(path, ["sensor.eos_battery1"])
+
+
+def test_set_nested_key_unknown_field_still_reports_missing(config_eos):
+    """A field that does not exist keeps the original 'does not exist' message."""
+    with pytest.raises(TypeError, match="does not exist in model"):
+        config_eos.set_nested_value("adapter/homeassistant/no_such_field", 1)
+
 
 @pytest.mark.parametrize(
     "path, expected_value, exception",
