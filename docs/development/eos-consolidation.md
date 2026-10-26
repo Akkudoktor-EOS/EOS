@@ -155,9 +155,7 @@ python -m pytest `
   tests/test_config.py `
   tests/test_configabc.py `
   tests/test_configmigrate.py `
-  tests/test_configfile.py `
   tests/test_pydantic.py `
-  tests/test_consolidation_config.py `
   tests/test_genetichomeappliance.py `
   tests/test_genetic0battery.py `
   tests/test_genetic0inverterefficiency.py `
@@ -170,11 +168,9 @@ python -m pytest `
   tests/test_terminalvalue.py `
   tests/test_tailvalue_physics.py `
   tests/test_interpolator.py `
-  tests/test_measurement_channels.py `
   tests/test_measurement_energy.py `
   tests/test_measurement_household.py `
   tests/test_battery_capacity.py `
-  tests/test_measurement_file_restore.py `
   tests/test_measurement.py `
   tests/test_genetic0optimize.py `
   tests/test_geneticoptimize.py `

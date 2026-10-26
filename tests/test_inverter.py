@@ -8,6 +8,7 @@ from akkudoktoreos.devices.genetic.battery import (
     SolarPanelBatteryParameters,
 )
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
 
 
 @pytest.fixture
@@ -487,3 +488,13 @@ def test_process_energy_zero_generation_full_battery_high_consumption(inverter, 
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(500.0, hour)
     inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_not_called()
+
+
+class TestInverterSettings:
+    @pytest.mark.parametrize("converter", ["to_genetic_param", "to_genetic0_param"])
+    def test_inverter_conversion_requires_output_limit(self, converter):
+        settings = InverterCommonSettings(device_id="inverter")
+        with pytest.raises(ValueError, match="max_power_w"):
+            getattr(settings, converter)()
+        settings.max_power_w = 4200
+        assert getattr(settings, converter)().max_power_wh == 4200

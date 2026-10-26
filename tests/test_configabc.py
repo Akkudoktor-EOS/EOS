@@ -10,16 +10,10 @@ Timezone contract under test:
 * When a timezone-aware datetime is supplied, ``start_time`` is
   interpreted as wall-clock time **in that timezone** — no tz
   conversion is applied to ``start_time`` itself.
-* Constructing a ``TimeWindow`` with a naive ``start_time`` raises
-  ``ValidationError``.
+* A timezone-aware ``start_time`` is normalized to a naive wall-clock time.
 """
 
 import datetime
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(__file__))
-
 from typing import cast
 
 import numpy as np
@@ -28,12 +22,9 @@ import pendulum
 import pytest
 from pydantic import ValidationError
 
-from akkudoktoreos.config.configabc import (  # noqa — ensure Time is importable
+from akkudoktoreos.config.configabc import (
     CycleTimeWindowSequence,
-)
-from akkudoktoreos.config.configabc import TimeWindow
-from akkudoktoreos.config.configabc import TimeWindow as _TW_check
-from akkudoktoreos.config.configabc import (  # noqa — ensure Time is importable
+    TimeWindow,
     TimeWindowSequence,
     ValueTimeWindow,
     ValueTimeWindowSequence,
