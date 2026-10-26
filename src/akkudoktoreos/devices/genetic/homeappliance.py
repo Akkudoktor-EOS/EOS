@@ -579,6 +579,8 @@ class HomeAppliance:
                     continue
                 if window.day_of_week is not None and anchor.day_of_week != window.day_of_week:
                     continue
+                if window.month is not None and anchor.month != window.month:
+                    continue
                 opening, closing = window._window_start_end(anchor)
                 if opening <= start and run_end <= closing:
                     return True

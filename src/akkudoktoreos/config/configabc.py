@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pendulum
 from babel.dates import get_day_names
+from loguru import logger
 from pydantic import Field, field_serializer, field_validator, model_validator
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
@@ -111,7 +112,7 @@ class TimeWindow(SettingsBaseModel):
         },
     )
     duration: Duration = Field(
-        ...,
+        default=Duration(0),
         json_schema_extra={
             "description": "Duration of the time window starting from `start_time`.",
             "examples": [
@@ -119,13 +120,25 @@ class TimeWindow(SettingsBaseModel):
             ],
         },
     )
+    end_time: Optional[Time] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Optional exclusive end time of the window. "
+                "The effective end is the later of end_time and start_time + duration. "
+                "End time is dalight saving time change save, whereas duration is always fixed. "
+                "If None (the default), the window ends at start_time + duration."
+            ),
+            "examples": [None, "12:00:00"],
+        },
+    )
     day_of_week: Optional[Union[int, str]] = Field(
         default=None,
         json_schema_extra={
             "description": (
-                "Optional day of the week restriction. "
+                "Optional day of the week on which the time window must start. "
                 "Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. "
-                "If None, applies every day unless `date` is set."
+                "For overnight windows, the restriction applies to the start date."
             ),
             "examples": [
                 None,
@@ -136,13 +149,26 @@ class TimeWindow(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": (
-                "Optional specific calendar date for the time window. "
-                "Naive — matched against the local date of the datetime passed to contains(). "
-                "Overrides `day_of_week` if set."
+                "Optional specific calendar date on which the time window must start. "
+                "For overnight windows, this restriction applies to the start date, "
+                "not the date of each datetime tested by contains()."
             ),
             "examples": [
                 None,
             ],
+        },
+    )
+    month: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=12,
+        json_schema_extra={
+            "description": (
+                "Optional calendar month restriction (1=January to 12=December). "
+                "The window's start date must fall in this month, including for "
+                "overnight windows that extend into the following month."
+            ),
+            "examples": [None, 10],
         },
     )
     locale: Optional[str] = Field(
@@ -159,35 +185,29 @@ class TimeWindow(SettingsBaseModel):
         },
     )
 
-    @field_validator("start_time", mode="after")
+    @field_validator("start_time", "end_time", mode="after")
     @classmethod
-    def require_naive_start_time(cls, value: Time) -> Time:
-        """Strip timezone from ``start_time`` if present, emitting a debug message.
+    def require_naive_time(cls, value: Optional[Time]) -> Optional[Time]:
+        """Ensure configured times are naive wall-clock times.
 
-        ``start_time`` must be naive: it is interpreted as wall-clock time in
-        the timezone of the ``date_time`` / ``reference_date`` supplied at call
-        time.  The project's ``to_time`` helper may silently attach a timezone
-        during deserialisation; rather than rejecting such values the validator
-        strips the timezone and logs a debug message so the behaviour is
-        transparent without breaking normal construction.
+        Times are interpreted in the timezone of the supplied reference
+        datetime. If a timezone is present, it is removed while preserving
+        the hour, minute, second, and microsecond.
 
         Args:
-            value: The ``Time`` value to validate.
+            value: The time to validate, or ``None`` for an optional field.
 
         Returns:
-            A naive ``Time`` with the same hour / minute / second / microsecond
-            but no ``tzinfo``.
+            The naive time, or ``None`` if no time was configured.
         """
+        if value is None:
+            return None
         if value.tzinfo is not None:
-            import logging
-
-            logging.getLogger(__name__).debug(
-                "TimeWindow.start_time received an aware Time (%s); "
-                "stripping timezone '%s'. start_time is always interpreted "
+            logger.debug(
+                f"TimeWindow.start_time received an aware Time ({value}); "
+                f"stripping timezone '{value.tzinfo}'. start_time or end_time is always interpreted "
                 "as wall-clock time in the timezone of the datetime passed "
-                "to contains() / earliest_start_time() / latest_start_time().",
-                value,
-                value.tzinfo,
+                "to contains() / earliest_start_time() / latest_start_time()."
             )
             value = value.replace(tzinfo=None)
         return value
@@ -262,67 +282,128 @@ class TimeWindow(SettingsBaseModel):
         return str(value)
 
     def _window_start_end(self, reference_date: DateTime) -> tuple[DateTime, DateTime]:
-        """Get the actual start and end datetimes for the time window on a given date.
+        """Return the effective start and exclusive end of the time window.
 
-        ``start_time`` is naive and is interpreted as a wall-clock time in
-        the timezone of ``reference_date``.  When ``reference_date`` is
-        timezone-aware the resulting window boundaries carry the same timezone;
-        when it is naive the arithmetic is performed without timezone conversion.
+        The explicit end time is interpreted as the first occurrence of that
+        wall-clock time strictly after the window start. Consequently, an end
+        time less than or equal to the start time refers to the following day.
+
+        The effective end is the later of the explicit end boundary and the
+        end implied by the configured duration.
 
         Args:
-            reference_date: The reference date on which to calculate the window.
-                May be timezone-aware or naive.
+            reference_date: Datetime identifying the calendar date on which
+                the window starts. Its time of day is ignored.
 
         Returns:
-            tuple[DateTime, DateTime]: Start and end datetimes for the time window,
-            in the same timezone as ``reference_date``.
+            A tuple containing the start datetime and exclusive end datetime.
         """
-        # start_time is always naive: just replace the time components on
-        # reference_date directly.  The result inherits reference_date's timezone
-        # (or lack thereof) automatically.
-        start = reference_date.replace(
+        start_day = reference_date.start_of("day")
+
+        start = start_day.replace(
             hour=self.start_time.hour,
             minute=self.start_time.minute,
             second=self.start_time.second,
             microsecond=self.start_time.microsecond,
         )
-        end = start + self.duration
-        return start, end
 
-    def contains(self, date_time: DateTime, duration: Optional[Duration] = None) -> bool:
-        """Check whether a datetime (and optional duration) fits within the time window.
+        duration_end = start + self.duration
 
-        ``start_time`` is naive and is interpreted as wall-clock time in the
-        timezone of ``date_time``.  Day-of-week and date constraints are
-        evaluated against ``date_time`` after any timezone conversion has
-        been applied.
+        if self.end_time is None:
+            return start, duration_end
+
+        explicit_end = start_day.replace(
+            hour=self.end_time.hour,
+            minute=self.end_time.minute,
+            second=self.end_time.second,
+            microsecond=self.end_time.microsecond,
+        )
+
+        start_clock = (
+            self.start_time.hour,
+            self.start_time.minute,
+            self.start_time.second,
+            self.start_time.microsecond,
+        )
+        end_clock = (
+            self.end_time.hour,
+            self.end_time.minute,
+            self.end_time.second,
+            self.end_time.microsecond,
+        )
+
+        # An end time at or before the start time belongs to the next day.
+        if end_clock <= start_clock:
+            explicit_end = explicit_end.add(days=1)
+
+        return start, max(duration_end, explicit_end)
+
+    def _matches_start_date(self, start_date: DateTime) -> bool:
+        """Check whether a candidate window start date satisfies all restrictions.
+
+        Date, weekday, and month restrictions apply to the calendar date on
+        which the window starts. They do not change when the window extends
+        into the following day.
 
         Args:
-            date_time: The datetime to test.  May be timezone-aware or naive.
-            duration: An optional duration that must fit entirely within the
-                time window starting from ``date_time``.
+            start_date: A datetime identifying the candidate window's start date.
+                Its time of day is ignored.
 
         Returns:
-            bool: True if the datetime (and optional duration) is fully
-            contained in the time window, False otherwise.
+            True if all configured date restrictions match; otherwise False.
         """
-        # Date and weekday constraints are checked against date_time as-is;
-        # since start_time is naive it is always interpreted in date_time's tz.
-        if self.date and date_time.date() != self.date:
+        if self.date is not None and start_date.date() != self.date:
             return False
 
-        if self.day_of_week is not None and date_time.day_of_week != self.day_of_week:
+        if self.day_of_week is not None and start_date.day_of_week != self.day_of_week:
             return False
 
-        start, end = self._window_start_end(date_time)
-
-        if not (start <= date_time < end):
+        if self.month is not None and start_date.month != self.month:
             return False
-
-        if duration is not None:
-            return date_time + duration <= end
 
         return True
+
+    def contains(self, date_time: DateTime, duration: Optional[Duration] = None) -> bool:
+        """Check whether a datetime and optional duration fit within a window.
+
+        Date, weekday, and month restrictions apply to the candidate window's
+        start date. This allows an overnight window to remain applicable after
+        midnight, even when the new calendar date does not satisfy those
+        restrictions.
+
+        The window's end boundary is exclusive.
+
+        Args:
+            date_time: The datetime to test. Its timezone is used to interpret
+                the configured wall-clock times.
+            duration: Optional duration that must fit entirely within the window.
+
+        Returns:
+            True if the datetime and optional duration fit within an applicable
+            window; otherwise False.
+        """
+        current_day = date_time.start_of("day")
+
+        # Check both today's window and a window that began yesterday.
+        # The previous-day candidate is necessary for overnight windows.
+        for start_day in (
+            current_day,
+            current_day.subtract(days=1),
+        ):
+            if not self._matches_start_date(start_day):
+                continue
+
+            start, end = self._window_start_end(start_day)
+
+            if not (start <= date_time < end):
+                continue
+
+            if duration is not None and date_time + duration > end:
+                continue
+
+            return True
+
+        return False
 
     def earliest_start_time(
         self, duration: Duration, reference_date: Optional[DateTime] = None
@@ -339,16 +420,14 @@ class TimeWindow(SettingsBaseModel):
         if reference_date is None:
             reference_date = pendulum.today()
 
-        if self.date and reference_date.date() != self.date:
+        if not self._matches_start_date(reference_date):
             return None
 
-        if self.day_of_week is not None and reference_date.day_of_week != self.day_of_week:
+        window_start, window_end = self._window_start_end(reference_date)
+
+        if duration > window_end - window_start:
             return None
 
-        if duration > self.duration:
-            return None
-
-        window_start, _ = self._window_start_end(reference_date)
         return window_start
 
     def latest_start_time(
@@ -366,16 +445,14 @@ class TimeWindow(SettingsBaseModel):
         if reference_date is None:
             reference_date = pendulum.today()
 
-        if self.date and reference_date.date() != self.date:
-            return None
-
-        if self.day_of_week is not None and reference_date.day_of_week != self.day_of_week:
-            return None
-
-        if duration > self.duration:
+        if not self._matches_start_date(reference_date):
             return None
 
         window_start, window_end = self._window_start_end(reference_date)
+
+        if duration > window_end - window_start:
+            return None
+
         latest_start = window_end - duration
 
         if latest_start < window_start:
@@ -409,13 +486,11 @@ class TimeWindow(SettingsBaseModel):
         if reference_date is None:
             reference_date = pendulum.today()
 
-        if self.date and reference_date.date() != self.date:
+        if not self._matches_start_date(reference_date):
             return None
 
-        if self.day_of_week is not None and reference_date.day_of_week != self.day_of_week:
-            return None
-
-        return self.duration
+        window_start, window_end = self._window_start_end(reference_date)
+        return window_end - window_start
 
 
 TimeWindowT = TypeVar("TimeWindowT", bound=TimeWindow)

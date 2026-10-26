@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610260646141478"
+    "version": "v0.3.0.dev2610261491542381"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -16246,8 +16246,23 @@
             "format": "duration",
             "title": "Duration",
             "description": "Duration of the time window starting from `start_time`.",
+            "default": "P0D",
             "examples": [
               "2 hours"
+            ]
+          },
+          "end_time": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "examples": [
+              null,
+              "12:00:00"
             ]
           },
           "day_of_week": {
@@ -16263,7 +16278,7 @@
               }
             ],
             "title": "Day Of Week",
-            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "description": "Optional day of the week on which the time window must start. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. For overnight windows, the restriction applies to the start date.",
             "examples": [
               null
             ]
@@ -16279,9 +16294,27 @@
               }
             ],
             "title": "Date",
-            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "description": "Optional specific calendar date on which the time window must start. For overnight windows, this restriction applies to the start date, not the date of each datetime tested by contains().",
             "examples": [
               null
+            ]
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month",
+            "description": "Optional calendar month restriction (1=January to 12=December). The window's start date must fall in this month, including for overnight windows that extend into the following month.",
+            "examples": [
+              null,
+              10
             ]
           },
           "locale": {
@@ -16302,8 +16335,7 @@
         },
         "type": "object",
         "required": [
-          "start_time",
-          "duration"
+          "start_time"
         ],
         "title": "TimeWindow",
         "description": "Model defining a daily or date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing.\n\nTimezone contract:\n\n``start_time`` is always **naive** (no ``tzinfo``).  It is interpreted as a\nlocal wall-clock time in whatever timezone the caller's ``date_time`` or\n``reference_date`` carries.  When those arguments are timezone-aware the\nwindow boundaries are evaluated in that timezone; when they are naive,\narithmetic is performed as-is (no timezone conversion occurs).\n\n``date``, being a calendar ``Date`` object, is inherently timezone-free.\n\nThis design avoids the ambiguity that arises when a stored ``start_time``\ncarries its own timezone that differs from the caller's timezone, and keeps\nthe model serialisable without timezone state."
@@ -16326,6 +16358,22 @@
               "2 hours"
             ]
           },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "examples": [
+              null,
+              "12:00:00"
+            ]
+          },
           "day_of_week": {
             "anyOf": [
               {
@@ -16339,7 +16387,7 @@
               }
             ],
             "title": "Day Of Week",
-            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "description": "Optional day of the week on which the time window must start. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. For overnight windows, the restriction applies to the start date.",
             "examples": [
               null
             ]
@@ -16355,9 +16403,27 @@
               }
             ],
             "title": "Date",
-            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "description": "Optional specific calendar date on which the time window must start. For overnight windows, this restriction applies to the start date, not the date of each datetime tested by contains().",
             "examples": [
               null
+            ]
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month",
+            "description": "Optional calendar month restriction (1=January to 12=December). The window's start date must fall in this month, including for overnight windows that extend into the following month.",
+            "examples": [
+              null,
+              10
             ]
           },
           "locale": {
@@ -16378,8 +16444,7 @@
         },
         "type": "object",
         "required": [
-          "start_time",
-          "duration"
+          "start_time"
         ],
         "title": "TimeWindow",
         "description": "Model defining a daily or date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing.\n\nTimezone contract:\n\n``start_time`` is always **naive** (no ``tzinfo``).  It is interpreted as a\nlocal wall-clock time in whatever timezone the caller's ``date_time`` or\n``reference_date`` carries.  When those arguments are timezone-aware the\nwindow boundaries are evaluated in that timezone; when they are naive,\narithmetic is performed as-is (no timezone conversion occurs).\n\n``date``, being a calendar ``Date`` object, is inherently timezone-free.\n\nThis design avoids the ambiguity that arises when a stored ``start_time``\ncarries its own timezone that differs from the caller's timezone, and keeps\nthe model serialisable without timezone state."
@@ -16474,8 +16539,23 @@
             "format": "duration",
             "title": "Duration",
             "description": "Duration of the time window starting from `start_time`.",
+            "default": "P0D",
             "examples": [
               "2 hours"
+            ]
+          },
+          "end_time": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "examples": [
+              null,
+              "12:00:00"
             ]
           },
           "day_of_week": {
@@ -16491,7 +16571,7 @@
               }
             ],
             "title": "Day Of Week",
-            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "description": "Optional day of the week on which the time window must start. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. For overnight windows, the restriction applies to the start date.",
             "examples": [
               null
             ]
@@ -16507,9 +16587,27 @@
               }
             ],
             "title": "Date",
-            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "description": "Optional specific calendar date on which the time window must start. For overnight windows, this restriction applies to the start date, not the date of each datetime tested by contains().",
             "examples": [
               null
+            ]
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month",
+            "description": "Optional calendar month restriction (1=January to 12=December). The window's start date must fall in this month, including for overnight windows that extend into the following month.",
+            "examples": [
+              null,
+              10
             ]
           },
           "locale": {
@@ -16546,8 +16644,7 @@
         },
         "type": "object",
         "required": [
-          "start_time",
-          "duration"
+          "start_time"
         ],
         "title": "ValueTimeWindow",
         "description": "Value applicable during a specific time window.\n\nThis model extends `TimeWindow` by associating a value with the defined time interval."
@@ -16570,6 +16667,22 @@
               "2 hours"
             ]
           },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time",
+            "description": "Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time is dalight saving time change save, whereas duration is always fixed. If None (the default), the window ends at start_time + duration.",
+            "examples": [
+              null,
+              "12:00:00"
+            ]
+          },
           "day_of_week": {
             "anyOf": [
               {
@@ -16583,7 +16696,7 @@
               }
             ],
             "title": "Day Of Week",
-            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "description": "Optional day of the week on which the time window must start. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. For overnight windows, the restriction applies to the start date.",
             "examples": [
               null
             ]
@@ -16599,9 +16712,27 @@
               }
             ],
             "title": "Date",
-            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "description": "Optional specific calendar date on which the time window must start. For overnight windows, this restriction applies to the start date, not the date of each datetime tested by contains().",
             "examples": [
               null
+            ]
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month",
+            "description": "Optional calendar month restriction (1=January to 12=December). The window's start date must fall in this month, including for overnight windows that extend into the following month.",
+            "examples": [
+              null,
+              10
             ]
           },
           "locale": {
@@ -16638,8 +16769,7 @@
         },
         "type": "object",
         "required": [
-          "start_time",
-          "duration"
+          "start_time"
         ],
         "title": "ValueTimeWindow",
         "description": "Value applicable during a specific time window.\n\nThis model extends `TimeWindow` by associating a value with the defined time interval."

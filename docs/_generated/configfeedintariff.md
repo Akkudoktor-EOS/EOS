@@ -175,16 +175,20 @@
                        {
                            "start_time": "00:00:00.000000",
                            "duration": "8 hours",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 0.028
                        },
                        {
                            "start_time": "08:00:00.000000",
                            "duration": "16 hours",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 0.034
                        }
