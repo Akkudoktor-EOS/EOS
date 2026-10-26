@@ -38,7 +38,7 @@ from akkudoktoreos.config.configabc import (  # noqa — ensure Time is importab
     ValueTimeWindow,
     ValueTimeWindowSequence,
 )
-from akkudoktoreos.utils.datetimeutil import Time
+from akkudoktoreos.utils.datetimeutil import Time, to_datetime, to_duration
 
 # ===========================================================================
 # Helpers
@@ -63,6 +63,19 @@ def make_window(start_h, duration_h, **kwargs):
         duration=f"{duration_h} hours",
         **kwargs,
     ))
+
+def make_tw(**kwargs) -> TimeWindow:
+    """Construct a TimeWindow from raw dict values (str, int, etc.).
+
+    Uses ``model_validate`` so pydantic performs coercion — mypy is happy
+    because the input is ``Any`` rather than the model's parsed field types.
+    """
+    return TimeWindow.model_validate(kwargs)
+
+
+def make_vtw(**kwargs) -> ValueTimeWindow:
+    """Construct a ValueTimeWindow from raw dict values."""
+    return ValueTimeWindow.model_validate(kwargs)
 
 
 # ===========================================================================
@@ -151,6 +164,141 @@ class TestWindowStartEnd:
         assert end.hour == 0   # midnight next day
         assert str(start.timezone) == "US/Eastern"
 
+    @pytest.mark.parametrize(
+        ("start_time", "end_time", "duration", "expected_end"),
+        [
+            ("18:00:00", "00:00:00", "2 hours", "2026-10-24T00:00:00"),
+            ("00:00:00", "00:00:00", "2 hours", "2026-10-24T00:00:00"),
+            ("10:00:00", "10:00:00", "2 hours", "2026-10-24T10:00:00"),
+            ("18:00:00", "00:00:00", "10 hours", "2026-10-24T04:00:00"),
+            ("08:00:00", "12:00:00", "2 hours", "2026-10-23T12:00:00"),
+        ],
+    )
+    def test_window_start_end(
+        self,
+        start_time: str,
+        end_time: str,
+        duration: str,
+        expected_end: str,
+    ) -> None:
+        window = make_tw(
+            start_time=start_time,
+            end_time=end_time,
+            duration=duration,
+        )
+        reference_date = pendulum.datetime(2026, 10, 23)
+
+        _, end = window._window_start_end(reference_date)
+
+        assert end == pendulum.parse(expected_end)
+
+
+    @pytest.mark.parametrize(
+        ("duration", "end_time", "expected_end"),
+        [
+            # Duration determines the end when it extends beyond end_time.
+            ("3 hours", "10:00:00", "11:00:00"),
+            # end_time extends the window when duration is shorter.
+            ("1 hour", "10:00:00", "10:00:00"),
+            # Duration determines the end when end_time is omitted.
+            ("2 hours", None, "10:00:00"),
+        ],
+    )
+    def test_effective_window_end(
+        self,
+        duration: str,
+        end_time: str | None,
+        expected_end: str,
+    ) -> None:
+        """The effective end respects both duration and end_time."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration=duration,
+            end_time=end_time,
+        )
+        reference = pendulum.datetime(2026, 10, 26, 8, 0)
+
+        start, end = window._window_start_end(reference)
+
+        assert start == reference
+        assert end == pendulum.datetime(
+            2026, 10, 26,
+            int(expected_end[:2]),
+            int(expected_end[3:5]),
+            int(expected_end[6:8]),
+        )
+
+    def test_end_time_extends_duration_for_latest_start(self) -> None:
+        """The latest start uses the effective window end."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration="1 hour",
+            end_time="12:00:00",
+        )
+        reference = pendulum.datetime(2026, 10, 26, 8, 0)
+
+        assert window.earliest_start_time(
+            to_duration("2 hours"), reference
+        ) == pendulum.datetime(2026, 10, 26, 8, 0)
+
+        assert window.latest_start_time(
+            to_duration("2 hours"), reference
+        ) == pendulum.datetime(2026, 10, 26, 10, 0)
+
+    @pytest.mark.parametrize(
+        ("start_time", "end_time", "duration", "expected_end"),
+        [
+            # Midnight is the end of the day when used as an end boundary.
+            ("18:00", "00:00", "PT2H", "2026-01-16T00:00:00"),
+
+            # Equal start and end clock times mean a full-day interval.
+            ("00:00", "00:00", "PT2H", "2026-01-16T00:00:00"),
+            ("10:00", "10:00", "PT2H", "2026-01-16T10:00:00"),
+
+            # Duration extending beyond the explicit boundary takes precedence.
+            ("18:00", "00:00", "PT10H", "2026-01-16T04:00:00"),
+
+            # An ordinary same-day boundary remains on the same day.
+            ("08:00", "12:00", "PT2H", "2026-01-15T12:00:00"),
+
+            # An overnight boundary earlier than the start wraps to the next day.
+            ("22:00", "06:00", "PT2H", "2026-01-16T06:00:00"),
+        ],
+    )
+    def test_window_end_boundary(
+        self,
+        start_time: str,
+        end_time: str,
+        duration: str,
+        expected_end: str,
+    ) -> None:
+        """Test explicit end boundaries, including midnight and overnight cases."""
+        window = make_tw(
+            start_time=start_time,
+            end_time=end_time,
+            duration=to_duration(duration),
+        )
+        reference_date = pendulum.datetime(2026, 1, 15)
+
+        _, actual_end = window._window_start_end(reference_date)
+
+        assert actual_end == pendulum.parse(expected_end)
+
+
+    def test_window_end_is_exclusive(self) -> None:
+        """The explicit end boundary itself is outside the window."""
+        window = make_tw(
+            start_time="18:00",
+            end_time="00:00",
+            duration=to_duration("PT2H"),
+        )
+
+        before_midnight = pendulum.datetime(2026, 1, 15, 23, 59, 59)
+        at_midnight = pendulum.datetime(2026, 1, 16, 0, 0, 0)
+
+        assert window.contains(before_midnight)
+        assert not window.contains(at_midnight)
+
 
 # ===========================================================================
 # contains() — naive datetime
@@ -238,10 +386,103 @@ class TestContainsAware:
 
 
 # ===========================================================================
-# contains() — day_of_week and date constraints
+# contains() — day_of_week, month,  and date constraints
 # ===========================================================================
 
 class TestContainsConstraints:
+
+    @pytest.mark.parametrize(
+        ("config", "timestamp", "expected"),
+        [
+            # Friday window extends into Saturday.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "day_of_week": 4,
+                },
+                "2026-10-23T23:00:00",
+                True,
+            ),
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "day_of_week": 4,
+                },
+                "2026-10-24T02:00:00",
+                True,
+            ),
+            # Saturday's date restriction must not invalidate Friday's window.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "date": "2026-10-23",
+                },
+                "2026-10-24T02:00:00",
+                True,
+            ),
+            # A window restricted to Saturday must not match Friday night.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "date": "2026-10-24",
+                },
+                "2026-10-24T02:00:00",
+                False,
+            ),
+            # The end boundary is exclusive.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "day_of_week": 4,
+                },
+                "2026-10-24T06:00:00",
+                False,
+            ),
+            # October restriction applies to the start date, even in November.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "month": 10,
+                },
+                "2026-11-01T02:00:00",
+                True,
+            ),
+            # A November start date does not satisfy the October restriction.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "month": 10,
+                },
+                "2026-11-01T23:00:00",
+                False,
+            ),
+        ],
+    )
+    def test_contains_uses_window_start_date(
+        self,
+        config: dict[str, object],
+        timestamp: str,
+        expected: bool,
+    ) -> None:
+        window = make_tw(**config)
+        date_time = to_datetime(timestamp)
+
+        assert window.contains(date_time) is expected
+
     def test_day_of_week_match_naive(self):
         # 2024-06-17 is a Monday (day_of_week == 0)
         w = make_window(8, 4, day_of_week=0)
@@ -256,6 +497,46 @@ class TestContainsConstraints:
         w = make_window(8, 4, day_of_week=0)
         dt = aware_dt(2024, 6, 17, 9, 0, 0, tz="Europe/Berlin")
         assert w.contains(dt)
+
+    @pytest.mark.parametrize("month", [1, 6, 12])
+    def test_month_restriction_matches_month(self, month: int) -> None:
+        """The window applies only in its configured month."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration="2 hours",
+            month=month,
+        )
+
+        matching_date = pendulum.datetime(2026, month, 15, 9, 0)
+        assert window.contains(matching_date)
+
+        available = window.available_duration(matching_date)
+        assert available is not None
+        assert available.total_seconds() == to_duration("2 hours").total_seconds()
+
+    def test_month_restriction_rejects_other_month(self) -> None:
+        """The window does not apply in another month."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration="2 hours",
+            month=10,
+        )
+        reference = pendulum.datetime(2026, 11, 15, 9, 0)
+
+        assert not window.contains(reference)
+        assert window.available_duration(reference) is None
+        assert window.earliest_start_time(to_duration("1 hour"), reference) is None
+
+
+    @pytest.mark.parametrize("month", [0, 13])
+    def test_month_restriction_rejects_invalid_month(self, month: int) -> None:
+        """Month restrictions must be between 1 and 12."""
+        with pytest.raises(ValueError):
+            make_tw(
+                start_time="08:00:00",
+                duration="2 hours",
+                month=month,
+            )
 
     def test_date_constraint_match(self):
         w = make_window(8, 4, date=pendulum.date(2024, 6, 17))
