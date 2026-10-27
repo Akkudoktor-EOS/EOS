@@ -42,7 +42,7 @@ dependencies = [
     "pydantic==2.14.1",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.15.0",
-    "pydantic-settings==2.16.0",
+    "pydantic-settings==2.16.1",
     "linkify-it-py==2.2.0",
     "loguru==0.7.3",
     "lmdb==3.0.0",
