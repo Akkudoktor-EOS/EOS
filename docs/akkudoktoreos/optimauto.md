@@ -363,6 +363,32 @@ The inverter supports separate AC↔DC conversion efficiencies:
 }
 ```
 
+The GENETIC algorithm can delay EV charging until an earliest charge start and require the
+target state of charge by a deadline:
+
+- `charge_start_datetime`: earliest charge start. Use it for a vehicle that is not connected yet
+  (for example its expected arrival or plug-in time) or for a connected vehicle that may only
+  charge from a given time on. Before it the vehicle neither charges nor discharges, and its state
+  of charge stays at the initial state of charge. For a vehicle that is not connected yet, supply
+  the state of charge you expect at the charge start as initial state of charge (for
+  `POST /v1/optimize` in `soc`, since there is no fresh measurement while the vehicle is away).
+  A slot that begins before the charge start is not used; a charge start that has already passed
+  lets the vehicle charge at once. If the charge start lies after the control horizon, the vehicle
+  gets no charging plan in this run.
+- `min_soc_deadline_datetime`: deadline (for example the departure time) by which
+  `min_soc_percentage` has to be reached. A slot that ends after the deadline does not count
+  towards the target. The deadline does not end charging: the plan may still charge after it,
+  for example at negative prices, so a client should not execute EV charging after the vehicle
+  has left. A deadline that leaves no full slot after the charge start (at or before it, or in the
+  same slot) can not be met; it is then ignored and the target applies at the end of the horizon.
+  A deadline at or before the charge start stays ignored in runs after the charge start. Once the
+  charge start has passed, the vehicle may charge in the current slot, so a run during the charge
+  start's slot can keep a deadline in the following slot that runs before and after it ignore
+  (hourly grid, charge start 13:05, deadline 14:30: ignored at 12:00 and 14:10, kept at 13:07).
+
+A date time without timezone is read as local time. Without these settings, the vehicle can charge
+throughout the horizon and has to reach its target by the end of it.
+
 #### Battery simulation configuration
 
 **Example:**

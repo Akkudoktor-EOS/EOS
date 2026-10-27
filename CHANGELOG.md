@@ -59,6 +59,13 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+- Optional earliest EV charge start for GENETIC: `charge_start_datetime` on an electric vehicle
+  is the earliest moment it may charge, next to the SoC deadline `min_soc_deadline_datetime`
+  (charging may continue after the deadline). It covers a vehicle that is not connected yet
+  (e.g. its expected arrival) as well as a connected vehicle that may only charge from a given
+  time on. Before it the vehicle neither charges nor discharges and keeps its initial SoC, so a
+  plan made ahead of time no longer charges a car that is not there or not yet allowed to
+  charge. Unset (default), plans are unchanged.
 - Parallel fitness evaluation for GENETIC: `optimization.genetic.workers` (unset = automatic:
   at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
   process as before) and `optimization.genetic.pin_workers` (workers pinned to the last

@@ -437,6 +437,18 @@ class GeneticSimulation(PydanticBaseModel):
         default=None, json_schema_extra={"description": "TBD"}
     )
 
+    ev_charge_start_slot: int = Field(
+        default=0,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "First slot the electric vehicle may charge in (earliest charge "
+                "start). In earlier slots the vehicle neither charges nor "
+                "discharges."
+            )
+        },
+    )
+
     home_appliance_start_hour: Optional[int] = Field(default=None)
 
     @property
@@ -458,6 +470,7 @@ class GeneticSimulation(PydanticBaseModel):
         inverter: Optional[Inverter] = None,
         direct_marketing_enabled: bool = False,
         home_appliances: Optional[list[HomeAppliance]] = None,
+        ev_charge_start_slot: int = 0,
     ) -> None:
         """Prepare simulation runs.
 
@@ -467,6 +480,7 @@ class GeneticSimulation(PydanticBaseModel):
         self.optimization_hours = optimization_hours
         self.prediction_hours = prediction_hours
         self.direct_marketing_enabled = direct_marketing_enabled
+        self.ev_charge_start_slot = ev_charge_start_slot
 
         # Load arrays from provided EMS parameters
         self.load_energy_array = np.array(parameters.total_load, float)
@@ -672,10 +686,17 @@ class GeneticSimulation(PydanticBaseModel):
             # Fill the charge array of the ev
             ev_charge_hours_fast[0:start_hour] = 0
             ev_charge_hours_fast[end_hour:] = 0
-            ev_fast.charge_array = ev_charge_hours_fast
             # Fill the discharge array of the ev
             ev_discharge_hours_fast[0:start_hour] = 0
             ev_discharge_hours_fast[end_hour:] = 0
+            # Before its earliest charge start the vehicle may not charge (not
+            # connected yet, or charging not allowed yet). In place, like above:
+            # the reported plan is read back from these very arrays, so it
+            # matches what the simulation executed.
+            if self.ev_charge_start_slot > start_hour:
+                ev_charge_hours_fast[start_hour : self.ev_charge_start_slot] = 0
+                ev_discharge_hours_fast[start_hour : self.ev_charge_start_slot] = 0
+            ev_fast.charge_array = ev_charge_hours_fast
             ev_fast.discharge_array = ev_discharge_hours_fast
         else:
             # Default return if no electric vehicle is available
@@ -1086,6 +1107,9 @@ class GeneticOptimization(OptimizationBase):
         # to have happened. None means no full charge is enforced in this run.
         self._full_charge_deadline_slot: Optional[int] = None
         self._full_charge_target_soc: Optional[int] = None
+        # First slot the EV may charge in (earliest charge start). The control
+        # start means no restriction (the behaviour without a charge start).
+        self._ev_first_charge_slot: int = 0
         # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
@@ -1234,11 +1258,100 @@ class GeneticOptimization(OptimizationBase):
             return None
 
         deadline_slot = min(candidates)
+        raw_deadline_slot = deadline_slot
         if deadline_slot >= self.control_end_slot:
             # Beyond the horizon: the end-of-horizon requirement already covers it.
             return None
         # A deadline in the past means the target is due right now.
-        return max(deadline_slot, start_slot)
+        deadline_slot = max(deadline_slot, start_slot)
+
+        charge_start_slot = self._ev_charge_start_raw_slot(parameters)
+        charge_start = ev_parameters.charge_start_datetime
+        if (
+            charge_start_slot is not None
+            and charge_start is not None
+            and charge_start.timestamp() <= self.ems.observation_datetime.timestamp()
+        ):
+            # Reached: the vehicle can charge from the current slot on.
+            charge_start_slot = min(charge_start_slot, start_slot)
+        if charge_start_slot is not None and raw_deadline_slot <= charge_start_slot:
+            # No slot the vehicle may charge in ends at or before the deadline,
+            # so no plan can meet it. Relax it: the target is required at the
+            # end of the horizon instead, as without a deadline. Both slots are
+            # taken before clamping them to this run (past slots count), so a
+            # deadline at or before the charge start stays relaxed after the
+            # charge start. Only the current slot depends on the run: it is
+            # usable once the charge start is reached. Hourly grid, charge
+            # start 13:05, deadline 14:30: relaxed at 12:00 (13:00-14:00 begins
+            # before the charge start), kept at 13:07 (13:00-14:00 is usable
+            # now and ends before 14:30), relaxed at 14:10 (14:00-15:00 ends
+            # after the deadline).
+            logger.warning(
+                "EV '{}': deadline {} is not after its earliest charge start {} - the "
+                "target SoC is required at the end of the horizon instead.",
+                ev_parameters.device_id,
+                self._slot_datetime(raw_deadline_slot),
+                self._slot_datetime(charge_start_slot),
+            )
+            return None
+        return deadline_slot
+
+    def _slot_datetime(self, slot: int) -> Any:
+        """Start of a run-relative slot as a datetime (for messages)."""
+        if self._slot0_datetime is None:
+            return slot
+        return self._slot0_datetime.add(seconds=slot * self.slot_duration_h * 3600)
+
+    def _ev_charge_start_raw_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
+        """First full slot after the EV charge start, relative to this run's slot 0.
+
+        Not clamped to the control horizon or to now: a charge start in the past
+        gives a negative slot. None without a charge start.
+        """
+        ev_parameters = parameters.ev
+        if ev_parameters is None or ev_parameters.charge_start_datetime is None:
+            return None
+        if self._slot0_datetime is None:
+            raise ValueError("EV charge start requires a run start timestamp.")
+        seconds = (
+            ev_parameters.charge_start_datetime.in_timezone(self._slot0_datetime.timezone)
+            - self._slot0_datetime
+        ).total_seconds()
+        return math.ceil(seconds / (self.slot_duration_h * 3600) - 1e-9)
+
+    def _ev_charge_start_slot(self, parameters: GeneticOptimizationParameters) -> int:
+        """First slot in which the EV may charge (earliest charge start).
+
+        The charge start is the earliest moment the EV may charge; the deadline
+        only sets when its target SoC is due. It covers a vehicle that is not
+        connected yet (arrival or plug-in time) as well as a connected vehicle
+        that may only charge from a given time on.
+        A charge start inside a slot makes that slot unusable: the vehicle may
+        not charge for the whole slot. This mirrors the deadline, where a
+        deadline inside a slot does not credit that slot. A charge start that is
+        already reached (at or before now) lets the vehicle charge right away.
+
+        Args:
+            parameters: Optimization parameters of this run.
+
+        Returns:
+            Absolute slot index between the control start and the control end.
+            The control end means the vehicle may not charge within the control
+            horizon.
+        """
+        start_slot = self._control_start_slot()
+        charge_start_slot = self._ev_charge_start_raw_slot(parameters)
+        ev_parameters = parameters.ev
+        if (
+            charge_start_slot is None
+            or ev_parameters is None
+            or ev_parameters.charge_start_datetime is None
+        ):
+            return start_slot
+        charge_start = ev_parameters.charge_start_datetime
+        if charge_start.timestamp() <= self.ems.observation_datetime.timestamp():
+            return start_slot
+        return min(max(charge_start_slot, start_slot), self.control_end_slot)
 
     def _full_charge_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
         """Slot by which the battery has to reach its full charge target once.
@@ -2246,7 +2359,7 @@ class GeneticOptimization(OptimizationBase):
             changed = True
 
         if self.optimize_ev and random.random() < 0.40:  # noqa: S311
-            ev_start = self.control_end_slot + start_slot
+            ev_start = self.control_end_slot + self._ev_first_charge_gene_slot()
             ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
             ev_part = list(individual[ev_start:ev_end])
             ev_before = list(ev_part)
@@ -2263,7 +2376,7 @@ class GeneticOptimization(OptimizationBase):
         """Mutate EV or appliance controls without disturbing a good battery schedule."""
         changed = False
         if self.optimize_ev:
-            ev_start = self.control_end_slot + self._control_start_slot()
+            ev_start = self.control_end_slot + self._ev_first_charge_gene_slot()
             ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
             ev_part = list(individual[ev_start:ev_end])
             ev_before = list(ev_part)
@@ -2333,6 +2446,7 @@ class GeneticOptimization(OptimizationBase):
             ]
             if self.fixed_eauto_hours > 0:
                 ev_controls[-self.fixed_eauto_hours :] = [0] * self.fixed_eauto_hours
+            self._clear_ev_genes_before_charge_start(ev_controls)
             individual_components += ev_controls
 
         # Add one appliance start gene per scheduled run (index into that run's
@@ -2412,6 +2526,40 @@ class GeneticOptimization(OptimizationBase):
             appliance_gene_values = []
 
         return discharge_hours_bin, eautocharge_hours_index, appliance_gene_values
+
+    def _ev_first_charge_gene_slot(self) -> int:
+        """First slot whose EV gene can change the plan (control start or charge start)."""
+        return max(self._control_start_slot(), getattr(self, "_ev_first_charge_slot", 0))
+
+    def _clear_ev_genes_before_charge_start(self, ev_genes: Any) -> bool:
+        """Set the EV genes of the slots before the charge start to "no charge".
+
+        The simulation never charges the vehicle before its charge start. Keeping the
+        genes in line lets the reported genome (the next warm start) describe
+        the executed plan, and identical plans share one genome. Without a zero
+        charge rate there is no such gene; the simulation still does not charge.
+
+        Args:
+            ev_genes: EV block of a genome (charge rate indices per slot),
+                changed in place.
+
+        Returns:
+            Whether a gene was changed.
+        """
+        first_slot = getattr(self, "_ev_first_charge_slot", 0)
+        start_slot = self._control_start_slot()
+        if first_slot <= start_slot:
+            return False
+        rates = self.ev_possible_charge_values
+        zero_index = min(range(len(rates)), key=lambda index: abs(rates[index]))
+        if abs(rates[zero_index]) > 1e-12:
+            return False
+        changed = False
+        for slot in range(start_slot, min(first_slot, len(ev_genes))):
+            if ev_genes[slot] != zero_index:
+                ev_genes[slot] = zero_index
+                changed = True
+        return changed
 
     def _repair_ev_charge_at_full_soc(
         self,
@@ -2505,7 +2653,8 @@ class GeneticOptimization(OptimizationBase):
                 return (float(feed_in[slot]), -float(surplus))
             return (float(prices[slot]), -float(surplus))
 
-        candidates = sorted(range(start_slot, end_slot), key=marginal_cost)
+        # The vehicle can not charge before its earliest charge start.
+        candidates = sorted(range(self._ev_first_charge_gene_slot(), end_slot), key=marginal_cost)
         positive_rates = sorted(
             (
                 (rate, index)
@@ -3467,6 +3616,10 @@ class GeneticOptimization(OptimizationBase):
         self.simulation.ac_charge_hours = ac_charge_hours
 
         if eautocharge_hours_index is not None:
+            if self._clear_ev_genes_before_charge_start(eautocharge_hours_index):
+                individual[self.control_end_slot : self.control_end_slot * 2] = (
+                    eautocharge_hours_index.tolist()
+                )
             eautocharge_hours_float = np.array(
                 [self.ev_possible_charge_values[i] for i in eautocharge_hours_index],
                 float,
@@ -4320,6 +4473,21 @@ class GeneticOptimization(OptimizationBase):
         ]
         self.appliance_layout = self._build_appliance_layout(home_appliances, self._slot0_datetime)
 
+        # Earliest EV charge start. Before it the vehicle neither charges nor
+        # discharges; the simulation, the genome operators and the seeding
+        # heuristic all read it.
+        self._ev_first_charge_slot = self._ev_charge_start_slot(parameters)
+        if self.optimize_ev and self._ev_first_charge_slot >= self.control_end_slot:
+            # The vehicle may only charge after the control horizon: there is
+            # nothing to plan, as for a vehicle that already reached its target.
+            logger.info(
+                "EV '{}' may only charge after the control horizon ({}): no EV charging "
+                "is planned.",
+                parameters.ev.device_id if parameters.ev else None,
+                parameters.ev.charge_start_datetime if parameters.ev else None,
+            )
+            self.optimize_ev = False
+
         # EV charging deadline (departure). Resolved once per run; the seeding
         # heuristic and the SoC penalty both read it.
         self._ev_soc_deadline_slot = self._ev_deadline_slot(parameters)
@@ -4361,6 +4529,7 @@ class GeneticOptimization(OptimizationBase):
             ev=eauto,
             home_appliances=home_appliances,
             direct_marketing_enabled=direct_marketing_enabled,
+            ev_charge_start_slot=self._ev_first_charge_slot,
         )
 
         self._validate_forecast_availability()
