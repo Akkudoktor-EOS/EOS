@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2610291327175670`
+**Version**: `v0.3.0.dev2610292029046395`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -2023,7 +2023,7 @@ Return:
 **Request Body**:
 
 - `application/json`: {
-  "oneOf": [
+  "anyOf": [
     {
       "$ref": "#/components/schemas/PowerMeasurement"
     },
@@ -2052,20 +2052,6 @@ Return:
       "$ref": "#/components/schemas/DDBCActuatorStatus"
     }
   ],
-  "discriminator": {
-    "propertyName": "type",
-    "mapping": {
-      "PowerMeasurement": "#/components/schemas/PowerMeasurement",
-      "EnergyMeasurement": "#/components/schemas/EnergyMeasurement",
-      "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus",
-      "OMBCStatus": "#/components/schemas/OMBCStatus",
-      "FRBCActuatorStatus": "#/components/schemas/FRBCActuatorStatus",
-      "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus",
-      "FRBCStorageStatus": "#/components/schemas/FRBCStorageStatus",
-      "FRBCTimerStatus": "#/components/schemas/FRBCTimerStatus",
-      "DDBCActuatorStatus": "#/components/schemas/DDBCActuatorStatus"
-    }
-  },
   "description": "Resource Status.",
   "title": "Status"
 }
