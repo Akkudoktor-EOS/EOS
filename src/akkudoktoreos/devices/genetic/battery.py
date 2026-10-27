@@ -190,7 +190,29 @@ class ElectricVehicleParameters(BaseBatteryParameters):
         },
     )
 
-    @field_validator("min_soc_deadline_datetime", mode="before")
+    charge_start_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Earliest absolute moment from which the electric vehicle may "
+                "charge. 'min_soc_deadline_datetime' only sets when the target "
+                "state of charge has to be reached; charging may continue after "
+                "it. Use it for a vehicle that is not connected yet "
+                "(e.g. its expected arrival or plug-in time) or for a connected "
+                "vehicle that may only charge from a given time on. Before it "
+                "the vehicle neither charges nor discharges, and its state of "
+                "charge stays at 'initial_soc_percentage' (for a vehicle that is "
+                "not connected yet: the state of charge expected at the charge "
+                "start). A slot that begins before this moment is not used for "
+                "charging. A date time without timezone is read as local time. "
+                "None means the vehicle can charge from the start of the "
+                "optimization."
+            ),
+            "examples": [None, "2026-07-15T20:00:00+02:00"],
+        },
+    )
+
+    @field_validator("min_soc_deadline_datetime", "charge_start_datetime", mode="before")
     @classmethod
     def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
         """Accept the usual date time representations, naive input is local time."""

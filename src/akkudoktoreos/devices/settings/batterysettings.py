@@ -204,7 +204,31 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         },
     )
 
-    @field_validator("min_soc_deadline_datetime", mode="before")
+    charge_start_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Earliest absolute moment from which the electric vehicle may "
+                "charge (electric vehicles only; ignored for stationary "
+                "batteries). 'min_soc_deadline_datetime' only sets when the target "
+                "state of charge has to be reached; charging may continue after "
+                "it. Use it for a vehicle that is not connected yet "
+                "(e.g. its expected arrival or plug-in time) or for a connected "
+                "vehicle that may only charge from a given time on. Before it "
+                "the vehicle neither charges nor discharges, and its state of "
+                "charge stays at the initial state of charge (for a vehicle that "
+                "is not connected yet: the state of charge expected at the "
+                "charge start). A slot that begins before this moment is not "
+                "used for charging. A date time without timezone is read as "
+                "local time. None means the vehicle can charge from the start of "
+                "the optimization."
+            ),
+            "examples": [None, "2026-07-15T20:00:00+02:00"],
+        },
+    )
+
+    @field_validator("min_soc_deadline_datetime", "charge_start_datetime", mode="before")
     @classmethod
     def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
         """Accept the usual date time representations, naive input is local time."""
@@ -318,6 +342,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             max_soc_percentage=self.max_soc_percentage,
             min_soc_deadline_datetime=self.min_soc_deadline_datetime,
             min_soc_max_duration_h=self.min_soc_max_duration_h,
+            charge_start_datetime=self.charge_start_datetime,
         )
 
     # ------------------------------------------------------------------
