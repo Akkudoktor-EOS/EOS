@@ -164,6 +164,8 @@ markers = [
     "docker: marks tests that require a local Docker engine"
 ]
 filterwarnings = [
+    # Treat pandas 4 deprecations in EOS code as errors; upstream callers remain visible.
+    "error::pandas.errors.Pandas4Warning:akkudoktoreos\\.",
     # pvlib may exercise SciPy's root solver at night/zero irradiance; the resulting
     # PV output is explicitly verified as zero by integration tests.
     "ignore:invalid value encountered in divide:RuntimeWarning:scipy\\.optimize\\._chandrupatla",
