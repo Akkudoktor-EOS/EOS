@@ -1,11 +1,17 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
+from types import SimpleNamespace
+from typing import Optional, cast
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 import yaml
 from pydantic import ValidationError
+
+import akkudoktoreos.adapter.homeassistant as homeassistant_module
+from akkudoktoreos.adapter.homeassistant import HomeAssistantAdapter
+from akkudoktoreos.core.ems import EnergyManagementStage
 
 
 class TestHomeAssistantAddon:
@@ -337,3 +343,87 @@ class TestHomeAssistantAddon:
         assert ports[port_key] is None, "Ingress port must be unpublished by default"
 
         print(f"✓ Ingress configuration valid (port {ingress_port})")
+
+
+class _HomeAssistantAdapterHarness:
+    """Provide synthetic adapter dependencies without a Home Assistant instance."""
+
+    _update_data = HomeAssistantAdapter._update_data
+    _resolve_device_measurement_key = staticmethod(
+        HomeAssistantAdapter._resolve_device_measurement_key
+    )
+
+    def __init__(self, configured_key: str, registered_keys: set[str]) -> None:
+        homeassistant = SimpleNamespace(
+            config_entity_ids=None,
+            device_measurement_entity_ids={configured_key: "sensor.synthetic_battery_soc"},
+            load_emr_entity_ids=None,
+            grid_export_emr_entity_ids=None,
+            grid_import_emr_entity_ids=None,
+            pv_production_emr_entity_ids=None,
+        )
+        self.config = SimpleNamespace(
+            adapter=SimpleNamespace(homeassistant=homeassistant),
+            devices=SimpleNamespace(measurement_keys=list(registered_keys)),
+        )
+        self.ems = SimpleNamespace(
+            stage=lambda: EnergyManagementStage.DATA_ACQUISITION,
+            observation_datetime=object(),
+        )
+        self.ems_start_datetime = object()
+        self.measurement = SimpleNamespace(update_value=AsyncMock())
+        self.get_entity_state = lambda _entity_id: "0.75"
+        self._legacy_device_measurement_key_warning_emitted = False
+
+
+class TestHomeAssistantDeviceMeasurementKeys:
+    @pytest.fixture(autouse=True)
+    def cec_databases(self):
+        """This adapter test needs no CEC reference-device data."""
+        yield None
+
+    @pytest.mark.asyncio
+    async def test_maps_legacy_key_at_observation_time(self) -> None:
+        adapter = _HomeAssistantAdapterHarness(
+            "battery1_soc_factor", {"battery1-soc-factor"}
+        )
+
+        await HomeAssistantAdapter._update_data(cast(HomeAssistantAdapter, adapter))
+
+        adapter.measurement.update_value.assert_awaited_once_with(
+            adapter.ems.observation_datetime, "battery1-soc-factor", 0.75
+        )
+        assert adapter.ems.observation_datetime is not adapter.ems_start_datetime
+
+    @pytest.mark.asyncio
+    async def test_warns_only_once_when_mapping_legacy_key(self, monkeypatch) -> None:
+        adapter = _HomeAssistantAdapterHarness(
+            "battery1_soc_factor", {"battery1-soc-factor"}
+        )
+        mock_logger = Mock()
+        monkeypatch.setattr(homeassistant_module, "logger", mock_logger)
+
+        await HomeAssistantAdapter._update_data(cast(HomeAssistantAdapter, adapter))
+        await HomeAssistantAdapter._update_data(cast(HomeAssistantAdapter, adapter))
+
+        mock_logger.warning.assert_called_once_with(
+            "Legacy device measurement key '{}' mapped to registered key '{}'.",
+            "battery1_soc_factor",
+            "battery1-soc-factor",
+        )
+
+    def test_preserves_canonical_key(self) -> None:
+        assert HomeAssistantAdapter._resolve_device_measurement_key(
+            "battery1-soc-factor", {"battery1-soc-factor"}
+        ) == "battery1-soc-factor"
+
+    def test_preserves_unknown_custom_key(self) -> None:
+        assert HomeAssistantAdapter._resolve_device_measurement_key(
+            "custom_measurement", {"battery1-soc-factor"}
+        ) == "custom_measurement"
+
+    def test_does_not_guess_ambiguous_legacy_key(self) -> None:
+        key = "battery_1_soc_factor"
+        registered_keys = {"battery-1-soc-factor", "battery_1-soc-factor"}
+
+        assert HomeAssistantAdapter._resolve_device_measurement_key(key, registered_keys) == key
