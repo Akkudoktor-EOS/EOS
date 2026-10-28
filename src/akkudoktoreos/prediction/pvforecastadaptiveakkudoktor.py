@@ -645,6 +645,15 @@ class PVForecastAdaptiveAkkudoktor(
                 curtailment_key=plane.curtailment_key,
                 learning_guard_key=plane.learning_guard_key,
                 learning_guard_max=plane.learning_guard_max,
+                eligibility_policy=(
+                    "configured_guard"
+                    if plane.learning_guard_key
+                    else "status_flag"
+                    if plane.curtailment_key
+                    else "disabled"
+                    if plane.curtailment_sensitive
+                    else "unrestricted"
+                ),
                 eligible_intervals=int(observed[key + "_eligible"].sum()),
             )
         trend_samples = store.training(signature, issue, settings.learning_days)
@@ -739,8 +748,10 @@ class PVForecastAdaptiveAkkudoktor(
         if night and state != "reference_missing":
             state = "night"
         messages = {
-            "learning": "Lernphase: bisherige lokale Korrektur aktiv; mindestens fünf geeignete Tage nötig.",
-            "active": "Lernende lokale Prognose aktiv.",
+            "learning": "Lernphase: kalibrierte Wetterprognose aktiv; zusätzliche Korrekturen warten auf ausreichende Validierung.",
+            "active": "Automatische Korrekturwahl aktiv."
+            if settings.correction_mode == "auto"
+            else f"PV-Korrekturmodus: {settings.correction_mode}.",
             "night": "Nacht: keine lokale Leistungskorrektur; Lernen und Datenempfang laufen weiter.",
             "reference_missing": "Referenzdaten fehlen oder sind zu alt; Wetterprognose aktiv.",
         }
@@ -753,7 +764,12 @@ class PVForecastAdaptiveAkkudoktor(
             message=messages[state],
             model_fitted_at=models["fitted_at"],
             training_days=min(
-                (v["days"] for v in models["gains"].values() if not v["curtailed"]), default=0
+                (
+                    v["days"]
+                    for v in models["gains"].values()
+                    if not v["curtailed"] or v["days"] > 0
+                ),
+                default=0,
             ),
             minimum_training_days=settings.min_training_days,
             trained_leads=len(models["coefficients"]),
@@ -787,7 +803,7 @@ class PVForecastAdaptiveAkkudoktor(
                 p.parameters_estimated for p in self.config.pvforecast.planes or []
             ),
             nominal_total_peakpower_kw=settings.nominal_total_peakpower_kw,
-            notes="Reference errors exclude hybrid curtailment. Whole-plant errors include delivered production and curtailment. Increasing data does not guarantee monotonically decreasing error.",
+            notes="Reference errors exclude hybrid curtailment. Whole-plant errors include delivered production and curtailment. Configured guard thresholds express site assumptions, not detected curtailment. Increasing data does not guarantee monotonically decreasing error.",
         )
         store.metadata("status", result)
         return result
