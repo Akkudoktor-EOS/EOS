@@ -13,7 +13,11 @@ it without an external PV forecast override.
   correction fades with forecast distance and does not carry over into tomorrow.
 - A separate residual/trend regression learns each quarter-hour lead from
   archived features and subsequently available measurements. Until five suitable
-  days and 100 pairs per lead exist, it retains the local correction.
+  days and 100 pairs per lead exist, it retains the local candidate.
+- The default `correction_mode: "auto"` chooses calibration, local correction or
+  trend separately for each measurement group and lead. It compares genuinely
+  issued candidates on completed previous days. Cold starts retain calibration.
+  Fixed `calibrated`, `local` and `trend` modes are available for explicit control.
 
 ICON D2 is preferred near term, with a transition to the other configured
 weather models between four and six hours. Missing daylight radiation cannot
@@ -29,8 +33,11 @@ More training data do not guarantee a lower error on every day.
 Merge the following sections into the existing EOS configuration, keeping the
 site location, devices, tariffs and other settings. Replace the example planes
 with your actual plant. Azimuth is clockwise from north; peak power is in kWp.
-Each plane needs its own distinct power channel and at least one plane must
-be an independent weather reference.
+Use a distinct power channel per measured plane, or one whole-plant power
+channel as described below. Explicitly mark independent weather references.
+When none are marked, unrestricted planes serve as references. If every plane
+may be curtailed and no suitable reference exists, the physical forecast still
+works, with local corrections disabled.
 
 ```json
 {
@@ -43,7 +50,8 @@ be an independent weather reference.
       "min_training_days": 5,
       "archive_retention_days": 60,
       "nowcast_enabled": true,
-      "trend_enabled": true
+      "trend_enabled": true,
+      "correction_mode": "auto"
     },
     "planes": [
       {
@@ -83,10 +91,57 @@ be an independent weather reference.
 }
 ```
 
-Mark battery-full-curtailed hybrid strings as `curtailment_sensitive`. They do
-not train unrestricted weather gain and cannot be reference planes. The
-independent reference transfers the local weather residual to the whole plant.
-Whole-plant validation still includes any actual curtailment.
+Mark battery-full-curtailed strings as `curtailment_sensitive`. Without further
+evidence they retain the physical calibration and do not learn unrestricted
+weather gain. An optional `curtailment_key` names an original measured flag:
+`0` means explicitly unrestricted and `1` means curtailed. Supply it through
+the sample endpoint, or a configured EOS measurement key. Missing, stale or
+estimated flags do not authorize learning. A partial day needs at least eight
+unrestricted daylight intervals; at least `min_training_days` suitable days
+are still required. A full battery alone is not a universal curtailment flag.
+
+Where a site has a documented relation between a measured value and unrestricted
+operation, `learning_guard_key` plus `learning_guard_max` is an alternative:
+all supported values must be below the configured bound. Set
+`learning_guard_max_gap_seconds` to the signal's actual maximum support gap
+(default 600). For example, a battery-SoC guard is a site-specific assumption,
+not inverter curtailment detection; it must not be used to ignore other limits.
+Status exposes the guard and bound. Prefer a real curtailment flag when available.
+Whole-plant mode has corresponding `total_learning_guard_key`,
+`total_learning_guard_max` and `total_learning_guard_max_gap_seconds` options.
+
+Independent reference planes share one correction group by default; other
+planes are separate. Set `correction_group` on planes to define your own groups.
+The weather residual supplies shadow candidates to every group. A group uses
+one only when its own unrestricted observations validate it. No string name,
+inverter manufacturer, SQL database, Node-RED or Grafana is required.
+
+For a site with only total production measurements, set
+`pvforecast.adaptive.total_measurement_key` to that power channel. Keep the
+physical planes, but omit their individual `measurement_key` values. Configure
+the total channel's unit, integration and gap semantics in `measurement.channels`.
+Use `total_curtailment_sensitive` and optionally `total_curtailment_key` when
+the whole plant may be limited. Per-plane learning diagnostics are unavailable
+in this mode; inverter limits are still applied to the physical planes.
+
+The automatic selector uses a configurable `validation_days` window (default
+7), at least `min_validation_days` completed days (3) and
+`min_validation_samples` distinct target intervals per lead (32). Each target
+gets one vote regardless of update frequency, and days have equal weight.
+An extra stage must improve mean absolute error by at least
+`min_validation_improvement` (0.02 = 2%). Historical candidates were issued
+before their target values existed; fitting today's coefficients on those
+labels is never used as retrospective validation. This does not guarantee an
+improvement on every future day.
+
+Training waits until `training_delay_minutes` after local midnight (default
+15) for the previous day's closing samples. Until then, the persisted earlier
+model remains usable. Plane-specific AC limits are reapplied after corrections.
+DC retains the original physical DC estimate and its correction; it is not
+reconstructed from an already clipped AC value.
+An existing installation with configured inverter AC ratings starts a new model
+signature for this bounded candidate definition. The archive and raw measurements
+are retained. Installations without such ratings retain their physical signature.
 
 Send original measured power, not energy counters, to the ordinary measurement
 API or directly to `PUT /v1/prediction/pv-adaptive/samples`. The direct endpoint
@@ -212,6 +267,15 @@ The following HTTP endpoints are available:
 | `GET /v1/prediction/pv-adaptive/latest` | Latest forecast with raw, calibrated, local and adaptive power |
 | `GET /v1/prediction/pv-adaptive/comparisons` | Issued predictions paired with later observations |
 | `PUT /v1/prediction/pv-adaptive/samples` | Bounded ingestion of original plane readings |
+
+Status includes `selection` with the chosen method, validation-day/sample
+counts and candidate errors per group and lead. `algorithm_version` identifies
+the guarded output; `metrics_algorithm_versions` identifies the histories in
+the current error window. Model readiness is separate from demonstrated skill.
+Metrics cover the complete configured window, independently of the public
+comparison export's page limit. `daily_metrics` compares frozen pre-midnight
+forecasts with complete measured local days, including 23/25-hour DST days.
+Incomplete days carry null energy values rather than invented zeros.
 
 For a compact learning panel, plot matched `mae_w` from status `metrics` over
 time for one scope and horizon, with `method` distinguishing the stages. Do

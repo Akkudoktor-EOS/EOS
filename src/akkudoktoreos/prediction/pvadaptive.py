@@ -24,6 +24,8 @@ class AdaptivePVModel:
     min_factor: float = 0.2
     max_factor: float = 3.0
     interval_minutes: int = 15
+    allow_partial_days: bool = False
+    min_partial_day_samples: int = 8
     gain: float = field(default=1.0, init=False)
     shape: np.ndarray = field(default_factory=lambda: np.ones(12), init=False)
     trained_days: int = field(default=0, init=False)
@@ -34,6 +36,9 @@ class AdaptivePVModel:
         Global energy gain uses complete days. Shape uses valid paired intervals
         from those days, with shrinkage and recency weighting. Missing values,
         negative production, and explicitly invalid samples never become zeros.
+        With allow_partial_days, the caller must first censor every interval
+        without positive unrestricted-operation evidence. Suitable days then
+        require min_partial_day_samples daylight pairs rather than night data.
         """
         self.gain, self.shape, self.trained_days = 1.0, np.ones(12), 0
         cutoff = _aware(cutoff)
@@ -75,6 +80,17 @@ class AdaptivePVModel:
             ]
         )
         days = days[(days["n"].to_numpy() == expected) & (days["raw"] > 200.0)]
+        if self.allow_partial_days:
+            # The caller has positively identified unrestricted intervals.
+            # Unknown/curtailed intervals have already been removed, never zeroed.
+            daylight = pairs[pairs.raw_power > 50].groupby("day").size()
+            days = pairs.groupby("day").agg(
+                raw=("raw_power", "sum"), actual=("measured_power", "sum"), n=("raw_power", "size")
+            )
+            days = days[
+                (daylight.reindex(days.index, fill_value=0) >= self.min_partial_day_samples)
+                & (days.raw > 200)
+            ]
         self.trained_days = len(days)
         if self.trained_days < self.min_days:
             return self

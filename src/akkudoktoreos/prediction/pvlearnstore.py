@@ -175,6 +175,18 @@ class PVLearningStore:
         with self.connection() as db:
             for timestamp, values in observed.iterrows():
                 target = self.milliseconds(cast(pd.Timestamp, timestamp))
+                if target + 900000 > updated:
+                    continue
+                if (
+                    pd.notna(values.actual_w)
+                    and np.isfinite(float(values.actual_w))
+                    and pd.notna(values.available_at)
+                ):
+                    if self.milliseconds(values.available_at) <= updated:
+                        db.execute(
+                            "UPDATE forecasts SET actual_w=?,updated_ms=? WHERE signature=? AND target_ms=? AND actual_w IS NULL",
+                            (float(values.actual_w), updated, signature, target),
+                        )
                 if pd.isna(values.reference_actual_w) or not np.isfinite(
                     float(values.reference_actual_w)
                 ):
@@ -254,10 +266,96 @@ class PVLearningStore:
         """Export bounded matched forecasts, keeping issue time and lead for Grafana."""
         with self.connection() as db:
             rows = db.execute(
-                "SELECT * FROM forecasts WHERE signature=? AND target_ms>=? AND target_ms<? AND updated_ms>=? AND reference_actual_w IS NOT NULL ORDER BY updated_ms,id LIMIT ?",
+                "SELECT * FROM forecasts WHERE signature=? AND target_ms>=? AND target_ms<? AND updated_ms>=? AND (reference_actual_w IS NOT NULL OR actual_w IS NOT NULL) ORDER BY updated_ms,id LIMIT ?",
                 (signature, start_ms, end_ms, since_ms, limit),
             ).fetchall()
         return [{**dict(row), **json.loads(row["payload"]), "payload": None} for row in rows]
+
+    def validation_rows(
+        self, signature: str, start: pd.Timestamp, end: pd.Timestamp
+    ) -> list[dict[str, Any]]:
+        """Read the complete validation window; public export pagination is separate."""
+        with self.connection() as db:
+            rows = db.execute(
+                "SELECT issue_ms,target_ms,lead_minutes,payload FROM forecasts WHERE signature=? AND target_ms>=? AND target_ms<? ORDER BY target_ms,issue_ms",
+                (signature, self.milliseconds(start), self.milliseconds(end)),
+            ).fetchall()
+        return [{**dict(row), **json.loads(row["payload"]), "payload": None} for row in rows]
+
+    def metric_rows(
+        self, signature: str, start: pd.Timestamp, end: pd.Timestamp
+    ) -> list[dict[str, Any]]:
+        """Full-window scalar projection avoids decoding every feature/model payload."""
+        with self.connection() as db:
+            rows = db.execute(
+                """SELECT target_ms,lead_minutes,actual_w,reference_actual_w,
+                COALESCE(json_extract(payload,'$.algorithm_version'),1) AS algorithm_version,
+                json_extract(payload,'$.plant_raw_w') AS plant_raw_w,
+                json_extract(payload,'$.plant_calibrated_w') AS plant_calibrated_w,
+                json_extract(payload,'$.plant_local_w') AS plant_local_w,
+                json_extract(payload,'$.plant_adaptive_w') AS plant_adaptive_w,
+                json_extract(payload,'$.reference_raw_w') AS reference_raw_w,
+                json_extract(payload,'$.reference_calibrated_w') AS reference_calibrated_w,
+                json_extract(payload,'$.reference_local_w') AS reference_local_w,
+                json_extract(payload,'$.reference_adaptive_w') AS reference_adaptive_w
+                FROM forecasts WHERE signature=? AND target_ms>=? AND target_ms<?
+                AND (actual_w IS NOT NULL OR reference_actual_w IS NOT NULL)""",
+                (signature, self.milliseconds(start), self.milliseconds(end)),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def daily_metrics(
+        self, signature: str, start: pd.Timestamp, end: pd.Timestamp, timezone: str
+    ) -> list[dict[str, Any]]:
+        """Evaluate frozen pre-midnight forecasts only against complete local days."""
+        begin, until = self.milliseconds(start), self.milliseconds(end)
+        with self.connection() as db:
+            rows = db.execute(
+                """SELECT b.target_ms,b.issue_ms,b.payload,o.actual_w FROM baselines b
+                LEFT JOIN (SELECT target_ms,MAX(actual_w) actual_w FROM forecasts
+                WHERE signature=? AND target_ms>=? AND target_ms<? GROUP BY target_ms) o
+                ON b.target_ms=o.target_ms WHERE b.signature=? AND b.target_ms>=? AND b.target_ms<? ORDER BY b.target_ms""",
+                (signature, begin, until, signature, begin, until),
+            ).fetchall()
+        days: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            time = pd.Timestamp(row["target_ms"], unit="ms", tz="UTC").tz_convert(timezone)
+            days.setdefault(str(time.date()), []).append(
+                {**dict(row), **json.loads(row["payload"])}
+            )
+        result = []
+        for day, part in days.items():
+            left = pd.Timestamp(day, tz=timezone)
+            right = left + pd.DateOffset(days=1)
+            expected = int((right - left).total_seconds() / 900)
+            complete = (
+                right <= end
+                and len(part) == expected
+                and all(
+                    r["actual_w"] is not None and r["issue_ms"] < self.milliseconds(left)
+                    for r in part
+                )
+            )
+            result.append(
+                dict(
+                    day=day,
+                    complete=bool(complete),
+                    slots=len(part),
+                    expected_slots=expected,
+                    observed_slots=sum(r["actual_w"] is not None for r in part),
+                    actual_kwh=sum(r["actual_w"] for r in part) * 0.25 / 1000 if complete else None,
+                    **{
+                        method + "_kwh": sum(r["plant_" + method + "_w"] for r in part)
+                        * 0.25
+                        / 1000
+                        if complete
+                        and all(r.get("plant_" + method + "_w") is not None for r in part)
+                        else None
+                        for method in ("raw", "calibrated", "local", "adaptive")
+                    },
+                )
+            )
+        return result
 
     def latest(self, start_ms: int) -> list[dict[str, Any]]:
         """Current public curve, distinct from the immutable validation archive."""

@@ -75,6 +75,34 @@ class PVForecastPlaneSetting(SettingsBaseModel):
         default=False,
         description="Geometry and peak power are effective fitted model estimates, not verified nameplate data.",
     )
+    correction_group: Optional[str] = Field(
+        default=None,
+        examples=[None],
+        min_length=1,
+        max_length=128,
+        description="Optional group of planes sharing short-term validation. Unset independent references share one group; other planes are separate.",
+    )
+    curtailment_key: Optional[str] = Field(
+        default=None,
+        examples=[None],
+        min_length=1,
+        max_length=128,
+        description="Optional measured flag: 0 explicitly unrestricted, 1 curtailed. Missing or stale flags never authorize learning a curtailment-sensitive plane.",
+    )
+    learning_guard_key: Optional[str] = Field(
+        default=None,
+        examples=[None],
+        min_length=1,
+        max_length=128,
+        description="Optional site-specific positive learning guard, e.g. battery SoC, as an alternative to a binary curtailment flag.",
+    )
+    learning_guard_max: Optional[float] = Field(
+        default=None,
+        examples=[None],
+        allow_inf_nan=False,
+        description="Learn only while every supported guard value is below this bound. This is an explicit site assumption, not automatic curtailment detection.",
+    )
+    learning_guard_max_gap_seconds: int = Field(default=600, ge=1, le=3600)
 
     # latitude: Optional[float] = Field(default=None, json_schema_extra={ "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)" })
     surface_tilt: Optional[float] = Field(
@@ -192,6 +220,15 @@ class PVForecastPlaneSetting(SettingsBaseModel):
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
+        if bool(self.learning_guard_key) != (self.learning_guard_max is not None):
+            raise ValueError("A learning guard requires both a key and an explicit upper bound.")
+        if self.curtailment_key and self.learning_guard_key:
+            raise ValueError("Use either a curtailment flag or a site-specific learning guard.")
+        if self.measurement_key and self.measurement_key in (
+            self.curtailment_key,
+            self.learning_guard_key,
+        ):
+            raise ValueError("Power and learning-status measurements must use distinct keys.")
         # Check if either attribute is set and add to active planes
         if self.trackingtype == 2:
             # Tilt angle from horizontal plane is ignored for two-axis tracking.

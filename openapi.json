@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610251221711267"
+    "version": "v0.3.0.dev2610281068991664"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -14462,6 +14462,127 @@
             "type": "boolean",
             "title": "Trend Enabled",
             "default": true
+          },
+          "correction_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "calibrated",
+              "local",
+              "trend"
+            ],
+            "title": "Correction Mode",
+            "description": "Choose validated short-term candidates per group/lead, or explicitly fix a correction stage.",
+            "default": "auto"
+          },
+          "validation_days": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 3.0,
+            "title": "Validation Days",
+            "default": 7
+          },
+          "min_validation_days": {
+            "type": "integer",
+            "maximum": 14.0,
+            "minimum": 2.0,
+            "title": "Min Validation Days",
+            "default": 3
+          },
+          "min_validation_samples": {
+            "type": "integer",
+            "minimum": 8.0,
+            "title": "Min Validation Samples",
+            "default": 32
+          },
+          "min_validation_improvement": {
+            "type": "number",
+            "maximum": 0.5,
+            "minimum": 0.0,
+            "title": "Min Validation Improvement",
+            "default": 0.02
+          },
+          "training_delay_minutes": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 0.0,
+            "title": "Training Delay Minutes",
+            "default": 15
+          },
+          "total_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Measurement Key",
+            "description": "Optional whole-plant power channel when individual plane measurements are unavailable.",
+            "examples": [
+              null
+            ]
+          },
+          "total_curtailment_sensitive": {
+            "type": "boolean",
+            "title": "Total Curtailment Sensitive",
+            "default": false
+          },
+          "total_curtailment_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Curtailment Key",
+            "examples": [
+              null
+            ]
+          },
+          "total_learning_guard_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Learning Guard Key",
+            "examples": [
+              null
+            ]
+          },
+          "total_learning_guard_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Learning Guard Max",
+            "examples": [
+              null
+            ]
+          },
+          "total_learning_guard_max_gap_seconds": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Total Learning Guard Max Gap Seconds",
+            "default": 600
           }
         },
         "type": "object",
@@ -15298,6 +15419,79 @@
             "title": "Parameters Estimated",
             "description": "Geometry and peak power are effective fitted model estimates, not verified nameplate data.",
             "default": false
+          },
+          "correction_group": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correction Group",
+            "description": "Optional group of planes sharing short-term validation. Unset independent references share one group; other planes are separate.",
+            "examples": [
+              null
+            ]
+          },
+          "curtailment_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curtailment Key",
+            "description": "Optional measured flag: 0 explicitly unrestricted, 1 curtailed. Missing or stale flags never authorize learning a curtailment-sensitive plane.",
+            "examples": [
+              null
+            ]
+          },
+          "learning_guard_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learning Guard Key",
+            "description": "Optional site-specific positive learning guard, e.g. battery SoC, as an alternative to a binary curtailment flag.",
+            "examples": [
+              null
+            ]
+          },
+          "learning_guard_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learning Guard Max",
+            "description": "Learn only while every supported guard value is below this bound. This is an explicit site assumption, not automatic curtailment detection.",
+            "examples": [
+              null
+            ]
+          },
+          "learning_guard_max_gap_seconds": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 1.0,
+            "title": "Learning Guard Max Gap Seconds",
+            "default": 600
           },
           "surface_tilt": {
             "anyOf": [

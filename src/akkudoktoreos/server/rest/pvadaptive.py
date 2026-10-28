@@ -40,11 +40,18 @@ async def status() -> dict[str, Any]:
 async def samples(values: list[MeasurementSample] = Body(max_length=10000)) -> dict[str, int]:
     """Store original power readings in the bounded adaptive archive, without zero filling."""
     instance = provider()
-    allowed = {plane.measurement_key for plane in instance.config.pvforecast.planes or []}
+    allowed = instance._sample_keys()
     if any(sample.key not in allowed for sample in values):
         raise HTTPException(422, "Measurement key is not assigned to an adaptive PV string.")
     if any(sample.value is not None and sample.value < 0 for sample in values):
         raise HTTPException(422, "PV production must not be negative.")
+    flags = {
+        plane.curtailment_key for plane in instance._learning_planes() if plane.curtailment_key
+    }
+    if any(sample.key in flags and sample.value not in (None, 0, 1) for sample in values):
+        raise HTTPException(
+            422, "Curtailment flags must be 0 (unrestricted), 1 (curtailed), or null."
+        )
     try:
         updated = await asyncio.to_thread(
             instance.store().import_samples, values, pd.Timestamp.now(tz="UTC")

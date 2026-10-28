@@ -352,3 +352,298 @@ def test_api_rejects_invalid_sample_batches_atomically(adaptive_client, provider
         provider.store().samples("micro", now - pd.Timedelta(hours=1), pd.Timestamp.now(tz="UTC"))
         == []
     )
+
+
+def test_curtailment_flag_requires_complete_fresh_zero_support(provider):
+    plane = provider.config.pvforecast.planes[0]
+    plane.curtailment_key = "unrestricted_flag"
+    issue = pd.Timestamp("2026-09-18T12:20Z")
+    times = pd.date_range("2026-09-18T11:30Z", issue, freq="5min")
+    provider.store().import_samples(
+        [
+            sample(key, t, 200 if key != "unrestricted_flag" else 0)
+            for key in ("hybrid", "micro", "unrestricted_flag")
+            for t in times
+        ],
+        issue,
+    )
+    measured = provider._measurements(issue, 1)
+    assert bool(measured.loc["2026-09-18T12:00Z", "hybrid_eligible"])
+    provider.store().import_samples([sample("unrestricted_flag", "2026-09-18T12:05Z", 1)], issue)
+    measured = provider._measurements(issue, 1)
+    assert not bool(measured.loc["2026-09-18T12:00Z", "hybrid_eligible"])
+    assert measured.loc["2026-09-18T12:00Z", "hybrid"] == 200
+
+
+def test_curtailment_flag_missing_does_not_authorize_learning(provider):
+    provider.config.pvforecast.planes[0].curtailment_key = "missing_flag"
+    issue = pd.Timestamp("2026-09-18T12:20Z")
+    provider.store().import_samples(
+        [sample("hybrid", t, 200) for t in pd.date_range("2026-09-18T11:30Z", issue, freq="5min")],
+        issue,
+    )
+    measured = provider._measurements(issue, 1)
+    assert not measured.hybrid_eligible.any()
+
+
+def test_explicit_site_guard_excludes_high_values_and_requires_support(provider):
+    from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
+
+    provider.config.pvforecast.planes[0] = PVForecastPlaneSetting(
+        **{
+            **provider.config.pvforecast.planes[0].model_dump(),
+            "learning_guard_key": "battery_soc_fraction",
+            "learning_guard_max": 0.85,
+            "learning_guard_max_gap_seconds": 1800,
+        }
+    )
+    issue = pd.Timestamp("2026-09-18T12:20Z")
+    times = pd.date_range("2026-09-18T11:30Z", issue, freq="5min")
+    provider.store().import_samples(
+        [sample("hybrid", t, 200) for t in times]
+        + [sample("battery_soc_fraction", t, 0.6) for t in times],
+        issue,
+    )
+    assert provider._measurements(issue, 1).loc["2026-09-18T12:00Z", "hybrid_eligible"]
+    provider.store().import_samples(
+        [sample("battery_soc_fraction", "2026-09-18T12:05Z", 0.9)], issue
+    )
+    assert not provider._measurements(issue, 1).loc["2026-09-18T12:00Z", "hybrid_eligible"]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"learning_guard_key": "soc"},
+        {"learning_guard_max": 0.9},
+        {"learning_guard_key": "soc", "learning_guard_max": 0.9, "curtailment_key": "flag"},
+        {"measurement_key": "power", "curtailment_key": "power"},
+    ],
+)
+def test_invalid_learning_guard_config_rejected(fields):
+    from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
+
+    with pytest.raises(ValueError):
+        PVForecastPlaneSetting(**fields)
+
+
+def test_new_quality_options_preserve_legacy_physical_signature(provider):
+    original = provider._signature()
+    provider.config.pvforecast.planes[0].correction_group = "new_inverter"
+    provider.config.pvforecast.planes[0].curtailment_key = "new_status_flag"
+    provider.config.pvforecast.adaptive.correction_mode = "calibrated"
+    assert provider._signature() == original
+
+
+def test_total_channel_and_no_independent_reference_are_supported(provider):
+    from akkudoktoreos.measurement.measurement import MeasurementChannelSettings
+
+    provider.config.pvforecast.adaptive.total_measurement_key = "whole_plant"
+    provider.config.pvforecast.adaptive.total_curtailment_sensitive = True
+    for plane in provider.config.pvforecast.planes:
+        plane.measurement_key = None
+    provider.config.measurement.channels["whole_plant"] = MeasurementChannelSettings(
+        quantity="power", unit="W", integration_method="hold", max_gap_seconds=600
+    )
+    issue = pd.Timestamp("2026-09-18T12:20Z")
+    provider.store().import_samples(
+        [
+            sample("whole_plant", t, 500)
+            for t in pd.date_range("2026-09-18T11:30Z", issue, freq="5min")
+        ],
+        issue,
+    )
+    measured = provider._measurements(issue, 1)
+    assert measured.loc["2026-09-18T12:00Z", "actual_w"] == 500
+    assert measured.reference_actual_w.isna().all()
+    assert provider._groups() == {"plant": ["whole_plant"]}
+
+
+@pytest.mark.asyncio
+async def test_calibrated_ac_is_limited_per_plane_and_dc_is_not_reconstructed(provider):
+    issue = pd.Timestamp("2026-09-18T12:05Z")
+    provider.config.pvforecast.planes[1].inverter_paco = 800
+    index = pd.date_range(issue.floor("15min") - pd.Timedelta(hours=2), periods=20, freq="15min")
+    raw = pd.DataFrame(
+        dict(
+            hybrid=3000.0,
+            micro=800.0,
+            hybrid_dc=5000.0,
+            micro_dc=1000.0,
+            weather_weight=0.0,
+            solar_elevation=30.0,
+        ),
+        index=index,
+    )
+    models = dict(
+        gains={
+            k: dict(
+                gain=1.5 if k == "micro" else 1.0, shape=[1.0] * 12, days=5, curtailed=k == "hybrid"
+            )
+            for k in ("hybrid", "micro")
+        },
+        coefficients={},
+        training_counts={},
+        fitted_at=issue.isoformat(),
+        selection={},
+    )
+    original = to_datetime
+
+    def clock(*args, **kwargs):
+        return (
+            original(issue.to_pydatetime())
+            if not args and kwargs.get("in_timezone")
+            else original(*args, **kwargs)
+        )
+
+    with (
+        patch(
+            "akkudoktoreos.prediction.pvforecastadaptiveakkudoktor.to_datetime", side_effect=clock
+        ),
+        patch.object(type(provider), "_physical_frames", return_value=[raw, raw.copy()]),
+        patch.object(type(provider), "_request_local_forecast", return_value={}),
+        patch.object(type(provider), "_models", return_value=models),
+    ):
+        await provider._update_data()
+    forecast = await provider.key_to_series("pvforecast_ac_power")
+    dc = await provider.key_to_series("pvforecast_dc_power")
+    assert forecast.max() <= 3800
+    assert dc.max() == pytest.approx(6500)
+
+
+def test_missing_reference_still_resolves_whole_plant_metrics(tmp_path):
+    store = PVLearningStore(tmp_path / "learning.sqlite3")
+    issue = pd.Timestamp("2026-09-01T10:00Z")
+    target = issue + pd.Timedelta(minutes=15)
+    store.remember(
+        "a",
+        issue,
+        [
+            (
+                target,
+                dict(
+                    plant_raw_w=1000,
+                    plant_calibrated_w=900,
+                    plant_local_w=900,
+                    plant_adaptive_w=900,
+                ),
+            )
+        ],
+        "UTC",
+    )
+    available = target + pd.Timedelta(minutes=20)
+    store.resolve(
+        "a",
+        pd.DataFrame(
+            dict(actual_w=[800], reference_actual_w=[np.nan], available_at=[available]),
+            index=[target],
+        ),
+        available,
+    )
+    rows = store.metric_rows("a", issue, available)
+    assert rows[0]["actual_w"] == 800
+    assert (
+        store.comparisons("a", store.milliseconds(issue), store.milliseconds(available))[0][
+            "actual_w"
+        ]
+        == 800
+    )
+
+
+def test_metrics_use_full_window_independently_of_public_export_limit(tmp_path):
+    store = PVLearningStore(tmp_path / "learning.sqlite3")
+    target = pd.Timestamp("2026-09-02T12:00Z")
+    stamp = store.milliseconds(target)
+    payload = store.dump(dict(plant_raw_w=1000, reference_raw_w=100))
+    with store.connection() as db:
+        db.executemany(
+            "INSERT INTO forecasts(signature,issue_ms,target_ms,lead_minutes,payload,actual_w,updated_ms) VALUES (?,?,?,?,?,?,?)",
+            [
+                ("a", stamp - 100000 + i, stamp, 1, payload, 500, stamp + 900000)
+                for i in range(20005)
+            ],
+        )
+    start, end = target - pd.Timedelta(hours=1), target + pd.Timedelta(hours=1)
+    assert (
+        len(store.comparisons("a", store.milliseconds(start), store.milliseconds(end), limit=20000))
+        == 20000
+    )
+    assert len(store.metric_rows("a", start, end)) == 20005
+
+
+def test_daily_fit_waits_for_previous_day_closing_samples(provider):
+    first = provider._models(provider._signature(), pd.Timestamp("2026-09-18T12:00Z"))
+    before = provider._models(provider._signature(), pd.Timestamp("2026-09-19T00:02+02:00"))
+    assert before["fitted_at"] == first["fitted_at"]
+    after = provider._models(provider._signature(), pd.Timestamp("2026-09-19T00:16+02:00"))
+    assert after["day"] == "2026-09-19"
+    assert after["after_delay"] is True
+
+
+def test_day_ahead_metrics_count_dst_intervals_and_never_zero_fill(tmp_path):
+    store = PVLearningStore(tmp_path / "learning.sqlite3")
+    start = pd.Timestamp("2026-10-25", tz="Europe/Berlin")
+    end = start + pd.DateOffset(days=1)
+    targets = pd.date_range(start, end, freq="15min", inclusive="left")
+    payload = store.dump({f"plant_{m}_w": 2000 for m in ("raw", "calibrated", "local", "adaptive")})
+    with store.connection() as db:
+        db.executemany(
+            "INSERT INTO baselines VALUES (?,?,?,?)",
+            [
+                (
+                    "a",
+                    store.milliseconds(t),
+                    store.milliseconds(start - pd.Timedelta(hours=1)),
+                    payload,
+                )
+                for t in targets
+            ],
+        )
+        db.executemany(
+            "INSERT INTO forecasts(signature,issue_ms,target_ms,lead_minutes,payload,actual_w,updated_ms) VALUES (?,?,?,?,?,?,?)",
+            [
+                (
+                    "a",
+                    store.milliseconds(t - pd.Timedelta(minutes=15)),
+                    store.milliseconds(t),
+                    15,
+                    payload,
+                    1000,
+                    store.milliseconds(end),
+                )
+                for t in targets
+            ],
+        )
+    rows = store.daily_metrics("a", start, end, "Europe/Berlin")
+    assert rows[0]["complete"] is True
+    assert rows[0]["expected_slots"] == 100
+    assert rows[0]["actual_kwh"] == 25
+    assert rows[0]["adaptive_kwh"] == 50
+    with store.connection() as db:
+        db.execute(
+            "UPDATE forecasts SET actual_w=NULL WHERE target_ms=?",
+            (store.milliseconds(targets[3]),),
+        )
+    assert store.daily_metrics("a", start, end, "Europe/Berlin")[0]["actual_kwh"] is None
+
+
+def test_censored_calibration_uses_only_authorized_partial_days():
+    from akkudoktoreos.prediction.pvadaptive import AdaptivePVModel
+
+    index = pd.DatetimeIndex(
+        [
+            t
+            for d in pd.date_range("2026-09-01T10:00Z", periods=5, freq="D")
+            for t in pd.date_range(d, periods=8, freq="15min")
+        ]
+    )
+    history = pd.DataFrame(
+        dict(raw_power=1000.0, measured_power=600.0, available_at=index + pd.Timedelta(minutes=20)),
+        index=index,
+    )
+    cutoff = pd.Timestamp("2026-09-07T00:00Z")
+    model = AdaptivePVModel(min_days=5).fit(history, cutoff)
+    assert model.trained_days == 0
+    partial = AdaptivePVModel(min_days=5, allow_partial_days=True).fit(history, cutoff)
+    assert partial.trained_days == 5
+    assert partial.gain == pytest.approx(0.6)

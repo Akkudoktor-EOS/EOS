@@ -96,7 +96,19 @@
                "diagnostics_days": 7,
                "archive_retention_days": 60,
                "nowcast_enabled": true,
-               "trend_enabled": true
+               "trend_enabled": true,
+               "correction_mode": "auto",
+               "validation_days": 7,
+               "min_validation_days": 3,
+               "min_validation_samples": 32,
+               "min_validation_improvement": 0.02,
+               "training_delay_minutes": 15,
+               "total_measurement_key": null,
+               "total_curtailment_sensitive": false,
+               "total_curtailment_key": null,
+               "total_learning_guard_key": null,
+               "total_learning_guard_max": null,
+               "total_learning_guard_max_gap_seconds": 600
            },
            "pvforecastimport": {
                "import_file_path": null,
@@ -135,6 +147,11 @@
                    "nowcast_reference": false,
                    "curtailment_sensitive": false,
                    "parameters_estimated": false,
+                   "correction_group": null,
+                   "curtailment_key": null,
+                   "learning_guard_key": null,
+                   "learning_guard_max": null,
+                   "learning_guard_max_gap_seconds": 600,
                    "surface_tilt": 10.0,
                    "surface_azimuth": 180.0,
                    "userhorizon": [
@@ -162,6 +179,11 @@
                    "nowcast_reference": false,
                    "curtailment_sensitive": false,
                    "parameters_estimated": false,
+                   "correction_group": null,
+                   "curtailment_key": null,
+                   "learning_guard_key": null,
+                   "learning_guard_max": null,
+                   "learning_guard_max_gap_seconds": 600,
                    "surface_tilt": 20.0,
                    "surface_azimuth": 90.0,
                    "userhorizon": [
@@ -258,7 +280,19 @@
                "diagnostics_days": 7,
                "archive_retention_days": 60,
                "nowcast_enabled": true,
-               "trend_enabled": true
+               "trend_enabled": true,
+               "correction_mode": "auto",
+               "validation_days": 7,
+               "min_validation_days": 3,
+               "min_validation_samples": 32,
+               "min_validation_improvement": 0.02,
+               "training_delay_minutes": 15,
+               "total_measurement_key": null,
+               "total_curtailment_sensitive": false,
+               "total_curtailment_key": null,
+               "total_learning_guard_key": null,
+               "total_learning_guard_max": null,
+               "total_learning_guard_max_gap_seconds": 600
            },
            "pvforecastimport": {
                "import_file_path": null,
@@ -297,6 +331,11 @@
                    "nowcast_reference": false,
                    "curtailment_sensitive": false,
                    "parameters_estimated": false,
+                   "correction_group": null,
+                   "curtailment_key": null,
+                   "learning_guard_key": null,
+                   "learning_guard_max": null,
+                   "learning_guard_max_gap_seconds": 600,
                    "surface_tilt": 10.0,
                    "surface_azimuth": 180.0,
                    "userhorizon": [
@@ -324,6 +363,11 @@
                    "nowcast_reference": false,
                    "curtailment_sensitive": false,
                    "parameters_estimated": false,
+                   "correction_group": null,
+                   "curtailment_key": null,
+                   "learning_guard_key": null,
+                   "learning_guard_max": null,
+                   "learning_guard_max_gap_seconds": 600,
                    "surface_tilt": 20.0,
                    "surface_azimuth": 90.0,
                    "userhorizon": [
@@ -553,9 +597,14 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | albedo | `Optional[float]` | `rw` | `0.2` | Proportion of the light hitting the ground that it reflects back. |
+| correction_group | `Optional[str]` | `rw` | `None` | Optional group of planes sharing short-term validation. Unset independent references share one group; other planes are separate. |
+| curtailment_key | `Optional[str]` | `rw` | `None` | Optional measured flag: 0 explicitly unrestricted, 1 curtailed. Missing or stale flags never authorize learning a curtailment-sensitive plane. |
 | curtailment_sensitive | `bool` | `rw` | `False` | Battery-full curtailment possible; exclude from unrestricted weather learning. |
 | inverter_model | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
 | inverter_paco | `Optional[int]` | `rw` | `None` | AC power rating of the inverter [W]. |
+| learning_guard_key | `Optional[str]` | `rw` | `None` | Optional site-specific positive learning guard, e.g. battery SoC, as an alternative to a binary curtailment flag. |
+| learning_guard_max | `Optional[float]` | `rw` | `None` | Learn only while every supported guard value is below this bound. This is an explicit site assumption, not automatic curtailment detection. |
+| learning_guard_max_gap_seconds | `int` | `rw` | `600` | None |
 | loss | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
 | measurement_key | `Optional[str]` | `rw` | `None` | Matching EOS power measurement key for adaptive learning. |
 | module_model | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
@@ -591,6 +640,11 @@
                    "nowcast_reference": false,
                    "curtailment_sensitive": false,
                    "parameters_estimated": false,
+                   "correction_group": null,
+                   "curtailment_key": null,
+                   "learning_guard_key": null,
+                   "learning_guard_max": null,
+                   "learning_guard_max_gap_seconds": 600,
                    "surface_tilt": 10.0,
                    "surface_azimuth": 180.0,
                    "userhorizon": [
@@ -782,12 +836,16 @@
 | calibration_outage_threshold | `float` | `rw` | `0.55` | A day is treated as unavailable when its measured/modelled energy ratio is below this fraction of the robust healthy reference ratio. |
 | calibration_prior_kwh | `float` | `rw` | `5.0` | Shrinkage strength: a bin needs this much modelled energy before its own factor outweighs the global one. Higher is more conservative. |
 | calibration_reference_days | `int` | `rw` | `30` | Lookback used to distinguish healthy production from outages or curtailment. If the calibration window contains too few healthy days, the most recent healthy days from this reference window are used. |
+| correction_mode | `Literal['auto', 'calibrated', 'local', 'trend']` | `rw` | `auto` | Choose validated short-term candidates per group/lead, or explicitly fix a correction stage. |
 | diagnostics_days | `int` | `rw` | `7` | None |
 | forecast_days | `Optional[int]` | `rw` | `None` | Forecast horizon in days (1-16). Leave empty to derive it from `prediction.hours`, which is what keeps the optimizer's tail horizon fed. |
 | inverter_efficiency | `float` | `rw` | `0.96` | Nominal inverter efficiency (PVWatts eta_inv_nom). |
 | learning_days | `int` | `rw` | `21` | None |
 | max_ac_power_w | `float` | `rw` | `0` | None |
 | min_training_days | `int` | `rw` | `5` | None |
+| min_validation_days | `int` | `rw` | `3` | None |
+| min_validation_improvement | `float` | `rw` | `0.02` | None |
+| min_validation_samples | `int` | `rw` | `32` | None |
 | nominal_total_peakpower_kw | `Optional[float]` | `rw` | `None` | Known installed nameplate total; fitted plane powers may be effective estimates. |
 | nowcast_enabled | `bool` | `rw` | `True` | None |
 | past_days | `Optional[int]` | `rw` | `None` | Days of past data to request (0-92). Leave empty to derive it from `prediction.historic_hours`. |
@@ -796,8 +854,16 @@
 | resolution_minutes | `int` | `rw` | `15` | Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block. |
 | shift_to_interval_start | `bool` | `rw` | `True` | Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not. |
 | temperature_coefficient | `float` | `rw` | `-0.36` | Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses. |
+| total_curtailment_key | `Optional[str]` | `rw` | `None` | None |
+| total_curtailment_sensitive | `bool` | `rw` | `False` | None |
+| total_learning_guard_key | `Optional[str]` | `rw` | `None` | None |
+| total_learning_guard_max | `Optional[float]` | `rw` | `None` | None |
+| total_learning_guard_max_gap_seconds | `int` | `rw` | `600` | None |
+| total_measurement_key | `Optional[str]` | `rw` | `None` | Optional whole-plant power channel when individual plane measurements are unavailable. |
+| training_delay_minutes | `int` | `rw` | `15` | None |
 | transposition_model | `str` | `rw` | `perez` | pvlib sky-diffuse transposition model: isotropic, klucher, haydavies, reindl, king or perez. |
 | trend_enabled | `bool` | `rw` | `True` | None |
+| validation_days | `int` | `rw` | `7` | None |
 | weather_models | `list[str]` | `rw` | `['best_match']` | Open-Meteo weather models to request. Listing more than one turns the input into a poor-man's ensemble: the members are averaged per variable, which is the cheapest reliable way to cut irradiance forecast error. Costs no extra API calls. |
 :::
 <!-- pyml enable line-length -->
@@ -844,7 +910,19 @@
                "diagnostics_days": 7,
                "archive_retention_days": 60,
                "nowcast_enabled": true,
-               "trend_enabled": true
+               "trend_enabled": true,
+               "correction_mode": "auto",
+               "validation_days": 7,
+               "min_validation_days": 3,
+               "min_validation_samples": 32,
+               "min_validation_improvement": 0.02,
+               "training_delay_minutes": 15,
+               "total_measurement_key": null,
+               "total_curtailment_sensitive": false,
+               "total_curtailment_key": null,
+               "total_learning_guard_key": null,
+               "total_learning_guard_max": null,
+               "total_learning_guard_max_gap_seconds": 600
            }
        }
    }
