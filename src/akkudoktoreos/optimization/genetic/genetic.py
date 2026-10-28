@@ -5,8 +5,10 @@ import ctypes.util
 import gc
 import math
 import multiprocessing
+import multiprocessing.pool
 import os
 import random
+import signal
 import sys
 import time
 from array import array
@@ -277,7 +279,17 @@ def worker_cpu_set(workers: int, allowed: Optional[set[int]] = None) -> Optional
 
 
 def _evaluation_worker_init(cpus: Optional[set[int]] = None) -> None:
-    """Evaluate without the run cache in a worker; the parent owns the cache."""
+    """Prepare a forked evaluation worker; the parent owns the run cache.
+
+    The worker ignores SIGTERM and SIGINT. Sent to the whole process group
+    (Ctrl-C, a service manager stopping the server) they are meant for the
+    server process, which finishes or aborts the run and stops the workers
+    itself (see ``_EvaluationPool``). Without this, a worker would run the
+    signal handler it inherited from the server - uvicorn's only asks the
+    server to shut down - or die in the middle of a batch.
+    """
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     if _WORKER_OPTIMIZER is not None:
         _WORKER_OPTIMIZER._fitness_cache_enabled = False
     if cpus:
@@ -285,6 +297,24 @@ def _evaluation_worker_init(cpus: Optional[set[int]] = None) -> None:
             os.sched_setaffinity(0, cpus)
         except (AttributeError, OSError):
             pass
+
+
+class _EvaluationPool(multiprocessing.pool.Pool):
+    """Process pool whose ``terminate()`` stops the workers with SIGKILL.
+
+    ``Pool.terminate()`` keeps the task queue's read lock and then stops the
+    workers with SIGTERM. A worker that survives it - because it ignores the
+    signal, still runs the server's inherited handler (uvicorn's only asks the
+    server to shut down) or got it before its initializer ran - waits for that
+    lock forever, and ``Pool.join()`` with it. SIGKILL cannot be caught; the
+    pool sends it at the same point it would send SIGTERM.
+    """
+
+    @staticmethod
+    def Process(ctx: Any, *args: Any, **kwds: Any) -> Any:  # noqa: N802 - Pool API
+        process = ctx.Process(*args, **kwds)
+        setattr(process, "terminate", process.kill)
+        return process
 
 
 def _evaluation_worker(genome: list[int]) -> tuple[list[int], tuple[float], Any]:
@@ -2954,10 +2984,11 @@ class GeneticOptimization(OptimizationBase):
         cpus = worker_cpu_set(self._evaluation_workers) if self._pin_workers() else None
         _WORKER_OPTIMIZER = self
         try:
-            self._evaluation_pool = context.Pool(
+            self._evaluation_pool = _EvaluationPool(
                 self._evaluation_workers,
                 initializer=_evaluation_worker_init,
                 initargs=(cpus,),
+                context=context,
             )
         except Exception as exc:
             _WORKER_OPTIMIZER = None
