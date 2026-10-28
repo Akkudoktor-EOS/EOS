@@ -1,6 +1,7 @@
+# Test data directory and known migration pairs
+import copy
 import json
 import shutil
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -8,9 +9,9 @@ import pytest
 
 from akkudoktoreos.config import configmigrate
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOSDefaults
+from akkudoktoreos.config.configmigrate import migrate_config_data
 from akkudoktoreos.core.version import __version__
 
-# Test data directory and known migration pairs
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 MIGRATION_PAIRS = [
@@ -250,3 +251,16 @@ class TestConfigMigration:
             # Remove the .new working file only if the test passed (failed == False)
             if not failed and working_file.exists():
                 working_file.unlink(missing_ok=True)
+
+
+class TestDeviceMigration:
+    @pytest.mark.parametrize("as_list", [False, True])
+    def test_migration_preserves_lcos_and_input(self, as_list):
+        battery = {"device_id": "house", "capacity_wh": 12000,
+                   "levelized_cost_of_storage_kwh": 0.123}
+        raw = {"devices": {"batteries": [battery] if as_list else {"house": battery}}}
+        original = copy.deepcopy(raw)
+        migrated = migrate_config_data(raw)
+        assert migrated.devices.batteries is not None
+        assert migrated.devices.batteries["house"].levelized_cost_of_storage_amt_kwh == 0.123
+        assert raw == original
