@@ -2,6 +2,7 @@
 """Tests for PVForecastPVLib prediction provider."""
 
 import bz2
+import os
 import pickle
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -490,7 +491,8 @@ class TestCECDatabase:
         #
         # Force new modification time.
         #
-        path.touch()
+        previous = path.stat()
+        os.utime(path, ns=(previous.st_atime_ns, previous.st_mtime_ns + 1_000_000_000))
 
         second = _load_cec_database(path)
 
