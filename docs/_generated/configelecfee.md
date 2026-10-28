@@ -124,10 +124,12 @@ This model extends `TimeWindow` by associating a value with the defined time int
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| date | `Optional[pydantic_extra_types.pendulum_dt.Date]` | `rw` | `None` | Optional specific calendar date for the time window. Naive — matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set. |
-| day_of_week | `Union[int, str, NoneType]` | `rw` | `None` | Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set. |
-| duration | `Duration` | `rw` | `required` | Duration of the time window starting from `start_time`. |
+| date | `Optional[pydantic_extra_types.pendulum_dt.Date]` | `rw` | `None` | Optional specific calendar date on which the time window must start. For overnight windows, this restriction applies to the start date, not the date of each datetime tested by contains(). |
+| day_of_week | `Union[int, str, NoneType]` | `rw` | `None` | Optional day of the week on which the time window must start. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. For overnight windows, the restriction applies to the start date. |
+| duration | `Duration` | `rw` | `0 microseconds` | Duration of the time window starting from `start_time`. |
+| end_time | `Optional[akkudoktoreos.utils.datetimeutil.Time]` | `rw` | `None` | Optional exclusive end time of the window. The effective end is the later of end_time and start_time + duration. End time follows local wall-clock time across daylight saving time changes. If None (the default), the window ends at start_time + duration. |
 | locale | `Optional[str]` | `rw` | `None` | Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc. |
+| month | `Optional[int]` | `rw` | `None` | Optional calendar month restriction (1=January to 12=December). The window's start date must fall in this month, including for overnight windows that extend into the following month. |
 | start_time | `Time` | `rw` | `required` | Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time(). |
 | value | `Optional[float]` | `rw` | `None` | Value applicable during this time window. |
 :::
@@ -147,8 +149,10 @@ This model extends `TimeWindow` by associating a value with the defined time int
                        {
                            "start_time": "00:00:00.000000",
                            "duration": "2 hours",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 0.288
                        }
@@ -230,16 +234,20 @@ fee applicable during that interval.
                        {
                            "start_time": "00:00:00.000000",
                            "duration": "8 hours",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 0.00288
                        },
                        {
                            "start_time": "08:00:00.000000",
                            "duration": "16 hours",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 0.0034
                        }
@@ -250,8 +258,10 @@ fee applicable during that interval.
                        {
                            "start_time": "00:00:00.000000",
                            "duration": "1 day",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 19.0
                        }
@@ -262,16 +272,20 @@ fee applicable during that interval.
                        {
                            "start_time": "00:00:00.000000",
                            "duration": "8 hours",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 0.00288
                        },
                        {
                            "start_time": "08:00:00.000000",
                            "duration": "16 hours",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 0.0034
                        }
@@ -282,8 +296,10 @@ fee applicable during that interval.
                        {
                            "start_time": "00:00:00.000000",
                            "duration": "1 day",
+                           "end_time": null,
                            "day_of_week": null,
                            "date": null,
+                           "month": null,
                            "locale": null,
                            "value": 19.0
                        }
