@@ -851,3 +851,20 @@ class TestElecPriceEnergyCharts:
             f"Expected bzn='{provider.config.elecprice.energycharts.bidding_zone}' "
             f"but got bzn='{bzn_value}' in URL: {actual_url}"
         )
+
+    # ------------------------------------------------
+    # Development Energy Charts
+    # ------------------------------------------------
+
+    @pytest.mark.skip(reason="For development only")
+    def test_energycharts_development_forecast_data(self, provider):
+        """Fetch data from real Energy-Charts server."""
+        # Preset, as this is usually done by update_data()
+        provider.ems_start_datetime = to_datetime("2024-10-26 00:00:00")
+
+        energy_charts_data = provider._request_forecast()
+
+        with FILE_TESTDATA_ELECPRICE_ENERGYCHARTS_JSON.open(
+            "w", encoding="utf-8", newline="\n"
+        ) as f_out:
+            json.dump(energy_charts_data, f_out, indent=4)

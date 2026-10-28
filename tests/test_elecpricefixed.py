@@ -1,5 +1,7 @@
 """Tests for fixed electricity price prediction module."""
 
+import json
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +13,9 @@ from akkudoktoreos.prediction.elecpricefixed import (
     ElecPriceFixedCommonSettings,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
+
+DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
+FILE_TESTDATA_ELECPRICEFIXED_CONFIG_JSON = DIR_TESTDATA.joinpath("elecpricefixed_config.json")
 
 
 class TestElecPriceFixedCommonSettings:
@@ -210,3 +215,59 @@ class TestElecPriceFixed:
         # First 2 30-min intervals should be night rate
         for i in range(2):
             assert abs(half_hour_array[i] - 0.000288) < 1e-6
+
+
+class TestElecPriceFixedIntegration:
+    """Integration tests for ElecPriceFixed."""
+
+    @pytest.mark.skip(reason="For development only")
+    async def test_fixed_price_development(self, config_eos):
+        """Test fixed price provider with real configuration."""
+        # Create provider with config
+        provider = ElecPriceFixed()
+
+        # Setup realistic test scenario
+        ems_eos = get_ems()
+        start_dt = to_datetime("2024-01-01 00:00:00", in_timezone="Europe/Berlin")
+        ems_eos.set_start_datetime(start_dt)
+
+        # Configure with realistic German electricity prices (2024)
+        elecprice_marketprice_amt_kwh = ValueTimeWindowSequence(
+            windows=[
+                ValueTimeWindow.model_validate(dict(
+                    start_time="00:00",
+                    duration="8 hours",
+                    value=0.288  # Night rate
+                )),
+                ValueTimeWindow.model_validate(dict(
+                    start_time="08:00",
+                    duration="16 hours",
+                    value=0.34   # Day rate
+                ))
+            ]
+        )
+
+        config_eos.elecprice.elecpricefixed = ElecPriceFixedCommonSettings(elecprice_marketprice_amt_kwh=elecprice_marketprice_amt_kwh)
+        config_eos.prediction.hours = 168  # 7 days
+
+        # Update data
+        await provider.update_data(force_enable=True, force_update=True)
+
+        # Verify data
+        expected_intervals = 168 * 4  # 7 days * 24h * 4 intervals
+        assert len(provider) == expected_intervals
+
+        # Save configuration for documentation
+        config_data = {
+            "elecprice_marketprice_amt_kwh": [
+                {
+                    "start_time": str(window.start_time),
+                    "duration": str(window.duration),
+                    "value": window.value
+                }
+                for window in config_eos.elecprice.elecpricefixed.elecprice_marketprice_amt_kwh.windows
+            ]
+        }
+
+        with FILE_TESTDATA_ELECPRICEFIXED_CONFIG_JSON.open("w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=4)
