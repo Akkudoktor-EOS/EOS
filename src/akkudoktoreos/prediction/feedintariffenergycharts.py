@@ -180,7 +180,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             price_wh = price_eur_per_mwh / 1_000_000
 
             # Store in series
-            prices_wh.at[orig_datetime] = price_wh
+            prices_wh.loc[(orig_datetime,)] = price_wh
 
         # Always raw here — fees are applied once, later, over the complete
         # raw+predicted series in _store_gross_series().

@@ -92,7 +92,7 @@ class FeedInTariffAkkudoktor(FeedInTariffProvider):
         series = pd.Series(dtype=float)
         for value in data.values:
             timestamp = to_datetime(value.start, in_timezone=self.config.general.timezone)
-            series.at[timestamp] = value.marketprice / 1_000_000
+            series.loc[(timestamp,)] = value.marketprice / 1_000_000
         return series
 
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
