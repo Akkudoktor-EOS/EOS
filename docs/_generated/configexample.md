@@ -190,12 +190,12 @@
                "color": {},
                "style": {},
                "width": {},
-               "dash": {},
+               "line_dash": {},
                "device_alias": {},
                "plan_table_open": false,
                "energy_kwh": true,
                "factor_percent": true,
-               "price_ct": true
+               "price_minor_unit": true
            }
        },
        "feedintariff": {

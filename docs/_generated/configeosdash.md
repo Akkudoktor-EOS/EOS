@@ -25,12 +25,12 @@
                "color": {},
                "style": {},
                "width": {},
-               "dash": {},
+               "line_dash": {},
                "device_alias": {},
                "plan_table_open": false,
                "energy_kwh": true,
                "factor_percent": true,
-               "price_ct": true
+               "price_minor_unit": true
            }
        }
    }
@@ -54,12 +54,12 @@ everything else uses the defaults of EOSdash.
 | ---- | ---- | --------- | ------- | ----------- |
 | alias | `dict[str, Annotated[str, StringConstraints(strip_whitespace=True, to_upper=None, to_lower=None, strict=None, min_length=1, max_length=32, pattern=None, ascii_only=None)]]` | `rw` | `required` | Display names of solution chart columns and commands. |
 | color | `dict[str, Annotated[str, StringConstraints(strip_whitespace=None, to_upper=None, to_lower=None, strict=None, min_length=None, max_length=None, pattern='^#[0-9A-Fa-f]{6}$', ascii_only=None)]]` | `rw` | `required` | Colors of solution chart columns and commands (#RRGGBB). |
-| dash | `dict[str, Literal['solid', 'dashed', 'dotted']]` | `rw` | `required` | Line dash of solution chart columns and commands. |
 | device_alias | `dict[str, Annotated[str, StringConstraints(strip_whitespace=True, to_upper=None, to_lower=None, strict=None, min_length=1, max_length=32, pattern=None, ascii_only=None)]]` | `rw` | `required` | Display names of devices (device id -> name) on the plan page. |
 | energy_kwh | `bool` | `rw` | `True` | Energy in kWh instead of Wh in the solution chart. Defaults to True. |
 | factor_percent | `bool` | `rw` | `True` | Factors in % instead of 0.0..1.0 in the solution chart. Defaults to True. |
-| plan_table_open | `bool` | `rw` | `False` | EMS plan table open on page load. Defaults to False. |
-| price_ct | `bool` | `rw` | `True` | Electricity price in ct/kWh (1/100 of the currency) instead of currency/kWh in the solution chart. Defaults to True. |
+| line_dash | `dict[str, Literal['solid', 'dashed', 'dotted']]` | `rw` | `required` | Line dash of solution chart columns and commands. |
+| plan_table_open | `bool` | `rw` | `False` | Energy management plan table open on page load. Defaults to False. |
+| price_minor_unit | `bool` | `rw` | `True` | Electricity price in the minor unit of the currency per kWh (e.g. ct/kWh for EUR, Rp./kWh for CHF) instead of currency/kWh in the solution chart. Has no effect for currencies without a minor unit. Defaults to True. |
 | style | `dict[str, Literal['line', 'bar']]` | `rw` | `required` | Chart type of solution chart columns and commands. |
 | visible | `dict[str, bool]` | `rw` | `required` | Visibility of solution chart columns and commands. |
 | width | `dict[str, Annotated[int, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=1), Le(le=5)])]]` | `rw` | `required` | Line width (1..5) of solution chart columns and commands. |
@@ -90,7 +90,7 @@ everything else uses the defaults of EOSdash.
                "width": {
                    "loadforecast_energy_wh": 3
                },
-               "dash": {
+               "line_dash": {
                    "elec_price_amt_kwh": "dotted"
                },
                "device_alias": {
@@ -99,7 +99,7 @@ everything else uses the defaults of EOSdash.
                "plan_table_open": false,
                "energy_kwh": true,
                "factor_percent": true,
-               "price_ct": true
+               "price_minor_unit": true
            }
        }
    }

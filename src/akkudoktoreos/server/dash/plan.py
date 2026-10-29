@@ -6,7 +6,7 @@ from typing import Any, Optional, Union
 import pandas as pd
 import requests
 from babel.core import get_global
-from babel.numbers import get_territory_currencies
+from babel.numbers import get_currency_precision, get_territory_currencies
 from bokeh.core.properties import value as bokeh_value
 from bokeh.models import (
     ColumnDataSource,
@@ -266,7 +266,7 @@ PLAN_OPTIONS = (
     # Units of the solution chart (gear menu of the chart)
     "energy_kwh",
     "factor_percent",
-    "price_ct",
+    "price_minor_unit",
 )
 # The gear menu of the plan table is only shown while the table is open
 PLAN_TABLE_STYLE = f"#{PLAN_TABLE_ID}:not([open]) + .plan-table-options {{ display: none; }}"
@@ -481,7 +481,7 @@ def solution_column_width(col: str) -> int:
 
 def solution_column_dash(col: str, is_prediction: bool) -> str:
     """Line dash of a solution column: "solid", "dashed" or "dotted", user choice first."""
-    dash = plan_settings().dash.get(col) or solution_dash_default.get(col)
+    dash = plan_settings().line_dash.get(col) or solution_dash_default.get(col)
     if dash:
         return dash
     if col.endswith("_soc_factor"):
@@ -543,6 +543,29 @@ def config_currency(config: Optional[SettingsEOS]) -> Optional[str]:
     territory = get_global("zone_territories").get(timezone) if timezone else None
     currencies = get_territory_currencies(territory) if territory else []
     return currencies[0] if currencies else None
+
+
+# Symbols of the minor unit of some currencies, other currencies are shown as e.g. "1/100 SEK"
+CURRENCY_MINOR_UNIT_SYMBOLS = {
+    "EUR": "ct",
+    "CHF": "Rp.",
+    "GBP": "p",
+    "USD": "¢",
+}
+
+
+def currency_minor_unit(currency: Optional[str]) -> Optional[tuple[str, int]]:
+    """Symbol and factor of the minor unit of a currency, None if it has none or is unknown.
+
+    The number of minor unit digits comes from CLDR (e.g. EUR -> 2, JPY -> 0).
+    """
+    if not currency:
+        return None
+    digits = get_currency_precision(currency)
+    if digits <= 0:
+        return None
+    factor = 10**digits
+    return CURRENCY_MINOR_UNIT_SYMBOLS.get(currency, f"1/{factor} {currency}"), factor
 
 
 def column_axis(col: str) -> Optional[str]:
@@ -713,7 +736,7 @@ def solution_settings_action(server: str, data: dict) -> None:
     elif action == "dash":
         dash = str(data.get("dash", ""))
         if dash in SOLUTION_LINE_DASHES:
-            plan_settings_put(server, "dash", {**settings.dash, col: dash})
+            plan_settings_put(server, "line_dash", {**settings.line_dash, col: dash})
     elif action == "alias":
         alias = alias_clean(str(data.get("alias", "")))
         aliases = {k: v for k, v in settings.alias.items() if k != col}
@@ -795,23 +818,23 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     # Units chosen in the gear menu of the chart
     energy_kwh = plan_option("energy_kwh")
     factor_percent = plan_option("factor_percent")
-    price_ct = plan_option("price_ct")
+    currency = config_currency(config)
+    currency_unit = currency or "Amount"
+    minor_unit = currency_minor_unit(currency)
+    price_minor = minor_unit if plan_option("price_minor_unit") else None
     for col in df.columns:
         if energy_kwh and col.endswith("energy_wh"):
             df[col] = df[col] / 1000.0
         elif factor_percent and col.endswith("factor"):
             df[col] = df[col] * 100.0
-        elif price_ct and col.endswith("amt_kwh"):
-            df[col] = df[col] * 100.0
-    currency = config_currency(config)
-    currency_unit = currency or "Amount"
+        elif price_minor and col.endswith("amt_kwh"):
+            df[col] = df[col] * price_minor[1]
+    price_unit = f"{price_minor[0] if price_minor else currency_unit}/kWh"
     axis_labels = {
         "energy": "Energy [kWh]" if energy_kwh else "Energy [Wh]",
         "power": "Power [W]",
         "factor": "Factor [%]" if factor_percent else "Factor [0.0..1.0]",
-        "amt_kwh": "Electricity Price [ct/kWh]"
-        if price_ct
-        else f"Electricity Price [{currency_unit}/kWh]",
+        "amt_kwh": f"Electricity Price [{price_unit}]",
         "amt": f"Amount [{currency_unit}]",
     }
     # Unit and number format in the mouseover
@@ -819,7 +842,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
         "energy": ("kWh", "0.00") if energy_kwh else ("Wh", "0"),
         "power": ("W", "0"),
         "factor": ("%", "0") if factor_percent else ("", "0.00"),
-        "amt_kwh": ("ct/kWh", "0.0") if price_ct else (f"{currency or ''}/kWh", "0.00"),
+        "amt_kwh": (price_unit, "0.0") if price_minor else (f"{currency or ''}/kWh", "0.00"),
         "amt": (currency or "", "0.00"),
     }
 
@@ -1176,14 +1199,10 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     # Commands under "More commands" are not counted
     counts = {"solution-instruction": len(modes) + len(optimizer_rows)}
 
-    chart_options = PlanOptionsMenu(
-        "solution-chart-options",
-        [
-            ("energy_kwh", "Energy in kWh"),
-            ("factor_percent", "Factors in %"),
-            ("price_ct", "Electricity Price in ct/kWh"),
-        ],
-    )
+    chart_option_items = [("energy_kwh", "Energy in kWh"), ("factor_percent", "Factors in %")]
+    if minor_unit:
+        chart_option_items.append(("price_minor_unit", f"Electricity Price in {minor_unit[0]}/kWh"))
+    chart_options = PlanOptionsMenu("solution-chart-options", chart_option_items)
     return Div(
         totals,
         Div(
@@ -1727,7 +1746,7 @@ def PlanTable(cards: list[Any], open: bool) -> Div:
     options = PlanOptionsMenu(f"{PLAN_TABLE_ID}-options", [("plan_table_open", "Open by default")])
     return Div(
         Style(PLAN_TABLE_STYLE),
-        ConfigSection(f"EMS Plan Table ({len(cards)})", *cards, open=open)(
+        ConfigSection(f"Energy Management Plan ({len(cards)})", *cards, open=open)(
             id=PLAN_TABLE_ID, data_keep_open="true"
         ),
         Div(

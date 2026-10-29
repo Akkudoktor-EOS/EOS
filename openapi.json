@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610292029046395"
+    "version": "v0.3.0.dev2610292046449086"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -1164,7 +1164,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
+                "oneOf": [
                   {
                     "$ref": "#/components/schemas/PowerMeasurement"
                   },
@@ -1193,6 +1193,20 @@
                     "$ref": "#/components/schemas/DDBCActuatorStatus"
                   }
                 ],
+                "discriminator": {
+                  "propertyName": "type",
+                  "mapping": {
+                    "PowerMeasurement": "#/components/schemas/PowerMeasurement",
+                    "EnergyMeasurement": "#/components/schemas/EnergyMeasurement",
+                    "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus",
+                    "OMBCStatus": "#/components/schemas/OMBCStatus",
+                    "FRBCActuatorStatus": "#/components/schemas/FRBCActuatorStatus",
+                    "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus",
+                    "FRBCStorageStatus": "#/components/schemas/FRBCStorageStatus",
+                    "FRBCTimerStatus": "#/components/schemas/FRBCTimerStatus",
+                    "DDBCActuatorStatus": "#/components/schemas/DDBCActuatorStatus"
+                  }
+                },
                 "description": "Resource Status.",
                 "title": "Status"
               }
@@ -5065,7 +5079,7 @@
               }
             ]
           },
-          "dash": {
+          "line_dash": {
             "additionalProperties": {
               "type": "string",
               "enum": [
@@ -5075,7 +5089,7 @@
               ]
             },
             "type": "object",
-            "title": "Dash",
+            "title": "Line Dash",
             "description": "Line dash of solution chart columns and commands.",
             "examples": [
               {
@@ -5101,7 +5115,7 @@
           "plan_table_open": {
             "type": "boolean",
             "title": "Plan Table Open",
-            "description": "EMS plan table open on page load. Defaults to False.",
+            "description": "Energy management plan table open on page load. Defaults to False.",
             "default": false
           },
           "energy_kwh": {
@@ -5116,10 +5130,10 @@
             "description": "Factors in % instead of 0.0..1.0 in the solution chart. Defaults to True.",
             "default": true
           },
-          "price_ct": {
+          "price_minor_unit": {
             "type": "boolean",
-            "title": "Price Ct",
-            "description": "Electricity price in ct/kWh (1/100 of the currency) instead of currency/kWh in the solution chart. Defaults to True.",
+            "title": "Price Minor Unit",
+            "description": "Electricity price in the minor unit of the currency per kWh (e.g. ct/kWh for EUR, Rp./kWh for CHF) instead of currency/kWh in the solution chart. Has no effect for currencies without a minor unit. Defaults to True.",
             "default": true
           }
         },

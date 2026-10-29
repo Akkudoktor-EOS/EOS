@@ -66,7 +66,7 @@ class EOSdashPlanSettings(SettingsBaseModel):
             "examples": [{"loadforecast_energy_wh": 3}],
         },
     )
-    dash: dict[str, Literal["solid", "dashed", "dotted"]] = Field(
+    line_dash: dict[str, Literal["solid", "dashed", "dotted"]] = Field(
         default_factory=dict,
         json_schema_extra={
             "description": "Line dash of solution chart columns and commands.",
@@ -82,7 +82,9 @@ class EOSdashPlanSettings(SettingsBaseModel):
     )
     plan_table_open: bool = Field(
         default=False,
-        json_schema_extra={"description": "EMS plan table open on page load. Defaults to False."},
+        json_schema_extra={
+            "description": "Energy management plan table open on page load. Defaults to False."
+        },
     )
     energy_kwh: bool = Field(
         default=True,
@@ -96,12 +98,13 @@ class EOSdashPlanSettings(SettingsBaseModel):
             "description": "Factors in % instead of 0.0..1.0 in the solution chart. Defaults to True."
         },
     )
-    price_ct: bool = Field(
+    price_minor_unit: bool = Field(
         default=True,
         json_schema_extra={
             "description": (
-                "Electricity price in ct/kWh (1/100 of the currency) instead of currency/kWh "
-                "in the solution chart. Defaults to True."
+                "Electricity price in the minor unit of the currency per kWh (e.g. ct/kWh for "
+                "EUR, Rp./kWh for CHF) instead of currency/kWh in the solution chart. Has no "
+                "effect for currencies without a minor unit. Defaults to True."
             )
         },
     )
