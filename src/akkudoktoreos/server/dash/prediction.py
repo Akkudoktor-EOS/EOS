@@ -280,7 +280,7 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
     # Merge into dataframe
     # ---------------------------------------------------------------------
     predictions = pd.concat(series_list, axis=1).reset_index()
-    predictions.rename(columns={"index": "date_time"}, inplace=True)
+    predictions = predictions.rename(columns={"index": "date_time"})
 
     # Remove time offset from UTC to get naive local time and make bokeh plot in local time
     date_time_tz = predictions["date_time"].dt.tz

@@ -301,7 +301,7 @@ class ElecPriceTibber(ElecPriceProvider):
         series_data = pd.Series(dtype=float)
         for point in points:
             orig_datetime = to_datetime(point.startsAt, in_timezone=self.config.general.timezone)
-            series_data.at[orig_datetime] = point.total / 1000.0
+            series_data.loc[(orig_datetime,)] = point.total / 1000.0
 
         return series_data.sort_index()
 

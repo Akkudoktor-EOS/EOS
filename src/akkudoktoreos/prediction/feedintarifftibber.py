@@ -98,7 +98,7 @@ class FeedInTariffTibber(FeedInTariffProvider):
             if point.energy is None:
                 raise ValueError("Tibber response does not contain the energy price component")
             timestamp = to_datetime(point.startsAt, in_timezone=self.config.general.timezone)
-            series.at[timestamp] = point.energy / 1000.0
+            series.loc[(timestamp,)] = point.energy / 1000.0
 
         if series.empty:
             raise ValueError("Tibber response contains no feed-in price points")

@@ -111,7 +111,7 @@ class FeedInTariffDvhubOnline(FeedInTariffProvider):
             except (KeyError, TypeError, ValueError) as exc:
                 logger.warning("Skipping malformed dvhub.online price entry {}: {}", entry, exc)
                 continue
-            series_data.at[orig_datetime] = price_eur_per_mwh / 1_000_000
+            series_data.loc[(orig_datetime,)] = price_eur_per_mwh / 1_000_000
         return series_data
 
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
