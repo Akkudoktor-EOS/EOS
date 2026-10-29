@@ -672,8 +672,15 @@ class TestDataSequenceCompactIntegrity:
         seq, _ = dense_energy_seq
         await seq.db_compact()
 
-        dts = [r.date_time for r in seq.records if r.date_time is not None]
-        assert dts == sorted(dts)
+        # Use UTC timestamp to account for DST change in records sequence
+        epochs = [
+            int(r.date_time.timestamp())
+            for r in seq.records
+            if r.date_time is not None
+        ]
+        assert epochs == sorted(epochs), (
+            "Records must be ascending by UTC instant after compaction"
+        )
 
     async def test_compacted_old_timestamps_on_1h_boundaries(self, dense_energy_seq):
         """Records older than the floored 2-week cutoff must be on whole-hour UTC boundaries.

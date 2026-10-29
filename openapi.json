@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2610261491542381"
+    "version": "v0.3.0.dev2610291327175670"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -1164,7 +1164,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
+                "oneOf": [
                   {
                     "$ref": "#/components/schemas/PowerMeasurement"
                   },
@@ -1193,6 +1193,20 @@
                     "$ref": "#/components/schemas/DDBCActuatorStatus"
                   }
                 ],
+                "discriminator": {
+                  "propertyName": "type",
+                  "mapping": {
+                    "PowerMeasurement": "#/components/schemas/PowerMeasurement",
+                    "EnergyMeasurement": "#/components/schemas/EnergyMeasurement",
+                    "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus",
+                    "OMBCStatus": "#/components/schemas/OMBCStatus",
+                    "FRBCActuatorStatus": "#/components/schemas/FRBCActuatorStatus",
+                    "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus",
+                    "FRBCStorageStatus": "#/components/schemas/FRBCStorageStatus",
+                    "FRBCTimerStatus": "#/components/schemas/FRBCTimerStatus",
+                    "DDBCActuatorStatus": "#/components/schemas/DDBCActuatorStatus"
+                  }
+                },
                 "description": "Resource Status.",
                 "title": "Status"
               }
@@ -10992,11 +11006,11 @@
               }
             ],
             "title": "Device Measurement Entity Ids",
-            "description": "Mapping of EOS measurement keys used by device (resource) simulations to Home Assistant entity IDs.",
+            "description": "Mapping of EOS device measurement keys to Home Assistant entity IDs. Registered keys such as 'battery1-soc-factor' are accepted; legacy underscore spellings are resolved when they uniquely match a registered key.",
             "examples": [
               {
-                "battery1_soc_factor": "sensor.battery1_soc_factor",
-                "ev11_soc_factor": "sensor.ev11_soc_factor"
+                "battery1-soc-factor": "sensor.battery1_soc_factor",
+                "ev11-soc-factor": "sensor.ev11_soc_factor"
               }
             ]
           },
@@ -11168,11 +11182,11 @@
               }
             ],
             "title": "Device Measurement Entity Ids",
-            "description": "Mapping of EOS measurement keys used by device (resource) simulations to Home Assistant entity IDs.",
+            "description": "Mapping of EOS device measurement keys to Home Assistant entity IDs. Registered keys such as 'battery1-soc-factor' are accepted; legacy underscore spellings are resolved when they uniquely match a registered key.",
             "examples": [
               {
-                "battery1_soc_factor": "sensor.battery1_soc_factor",
-                "ev11_soc_factor": "sensor.ev11_soc_factor"
+                "battery1-soc-factor": "sensor.battery1_soc_factor",
+                "ev11-soc-factor": "sensor.ev11_soc_factor"
               }
             ]
           },
