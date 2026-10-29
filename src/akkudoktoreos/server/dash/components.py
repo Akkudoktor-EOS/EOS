@@ -226,6 +226,23 @@ def UpdateError(error_text: str) -> Alert:
     )
 
 
+def Badge(icon: str, text: str, tone: str = "muted") -> Div:
+    """A small pill with an icon and a label.
+
+    tone: 'muted' (neutral), 'accent' (highlighted), 'warn' (attention).
+    """
+    palette = {
+        "muted": "bg-muted text-muted-foreground border-border",
+        "accent": "bg-primary/10 text-primary border-primary/30",
+        "warn": "bg-destructive/10 text-destructive border-destructive/30",
+    }[tone]
+    return DivLAligned(
+        UkIcon(icon, cls="w-3.5 h-3.5 shrink-0"),
+        P(text, cls="text-xs font-mono leading-none"),
+        cls=f"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 {palette}",
+    )
+
+
 def make_config_update_form() -> Callable[[str, str], Grid]:
     """Factory for a form that sets a single configuration value.
 
@@ -632,6 +649,8 @@ def make_config_update_time_windows_windows_form(
         "6 – Sunday",
     ]
 
+    DOW_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
     def _dow_select(name: str, current: Optional[int]) -> Select:
         """Render a day-of-week dropdown pre-selected to *current*."""
         return Select(
@@ -644,21 +663,91 @@ def make_config_update_time_windows_windows_form(
             cls="border rounded px-2 py-1 text-sm",
         )
 
-    def _window_summary(win: dict) -> str:
-        """One-line human-readable label for an existing window."""
-        parts = [win.get("start_time", ""), win.get("duration", "")]
+    MONTH_LABELS = [
+        "1 – January",
+        "2 – February",
+        "3 – March",
+        "4 – April",
+        "5 – May",
+        "6 – June",
+        "7 – July",
+        "8 – August",
+        "9 – September",
+        "10 – October",
+        "11 – November",
+        "12 – December",
+    ]
+
+    MONTH_SHORT = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    ]
+
+    def _month_select(name: str, current: Optional[int]) -> Select:
+        """Render a month dropdown pre-selected to *current*."""
+        return Select(
+            Option("— any month —", value="", selected=(current is None)),
+            *[
+                Option(lbl, value=str(i), selected=(current == i))
+                for i, lbl in enumerate(MONTH_LABELS, start=1)
+            ],
+            name=name,
+            cls="border rounded px-2 py-1 text-sm",
+        )
+
+    def _window_summary(win: dict) -> Div:
+        """Render a window as a compact row of attribute pills."""
+        pills: list[Any] = []
+
+        # Time range: "08:00 → 8 hours" (or "→ 16:00" if end_time given)
+        start = win.get("start_time") or "?"
+        dur = win.get("duration") or None
+        end_time = win.get("end_time") or None
+        if dur and end_time:
+            time_text = f"{start}  ·  +{dur}  or  until {end_time}"
+        elif end_time:
+            time_text = f"{start}  →  {end_time}"
+        else:
+            time_text = f"{start}  +  {dur or '?'}"
+        pills.append(Badge("clock", time_text, tone="accent"))
+
+        # Value (only if the form has a value field)
         if value_description is not None:
-            parts.append(str(win.get("value", "")))
+            val = win.get("value")
+            if val is not None:
+                pills.append(Badge("coins", str(val)))
+
+        # Day of week
         dow = win.get("day_of_week")
-        if dow is not None:
-            parts.append(f"dow={dow}")
+        if dow is not None and 0 <= int(dow) < 7:
+            pills.append(Badge("calendar-days", DOW_SHORT[int(dow)]))
+
+        # Month
+        month = win.get("month")
+        if month is not None and 1 <= int(month) <= 12:
+            pills.append(Badge("calendar", MONTH_SHORT[int(month) - 1]))
+
+        # Exact date
         date_val = win.get("date")
         if date_val:
-            parts.append(f"date={date_val}")
+            pills.append(Badge("calendar-clock", str(date_val)))
+
+        # Locale
         locale_val = win.get("locale")
         if locale_val:
-            parts.append(f"locale={locale_val}")
-        return "  |  ".join(p for p in parts if p)
+            pills.append(Badge("globe", str(locale_val)))
+
+        return DivHStacked(*pills, cls="flex-wrap gap-1.5 ml-2")
 
     def ConfigUpdateTimeWindowsWindowsForm(config_name: str, value: str) -> Grid:
         config_id = config_name.lower().replace(".", "-")
@@ -669,7 +758,7 @@ def make_config_update_time_windows_windows_form(
         except (json.JSONDecodeError, AttributeError):
             current_windows = []
 
-        num_cols = 5 + (1 if value_description is not None else 0)
+        num_cols = 7 + (1 if value_description is not None else 0)
 
         # ----------------------------------------------------------------
         # Existing window rows — each is a collapsible <details> with
@@ -726,20 +815,24 @@ def make_config_update_time_windows_windows_form(
                     action: "update",
                     key: "{config_name}",
                     value: (() => {{
-                        const start  = document.querySelector("[name='{wid}_start_time']").value.trim();
-                        const dur    = document.querySelector("[name='{wid}_duration']").value.trim();
+                        const start    = document.querySelector("[name='{wid}_start_time']").value.trim();
+                        const dur      = document.querySelector("[name='{wid}_duration']").value.trim();
+                        const end      = document.querySelector("[name='{wid}_end_time']").value.trim();
                         {val_js_read}
-                        const dowRaw = document.querySelector("[name='{wid}_dow']").value;
-                        const date   = document.querySelector("[name='{wid}_date']").value.trim();
-                        const locale = document.querySelector("[name='{wid}_locale']").value.trim();
-                        if (!start || !dur || {val_js_guard}) return {json.dumps(json.dumps(current_windows))};
+                        const dowRaw   = document.querySelector("[name='{wid}_dow']").value;
+                        const monthRaw = document.querySelector("[name='{wid}_month']").value;
+                        const date     = document.querySelector("[name='{wid}_date']").value.trim();
+                        const locale   = document.querySelector("[name='{wid}_locale']").value.trim();
+                        if (!start || {val_js_guard}) return {json.dumps(json.dumps(current_windows))};
                         const edited = {{
-                            start_time: start,
-                            duration:   dur,
+                            start_time:  start,
+                            duration:    dur !== "" ? dur : "PT0S",
+                            end_time:    end      !== "" ? end                : null,
                             {val_js_field}
-                            day_of_week: dowRaw !== "" ? parseInt(dowRaw) : null,
-                            date:        date   !== "" ? date             : null,
-                            locale:      locale !== "" ? locale           : null,
+                            day_of_week: dowRaw   !== "" ? parseInt(dowRaw)   : null,
+                            month:       monthRaw !== "" ? parseInt(monthRaw) : null,
+                            date:        date     !== "" ? date               : null,
+                            locale:      locale   !== "" ? locale             : null,
                         }};
                         const updated = [...{before_json}, edited, ...{after_json}];
                         return JSON.stringify(updated);
@@ -762,6 +855,12 @@ def make_config_update_time_windows_windows_form(
                     placeholder="e.g. 8 hours",
                     cls="border rounded px-2 py-1 text-sm",
                 ),
+                Input(
+                    value=win.get("end_time", "") or "",
+                    name=f"{wid}_end_time",
+                    placeholder="e.g. 06:00 (optional)",
+                    cls="border rounded px-2 py-1 text-sm",
+                ),
             ]
             if value_description is not None:
                 edit_cols.append(
@@ -775,6 +874,7 @@ def make_config_update_time_windows_windows_form(
                 )
             edit_cols += [
                 _dow_select(f"{wid}_dow", win.get("day_of_week")),
+                _month_select(f"{wid}_month", win.get("month")),
                 Input(
                     value=win.get("date") or "",
                     name=f"{wid}_date",
@@ -794,7 +894,10 @@ def make_config_update_time_windows_windows_form(
                     Summary(
                         DivHStacked(
                             delete_ctrl,
-                            P(_window_summary(win), cls="ml-2 text-sm font-mono cursor-pointer"),
+                            Div(
+                                _window_summary(win),
+                                cls="cursor-pointer",  # keep the whole row clickable to expand
+                            ),
                         ),
                         cls="list-none",
                     ),
@@ -813,8 +916,9 @@ def make_config_update_time_windows_windows_form(
         add_wid = f"{config_id}_new"
 
         header_cols = [
-            P("start_time *", cls="text-xs text-muted-foreground font-semibold"),
-            P("duration *", cls="text-xs text-muted-foreground font-semibold"),
+            P("start time *", cls="text-xs text-muted-foreground font-semibold"),
+            P("duration", cls="text-xs text-muted-foreground font-semibold"),
+            P("end time", cls="text-xs text-muted-foreground font-semibold"),
         ]
         add_input_cols = [
             Input(
@@ -825,6 +929,11 @@ def make_config_update_time_windows_windows_form(
             Input(
                 placeholder="e.g. 8 hours",
                 name=f"{add_wid}_duration",
+                cls="border rounded px-2 py-1 text-sm",
+            ),
+            Input(
+                placeholder="e.g. 06:00 (optional)",
+                name=f"{add_wid}_end_time",
                 cls="border rounded px-2 py-1 text-sm",
             ),
         ]
@@ -842,12 +951,14 @@ def make_config_update_time_windows_windows_form(
                 )
             )
         header_cols += [
-            P("day_of_week", cls="text-xs text-muted-foreground font-semibold"),
+            P("day of week", cls="text-xs text-muted-foreground font-semibold"),
+            P("month", cls="text-xs text-muted-foreground font-semibold"),
             P("date (YYYY-MM-DD)", cls="text-xs text-muted-foreground font-semibold"),
             P("locale", cls="text-xs text-muted-foreground font-semibold"),
         ]
         add_input_cols += [
             _dow_select(f"{add_wid}_dow", None),
+            _month_select(f"{add_wid}_month", None),
             Input(
                 placeholder="e.g. 2025-12-24",
                 name=f"{add_wid}_date",
@@ -882,20 +993,24 @@ def make_config_update_time_windows_windows_form(
                     action: "update",
                     key: "{config_name}",
                     value: (() => {{
-                        const start  = document.querySelector("[name='{add_wid}_start_time']").value.trim();
-                        const dur    = document.querySelector("[name='{add_wid}_duration']").value.trim();
+                        const start    = document.querySelector("[name='{add_wid}_start_time']").value.trim();
+                        const dur      = document.querySelector("[name='{add_wid}_duration']").value.trim();
+                        const end      = document.querySelector("[name='{add_wid}_end_time']").value.trim();
                         {add_val_js_read}
-                        const dowRaw = document.querySelector("[name='{add_wid}_dow']").value;
-                        const date   = document.querySelector("[name='{add_wid}_date']").value.trim();
-                        const locale = document.querySelector("[name='{add_wid}_locale']").value.trim();
-                        if (!start || !dur || {add_val_js_guard}) return {current_json};
+                        const dowRaw   = document.querySelector("[name='{add_wid}_dow']").value;
+                        const monthRaw = document.querySelector("[name='{add_wid}_month']").value;
+                        const date     = document.querySelector("[name='{add_wid}_date']").value.trim();
+                        const locale   = document.querySelector("[name='{add_wid}_locale']").value.trim();
+                        if (!start || {add_val_js_guard}) return {current_json};
                         const newWin = {{
-                            start_time: start,
-                            duration:   dur,
+                            start_time:  start,
+                            duration:    dur !== "" ? dur : "PT0S",
+                            end_time:    end      !== "" ? end                : null,
                             {add_val_js_field}
-                            day_of_week: dowRaw !== "" ? parseInt(dowRaw) : null,
-                            date:        date   !== "" ? date             : null,
-                            locale:      locale !== "" ? locale           : null,
+                            day_of_week: dowRaw   !== "" ? parseInt(dowRaw)   : null,
+                            month:       monthRaw !== "" ? parseInt(monthRaw) : null,
+                            date:        date     !== "" ? date               : null,
+                            locale:      locale   !== "" ? locale             : null,
                         }};
                         const existing = {json.dumps(current_windows)};
                         existing.push(newWin);
@@ -914,7 +1029,8 @@ def make_config_update_time_windows_windows_form(
                 *window_rows,
                 P("Add new window", cls="text-sm font-semibold mt-3 mb-1"),
                 P(
-                    "* required  |  day_of_week overridden by date if both set",
+                    "* required  |  date, day_of_week and month apply to the start date. "
+                    "Overnight windows remain applicable after midnight.",
                     cls="text-xs text-muted-foreground mb-1",
                 ),
                 add_section,

@@ -565,12 +565,16 @@ class HomeAppliance:
     ) -> bool:
         """Check full coverage including windows anchored on previous local dates.
 
-        Date and weekday restrictions belong to the window's opening day.
+        Date, weekday, and month restrictions belong to the window's opening day.
         Per-cycle windows retain their existing union semantics; shared windows
         require one complete containing occurrence.
         """
-        intervals: list[tuple[DateTime, DateTime]] = []
+        # Compare elapsed offsets from the run start, including when sorting
+        # and merging intervals. Wall-clock ordering cannot distinguish the
+        # two occurrences of an hour repeated during a DST transition.
+        intervals: list[tuple[float, float]] = []
         run_end = start + duration
+        run_seconds = (run_end - start).total_seconds()
         for window in windows:
             days_back = math.ceil(window.duration.total_seconds() / 86400) + 1
             for offset in range(days_back + 1):
@@ -579,17 +583,21 @@ class HomeAppliance:
                     continue
                 if window.day_of_week is not None and anchor.day_of_week != window.day_of_week:
                     continue
+                if window.month is not None and anchor.month != window.month:
+                    continue
                 opening, closing = window._window_start_end(anchor)
-                if opening <= start and run_end <= closing:
+                opening_offset = (opening - start).total_seconds()
+                closing_offset = (closing - start).total_seconds()
+                if opening_offset <= 0 and run_seconds <= closing_offset:
                     return True
-                if merge and opening < run_end and closing > start:
-                    intervals.append((opening, closing))
-        covered_until = start
-        for opening, closing in sorted(intervals):
-            if opening > covered_until:
+                if merge and opening_offset < run_seconds and closing_offset > 0:
+                    intervals.append((opening_offset, closing_offset))
+        covered_until = 0.0
+        for opening_offset, closing_offset in sorted(intervals):
+            if opening_offset > covered_until:
                 break
-            covered_until = max(covered_until, closing)
-            if covered_until >= run_end:
+            covered_until = max(covered_until, closing_offset)
+            if covered_until >= run_seconds:
                 return True
         return False
 

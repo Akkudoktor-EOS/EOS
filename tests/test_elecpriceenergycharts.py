@@ -1,4 +1,3 @@
-import asyncio
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -8,16 +7,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import requests
-from loguru import logger
 
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixed
-from akkudoktoreos.prediction.elecpriceakkudoktor import (
-    AkkudoktorElecPrice,
-    AkkudoktorElecPriceValue,
-    ElecPriceAkkudoktor,
-)
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyCharts,
     EnergyChartsElecPrice,

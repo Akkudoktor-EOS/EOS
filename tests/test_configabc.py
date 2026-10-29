@@ -10,16 +10,11 @@ Timezone contract under test:
 * When a timezone-aware datetime is supplied, ``start_time`` is
   interpreted as wall-clock time **in that timezone** — no tz
   conversion is applied to ``start_time`` itself.
-* Constructing a ``TimeWindow`` with a naive ``start_time`` raises
-  ``ValidationError``.
+* A timezone-aware ``start_time`` is normalized to a naive wall-clock time.
 """
 
 import datetime
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(__file__))
-
+import json
 from typing import cast
 
 import numpy as np
@@ -28,17 +23,18 @@ import pendulum
 import pytest
 from pydantic import ValidationError
 
-from akkudoktoreos.config.configabc import (  # noqa — ensure Time is importable
+from akkudoktoreos.config.configabc import (
     CycleTimeWindowSequence,
-)
-from akkudoktoreos.config.configabc import TimeWindow
-from akkudoktoreos.config.configabc import TimeWindow as _TW_check
-from akkudoktoreos.config.configabc import (  # noqa — ensure Time is importable
+    TimeWindow,
     TimeWindowSequence,
     ValueTimeWindow,
     ValueTimeWindowSequence,
 )
-from akkudoktoreos.utils.datetimeutil import Time
+from akkudoktoreos.devices.genetic.homeappliance import (
+    HomeAppliance,
+    HomeApplianceParameters,
+)
+from akkudoktoreos.utils.datetimeutil import Time, to_datetime, to_duration
 
 # ===========================================================================
 # Helpers
@@ -63,6 +59,19 @@ def make_window(start_h, duration_h, **kwargs):
         duration=f"{duration_h} hours",
         **kwargs,
     ))
+
+def make_tw(**kwargs) -> TimeWindow:
+    """Construct a TimeWindow from raw dict values (str, int, etc.).
+
+    Uses ``model_validate`` so pydantic performs coercion — mypy is happy
+    because the input is ``Any`` rather than the model's parsed field types.
+    """
+    return TimeWindow.model_validate(kwargs)
+
+
+def make_vtw(**kwargs) -> ValueTimeWindow:
+    """Construct a ValueTimeWindow from raw dict values."""
+    return ValueTimeWindow.model_validate(kwargs)
 
 
 # ===========================================================================
@@ -151,6 +160,141 @@ class TestWindowStartEnd:
         assert end.hour == 0   # midnight next day
         assert str(start.timezone) == "US/Eastern"
 
+    @pytest.mark.parametrize(
+        ("start_time", "end_time", "duration", "expected_end"),
+        [
+            ("18:00:00", "00:00:00", "2 hours", "2026-10-24T00:00:00"),
+            ("00:00:00", "00:00:00", "2 hours", "2026-10-24T00:00:00"),
+            ("10:00:00", "10:00:00", "2 hours", "2026-10-24T10:00:00"),
+            ("18:00:00", "00:00:00", "10 hours", "2026-10-24T04:00:00"),
+            ("08:00:00", "12:00:00", "2 hours", "2026-10-23T12:00:00"),
+        ],
+    )
+    def test_window_start_end(
+        self,
+        start_time: str,
+        end_time: str,
+        duration: str,
+        expected_end: str,
+    ) -> None:
+        window = make_tw(
+            start_time=start_time,
+            end_time=end_time,
+            duration=duration,
+        )
+        reference_date = pendulum.datetime(2026, 10, 23)
+
+        _, end = window._window_start_end(reference_date)
+
+        assert end == pendulum.parse(expected_end)
+
+
+    @pytest.mark.parametrize(
+        ("duration", "end_time", "expected_end"),
+        [
+            # Duration determines the end when it extends beyond end_time.
+            ("3 hours", "10:00:00", "11:00:00"),
+            # end_time extends the window when duration is shorter.
+            ("1 hour", "10:00:00", "10:00:00"),
+            # Duration determines the end when end_time is omitted.
+            ("2 hours", None, "10:00:00"),
+        ],
+    )
+    def test_effective_window_end(
+        self,
+        duration: str,
+        end_time: str | None,
+        expected_end: str,
+    ) -> None:
+        """The effective end respects both duration and end_time."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration=duration,
+            end_time=end_time,
+        )
+        reference = pendulum.datetime(2026, 10, 26, 8, 0)
+
+        start, end = window._window_start_end(reference)
+
+        assert start == reference
+        assert end == pendulum.datetime(
+            2026, 10, 26,
+            int(expected_end[:2]),
+            int(expected_end[3:5]),
+            int(expected_end[6:8]),
+        )
+
+    def test_end_time_extends_duration_for_latest_start(self) -> None:
+        """The latest start uses the effective window end."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration="1 hour",
+            end_time="12:00:00",
+        )
+        reference = pendulum.datetime(2026, 10, 26, 8, 0)
+
+        assert window.earliest_start_time(
+            to_duration("2 hours"), reference
+        ) == pendulum.datetime(2026, 10, 26, 8, 0)
+
+        assert window.latest_start_time(
+            to_duration("2 hours"), reference
+        ) == pendulum.datetime(2026, 10, 26, 10, 0)
+
+    @pytest.mark.parametrize(
+        ("start_time", "end_time", "duration", "expected_end"),
+        [
+            # Midnight is the end of the day when used as an end boundary.
+            ("18:00", "00:00", "PT2H", "2026-01-16T00:00:00"),
+
+            # Equal start and end clock times mean a full-day interval.
+            ("00:00", "00:00", "PT2H", "2026-01-16T00:00:00"),
+            ("10:00", "10:00", "PT2H", "2026-01-16T10:00:00"),
+
+            # Duration extending beyond the explicit boundary takes precedence.
+            ("18:00", "00:00", "PT10H", "2026-01-16T04:00:00"),
+
+            # An ordinary same-day boundary remains on the same day.
+            ("08:00", "12:00", "PT2H", "2026-01-15T12:00:00"),
+
+            # An overnight boundary earlier than the start wraps to the next day.
+            ("22:00", "06:00", "PT2H", "2026-01-16T06:00:00"),
+        ],
+    )
+    def test_window_end_boundary(
+        self,
+        start_time: str,
+        end_time: str,
+        duration: str,
+        expected_end: str,
+    ) -> None:
+        """Test explicit end boundaries, including midnight and overnight cases."""
+        window = make_tw(
+            start_time=start_time,
+            end_time=end_time,
+            duration=to_duration(duration),
+        )
+        reference_date = pendulum.datetime(2026, 1, 15)
+
+        _, actual_end = window._window_start_end(reference_date)
+
+        assert actual_end == pendulum.parse(expected_end)
+
+
+    def test_window_end_is_exclusive(self) -> None:
+        """The explicit end boundary itself is outside the window."""
+        window = make_tw(
+            start_time="18:00",
+            end_time="00:00",
+            duration=to_duration("PT2H"),
+        )
+
+        before_midnight = pendulum.datetime(2026, 1, 15, 23, 59, 59)
+        at_midnight = pendulum.datetime(2026, 1, 16, 0, 0, 0)
+
+        assert window.contains(before_midnight)
+        assert not window.contains(at_midnight)
+
 
 # ===========================================================================
 # contains() — naive datetime
@@ -238,10 +382,103 @@ class TestContainsAware:
 
 
 # ===========================================================================
-# contains() — day_of_week and date constraints
+# contains() — day_of_week, month,  and date constraints
 # ===========================================================================
 
 class TestContainsConstraints:
+
+    @pytest.mark.parametrize(
+        ("config", "timestamp", "expected"),
+        [
+            # Friday window extends into Saturday.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "day_of_week": 4,
+                },
+                "2026-10-23T23:00:00",
+                True,
+            ),
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "day_of_week": 4,
+                },
+                "2026-10-24T02:00:00",
+                True,
+            ),
+            # Saturday's date restriction must not invalidate Friday's window.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "date": "2026-10-23",
+                },
+                "2026-10-24T02:00:00",
+                True,
+            ),
+            # A window restricted to Saturday must not match Friday night.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "date": "2026-10-24",
+                },
+                "2026-10-24T02:00:00",
+                False,
+            ),
+            # The end boundary is exclusive.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "day_of_week": 4,
+                },
+                "2026-10-24T06:00:00",
+                False,
+            ),
+            # October restriction applies to the start date, even in November.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "month": 10,
+                },
+                "2026-11-01T02:00:00",
+                True,
+            ),
+            # A November start date does not satisfy the October restriction.
+            (
+                {
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                    "duration": "2 hours",
+                    "month": 10,
+                },
+                "2026-11-01T23:00:00",
+                False,
+            ),
+        ],
+    )
+    def test_contains_uses_window_start_date(
+        self,
+        config: dict[str, object],
+        timestamp: str,
+        expected: bool,
+    ) -> None:
+        window = make_tw(**config)
+        date_time = to_datetime(timestamp)
+
+        assert window.contains(date_time) is expected
+
     def test_day_of_week_match_naive(self):
         # 2024-06-17 is a Monday (day_of_week == 0)
         w = make_window(8, 4, day_of_week=0)
@@ -256,6 +493,46 @@ class TestContainsConstraints:
         w = make_window(8, 4, day_of_week=0)
         dt = aware_dt(2024, 6, 17, 9, 0, 0, tz="Europe/Berlin")
         assert w.contains(dt)
+
+    @pytest.mark.parametrize("month", [1, 6, 12])
+    def test_month_restriction_matches_month(self, month: int) -> None:
+        """The window applies only in its configured month."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration="2 hours",
+            month=month,
+        )
+
+        matching_date = pendulum.datetime(2026, month, 15, 9, 0)
+        assert window.contains(matching_date)
+
+        available = window.available_duration(matching_date)
+        assert available is not None
+        assert available.total_seconds() == to_duration("2 hours").total_seconds()
+
+    def test_month_restriction_rejects_other_month(self) -> None:
+        """The window does not apply in another month."""
+        window = make_tw(
+            start_time="08:00:00",
+            duration="2 hours",
+            month=10,
+        )
+        reference = pendulum.datetime(2026, 11, 15, 9, 0)
+
+        assert not window.contains(reference)
+        assert window.available_duration(reference) is None
+        assert window.earliest_start_time(to_duration("1 hour"), reference) is None
+
+
+    @pytest.mark.parametrize("month", [0, 13])
+    def test_month_restriction_rejects_invalid_month(self, month: int) -> None:
+        """Month restrictions must be between 1 and 12."""
+        with pytest.raises(ValueError):
+            make_tw(
+                start_time="08:00:00",
+                duration="2 hours",
+                month=month,
+            )
 
     def test_date_constraint_match(self):
         w = make_window(8, 4, date=pendulum.date(2024, 6, 17))
@@ -289,6 +566,29 @@ class TestStartTimes:
         result = self.w.earliest_start_time(pendulum.duration(hours=2), reference_date=ref)
         assert result is not None
         assert result.hour == 8
+
+    @pytest.mark.parametrize(
+        ("date", "duration", "expected"),
+        [
+            ("2026-03-29", "P1D", "2026-03-29T00:00:00+01:00"),
+            ("2026-03-29", "PT24H", None),
+            ("2026-03-28", "P1D", "2026-03-28T00:00:00+01:00"),
+            ("2026-03-28", "PT24H", "2026-03-28T00:00:00+01:00"),
+            ("2026-10-25", "P1D", "2026-10-25T00:00:00+02:00"),
+            ("2026-10-25", "PT24H", "2026-10-25T00:00:00+02:00"),
+        ],
+    )
+    def test_earliest_calendar_day_across_dst(self, date, duration, expected):
+        """A calendar day fits a local day even when it has fewer than 24 hours."""
+        window = make_tw(start_time="00:00", end_time="00:00")
+        reference = pendulum.from_format(date, "YYYY-MM-DD", tz="Europe/Berlin")
+        run_duration = to_duration(duration)
+
+        earliest = window.earliest_start_time(run_duration, reference)
+
+        assert (earliest.isoformat() if earliest is not None else None) == expected
+        assert window.can_fit_duration(run_duration, reference) is (expected is not None)
+        assert window.contains(reference, run_duration) is (expected is not None)
 
     def test_latest_naive(self):
         ref = naive_dt(2024, 6, 15)
@@ -1995,3 +2295,224 @@ class TestCyclesToMatrix:
                 expected,
                 err_msg=f"Row {k} (cycle {cycle_idx}) differs from cycle_to_array (misaligned)",
             )
+
+
+class TestTimeWindowBoundaries:
+    """Explicit window ends, serialization, and cycle scheduling."""
+
+    @pytest.mark.parametrize("model", [TimeWindow, ValueTimeWindow])
+    def test_end_only_window_json_round_trip(self, model):
+        window = model.model_validate({"start_time": "08:00", "end_time": "12:00"})
+
+        serialized = window.model_dump_json()
+
+        assert json.loads(serialized)["duration"] == "PT0S"
+        restored = model.model_validate_json(serialized)
+        assert restored.model_dump() == window.model_dump()
+        assert restored.contains(pendulum.datetime(2026, 10, 26, 9))
+
+    @pytest.mark.parametrize(
+        ("start_date", "start_time", "end_time", "expected_end"),
+        [
+            # The missing 02:30 on the opening date must not shift Monday's end.
+            ("2026-03-29", "22:00", "02:30", "2026-03-30T02:30:00+02:00"),
+            # The explicit end lies after the spring transition.
+            ("2026-03-28", "22:00", "06:00", "2026-03-29T06:00:00+02:00"),
+            # The explicit end lies after the autumn transition.
+            ("2026-10-24", "22:00", "06:00", "2026-10-25T06:00:00+01:00"),
+        ],
+    )
+    def test_overnight_end_uses_clock_time_on_end_date(
+        self, start_date, start_time, end_time, expected_end
+    ):
+        window = TimeWindow.model_validate({"start_time": start_time, "end_time": end_time})
+        reference = pendulum.from_format(start_date, "YYYY-MM-DD", tz="Europe/Berlin")
+
+        _, end = window._window_start_end(reference)
+
+        assert end.isoformat() == expected_end
+        assert not window.contains(end)
+        assert window.contains(end.subtract(minutes=1))
+
+    @pytest.mark.parametrize(
+        ("config", "start", "hours", "active_steps"),
+        [
+            ({"start_time": "08:00", "end_time": "12:00"}, "2026-10-26", 24, [8, 9, 10, 11]),
+            # Duration may extend the explicit end.
+            (
+                {"start_time": "08:00", "end_time": "10:00", "duration": "4 hours"},
+                "2026-10-26",
+                24,
+                [8, 9, 10, 11],
+            ),
+            ({"start_time": "08:00", "end_time": "12:00", "month": 11}, "2026-10-26", 24, []),
+            ({"start_time": "08:00", "end_time": "12:00", "day_of_week": 1}, "2026-10-26", 24, []),
+            ({"start_time": "08:00", "end_time": "12:00", "date": "2026-10-27"}, "2026-10-26", 24, []),
+            # Include the tail of Friday's window on Saturday.
+            (
+                {"start_time": "22:00", "end_time": "06:00", "day_of_week": 4},
+                "2026-10-24",
+                24,
+                list(range(6)),
+            ),
+            # Month restrictions belong to the opening date.
+            (
+                {"start_time": "22:00", "end_time": "06:00", "month": 10},
+                "2026-11-01",
+                24,
+                list(range(6)),
+            ),
+            # Long durations can begin more than one calendar day earlier.
+            (
+                {"start_time": "08:00", "duration": "3 days", "date": "2026-10-24"},
+                "2026-10-26",
+                24,
+                list(range(24)),
+            ),
+            # Recurring windows must also appear on later horizon days.
+            ({"start_time": "08:00", "end_time": "10:00"}, "2026-10-26", 48, [8, 9, 32, 33]),
+        ],
+    )
+    def test_cycle_arrays_use_effective_windows(self, config, start, hours, active_steps):
+        window = ValueTimeWindow.model_validate({**config, "value": 0})
+        sequence = CycleTimeWindowSequence(windows=[window])
+        reference = pendulum.from_format(start, "YYYY-MM-DD", tz="UTC")
+        end = reference.add(hours=hours)
+        interval = pendulum.duration(hours=1)
+        expected = np.zeros(hours)
+        expected[active_steps] = 1
+
+        actual = sequence.cycle_to_array(0, reference, end, interval)
+        indices, matrix = sequence.cycles_to_matrix(reference, end, interval)
+
+        assert indices == [0]
+        np.testing.assert_array_equal(actual, expected)
+        np.testing.assert_array_equal(matrix[0], expected)
+
+    @pytest.mark.parametrize(("date", "hours"), [("2026-03-29", 23), ("2026-10-25", 25)])
+    def test_cycle_arrays_across_dst(self, date, hours):
+        window = ValueTimeWindow.model_validate(
+            {"start_time": "00:00", "end_time": "06:00", "value": 0}
+        )
+        sequence = CycleTimeWindowSequence(windows=[window])
+        start = pendulum.from_format(date, "YYYY-MM-DD", tz="Europe/Berlin")
+        end = start.add(days=1)
+        expected = np.zeros(hours)
+        expected[: hours - 18] = 1  # Five elapsed hours in spring; seven in autumn.
+
+        actual = sequence.cycle_to_array(0, start, end, pendulum.duration(hours=1))
+        _, matrix = sequence.cycles_to_matrix(start, end, pendulum.duration(hours=1))
+
+        np.testing.assert_array_equal(actual, expected)
+        np.testing.assert_array_equal(matrix[0], expected)
+
+    def test_end_only_cycle_window_allows_appliance_starts(self):
+        sequence = CycleTimeWindowSequence.model_validate(
+            {"windows": [{"start_time": "08:00", "end_time": "12:00", "value": 0}]}
+        )
+        # Exercise the serialized settings used by the dashboard/API as well.
+        sequence = CycleTimeWindowSequence.model_validate_json(sequence.model_dump_json())
+        appliance = HomeAppliance(
+            parameters=HomeApplianceParameters(
+                device_id="dishwasher",
+                duration_h=2,
+                consumption_wh=2000,
+                num_cycles=1,
+                time_windows=sequence,
+            ),
+            prediction_hours=24,
+            optimization_hours=24,
+        )
+        start = pendulum.datetime(2026, 10, 26)
+        appliance.start_allowed = []
+        appliance.start_earliest = []
+        appliance.start_latest = []
+
+        appliance._build_cycle_start_allowed(
+            sequence, start, start.add(days=1), pendulum.duration(hours=1)
+        )
+
+        np.testing.assert_array_equal(np.flatnonzero(appliance.start_allowed[0]), [8, 9, 10])
+
+
+class TestTimeWindowDST:
+    """Window boundaries and grids distinguish the repeated DST hour."""
+
+    @staticmethod
+    def autumn_time(hour, minute=0, fold=1):
+        return pendulum.datetime(2026, 10, 25, hour, minute, tz="Europe/Berlin", fold=fold)
+
+    @pytest.mark.parametrize(
+        ("duration", "expected"),
+        [
+            ("PT1H45M", "2026-10-25T02:30:00+01:00"),
+            ("PT2H45M", "2026-10-25T02:45:00+01:00"),
+        ],
+    )
+    @pytest.mark.parametrize("fold", [0, 1])
+    def test_effective_end_uses_later_instant(self, duration, expected, fold):
+        window = TimeWindow.model_validate(
+            {"start_time": "01:00", "end_time": "02:30", "duration": duration}
+        )
+
+        _, end = window._window_start_end(self.autumn_time(2, fold=fold))
+
+        assert end.isoformat() == expected
+
+    @pytest.mark.parametrize(
+        ("hour", "minute", "fold", "duration", "expected"),
+        [
+            (2, 45, 0, None, True),
+            (2, 30, 0, None, True),
+            (2, 30, 1, None, False),
+            (2, 45, 1, None, False),
+            (2, 45, 0, 45, True),
+            (2, 45, 0, 46, False),
+        ],
+    )
+    def test_membership_uses_elapsed_time(self, hour, minute, fold, duration, expected):
+        window = TimeWindow.model_validate({"start_time": "01:00", "end_time": "02:30"})
+        run_duration = pendulum.duration(minutes=duration) if duration is not None else None
+
+        assert window.contains(self.autumn_time(hour, minute, fold), run_duration) is expected
+
+    def test_membership_rejects_first_fold_before_second_fold_start(self):
+        window = TimeWindow.model_validate({"start_time": "02:30", "end_time": "04:00"})
+
+        assert not window.contains(self.autumn_time(2, 45, fold=0))
+        assert window.contains(self.autumn_time(2, 45, fold=1))
+
+    @pytest.mark.parametrize("minute", [0, 30])
+    @pytest.mark.parametrize("start_hour", [0, 2])
+    def test_cycle_grid_ends_in_second_fold(self, start_hour, minute):
+        sequence = CycleTimeWindowSequence.model_validate(
+            {"windows": [{"start_time": "00:00", "end_time": "06:00", "value": 0}]}
+        )
+        start = self.autumn_time(start_hour, fold=0)
+        end = self.autumn_time(2, minute, fold=1)
+        interval = pendulum.duration(minutes=30)
+        expected = np.ones(int((end - start).total_seconds() / interval.total_seconds()))
+
+        actual = sequence.cycle_to_array(0, start, end, interval)
+        indices, matrix = sequence.cycles_to_matrix(start, end, interval)
+
+        assert indices == [0]
+        np.testing.assert_array_equal(actual, expected)
+        np.testing.assert_array_equal(matrix, expected[np.newaxis, :])
+
+    @pytest.mark.parametrize("sequence_type", [TimeWindowSequence, ValueTimeWindowSequence])
+    def test_array_and_series_keep_both_folds(self, sequence_type):
+        window = ValueTimeWindow.model_validate(
+            {"start_time": "00:00", "end_time": "06:00", "value": 1}
+        )
+        sequence = sequence_type(windows=[window])
+        start = self.autumn_time(0)
+        end = self.autumn_time(2, fold=1)
+        interval = pendulum.duration(hours=1)
+
+        np.testing.assert_array_equal(sequence.to_array(start, end, interval), np.ones(3))
+        series = sequence.to_series(start, end, interval)
+        np.testing.assert_array_equal(series.to_numpy(), np.ones(3))
+        assert [stamp.timestamp() for stamp in series.index] == [
+            start.add(hours=i).timestamp() for i in range(3)
+        ]
