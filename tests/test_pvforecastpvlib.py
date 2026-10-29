@@ -1,12 +1,9 @@
 
 """Tests for PVForecastPVLib prediction provider."""
 
-import bz2
-import pickle
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -1054,7 +1051,6 @@ class TestProvider:
         weather = pd.DataFrame()
 
 
-
         with patch.object(
             Prediction,
             "keys_to_dataframe",
@@ -1285,28 +1281,6 @@ class TestProvider:
 class TestCalculation:
     """Tests for PVLib power calculation."""
 
-    @pytest.mark.skip("PVLib bails out on empty weather data")
-    def test_calculate_empty_weather(self, provider, sample_settings_4planes):
-        """Empty weather dataframe returns empty result."""
-
-        weather = pd.DataFrame(
-            columns=[
-                "ghi",
-                "dni",
-                "dhi",
-                "temp_air",
-                "wind_speed",
-                "relative_humidity",
-                "precipitable_water",
-                "cloud_cover",
-            ],
-            index=pd.DatetimeIndex([], tz="Europe/Berlin"),
-        )
-
-        result = provider._calculate_pvlib_power(weather)
-
-        assert isinstance(result, pd.DataFrame)
-        assert result.empty
 
     @patch("pvlib.modelchain.ModelChain")
     @patch("pvlib.location.Location")

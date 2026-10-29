@@ -1,28 +1,29 @@
+import json
+from unittest.mock import AsyncMock
+
 import numpy as np
 import pytest
 import pytest_asyncio
 from pendulum import datetime, duration
+from pydantic import ValidationError
 
-from akkudoktoreos.config.config import SettingsEOS
 from akkudoktoreos.core.coreabc import get_measurement
+from akkudoktoreos.core.dataabc import DataSequence
 from akkudoktoreos.measurement.measurement import (
+    MeasurementChannelSettings,
     MeasurementCommonSettings,
     MeasurementDataRecord,
 )
 from akkudoktoreos.utils.datetimeutil import (
-    DateTime,
-    Duration,
     compare_datetimes,
     to_datetime,
-    to_duration,
 )
 
 
 class TestMeasurementDataRecord:
-    """Test suite for the MeasurementDataRecord class.
+    """Measurement-specific keys, values, and serialization.
 
-    Ensuring that both dictionary-like and attribute-style access work correctly for fields and
-    configured measurements.
+    Generic native-field access is covered by TestDataRecord in test_dataabcrecord.py.
     """
 
     @pytest.fixture
@@ -67,11 +68,6 @@ class TestMeasurementDataRecord:
         with pytest.raises(KeyError):
             _ = record["nonexistent"]
 
-    def test_setitem_field(self, record):
-        """Test setting a native field using __setitem__."""
-        record["date_time"] = "2025-01-01T12:00:00+00:00"
-        assert str(record.date_time).startswith("2025-01-01")
-
     def test_setitem_measurement(self, record):
         """Test setting a known measurement key using __setitem__."""
         record["temp"] = 25.5
@@ -82,12 +78,6 @@ class TestMeasurementDataRecord:
         with pytest.raises(KeyError):
             record["unknown_key"] = 123
 
-    def test_delitem_field(self, record):
-        """Test deleting a native field using __delitem__."""
-        record["date_time"] = "2025-01-01T12:00:00+00:00"
-        del record["date_time"]
-        assert record.date_time is None
-
     def test_delitem_measurement(self, record):
         """Test deleting a known measurement key using __delitem__."""
         del record["solar_power"]
@@ -97,11 +87,6 @@ class TestMeasurementDataRecord:
         """Test that __delitem__ raises KeyError for unknown keys."""
         with pytest.raises(KeyError):
             del record["nonexistent"]
-
-    def test_attribute_get_existing_field(self, record):
-        """Test accessing a native field via attribute."""
-        record.date_time = "2025-01-01T12:00:00+00:00"
-        assert record.date_time is not None
 
     def test_attribute_get_existing_measurement(self, record):
         """Test accessing an existing measurement via attribute."""
@@ -116,11 +101,6 @@ class TestMeasurementDataRecord:
         with pytest.raises(AttributeError):
             _ = record.nonexistent
 
-    def test_attribute_set_existing_field(self, record):
-        """Test setting a native field via attribute."""
-        record.date_time = "2025-06-25T12:00:00+00:00"
-        assert record.date_time is not None
-
     def test_attribute_set_existing_measurement(self, record):
         """Test setting a known measurement key via attribute."""
         record.temp = 99.9
@@ -130,12 +110,6 @@ class TestMeasurementDataRecord:
         """Test setting an unknown attribute raises AttributeError."""
         with pytest.raises(AttributeError):
             record.invalid = 123
-
-    def test_delattr_field(self, record):
-        """Test deleting a native field via attribute."""
-        record.date_time = "2025-06-25T12:00:00+00:00"
-        del record.date_time
-        assert record.date_time is None
 
     def test_delattr_measurement(self, record):
         """Test deleting a known measurement key via attribute."""
@@ -153,12 +127,6 @@ class TestMeasurementDataRecord:
         keys = list(iter(record))
         assert set(record.record_keys_writable()) == set(keys)
         assert len(record) == len(keys)
-
-    def test_in_operator_includes_measurements(self, record):
-        """Test that 'in' operator includes measurement keys."""
-        assert "dish_washer_mr" in record
-        assert "temp" in record  # known key, even if not yet set
-        assert "nonexistent" not in record
 
     def test_hasattr_behavior(self, record):
         """Test that hasattr returns True for fields and known measurements."""
@@ -183,11 +151,6 @@ class TestMeasurementDataRecord:
         assert copied.temp == 22.2
         assert copied is not record
 
-    def test_equality_includes_measurements(self, record):
-        """Test that equality includes the `measurements` content."""
-        other = record.model_copy()
-        assert record == other
-
     def test_inequality_differs_with_measurements(self, record):
         """Test that records with different measurements are not equal."""
         other = record.model_copy(deep=True)
@@ -202,13 +165,6 @@ class TestMeasurementDataRecord:
         assert "date_time" in record  # standard field
         assert "temp" in record       # allowed but not yet set
         assert "unknown" not in record
-
-    def test_hasattr_equivalence_to_getattr(self, record):
-        """hasattr should return True for all valid keys/measurements."""
-        assert hasattr(record, "dish_washer_mr")
-        assert hasattr(record, "temp")
-        assert hasattr(record, "date_time")
-        assert not hasattr(record, "nonexistent")
 
     def test_dir_includes_measurement_keys(self, record):
         """`dir(record)` should include measurement keys for introspection.
@@ -432,3 +388,161 @@ class TestMeasurement:
         result = await measurement_eos.load_total_kwh(start_datetime=start_datetime, end_datetime=end_datetime, interval=interval)
         expected = np.array([100])  # Only one complete interval covered
         np.testing.assert_array_equal(result, expected)
+
+
+class TestMeasurementFileRestore:
+    @pytest.fixture
+    def file_measurements(self, config_eos, tmp_path, monkeypatch):
+        measurement = get_measurement()
+        config_eos.measurement.load_emr_keys = ["meter"]
+        config_eos.general.data_folder_path = tmp_path
+        config_eos.database.provider = None
+        measurement._db_reset_state()
+        monkeypatch.setattr(DataSequence, "save", AsyncMock(return_value=False))
+        monkeypatch.setattr(DataSequence, "load", AsyncMock(return_value=False))
+        try:
+            yield measurement
+        finally:
+            measurement._db_reset_state()
+
+    @pytest.mark.asyncio
+    async def test_json_roundtrip_restores_records_into_existing_singleton(self, file_measurements):
+        measurement = file_measurements
+        await measurement.update_value(to_datetime("2026-09-16T08:00:00Z"), "meter", 123.5)
+        await measurement.update_value("2026-09-16T09:00:00Z", "meter", 124.0)
+        assert await measurement.save()
+        measurement._db_reset_state()
+
+        assert await measurement.load()
+        assert get_measurement() is measurement
+        assert [record["meter"] for record in measurement.records] == [123.5, 124.0]
+        restored_hours = []
+        for record in measurement.records:
+            assert record.date_time is not None
+            restored_hours.append(record.date_time.in_timezone("UTC").hour)
+        assert restored_hours == [8, 9]
+        # Reloading must update matching timestamps, without duplicating them.
+        assert await measurement.load()
+        assert len(measurement.records) == 2
+
+    @pytest.mark.asyncio
+    async def test_json_restore_preserves_other_in_memory_timestamps(self, file_measurements):
+        measurement = file_measurements
+        await measurement.update_value("2026-09-16T08:00:00Z", "meter", 123.5)
+        assert await measurement.save()
+        measurement._db_reset_state()
+        await measurement.update_value("2026-09-16T09:00:00Z", "meter", 124.0)
+        assert await measurement.load()
+        assert [record["meter"] for record in measurement.records] == [123.5, 124.0]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("payload", [
+        "invalid json",
+        json.dumps({"records": [
+            {"date_time": "2026-09-16T08:00:00Z", "meter": 123.5},
+            {"date_time": "not a date", "meter": 124.0},
+        ]}),
+    ])
+    async def test_invalid_json_does_not_partially_restore(self, file_measurements, payload):
+        measurement = file_measurements
+        measurement._measurement_file_path().write_text(payload, encoding="utf-8")
+        assert await measurement.load() is False
+        assert measurement.records == []
+
+    @pytest.mark.asyncio
+    async def test_database_success_does_not_read_json(self, file_measurements, monkeypatch):
+        measurement = file_measurements
+        measurement._measurement_file_path().write_text("invalid json", encoding="utf-8")
+        monkeypatch.setattr(DataSequence, "load", AsyncMock(return_value=True))
+        assert await measurement.load()
+
+    @pytest.mark.asyncio
+    async def test_missing_json_reports_not_loaded(self, file_measurements):
+        assert await file_measurements.load() is False
+
+
+CHANNELS = {
+    "house_power": dict(quantity="power", unit="W", integration_method="hold", max_gap_seconds=120),
+    "house_meter": dict(quantity="cumulative_energy", unit="kWh"),
+    "house_interval": dict(
+        quantity="interval_energy", unit="Wh", interval_seconds=900, timestamp_reference="start"
+    ),
+}
+
+
+class TestMeasurementChannels:
+    @pytest.mark.parametrize(
+        "definition",
+        [
+            dict(quantity="power", unit="kWh", integration_method="hold", max_gap_seconds=60),
+            dict(quantity="power", unit="W"),
+            dict(quantity="power", unit="W", integration_method="hold", max_gap_seconds=0),
+            dict(quantity="cumulative_energy", unit="W"),
+            dict(quantity="cumulative_energy", unit="kWh", timestamp_reference="end"),
+            dict(quantity="interval_energy", unit="Wh", interval_seconds=900),
+            dict(
+                quantity="interval_energy", unit="Wh", interval_seconds=True, timestamp_reference="end"
+            ),
+        ],
+    )
+    def test_reject_ambiguous_channel(self, definition):
+        with pytest.raises(ValidationError):
+            MeasurementChannelSettings(**definition)
+
+    @pytest.mark.parametrize(
+        "legacy_field",
+        ["load_emr_keys", "grid_import_emr_keys", "grid_export_emr_keys", "pv_production_emr_keys"],
+    )
+    def test_legacy_keys_keep_meter_semantics(self, legacy_field):
+        settings = MeasurementCommonSettings.model_validate(dict(**{legacy_field: ["legacy"]}, channels=CHANNELS))
+        assert settings.keys == sorted(["legacy", *CHANNELS])
+        compatible = MeasurementCommonSettings.model_validate(dict(
+            **{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_meter"]}
+        ))
+        assert compatible.keys == ["legacy"]
+        with pytest.raises(ValidationError, match="must remain"):
+            MeasurementCommonSettings.model_validate(dict(
+                **{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_power"]}
+            ))
+
+    @pytest.mark.parametrize("key", ["", " x", "date_time", "configured_data", "keys", "_private"])
+    def test_reject_reserved_key(self, key):
+        with pytest.raises(ValidationError):
+            MeasurementCommonSettings.model_validate(dict(channels={key: CHANNELS["house_meter"]}))
+
+    @pytest.mark.asyncio
+    async def test_existing_import_and_file_reload(self, config_eos, tmp_path, monkeypatch):
+        """All three quantities retain their raw values through the existing file path."""
+        measurement = get_measurement()
+        previous_settings = config_eos.measurement
+        previous_records = measurement.records
+        previous_folder = config_eos.general.data_folder_path
+        try:
+            config_eos.measurement = MeasurementCommonSettings.model_validate(dict(channels=CHANNELS))
+            config_eos.general.data_folder_path = tmp_path
+            measurement._db_reset_state()
+            values = dict(house_power=800.0, house_meter=12345.6, house_interval=200.0)
+            for key, value in values.items():
+                (await measurement.update_value(to_datetime("2026-09-10T18:00:00Z"), key, value))
+            assert set(values).issubset(measurement.record_keys)
+            monkeypatch.setattr(DataSequence, "save", AsyncMock(return_value=False))
+            monkeypatch.setattr(DataSequence, "load", AsyncMock(return_value=False))
+            assert (await measurement.save())
+            measurement._db_reset_state()
+            assert (await measurement.load())
+            assert len(measurement.records) == 1
+            for key, value in values.items():
+                assert measurement.records[0][key] == value
+            restored = MeasurementDataRecord.model_validate_json(
+                measurement.records[0].model_dump_json()
+            )
+            assert restored.configured_data == values
+            settings = MeasurementCommonSettings.model_validate_json(
+                config_eos.measurement.model_dump_json()
+            )
+            assert settings.model_dump() == config_eos.measurement.model_dump()
+        finally:
+            measurement._db_reset_state()
+            measurement.records = previous_records
+            config_eos.measurement = previous_settings
+            config_eos.general.data_folder_path = previous_folder

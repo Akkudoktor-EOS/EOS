@@ -149,7 +149,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             price_wh = value.marketpriceEurocentPerKWh / (100 * 1000)
 
             # Collect all values into the Pandas Series
-            prices_wh.at[orig_datetime] = price_wh
+            prices_wh.loc[(orig_datetime,)] = price_wh
 
         if not highest_orig_datetime:  # mypy fix
             error_msg = f"Highest original datetime not available: {highest_orig_datetime}"

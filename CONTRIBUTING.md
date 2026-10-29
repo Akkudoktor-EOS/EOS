@@ -112,6 +112,18 @@ Use `pytest` to run tests locally:
 uv run python -m pytest -vs --cov src --cov-report term-missing tests/
 ```
 
+Group tests by the module or cohesive subsystem they exercise. Add regression tests to the
+existing suite and use descriptive test classes to separate features, edge cases, and integration
+scenarios. Scope feature-specific fixtures to their test class, especially autouse fixtures that
+could change unrelated tests. Create another test file only for a distinct responsibility or
+when the existing suite would become unwieldy; avoid one file per bug or pull request.
+
+For example, keep time-window model tests in `tests/test_configabc.py`, measurement channels
+and persistence in `tests/test_measurement.py`, and GENETIC0 parameter preparation in
+`tests/test_genetic0params.py`. Keep provider-specific suites and unit/system tests separate.
+When moving tests, verify that parametrized cases and fixture behavior are preserved with
+`pytest --collect-only` and an execution of the affected suites.
+
 ### Commit message style
 
 Our commit message checks use

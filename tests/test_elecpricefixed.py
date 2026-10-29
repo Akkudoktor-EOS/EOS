@@ -1,12 +1,8 @@
 """Tests for fixed electricity price prediction module."""
 
-import asyncio
 import json
 from pathlib import Path
-from unittest.mock import Mock, patch
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from akkudoktoreos.config.configabc import ValueTimeWindow, ValueTimeWindowSequence
@@ -16,7 +12,7 @@ from akkudoktoreos.prediction.elecpricefixed import (
     ElecPriceFixed,
     ElecPriceFixedCommonSettings,
 )
-from akkudoktoreos.utils.datetimeutil import Duration, to_datetime
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 FILE_TESTDATA_ELECPRICEFIXED_CONFIG_JSON = DIR_TESTDATA.joinpath("elecpricefixed_config.json")
