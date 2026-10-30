@@ -1293,5 +1293,5 @@ def Page(
         DashboardTabs(dashboard_items),
         DashboardContent(content),
         DashboardFooter(footer_content, path=footer_path),
-        cls=("bg-background text-foreground w-screen p-4 space-y-4", ContainerT.xl),
+        cls=("bg-background text-foreground p-4 space-y-4", ContainerT.xl),
     )

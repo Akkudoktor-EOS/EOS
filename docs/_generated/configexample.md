@@ -183,6 +183,21 @@
            "mode": "OPTIMIZATION",
            "notify_url": null
        },
+       "eosdash": {
+           "plan": {
+               "visible": {},
+               "alias": {},
+               "color": {},
+               "style": {},
+               "width": {},
+               "line_dash": {},
+               "device_alias": {},
+               "plan_table_open": false,
+               "energy_kwh": true,
+               "factor_percent": true,
+               "price_minor_unit": true
+           }
+       },
        "feedintariff": {
            "direct_marketing_enabled": false,
            "provider": "FeedInTariffFixed",

@@ -7,7 +7,7 @@ from bokeh.models import Plot
 from bokeh.models.annotations import Title
 from bokeh.plotting import figure
 from bokeh.resources import INLINE
-from monsterui.franken import H4, Card, NotStr
+from monsterui.franken import H4, Card, Div, NotStr
 
 # Bokeh accepts FigureOptions as constructor keywords, but its generated
 # constructor signature only lists model properties. Preserve the typed result.
@@ -69,8 +69,11 @@ def Bokeh(plot: Plot, header: Optional[str] = None) -> Card:
     script, div = components(plot)
     if header:
         header = H4(header, cls="mt-2")
+    # Reserve the plot height before BokehJS has rendered the plot, so the page
+    # layout (and scroll position) does not jump when the content is replaced.
+    height = getattr(plot, "height", None)
     return Card(
-        NotStr(div),
+        Div(NotStr(div), style=f"min-height: {height}px") if height else NotStr(div),
         NotStr(script),
         header=header,
     )

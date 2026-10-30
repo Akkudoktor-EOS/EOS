@@ -6,7 +6,7 @@ from pathlib import Path
 
 import psutil
 import uvicorn
-from fasthtml.common import Base, FileResponse, JSONResponse
+from fasthtml.common import Base, FileResponse, JSONResponse, Script
 from loguru import logger
 from monsterui.core import FastHTML, Theme
 from starlette.middleware import Middleware
@@ -197,6 +197,39 @@ if not favicon_filepath.exists():
 hdrs = (
     *BokehJS,
     Theme.green.headers(highlightjs=True),
+    # Keep the scroll position when a control on the page replaces the page content.
+    # Without this the content is shorter for a moment (plots not yet rendered,
+    # sections closed) and the browser clamps the scroll position to the bottom.
+    Script("""
+    (function () {
+        let saved = null;
+        function scroller(el) {
+            for (let e = el.parentElement; e; e = e.parentElement) {
+                const overflowY = getComputedStyle(e).overflowY;
+                if (overflowY === "auto" || overflowY === "scroll") return e;
+            }
+            return document.scrollingElement;
+        }
+        document.addEventListener("htmx:beforeSwap", (evt) => {
+            const target = evt.detail.target;
+            const elt = (evt.detail.requestConfig && evt.detail.requestConfig.elt) || evt.detail.elt;
+            saved = null;
+            // Only for controls inside the page content, navigation still starts at the top
+            if (!target || target.id !== "page-content" || !elt || !target.contains(elt)) return;
+            const s = scroller(target);
+            saved = { target: target, s: s, top: s.scrollTop };
+            target.style.minHeight = target.offsetHeight + "px";
+        });
+        document.addEventListener("htmx:afterSettle", () => {
+            if (!saved) return;
+            const { target, s, top } = saved;
+            saved = null;
+            s.scrollTop = top;
+            // Give the plots time to render before the content may shrink again
+            setTimeout(() => { target.style.minHeight = ""; }, 1500);
+        });
+    })();
+    """),
 )
 
 # The EOSdash application
