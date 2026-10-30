@@ -122,7 +122,7 @@ EXPOSE 8503
 EXPOSE 8504
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["python", "-m", "akkudoktoreos.server.container_healthcheck"]
+    CMD ["python", "-m", "akkudoktoreos.server.containerhealthcheck"]
 
 # Ensure EOS and EOSdash bind to 0.0.0.0
 # EOS is started with root privileges. EOS will drop root privileges and switch to user eos.

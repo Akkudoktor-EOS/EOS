@@ -208,6 +208,48 @@ ignore_missing_imports = true
 module = ["cachebox", "fasthtml.*", "monsterui.*", "pvlib.*", "statsmodels.*"]
 ignore_missing_imports = true
 
+[tool.eos-filename-linter]
+max_filename_length = 64
+
+exclude = [
+    ".git/**",
+    ".venv/**",
+    "docs/_build/**",
+    "**/*.egg-info/**",
+]
+
+# Test modules except single test modules.
+[[tool.eos-filename-linter.rules]]
+name = "pytest module: test_ prefix, lowercase letters and digits without underscores or hyphens"
+paths = ["tests/**/*.py"]
+pattern = "^test_[a-z0-9]+\\.py$"
+allowed_names = ["conftest.py"]
+exclude = ["tests/single_test_*.py"]
+suggestion = "test_prefix_alnum"
+
+# Single test modules.
+[[tool.eos-filename-linter.rules]]
+name = "Single pytest modules"
+paths = ["tests/single_test_*.py"]
+pattern = "^single_test_[a-z0-9]+\\.py$"
+suggestion = "single_test_prefix_alnum"
+
+# Production Python modules.
+[[tool.eos-filename-linter.rules]]
+name = "python source module: lowercase letters and digits without underscores or hyphens"
+paths = ["src/akkudoktoreos/**/*.py"]
+pattern = "^[a-z][a-z0-9]*\\.py$"
+allowed_names = ["__init__.py", "_version_date.py"]
+suggestion = "lowercase_alnum"
+
+# Standalone scripts.
+[[tool.eos-filename-linter.rules]]
+name = "python script: lowercase letters, digits, underscores without hyphens"
+paths = ["scripts/**/*.py"]
+pattern = "^[a-z][a-z0-9_]*\\.py$"
+allowed_names = ["__init__.py"]
+suggestion = "lowercase_snake"
+
 [tool.commitizen]
 # Only used as linter
 name = "cz_conventional_commits"
