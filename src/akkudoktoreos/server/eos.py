@@ -17,6 +17,7 @@ import uvicorn
 from fastapi import Body, FastAPI
 from fastapi import Path as FastapiPath
 from fastapi import Query, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import HTTPException
 from fastapi.responses import (
     HTMLResponse,
@@ -80,6 +81,13 @@ from akkudoktoreos.server.rest.error import (
     register_problem_handlers,
 )
 from akkudoktoreos.server.rest.measurement import router as measurement_router
+from akkudoktoreos.server.rest.secrets import (
+    is_masked,
+    mask_value,
+    path_is_secret,
+    redact,
+    strip_masked,
+)
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
@@ -512,15 +520,28 @@ def fastapi_health_get():  # type: ignore
     )
 
 
-@app.post("/v1/config/reset", tags=["config"])
-def fastapi_config_reset_post() -> ConfigEOS:
+def _config_response() -> JSONResponse:
+    """Current configuration with all secrets masked."""
+    return JSONResponse(redact(jsonable_encoder(get_config())))
+
+
+def _config_value_response(path: str, value: Any) -> JSONResponse:
+    """Value of a configuration path with all secrets masked."""
+    encoded = jsonable_encoder(value)
+    if path_is_secret(path) and not isinstance(encoded, (dict, list)):
+        return JSONResponse(mask_value(path.strip("/").split("/")[-1], encoded))
+    return JSONResponse(redact(encoded))
+
+
+@app.post("/v1/config/reset", tags=["config"], response_model=ConfigEOS)
+def fastapi_config_reset_post() -> JSONResponse:
     """Reset the configuration to the EOS configuration file.
 
     Returns:
         configuration (ConfigEOS): The current configuration after update.
     """
     get_config().reset_settings()
-    return get_config()
+    return _config_response()
 
 
 @app.get("/v1/config/backup", tags=["config"])
@@ -533,42 +554,42 @@ def fastapi_config_backup_get() -> dict[str, dict[str, Any]]:
     return get_config().list_backups()
 
 
-@app.put("/v1/config/revert", tags=["config"])
+@app.put("/v1/config/revert", tags=["config"], response_model=ConfigEOS)
 def fastapi_config_revert_put(
     backup_id: str = Query(..., description="EOS configuration backup ID."),
-) -> ConfigEOS:
+) -> JSONResponse:
     """Revert the configuration to a EOS configuration backup.
 
     Returns:
         configuration (ConfigEOS): The current configuration after revert.
     """
     get_config().revert_settings(backup_id)
-    return get_config()
+    return _config_response()
 
 
-@app.put("/v1/config/file", tags=["config"])
-def fastapi_config_file_put() -> ConfigEOS:
+@app.put("/v1/config/file", tags=["config"], response_model=ConfigEOS)
+def fastapi_config_file_put() -> JSONResponse:
     """Save the current configuration to the EOS configuration file.
 
     Returns:
         configuration (ConfigEOS): The current configuration that was saved.
     """
     get_config().to_config_file()
-    return get_config()
+    return _config_response()
 
 
-@app.get("/v1/config", tags=["config"])
-def fastapi_config_get() -> ConfigEOS:
+@app.get("/v1/config", tags=["config"], response_model=ConfigEOS)
+def fastapi_config_get() -> JSONResponse:
     """Get the current configuration.
 
     Returns:
         configuration (ConfigEOS): The current configuration.
     """
-    return get_config()
+    return _config_response()
 
 
-@app.put("/v1/config", tags=["config"])
-def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
+@app.put("/v1/config", tags=["config"], response_model=ConfigEOS)
+def fastapi_config_put(settings: SettingsEOS) -> JSONResponse:
     """Update the current config with the provided settings.
 
     Note that for any setting value that is None or unset, the configuration will fall back to
@@ -582,8 +603,10 @@ def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
         configuration (ConfigEOS): The current configuration after the write.
     """
     try:
-        get_config().merge_settings(settings)
-        return get_config()
+        # Masked secrets (e.g. an exported configuration) keep the stored values.
+        cleaned = strip_masked(settings.model_dump(exclude_unset=True))
+        get_config().merge_settings(SettingsEOS.model_validate(cleaned))
+        return _config_response()
     except Exception as e:
         raise EOSProblem(
             status=400,
@@ -593,7 +616,7 @@ def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
         ) from e
 
 
-@app.put("/v1/config/{path:path}", tags=["config"])
+@app.put("/v1/config/{path:path}", tags=["config"], response_model=ConfigEOS)
 def fastapi_config_put_key(
     path: str = FastapiPath(
         ..., description="The nested path to the configuration key (e.g., general/latitude)."
@@ -601,7 +624,7 @@ def fastapi_config_put_key(
     value: Optional[Any] = Body(
         None, description="The value to assign to the specified configuration path (can be None)."
     ),
-) -> ConfigEOS:
+) -> JSONResponse:
     """Update a nested key or index in the config model.
 
     Args:
@@ -611,9 +634,12 @@ def fastapi_config_put_key(
     Returns:
         configuration (ConfigEOS): The current configuration after the update.
     """
+    if path_is_secret(path) and is_masked(value):
+        # A masked secret read back from the API leaves the stored secret unchanged.
+        return _config_response()
     try:
         get_config().set_nested_value(path, value)
-        return get_config()
+        return _config_response()
     except Exception as e:
         raise EOSProblem(
             status=400,
@@ -638,7 +664,7 @@ def fastapi_config_get_key(
         value (Any): The value of the selected nested key.
     """
     try:
-        return get_config().get_nested_value(path)
+        return _config_value_response(path, get_config().get_nested_value(path))
     except KeyError as e:
         raise EOSProblem(
             status=404,
