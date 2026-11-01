@@ -119,6 +119,20 @@ def test_battery_discharge_exactly_min_soc(setup_pv_battery):
     assert battery.current_soc_percentage() == 20  # SOC should remain at min_SOC
 
 
+@pytest.mark.parametrize("initial_soc", [0, 5, 20])
+@pytest.mark.parametrize("requested_wh", [0.0, 280.0])
+def test_discharge_preserves_energy_at_or_below_min_soc(
+    setup_pv_battery, initial_soc, requested_wh
+):
+    battery = setup_pv_battery
+    battery.soc_wh = initial_soc / 100 * battery.capacity_wh
+    initial_wh = battery.soc_wh
+
+    for slot in (0, 0, 1):
+        assert battery.discharge_energy(requested_wh, slot) == (0.0, 0.0)
+        assert battery.soc_wh == initial_wh
+
+
 def test_battery_charge_exactly_max_soc(setup_pv_battery):
     battery = setup_pv_battery
     battery.soc_wh = battery.max_soc_wh  # Set battery to exactly max SOC
