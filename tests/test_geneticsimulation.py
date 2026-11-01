@@ -25,6 +25,65 @@ from akkudoktoreos.utils.datetimeutil import to_duration, to_time
 start_hour = 1
 
 
+@pytest.mark.parametrize("efficiency_curve", [None, [(0.0, 0.8), (1.0, 0.97)]])
+def test_below_min_soc_requires_real_charging_energy(efficiency_curve):
+    """Discharge attempts before and after partial charging must not create energy."""
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=26_400,
+            initial_soc_percentage=0,
+            min_soc_percentage=6,
+            max_charge_power_w=7_000,
+            charging_efficiency=0.95,
+            discharging_efficiency=0.95,
+        ),
+        prediction_hours=4,
+        slot_duration_h=0.25,
+    )
+    inverter = Inverter(
+        InverterParameters(
+            device_id="inverter1",
+            battery_id="battery1",
+            max_power_wh=10_000,
+            max_ac_charge_power_w=6_000,
+            ac_to_dc_efficiency=0.97,
+            dc_to_ac_efficiency=0.97,
+            dc_to_ac_efficiency_curve=efficiency_curve,
+        ),
+        battery=battery,
+        slot_duration_h=0.25,
+    )
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters(
+            pv_forecast_wh=[0.0] * 4,
+            total_load=[280.0] * 4,
+            electricity_price_per_wh=[0.00037, 0.00037, 0.00050, 0.00063],
+            feed_in_tariff_per_wh=0.0,
+            price_per_wh_battery=0.0,
+        ),
+        optimization_hours=4,
+        prediction_hours=4,
+        inverter=inverter,
+    )
+    assert simulation.ac_charge_hours is not None
+    assert simulation.bat_discharge_hours is not None
+    simulation.ac_charge_hours[:] = [0.0, 1.0, 0.0, 0.0]
+    simulation.bat_discharge_hours[:] = [1.0, 0.0, 1.0, 1.0]
+
+    result = simulation.simulate(0)
+
+    stored_wh = 1_500 * 0.97 * 0.95
+    assert result["akku_soc_pro_stunde"] == pytest.approx(
+        [0.0, 0.0, stored_wh / 26_400 * 100, stored_wh / 26_400 * 100]
+    )
+    assert result["Netzbezug_Wh_pro_Stunde"] == pytest.approx([280, 1780, 280, 280])
+    assert battery.soc_wh == pytest.approx(stored_wh)
+    assert battery.soc_wh < battery.min_soc_wh
+    assert result["Gesamt_Verluste"] == pytest.approx(1_500 - stored_wh)
+
+
 # Example initialization of necessary components
 @pytest.fixture
 def genetic_simulation(config_eos) -> GeneticSimulation:

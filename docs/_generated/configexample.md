@@ -183,6 +183,21 @@
            "mode": "OPTIMIZATION",
            "notify_url": null
        },
+       "eosdash": {
+           "plan": {
+               "visible": {},
+               "alias": {},
+               "color": {},
+               "style": {},
+               "width": {},
+               "line_dash": {},
+               "device_alias": {},
+               "plan_table_open": false,
+               "energy_kwh": true,
+               "factor_percent": true,
+               "price_minor_unit": true
+           }
+       },
        "feedintariff": {
            "direct_marketing_enabled": false,
            "provider": "FeedInTariffFixed",
@@ -348,6 +363,8 @@
                "archive_retention_days": 60,
                "nowcast_enabled": true,
                "trend_enabled": true,
+               "solar_response_enabled": true,
+               "weather_response_enabled": true,
                "correction_mode": "auto",
                "validation_days": 7,
                "min_validation_days": 3,

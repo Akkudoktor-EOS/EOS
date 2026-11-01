@@ -1601,10 +1601,14 @@ class DatabaseRecordProtocolMixin(
         await self._db_ensure_initialized()
 
         # Deletion is global — ensure we see everything
-        await self._db_ensure_loaded(
-            start_timestamp=start_timestamp,
-            end_timestamp=end_timestamp,
-        )
+        if start_timestamp is None and end_timestamp is None:
+            # Full wipe — must escalate to FULL, not stop at INITIAL.
+            await self._db_load_full()
+        else:
+            await self._db_ensure_loaded(
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+            )
 
         to_delete: list[DatabaseTimestamp] = []
 

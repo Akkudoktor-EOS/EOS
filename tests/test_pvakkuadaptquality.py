@@ -4,7 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from akkudoktoreos.prediction.pvquality import choose_correction, select_corrections
+from akkudoktoreos.prediction.pvakkuadaptquality import (
+    choose_correction,
+    select_corrections,
+)
 
 
 def archive():

@@ -27,7 +27,7 @@ from akkudoktoreos.prediction.prediction import (
     Prediction,
     PredictionCommonSettings,
 )
-from akkudoktoreos.prediction.pvforecastadaptiveakkudoktor import (
+from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
 )
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor

@@ -1,3 +1,4 @@
+default_stages: [pre-commit]
 # Exclude some file types from automatic code style
 exclude: \.(json|csv)$
 repos:
@@ -28,6 +29,16 @@ repos:
         args: [--fix]
       # Run the formatter
       - id: ruff-format
+
+  - repo: local
+    hooks:
+    # Run EOS custom file name linter
+    - id: eos-filename-linter
+      name: EOS filename linter
+      entry: uv run --locked --exact --extra dev python scripts/lint_filenames.py
+      language: system
+      types: [python]
+      pass_filenames: true
 
   # --- Static type checking ---
   - repo: local

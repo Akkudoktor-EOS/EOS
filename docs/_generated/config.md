@@ -9,6 +9,7 @@
 ../_generated/configelecfee.md
 ../_generated/configelecprice.md
 ../_generated/configems.md
+../_generated/configeosdash.md
 ../_generated/configfeedintariff.md
 ../_generated/configgeneral.md
 ../_generated/configload.md

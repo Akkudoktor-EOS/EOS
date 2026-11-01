@@ -11,7 +11,7 @@ from typing import cast
 import numpy as np
 import pandas as pd
 
-from akkudoktoreos.prediction.pvadaptive import _aware, _aware_index
+from akkudoktoreos.prediction.pvakkuadaptmodel import _aware, _aware_index
 
 LEVEL_FEATURES = ("prior_residual", "level", "weather_change", "intercept")
 TREND_FEATURES = ("ramp", "slope", "volatility", "consistent_ramp")

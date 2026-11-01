@@ -6,10 +6,10 @@ from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
-from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
-from akkudoktoreos.prediction.pvforecastadaptiveakkudoktor import (
+from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktorCommonSettings,
 )
+from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     PVForecastAkkudoktorLocalCommonSettings,
     normalize_akkudoktor_settings,

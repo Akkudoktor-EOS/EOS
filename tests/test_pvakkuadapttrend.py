@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from akkudoktoreos.prediction.pvadaptive import apply_local_nowcast
-from akkudoktoreos.prediction.pvtrend import (
+from akkudoktoreos.prediction.pvakkuadaptmodel import apply_local_nowcast
+from akkudoktoreos.prediction.pvakkuadapttrend import (
     FEATURES,
     LocalPVTrendModel,
     local_trend_features,

@@ -3,27 +3,47 @@
 import asyncio
 import bisect
 import hashlib
+import threading
 from pathlib import Path
 from typing import Any, Callable, Literal, Optional, Self, cast
 
 import numpy as np
 import pandas as pd
 from loguru import logger
-from pydantic import Field, model_validator
+from pydantic import Field, PrivateAttr, model_validator
 
 from akkudoktoreos.core.databaseabc import DatabaseTimestamp
 from akkudoktoreos.measurement.energy import energy_intervals
 from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
-from akkudoktoreos.prediction.pvadaptive import AdaptivePVModel, apply_local_nowcast
+from akkudoktoreos.prediction.pvakkuadaptmodel import (
+    AdaptivePVModel,
+    apply_local_nowcast,
+)
+from akkudoktoreos.prediction.pvakkuadaptquality import (
+    choose_correction,
+    select_corrections,
+)
+from akkudoktoreos.prediction.pvakkuadaptresponse import (
+    fit_solar_response,
+    fit_weather_response,
+    lead_bucket,
+    paired_rows,
+    regime,
+    select_responses,
+    solar_basis,
+    solar_factors,
+)
+from akkudoktoreos.prediction.pvakkuadaptstore import PVLearningStore
+from akkudoktoreos.prediction.pvakkuadapttrend import (
+    LocalPVTrendModel,
+    local_trend_features,
+)
 from akkudoktoreos.prediction.pvforecastabc import PVForecastDataRecord
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     OPENMETEO_VARIABLES,
     PVForecastAkkudoktorLocal,
     PVForecastAkkudoktorLocalCommonSettings,
 )
-from akkudoktoreos.prediction.pvlearnstore import PVLearningStore
-from akkudoktoreos.prediction.pvquality import choose_correction, select_corrections
-from akkudoktoreos.prediction.pvtrend import LocalPVTrendModel, local_trend_features
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
@@ -47,6 +67,14 @@ class PVForecastAdaptiveAkkudoktorCommonSettings(PVForecastAkkudoktorLocalCommon
     archive_retention_days: int = Field(default=60, ge=31, le=365)
     nowcast_enabled: bool = True
     trend_enabled: bool = True
+    solar_response_enabled: bool = Field(
+        default=True,
+        description="Learn empirical angular response relative to separate, eligible reference arrays; activate only after issued-candidate validation.",
+    )
+    weather_response_enabled: bool = Field(
+        default=True,
+        description="Archive received model weather and learn horizon/regime corrections; activate only after issued-candidate validation.",
+    )
     correction_mode: Literal["auto", "calibrated", "local", "trend"] = Field(
         default="auto",
         description="Choose validated short-term candidates per group/lead, or explicitly fix a correction stage.",
@@ -116,12 +144,20 @@ class PVForecastAdaptiveAkkudoktorDataRecord(PVForecastDataRecord):
     pvforecast_adaptive_training_samples: Optional[float] = None
     pvforecast_adaptive_state_code: Optional[float] = None
     pvforecast_adaptive_weather_weight: Optional[float] = None
+    pvforecast_adaptive_solar_ac_power: Optional[float] = None
+    pvforecast_adaptive_weather_ac_power: Optional[float] = None
+    pvforecast_adaptive_long_validation_days: Optional[float] = None
+    pvforecast_adaptive_long_active: Optional[float] = None
 
 
 class PVForecastAdaptiveAkkudoktor(
     PVForecastAkkudoktorLocal[PVForecastAdaptiveAkkudoktorDataRecord]
 ):
     """Learn from independent arrays; preserve every issued short-term comparison."""
+
+    _learning_store: PVLearningStore | None = PrivateAttr(default=None)
+    _store_identity: tuple[str, str | None] | None = PrivateAttr(default=None)
+    _store_lock: Any = PrivateAttr(default_factory=threading.RLock)
 
     @classmethod
     def provider_id(cls) -> str:
@@ -132,11 +168,16 @@ class PVForecastAdaptiveAkkudoktor(
         return self.config.pvforecast.adaptive
 
     def store(self) -> PVLearningStore:
-        """Private bounded archive under the existing EOS output directory."""
+        """Reuse the EOS-backed archive, importing a legacy file only once."""
         output = (
             Path(self.config.general.data_folder_path) / self.config.general.data_output_subpath
         )
-        return PVLearningStore(output / "adaptive-pv" / "learning.sqlite3")
+        identity = (str(output), self.config.database.provider)
+        with self._store_lock:
+            if self._learning_store is None or self._store_identity != identity:
+                self._learning_store = PVLearningStore(output / "adaptive-pv" / "learning.sqlite3")
+                self._store_identity = identity
+            return self._learning_store
 
     def _signature(self) -> str:
         settings = {
@@ -342,11 +383,14 @@ class PVForecastAdaptiveAkkudoktor(
         frame["regional_weight"] = weight
         return frame
 
-    def _physical_frames(self, data: dict[str, Any]) -> list[pd.DataFrame]:
+    def _physical_frames(
+        self, data: dict[str, Any], weather: pd.DataFrame | None = None
+    ) -> list[pd.DataFrame]:
         """One physical/learned response per measured plane, plus clear-sky envelope."""
         import pvlib
 
-        weather = self._weather_frame(data)
+        if weather is None:
+            weather = self._weather_frame(data)
         location = pvlib.location.Location(
             float(self.config.general.latitude),
             float(self.config.general.longitude),
@@ -694,6 +738,237 @@ class PVForecastAdaptiveAkkudoktor(
         store.prune(issue, settings.archive_retention_days)
         return saved
 
+    def _calibrate_frame(self, frame: pd.DataFrame, gains: dict[str, Any]) -> pd.DataFrame:
+        """Apply the same frozen daily calibration to every issued weather member."""
+        result = frame.copy()
+        keys = self._plane_keys()
+        if self._settings.total_measurement_key:
+            frame = frame.copy()
+            frame[self._settings.total_measurement_key] = frame[keys].sum(
+                axis=1, min_count=len(keys)
+            )
+        for plane in self._learning_planes():
+            key = plane.measurement_key
+            model = AdaptivePVModel(timezone=self.config.general.timezone)
+            model.gain = gains[key]["gain"]
+            model.shape = np.asarray(gains[key]["shape"])
+            corrected = model.predict(frame[key])
+            factor = (corrected / frame[key]).where(frame[key] > 0, model.gain)
+            for physical_key in keys if self._settings.total_measurement_key else [key]:
+                result[physical_key] = frame[physical_key] * factor
+                if physical_key + "_dc" in frame:
+                    result[physical_key + "_dc"] = frame[physical_key + "_dc"] * factor
+        for key, plane in zip(keys, self.config.pvforecast.planes or []):
+            result[key] = result[key].clip(lower=0, upper=plane.inverter_paco)
+        return result
+
+    def _responses(
+        self, signature: str, issue: pd.Timestamp, models: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Fit previous-day responses and validate only candidates actually issued."""
+        store, settings = self.store(), self._settings
+        identity = [
+            signature,
+            models["fitted_at"],
+            settings.solar_response_enabled,
+            settings.weather_response_enabled,
+            settings.min_validation_days,
+            settings.min_validation_samples,
+            settings.min_validation_improvement,
+        ]
+        saved = store.metadata("response_models")
+        if saved and saved.get("identity") == identity:
+            return saved
+        observed = self._measurements(issue, max(settings.learning_days, settings.validation_days))
+        baselines = store.baselines(
+            signature, issue - pd.Timedelta(days=settings.learning_days), issue
+        )
+        raw_history = pd.DataFrame({time: values["plane_raw"] for time, values in baselines}).T
+        calibrated = (
+            self._calibrate_frame(raw_history, models["gains"])
+            if not raw_history.empty
+            else raw_history
+        )
+        references = self._references()
+        solar = {}
+        for plane in self._learning_planes():
+            key = plane.measurement_key
+            others = [ref for ref in references if ref != key]
+            history = pd.DataFrame()
+            if (
+                settings.solar_response_enabled
+                and others
+                and not calibrated.empty
+                and not settings.total_measurement_key
+            ):
+                common_actual = (
+                    observed[others]
+                    .where(pd.DataFrame({ref: observed[ref + "_eligible"] for ref in others}))
+                    .sum(axis=1, min_count=len(others))
+                )
+                common_base = calibrated[others].sum(axis=1, min_count=len(others))
+                available = pd.concat(
+                    [observed[ref + "_available"] for ref in [key, *others]], axis=1
+                ).max(axis=1, skipna=False)
+                history = pd.DataFrame(
+                    dict(
+                        base=calibrated[key],
+                        actual=observed[key].where(observed[key + "_eligible"]),
+                        common=(common_actual / common_base).where(common_base > 100),
+                        available_at=available,
+                    )
+                )
+            solar[key] = fit_solar_response(
+                history,
+                issue,
+                self.config.general.timezone,
+                float(self.config.general.latitude),
+                float(self.config.general.longitude),
+                settings.min_training_days,
+            )
+            solar[key]["reference_keys"] = others
+        rows = store.long_rows(
+            signature,
+            issue - pd.Timedelta(days=max(settings.learning_days, settings.validation_days)),
+            issue,
+        )
+        pairs = (
+            paired_rows(rows, observed, references, issue, self.config.general.timezone)
+            if references
+            else []
+        )
+        weather = (
+            fit_weather_response(pairs, settings.min_training_days, settings.min_validation_samples)
+            if settings.weather_response_enabled
+            else {}
+        )
+        midnight = issue.tz_convert(self.config.general.timezone).normalize()
+        validation_rows = [
+            row
+            for row in rows
+            if row["target_ms"]
+            >= store.milliseconds(midnight - pd.DateOffset(days=settings.validation_days))
+        ]
+        selection = {}
+        for group, group_keys in self._groups().items():
+            validation = paired_rows(
+                validation_rows, observed, group_keys, issue, self.config.general.timezone
+            )
+            selection[group] = select_responses(
+                validation,
+                settings.min_validation_days,
+                settings.min_validation_samples,
+                settings.min_validation_improvement,
+                ("calibrated",)
+                + (("solar",) if settings.solar_response_enabled else ())
+                + (("weather",) if settings.weather_response_enabled else ()),
+            )
+        saved = dict(
+            identity=identity,
+            fitted_at=issue.isoformat(),
+            solar=solar,
+            weather=weather,
+            selection=selection,
+            validation_source="issued_candidates",
+            response_version=1,
+            message="Empirical angular response, not a measured horizon; new candidates remain shadowed until validated.",
+        )
+        store.metadata("response_models", saved)
+        return saved
+
+    def _long_candidates(
+        self,
+        data: dict[str, Any],
+        calibrated: pd.DataFrame,
+        clear: pd.DataFrame,
+        calibrated_dc: pd.DataFrame,
+        models: dict[str, Any],
+        responses: dict[str, Any],
+        issue: pd.Timestamp,
+    ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
+        """Make inspectable angular and model/regime candidates for later validation."""
+        keys, settings = self._plane_keys(), self._settings
+        basis = solar_basis(
+            pd.DatetimeIndex(calibrated.index),
+            float(self.config.general.latitude),
+            float(self.config.general.longitude),
+        )
+        factors = {
+            key: solar_factors(basis, responses["solar"].get(key, {}))
+            if settings.solar_response_enabled
+            else np.ones(len(calibrated))
+            for key in keys
+        }
+        solar = calibrated[keys].copy()
+        solar_dc = calibrated_dc[keys].copy()
+        for key in keys:
+            solar[key] *= factors[key]
+            solar_dc[key] *= factors[key]
+            solar[key] = solar[key].clip(
+                lower=0, upper=(self.config.pvforecast.planes or [])[keys.index(key)].inverter_paco
+            )
+        members = {}
+        members_dc = {}
+        if settings.weather_response_enabled:
+            source = data["minutely_15"]
+            for name in settings.weather_models:
+                columns = {
+                    variable: source.get(
+                        variable + "_" + name,
+                        source.get(variable) if len(settings.weather_models) == 1 else None,
+                    )
+                    for variable in OPENMETEO_VARIABLES
+                }
+                if any(values is None for values in columns.values()):
+                    continue
+                member_data = {**data, "minutely_15": {"time": source["time"], **columns}}
+                frame, _ = self._physical_frames(member_data)
+                member_frame = self._calibrate_frame(frame, models["gains"])
+                member = member_frame[keys].copy()
+                member_dc = member_frame[[key + "_dc" for key in keys]].copy()
+                member_dc.columns = keys
+                for key in keys:
+                    member[key] *= factors[key]
+                    member_dc[key] *= factors[key]
+                    member[key] = member[key].clip(
+                        lower=0,
+                        upper=(self.config.pvforecast.planes or [])[keys.index(key)].inverter_paco,
+                    )
+                members[name] = member
+                members_dc[name] = member_dc
+        weather = solar.copy()
+        weather_dc = solar_dc.copy()
+        references = self._references()
+        for timestamp in calibrated.index:
+            target = cast(pd.Timestamp, timestamp)
+            bucket = lead_bucket((target - issue).total_seconds() / 60)
+            fitted = responses["weather"].get(bucket, {})
+            weights = fitted.get("weights", {})
+            if not weights or not all(
+                name in members and np.isfinite(members[name].loc[target, keys]).all()
+                for name in weights
+            ):
+                continue
+            mixture = sum(
+                members[name].loc[target, keys] * weight for name, weight in weights.items()
+            )
+            ref_keys = keys if settings.total_measurement_key else references
+            sky = (
+                float(cast("pd.Series[Any]", clear.loc[target, ref_keys]).sum()) if ref_keys else 0
+            )
+            clearness = (
+                float(cast("pd.Series[Any]", mixture)[ref_keys].sum()) / sky if sky > 50 else 1
+            )
+            factor = fitted.get("regimes", {}).get(regime(clearness), 1.0)
+            weather.loc[target, keys] = mixture * factor
+            weather_dc.loc[target, keys] = (
+                sum(members_dc[name].loc[target, keys] * weight for name, weight in weights.items())
+                * factor
+            )
+        for key, plane in zip(keys, self.config.pvforecast.planes or []):
+            weather[key] = weather[key].clip(lower=0, upper=plane.inverter_paco)
+        return dict(solar=solar, weather=weather), members, dict(solar=solar_dc, weather=weather_dc)
+
     def _diagnostics(
         self,
         signature: str,
@@ -786,6 +1061,8 @@ class PVForecastAdaptiveAkkudoktor(
             correction_mode=settings.correction_mode,
             correction_groups=self._groups(),
             selection=models.get("selection", {}),
+            storage=store.storage_status(),
+            long_response=store.metadata("response_models") or {},
             algorithm_version=2,
             metrics_algorithm_versions={
                 str(version): sum(row["algorithm_version"] == version for row in rows)
@@ -839,11 +1116,15 @@ class PVForecastAdaptiveAkkudoktor(
         if measured_keys & (status_keys - {None}):
             raise ValueError("Power and learning-status measurements must use distinct keys.")
         issue = pd.Timestamp(to_datetime(in_timezone=self.config.general.timezone))
+        store = await asyncio.to_thread(self.store)
         await self._sync_measurements(issue)
-        store, signature = self.store(), self._signature()
+        signature = await asyncio.to_thread(self._signature)
         try:
             request_forecast = cast(Callable[..., dict[str, Any]], self._request_local_forecast)
             data = await asyncio.to_thread(request_forecast, force_update=bool(force_update))
+            weather_digest = await asyncio.to_thread(
+                store.archive_weather, data, pd.Timestamp.now(tz="UTC")
+            )
             raw, sky = await asyncio.to_thread(self._physical_frames, data)
             future = raw.index >= issue.tz_convert("UTC").floor("15min")
             if not np.isfinite(raw.loc[future, keys].to_numpy()).all():
@@ -856,6 +1137,7 @@ class PVForecastAdaptiveAkkudoktor(
                 return
             raise
         models = await asyncio.to_thread(self._models, signature, issue)
+        responses = await asyncio.to_thread(self._responses, signature, issue, models)
         observed = await asyncio.to_thread(self._measurements, issue, 2)
         await asyncio.to_thread(store.resolve, signature, observed, issue)
         calibrated, clear = raw.copy(), sky.copy()
@@ -984,6 +1266,36 @@ class PVForecastAdaptiveAkkudoktor(
             return frame.mul(factor, axis=0)
 
         candidates = {method: limit(frame) for method, frame in candidates.items()}
+        long_candidates, members, long_dc = await asyncio.to_thread(
+            self._long_candidates, data, calibrated, clear, calibrated_dc, models, responses, issue
+        )
+        long_candidates = {
+            method: limit(frame.loc[future_index, keys])
+            for method, frame in long_candidates.items()
+        }
+        long_active = pd.Series(0.0, index=future_index)
+        for group, learning_keys in self._groups().items():
+            group_keys = keys if self._settings.total_measurement_key else learning_keys
+            for timestamp in future_index:
+                bucket = lead_bucket((timestamp - issue).total_seconds() / 60)
+                method = (
+                    responses["selection"]
+                    .get(group, {})
+                    .get(bucket, {})
+                    .get("method", "calibrated")
+                )
+                if method == "solar" and not self._settings.solar_response_enabled:
+                    method = "calibrated"
+                if method == "weather" and not self._settings.weather_response_enabled:
+                    method = "calibrated"
+                if method in long_candidates:
+                    chosen.loc[timestamp, group_keys] = long_candidates[method].loc[
+                        timestamp, group_keys
+                    ]
+                    chosen_dc.loc[timestamp, group_keys] = long_dc[method].loc[
+                        timestamp, group_keys
+                    ]
+                    long_active.loc[timestamp] = 1.0
         chosen = limit(chosen)
         adaptive = chosen.sum(axis=1, min_count=len(keys))
         local = candidates["local"].sum(axis=1, min_count=len(keys))
@@ -1006,6 +1318,7 @@ class PVForecastAdaptiveAkkudoktor(
             self._diagnostics, signature, issue, models, observed, diagnostic_frame
         )
         snapshots = []
+        long_snapshots = []
         for timestamp in future_index:
             power = float(adaptive.loc[timestamp])
             values: dict[str, Any] = dict(
@@ -1019,6 +1332,8 @@ class PVForecastAdaptiveAkkudoktor(
                 reference_adaptive_w=float(ref_adaptive.loc[timestamp]),
                 reference_sky_w=float(ref_sky.loc[timestamp]),
                 plane_raw={key: float(raw.loc[timestamp, key]) for key in keys},
+                plant_solar_w=float(long_candidates["solar"].loc[timestamp].sum()),
+                plant_weather_w=float(long_candidates["weather"].loc[timestamp].sum()),
                 algorithm_version=2,
                 groups={
                     group: {
@@ -1045,6 +1360,37 @@ class PVForecastAdaptiveAkkudoktor(
                 else None,
             )
             snapshots.append((timestamp, values))
+            plane_candidates = {
+                key: dict(
+                    calibrated=float(candidates["calibrated"].loc[timestamp, key]),
+                    solar=float(long_candidates["solar"].loc[timestamp, key]),
+                    weather=float(long_candidates["weather"].loc[timestamp, key]),
+                    sky=float(clear.loc[timestamp, key]),
+                )
+                for key in keys
+            }
+            member_values = {
+                name: {key: float(frame.loc[timestamp, key]) for key in keys}
+                for name, frame in members.items()
+            }
+            if self._settings.total_measurement_key:
+                total_key = self._settings.total_measurement_key
+                plane_candidates[total_key] = {
+                    method: sum(row[method] for row in plane_candidates.values())
+                    for method in ("calibrated", "solar", "weather", "sky")
+                }
+                for row in member_values.values():
+                    row[total_key] = sum(row.values())
+            long_snapshots.append(
+                (
+                    timestamp,
+                    dict(
+                        planes=plane_candidates,
+                        members=member_values,
+                        weather_digest=weather_digest,
+                    ),
+                )
+            )
             await self.update_value(
                 to_datetime(timestamp.to_pydatetime()),
                 {
@@ -1066,6 +1412,17 @@ class PVForecastAdaptiveAkkudoktor(
                     "pvforecast_adaptive_weather_weight": float(
                         raw.loc[timestamp, "weather_weight"]
                     ),
+                    "pvforecast_adaptive_solar_ac_power": values["plant_solar_w"],
+                    "pvforecast_adaptive_weather_ac_power": values["plant_weather_w"],
+                    "pvforecast_adaptive_long_validation_days": min(
+                        (
+                            value["days"]
+                            for group in responses["selection"].values()
+                            for value in group.values()
+                        ),
+                        default=0,
+                    ),
+                    "pvforecast_adaptive_long_active": float(long_active.loc[timestamp]),
                 },
             )
         await asyncio.to_thread(
@@ -1074,6 +1431,9 @@ class PVForecastAdaptiveAkkudoktor(
             pd.Timestamp(to_datetime(in_timezone=self.config.general.timezone)),
             snapshots,
             self.config.general.timezone,
+        )
+        await asyncio.to_thread(
+            store.remember_long, signature, pd.Timestamp.now(tz="UTC"), long_snapshots
         )
         self.update_datetime = to_datetime(issue.to_pydatetime())
         logger.info(

@@ -97,6 +97,8 @@
                "archive_retention_days": 60,
                "nowcast_enabled": true,
                "trend_enabled": true,
+               "solar_response_enabled": true,
+               "weather_response_enabled": true,
                "correction_mode": "auto",
                "validation_days": 7,
                "min_validation_days": 3,
@@ -281,6 +283,8 @@
                "archive_retention_days": 60,
                "nowcast_enabled": true,
                "trend_enabled": true,
+               "solar_response_enabled": true,
+               "weather_response_enabled": true,
                "correction_mode": "auto",
                "validation_days": 7,
                "min_validation_days": 3,
@@ -853,6 +857,7 @@
 | regional_weather_model | `Optional[str]` | `rw` | `icon_d2` | None |
 | resolution_minutes | `int` | `rw` | `15` | Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block. |
 | shift_to_interval_start | `bool` | `rw` | `True` | Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not. |
+| solar_response_enabled | `bool` | `rw` | `True` | Learn empirical angular response relative to separate, eligible reference arrays; activate only after issued-candidate validation. |
 | temperature_coefficient | `float` | `rw` | `-0.36` | Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses. |
 | total_curtailment_key | `Optional[str]` | `rw` | `None` | None |
 | total_curtailment_sensitive | `bool` | `rw` | `False` | None |
@@ -865,6 +870,7 @@
 | trend_enabled | `bool` | `rw` | `True` | None |
 | validation_days | `int` | `rw` | `7` | None |
 | weather_models | `list[str]` | `rw` | `['best_match']` | Open-Meteo weather models to request. Listing more than one turns the input into a poor-man's ensemble: the members are averaged per variable, which is the cheapest reliable way to cut irradiance forecast error. Costs no extra API calls. |
+| weather_response_enabled | `bool` | `rw` | `True` | Archive received model weather and learn horizon/regime corrections; activate only after issued-candidate validation. |
 :::
 <!-- pyml enable line-length -->
 
@@ -911,6 +917,8 @@
                "archive_retention_days": 60,
                "nowcast_enabled": true,
                "trend_enabled": true,
+               "solar_response_enabled": true,
+               "weather_response_enabled": true,
                "correction_mode": "auto",
                "validation_days": 7,
                "min_validation_days": 3,

@@ -168,14 +168,6 @@ def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dar
         sizing_mode="stretch_width",
         height=400,
     )
-    # Add secondary y-axis for stddev
-    stddev_min = predictions["loadakkudoktor_std_power_w"].min()
-    stddev_max = predictions["loadakkudoktor_std_power_w"].max()
-    plot.extra_y_ranges["stddev"] = Range1d(start=stddev_min - 5, end=stddev_max + 5)
-    y2_axis = LinearAxis(y_range_name="stddev", axis_label="Load Standard Deviation [W]")
-    y2_axis.axis_label_text_color = "green"
-    plot.add_layout(y2_axis, "left")
-
     plot.line(
         "date_time",
         "loadforecast_power_w",
@@ -183,21 +175,31 @@ def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dar
         legend_label="Load forecast value (adjusted by measurement)",
         color="red",
     )
-    plot.line(
-        "date_time",
-        "loadakkudoktor_mean_power_w",
-        source=source,
-        legend_label="Load mean value",
-        color="blue",
-    )
-    plot.line(
-        "date_time",
-        "loadakkudoktor_std_power_w",
-        source=source,
-        legend_label="Load standard deviation",
-        color="green",
-        y_range_name="stddev",
-    )
+    if "loadakkudoktor_mean_power_w" in predictions:
+        plot.line(
+            "date_time",
+            "loadakkudoktor_mean_power_w",
+            source=source,
+            legend_label="Load mean value",
+            color="blue",
+        )
+    if "loadakkudoktor_std_power_w" in predictions:
+        # Add secondary y-axis for stddev
+        stddev_min = predictions["loadakkudoktor_std_power_w"].min()
+        stddev_max = predictions["loadakkudoktor_std_power_w"].max()
+        plot.extra_y_ranges["stddev"] = Range1d(start=stddev_min - 5, end=stddev_max + 5)
+        y2_axis = LinearAxis(y_range_name="stddev", axis_label="Load Standard Deviation [W]")
+        y2_axis.axis_label_text_color = "green"
+        plot.add_layout(y2_axis, "left")
+
+        plot.line(
+            "date_time",
+            "loadakkudoktor_std_power_w",
+            source=source,
+            legend_label="Load standard deviation",
+            color="green",
+            y_range_name="stddev",
+        )
     plot.toolbar.autohide = True
     bokey_apply_theme_to_plot(plot, dark)
 
@@ -247,8 +249,14 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
     series_list = []
 
     try:
+        result = requests.get(f"{server}/v1/prediction/keys", timeout=10)
+        result.raise_for_status()
+        available_keys = set(result.json())
+
         for options in prediction_requests:
             key = options[0]
+            if key not in available_keys:
+                continue
             resample_method = options[1]
             fill_method = options[2]
 
@@ -265,10 +273,14 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
                 params=params,
                 timeout=10,
             )
+            # The provider may have changed since the keys were retrieved.
+            if result.status_code == 404:
+                continue
             result.raise_for_status()
 
             series = PydanticDateTimeSeries(**result.json()).to_series().rename(key)
-            series_list.append(series)
+            if not series.dropna().empty:
+                series_list.append(series)
 
     except requests.exceptions.HTTPError as err:
         detail = result.json()["detail"]
@@ -279,6 +291,9 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
     # ---------------------------------------------------------------------
     # Merge into dataframe
     # ---------------------------------------------------------------------
+    if not series_list:
+        return P("No prediction data available.", cls="text-center")
+
     predictions = pd.concat(series_list, axis=1).reset_index()
     predictions = predictions.rename(columns={"index": "date_time"})
 
@@ -286,11 +301,17 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
     date_time_tz = predictions["date_time"].dt.tz
     predictions["date_time"] = pd.to_datetime(predictions["date_time"]).dt.tz_localize(None)
 
-    return Grid(
-        PVForecast(predictions, config, date_time_tz, dark),
-        ElectricityPriceForecast(predictions, config, date_time_tz, dark),
-        WeatherTempAirHumidityForecast(predictions, config, date_time_tz, dark),
-        WeatherIrradianceForecast(predictions, config, date_time_tz, dark),
-        LoadForecast(predictions, config, date_time_tz, dark),
-        cols_max=2,
-    )
+    plots = []
+    for forecast, required_keys in (
+        (PVForecast, {"pvforecast_ac_power"}),
+        (ElectricityPriceForecast, {"elecprice_marketprice_kwh"}),
+        (WeatherTempAirHumidityForecast, {"weather_temp_air", "weather_relative_humidity"}),
+        (WeatherIrradianceForecast, {"weather_ghi", "weather_dni", "weather_dhi"}),
+        (LoadForecast, {"loadforecast_power_w"}),
+    ):
+        if required_keys.issubset(predictions.columns):
+            plots.append(forecast(predictions, config, date_time_tz, dark))
+
+    if not plots:
+        return P("No prediction data available.", cls="text-center")
+    return Grid(*plots, cols_max=2)

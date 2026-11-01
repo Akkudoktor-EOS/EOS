@@ -53,7 +53,7 @@ from akkudoktoreos.prediction.loadakkudoktor import (
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
-from akkudoktoreos.prediction.pvforecastadaptiveakkudoktor import (
+from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
 )
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor

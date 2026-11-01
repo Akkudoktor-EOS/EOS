@@ -9,11 +9,11 @@ import pandas as pd
 import pytest
 
 from akkudoktoreos.measurement.quality import MeasurementSample
-from akkudoktoreos.prediction.pvforecastadaptiveakkudoktor import (
+from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
     PVForecastAdaptiveAkkudoktorCommonSettings,
 )
-from akkudoktoreos.prediction.pvlearnstore import PVLearningStore
+from akkudoktoreos.prediction.pvakkuadaptstore import PVLearningStore
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
@@ -150,9 +150,7 @@ async def test_cold_provider_generates_standard_power_and_status(provider):
         )
 
     with (
-        patch(
-            "akkudoktoreos.prediction.pvforecastadaptiveakkudoktor.to_datetime", side_effect=clock
-        ),
+        patch("akkudoktoreos.prediction.pvakkuadapt.to_datetime", side_effect=clock),
         patch.object(type(provider), "_request_local_forecast", return_value=synthetic_openmeteo()),
     ):
         await provider._update_data()
@@ -265,7 +263,7 @@ async def test_native_measurements_keep_first_seen_availability(provider):
 
 
 def test_persisted_live_features_train_after_five_complete_days(tmp_path):
-    from akkudoktoreos.prediction.pvtrend import FEATURES, LocalPVTrendModel
+    from akkudoktoreos.prediction.pvakkuadapttrend import FEATURES, LocalPVTrendModel
 
     store = PVLearningStore(tmp_path / "learning.sqlite3")
     for day in pd.date_range("2026-09-12T08:00Z", periods=5, freq="D"):
@@ -304,16 +302,17 @@ def adaptive_client(provider, monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
-    from akkudoktoreos.server.rest import pvadaptive
+    from akkudoktoreos.server.rest import pvakkuadaptrest
 
-    monkeypatch.setattr(pvadaptive, "provider", lambda: provider)
+    monkeypatch.setattr(pvakkuadaptrest, "provider", lambda: provider)
     app = FastAPI()
-    app.include_router(pvadaptive.router)
+    app.include_router(pvakkuadaptrest.router)
     with TestClient(app) as client:
         yield client
 
 
 def test_api_exposes_honest_cold_start_and_persists_samples(adaptive_client, provider):
+    provider.config.database.provider = "SQLite"
     prefix = "/v1/prediction/pv-adaptive"
     status = adaptive_client.get(prefix + "/status")
     assert status.status_code == 200
@@ -461,6 +460,8 @@ def test_total_channel_and_no_independent_reference_are_supported(provider):
 
 @pytest.mark.asyncio
 async def test_calibrated_ac_is_limited_per_plane_and_dc_is_not_reconstructed(provider):
+    from test_pvforecastakkudoktorlocal import synthetic_openmeteo
+
     issue = pd.Timestamp("2026-09-18T12:05Z")
     provider.config.pvforecast.planes[1].inverter_paco = 800
     index = pd.date_range(issue.floor("15min") - pd.Timedelta(hours=2), periods=20, freq="15min")
@@ -497,11 +498,9 @@ async def test_calibrated_ac_is_limited_per_plane_and_dc_is_not_reconstructed(pr
         )
 
     with (
-        patch(
-            "akkudoktoreos.prediction.pvforecastadaptiveakkudoktor.to_datetime", side_effect=clock
-        ),
+        patch("akkudoktoreos.prediction.pvakkuadapt.to_datetime", side_effect=clock),
         patch.object(type(provider), "_physical_frames", return_value=[raw, raw.copy()]),
-        patch.object(type(provider), "_request_local_forecast", return_value={}),
+        patch.object(type(provider), "_request_local_forecast", return_value=synthetic_openmeteo()),
         patch.object(type(provider), "_models", return_value=models),
     ):
         await provider._update_data()
@@ -628,7 +627,7 @@ def test_day_ahead_metrics_count_dst_intervals_and_never_zero_fill(tmp_path):
 
 
 def test_censored_calibration_uses_only_authorized_partial_days():
-    from akkudoktoreos.prediction.pvadaptive import AdaptivePVModel
+    from akkudoktoreos.prediction.pvakkuadaptmodel import AdaptivePVModel
 
     index = pd.DatetimeIndex(
         [
@@ -647,3 +646,124 @@ def test_censored_calibration_uses_only_authorized_partial_days():
     partial = AdaptivePVModel(min_days=5, allow_partial_days=True).fit(history, cutoff)
     assert partial.trained_days == 5
     assert partial.gain == pytest.approx(0.6)
+
+
+@pytest.mark.parametrize("backend", ["SQLite", "LMDB"])
+def test_eos_backend_migrates_archive_and_preserves_identity(config_eos, tmp_path, backend):
+    import hashlib
+    import sqlite3
+
+    from akkudoktoreos.prediction.pvakkuadaptstore import _DatabaseWorker
+
+    path = tmp_path / "legacy.sqlite3"
+    store = PVLearningStore(path)
+    target = pd.Timestamp("2026-09-02T08:00Z")
+    issue = target - pd.Timedelta(minutes=30)
+    store.import_samples([sample("micro", issue, 123)], issue)
+    store.remember("stable", issue, [(target, dict(plant_raw_w=1000))], "Europe/Berlin")
+    with sqlite3.connect(path) as legacy:
+        store._db.backup(legacy)
+    before = hashlib.sha256(path.read_bytes()).hexdigest()
+    config_eos.database.provider = backend
+    migrated = PVLearningStore(path)
+    _DatabaseWorker.run(
+        migrated.database.save_records([(b"other", b"untouched")], namespace="another-provider")
+    )
+    reopened = PVLearningStore(path)
+    assert reopened.counts() == migrated.counts()
+    assert reopened.storage_status()["backend"] == backend
+    assert reopened.samples("micro", issue, target)[0]["available_ms"] == store.milliseconds(issue)
+    with reopened.connection() as db:
+        assert dict(db.execute("SELECT * FROM forecasts").fetchone()) == dict(
+            store._db.execute("SELECT * FROM forecasts").fetchone()
+        )
+    reopened.remember("stable", issue, [(target, dict(plant_raw_w=9999))], "Europe/Berlin")
+    assert (
+        json.loads(reopened._db.execute("SELECT payload FROM forecasts").fetchone()[0])[
+            "plant_raw_w"
+        ]
+        == 1000
+    )
+    reopened.prune(target + pd.Timedelta(days=61))
+    assert reopened.counts()["forecasts"] == 0
+    after_prune = PVLearningStore(path)
+    new_target = target + pd.Timedelta(days=62)
+    after_prune.remember(
+        "stable",
+        new_target - pd.Timedelta(minutes=30),
+        [(new_target, dict(plant_raw_w=1000))],
+        "Europe/Berlin",
+    )
+    assert after_prune._db.execute("SELECT id FROM forecasts").fetchone()[0] > 1
+    assert _DatabaseWorker.run(reopened.database.count_records(namespace="another-provider")) == 1
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == before
+    _DatabaseWorker.run(reopened.database.close())
+
+
+def test_nodb_is_explicitly_volatile_and_creates_no_private_file(config_eos, tmp_path):
+    path = tmp_path / "absent" / "learning.sqlite3"
+    store = PVLearningStore(path)
+    store.metadata("test", {"value": 1})
+    assert store.storage_status()["persistent"] is False
+    assert not path.exists()
+    assert PVLearningStore(path).metadata("test") is None
+
+
+def test_long_snapshots_and_received_weather_are_immutable(tmp_path):
+    store = PVLearningStore(tmp_path / "unused.sqlite3")
+    issued = pd.Timestamp("2026-09-01T12:01Z")
+    target = issued.ceil("h") + pd.Timedelta(hours=3)
+    data = dict(
+        minutely_15=dict(
+            time=["2026-09-01T12:00Z", "2026-09-01T13:15Z"], shortwave_radiation=[999, 600]
+        )
+    )
+    digest = store.archive_weather(data, issued)
+    assert store.archive_weather(data, issued + pd.Timedelta(minutes=20)) == digest
+    assert store.counts()["weather"] == 1
+    payload = json.loads(store._db.execute("SELECT payload FROM weather").fetchone()[0])
+    assert payload["source_issue_at"] is None
+    assert payload["received_at"] == issued.isoformat()
+    assert payload["minutely_15"]["shortwave_radiation"] == [600]
+    store.remember_long("a", issued, [(target, {"planes": {"micro": {"calibrated": 100}}})])
+    store.remember_long(
+        "a",
+        issued + pd.Timedelta(minutes=5),
+        [(target, {"planes": {"micro": {"calibrated": 999}}})],
+    )
+    rows = store.long_rows("a", issued, target + pd.Timedelta(hours=1))
+    assert len(rows) == 1
+    assert rows[0]["planes"]["micro"]["calibrated"] == 100
+    assert rows[0]["issued_ms"] == store.milliseconds(issued)
+
+
+def test_backend_write_failure_is_reported_and_pending_changes_retry(config_eos, tmp_path):
+    from unittest.mock import AsyncMock
+
+    from akkudoktoreos.prediction.pvakkuadaptstore import _DatabaseWorker
+
+    config_eos.database.provider = "SQLite"
+    store = PVLearningStore(tmp_path / "no-legacy.sqlite3")
+    with patch.object(type(store.database), "save_records", new=AsyncMock(return_value=0)):
+        with pytest.raises(RuntimeError, match="Incomplete"):
+            store.metadata("pending", {"value": 123})
+    assert store.metadata("pending") == {"value": 123}
+    assert PVLearningStore(store.path).metadata("pending") == {"value": 123}
+    _DatabaseWorker.run(store.database.close())
+
+
+def test_long_solar_candidate_limits_ac_and_keeps_physical_dc(provider):
+    provider.config.pvforecast.adaptive.weather_response_enabled = False
+    provider.config.pvforecast.planes[0].inverter_paco = 3000
+    provider.config.pvforecast.planes[1].inverter_paco = 800
+    issue = pd.Timestamp("2026-09-18T06:00Z")
+    index = pd.date_range("2026-09-18T12:00Z", periods=4, freq="15min")
+    ac = pd.DataFrame(dict(hybrid=3000., micro=800.), index=index)
+    dc = pd.DataFrame(dict(hybrid=5000., micro=1200.), index=index)
+    response = dict(solar={key:dict(coefficients=[.5]*45) for key in ("hybrid", "micro")}, weather={})
+    candidates, members, dc_candidates = provider._long_candidates({}, ac, ac, dc, {}, response, issue)
+    assert not members
+    assert candidates["solar"].hybrid.max() == 3000
+    assert candidates["solar"].micro.max() == 800
+    np.testing.assert_allclose(dc_candidates["solar"].hybrid, 7500)
+    np.testing.assert_allclose(dc_candidates["solar"].micro, 1800)

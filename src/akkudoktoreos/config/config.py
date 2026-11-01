@@ -52,6 +52,7 @@ from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
+from akkudoktoreos.server.dash.dashsettings import EOSdashCommonSettings
 from akkudoktoreos.server.rest.cli import cli_argument_parser
 from akkudoktoreos.server.server import ServerCommonSettings
 from akkudoktoreos.utils.datetimeutil import (
@@ -331,6 +332,9 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     adapter: Optional[AdapterCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Adapter Settings"}
     )
+    eosdash: Optional[EOSdashCommonSettings] = Field(
+        default=None, json_schema_extra={"description": "EOS-Dash Settings"}
+    )
 
     model_config = pydantic_settings.SettingsConfigDict(
         env_nested_delimiter="__",
@@ -364,6 +368,7 @@ class SettingsEOSDefaults(SettingsEOS):
     server: ServerCommonSettings = Field(default_factory=ServerCommonSettings)
     utils: UtilsCommonSettings = Field(default_factory=UtilsCommonSettings)
     adapter: AdapterCommonSettings = Field(default_factory=AdapterCommonSettings)
+    eosdash: EOSdashCommonSettings = Field(default_factory=EOSdashCommonSettings)
 
     def __hash__(self) -> int:
         # Just for usage in configmigrate, finally overwritten when used by ConfigEOS.

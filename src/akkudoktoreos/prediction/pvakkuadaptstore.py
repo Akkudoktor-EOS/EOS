@@ -1,23 +1,74 @@
 """Bounded, persistent issued PV forecasts and independently timed measurements."""
 
+import asyncio
+import hashlib
 import json
+import os
 import sqlite3
+import threading
+from collections.abc import Coroutine
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator, cast
+from typing import Any, ClassVar, Iterator, TypeVar, cast
 
 import numpy as np
 import pandas as pd
 
+from akkudoktoreos.core.coreabc import get_config, get_database
 from akkudoktoreos.measurement.quality import MeasurementSample
+
+T = TypeVar("T")
+
+
+class _DatabaseWorker:
+    """Use the existing asynchronous EOS database from numerical worker threads."""
+
+    _loop: ClassVar[asyncio.AbstractEventLoop | None] = None
+    _lock: ClassVar[threading.Lock] = threading.Lock()
+    _pid: ClassVar[int] = 0
+
+    @classmethod
+    def run(cls, operation: Coroutine[Any, Any, T]) -> T:
+        """Run database frontend operations on a shared, process-local I/O loop."""
+        with cls._lock:
+            if cls._loop is None or cls._pid != os.getpid():
+                cls._loop = asyncio.new_event_loop()
+                cls._pid = os.getpid()
+                threading.Thread(
+                    target=cls._loop.run_forever, daemon=True, name="pv-database"
+                ).start()
+            loop = cls._loop
+        return asyncio.run_coroutine_threadsafe(operation, loop).result(timeout=120)
 
 
 class PVLearningStore:
-    """Keep issuance and later observation separate; revisions cannot rewrite training."""
+    """Persist immutable issue/target records through the configured EOS database.
+
+    SQLite is only an in-memory query index. Durable records live in the existing
+    EOS backend namespaces. NoDB intentionally learns in memory without persistence.
+    The old private SQLite file is read-only migration input and remains untouched.
+    """
+
+    _keys = {
+        "samples": ("key", "time_ms"),
+        "forecasts": ("signature", "issue_ms", "target_ms"),
+        "baselines": ("signature", "target_ms"),
+        "latest": ("target_ms",),
+        "metadata": ("key",),
+        "weather": ("issue_ms",),
+        "longforecasts": ("signature", "issue_ms", "target_ms"),
+    }
 
     def __init__(self, path: Path):
         self.path = path
-        path.parent.mkdir(parents=True, exist_ok=True)
+        self.database = get_database()
+        self.persistent = get_config().database.provider not in (None, "NoDB")
+        self._lock = threading.RLock()
+        self._db = sqlite3.connect(":memory:", check_same_thread=False)
+        self._db.row_factory = sqlite3.Row
+        self._initializing = True
+        self._saved_sequence = 0
+        migrated = None
         with self.connection() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS samples (
@@ -39,18 +90,187 @@ class PVLearningStore:
                 CREATE TABLE IF NOT EXISTS latest (
                     target_ms INTEGER PRIMARY KEY, issue_ms INTEGER NOT NULL, payload TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, payload TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS weather (issue_ms INTEGER PRIMARY KEY, payload TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS longforecasts (
+                    signature TEXT NOT NULL, issue_ms INTEGER NOT NULL, target_ms INTEGER NOT NULL,
+                    payload TEXT NOT NULL, PRIMARY KEY(signature,issue_ms,target_ms));
             """)
+        if self.persistent:
+            _DatabaseWorker.run(self.database.open(namespace="pvakkuadapt"))
+            migrated = _DatabaseWorker.run(self.database.get_metadata(namespace="pvakkuadapt"))
+            if path.is_file() and not migrated:
+                self._import_legacy()
+            else:
+                self._load_backend()
+        self._track_changes()
+        self._initializing = False
+        if self.persistent and not migrated:
+            if path.is_file():
+                for table, keys in self._keys.items():
+                    expression = ",".join(keys)
+                    self._db.execute(
+                        f"INSERT OR REPLACE INTO _changes SELECT ?,json_array({expression}) FROM {table}",  # noqa: S608
+                        (table,),
+                    )  # noqa: S608
+                self._db.commit()
+            self._flush()
+            _DatabaseWorker.run(self.database.flush())
+            _DatabaseWorker.run(
+                self.database.set_metadata(
+                    self.dump(
+                        dict(
+                            schema_version=1,
+                            migrated_from=str(path) if path.is_file() else None,
+                            counts=self.counts(),
+                        )
+                    ).encode(),
+                    namespace="pvakkuadapt",
+                )
+            )
+            _DatabaseWorker.run(self.database.flush())
+
+    def _import_legacy(self) -> None:
+        """Read the old archive without changing data, IDs or availability timestamps."""
+        with sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True) as old:
+            old.row_factory = sqlite3.Row
+            for table in ("samples", "forecasts", "baselines", "latest", "metadata"):
+                cursor = old.execute("SELECT * FROM " + table)  # noqa: S608 -- fixed table list
+                while batch := cursor.fetchmany(2000):
+                    self._insert_rows(table, [dict(row) for row in batch])
+            sequence = old.execute(
+                "SELECT seq FROM sqlite_sequence WHERE name='forecasts'"
+            ).fetchone()
+            if sequence:
+                self._restore_sequence(int(sequence[0]))
+
+    def _restore_sequence(self, sequence: int) -> None:
+        current = self._db.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name='forecasts'"
+        ).fetchone()
+        if current:
+            self._db.execute(
+                "UPDATE sqlite_sequence SET seq=? WHERE name='forecasts'",
+                (max(sequence, current[0]),),
+            )
+        else:
+            self._db.execute("INSERT INTO sqlite_sequence VALUES ('forecasts',?)", (sequence,))
+        self._db.commit()
+
+    def _insert_rows(self, table: str, rows: list[dict[str, Any]]) -> None:
+        if not rows:
+            return
+        if table not in self._keys:
+            raise ValueError("Unknown PV record type")
+        columns = tuple(rows[0])
+        allowed = {row[1] for row in self._db.execute("PRAGMA table_info(" + table + ")")}
+        if set(columns) != allowed:
+            raise ValueError("Invalid PV database record columns")
+        placeholders = ",".join("?" for _ in columns)
+        self._db.executemany(
+            f"INSERT OR REPLACE INTO {table} ({','.join(columns)}) VALUES ({placeholders})",  # noqa: S608
+            [tuple(row[column] for column in columns) for row in rows],
+        )
+        self._db.commit()
+
+    async def _backend_rows(self, table: str) -> list[dict[str, Any]]:
+        return [
+            json.loads(self.database.deserialize_data(value))
+            async for _, value in self.database.iterate_records(namespace="pvakkuadapt." + table)
+        ]
+
+    def _load_backend(self) -> None:
+        for table in self._keys:
+            self._insert_rows(table, _DatabaseWorker.run(self._backend_rows(table)))
+        sequence = _DatabaseWorker.run(
+            self.database.get_metadata(namespace="pvakkuadapt.forecasts")
+        )
+        if sequence:
+            self._restore_sequence(int(sequence))
+            self._saved_sequence = int(sequence)
+
+    def _track_changes(self) -> None:
+        self._db.execute(
+            "CREATE TABLE _changes (table_name TEXT, record_key TEXT, PRIMARY KEY(table_name,record_key))"
+        )
+        for table, keys in self._keys.items():
+            for event, source in (("INSERT", "NEW"), ("UPDATE", "NEW"), ("DELETE", "OLD")):
+                expression = ",".join(source + "." + key for key in keys)
+                self._db.execute(
+                    f"CREATE TRIGGER track_{table}_{event} AFTER {event} ON {table} BEGIN "  # noqa: S608
+                    f"INSERT OR REPLACE INTO _changes VALUES ('{table}',json_array({expression})); END"
+                )
+        self._db.commit()
+
+    def _flush(self) -> None:
+        if self._initializing:
+            return
+        if self.persistent:
+            for table, keys in self._keys.items():
+                changed = self._db.execute(
+                    "SELECT record_key FROM _changes WHERE table_name=?", (table,)
+                ).fetchall()
+                writes, deletes = [], []
+                for (encoded_key,) in changed:
+                    identity = json.loads(encoded_key)
+                    row = self._db.execute(
+                        f"SELECT * FROM {table} WHERE " + " AND ".join(k + "=?" for k in keys),  # noqa: S608
+                        identity,
+                    ).fetchone()  # noqa: S608
+                    key = encoded_key.encode()
+                    if row is None:
+                        deletes.append(key)
+                    else:
+                        writes.append(
+                            (key, self.database.serialize_data(self.dump(dict(row)).encode()))
+                        )
+                if writes:
+                    count = _DatabaseWorker.run(
+                        self.database.save_records(writes, namespace="pvakkuadapt." + table)
+                    )
+                    if count != len(writes):
+                        raise RuntimeError("Incomplete PV database write")
+                if deletes:
+                    _DatabaseWorker.run(
+                        self.database.delete_records(deletes, namespace="pvakkuadapt." + table)
+                    )
+            sequence = self._db.execute(
+                "SELECT seq FROM sqlite_sequence WHERE name='forecasts'"
+            ).fetchone()
+            if sequence and sequence[0] > self._saved_sequence:
+                _DatabaseWorker.run(
+                    self.database.set_metadata(
+                        str(sequence[0]).encode(), namespace="pvakkuadapt.forecasts"
+                    )
+                )
+                self._saved_sequence = int(sequence[0])
+        self._db.execute("DELETE FROM _changes")
+        self._db.commit()
+
+    def counts(self) -> dict[str, int]:
+        """Domain record counts for migration verification and diagnostics."""
+        return {
+            table: self._db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]  # noqa: S608
+            for table in self._keys
+        }  # noqa: S608 -- fixed internal table names
+
+    def storage_status(self) -> dict[str, Any]:
+        """Describe persistence explicitly rather than silently creating a private DB."""
+        return dict(
+            backend=get_config().database.provider or "NoDB",
+            persistent=self.persistent,
+            namespace="pvakkuadapt",
+            records=self.counts(),
+        )
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
         """Use short atomic transactions and bound lock waits across ingestion/readout."""
-        db = sqlite3.connect(self.path, timeout=20)
-        db.row_factory = sqlite3.Row
-        try:
-            with db:
-                yield db
-        finally:
-            db.close()
+        with self._lock:
+            if not self._initializing:
+                self._flush()
+            with self._db:
+                yield self._db
+            self._flush()
 
     @staticmethod
     def milliseconds(timestamp: pd.Timestamp) -> int:
@@ -168,6 +388,74 @@ class PVLearningStore:
                         "INSERT OR IGNORE INTO forecasts(signature,issue_ms,target_ms,lead_minutes,payload,updated_ms) VALUES (?,?,?,?,?,?)",
                         (signature, issued, target, lead, text, issued),
                     )
+
+    def archive_weather(self, data: dict[str, Any], received: pd.Timestamp) -> str:
+        """Archive each received response once, retaining only genuinely future inputs.
+
+        Open-Meteo does not expose the numerical model's issuance here. The first
+        local receipt is recorded explicitly; returned past data never become
+        historical forecasts. Cache hits preserve that first receipt.
+        """
+        digest = hashlib.sha256(self.dump(data).encode()).hexdigest()
+        with self.connection() as db:
+            if db.execute(
+                "SELECT 1 FROM weather WHERE json_extract(payload,'$.digest')=? LIMIT 1", (digest,)
+            ).fetchone():
+                return digest
+            raw = data["minutely_15"]
+            times = pd.DatetimeIndex(pd.to_datetime(raw["time"], utc=True))
+            starts = times - pd.Timedelta(minutes=15)
+            keep = (starts >= received) & (starts <= received + pd.Timedelta(hours=48))
+            subset = {
+                key: [value for value, valid in zip(values, keep) if valid]
+                for key, values in raw.items()
+            }
+            payload = dict(
+                digest=digest,
+                received_at=received.isoformat(),
+                source_issue_at=None,
+                timestamp_semantics="interval_end",
+                minutely_15=subset,
+                units=data.get("minutely_15_units", {}),
+                elevation=data.get("elevation"),
+            )
+            db.execute(
+                "INSERT OR IGNORE INTO weather VALUES (?,?)",
+                (self.milliseconds(received), self.dump(payload)),
+            )
+        return digest
+
+    def remember_long(
+        self, signature: str, issue: pd.Timestamp, rows: list[tuple[pd.Timestamp, dict[str, Any]]]
+    ) -> None:
+        """Freeze an hourly snapshot per future target, bounding archive growth."""
+        issued = self.milliseconds(issue)
+        bucket = self.milliseconds(issue.floor("h"))
+        with self.connection() as db:
+            for timestamp, payload in rows:
+                target = self.milliseconds(timestamp)
+                if not issued < target <= issued + 48 * 3600000:
+                    continue
+                db.execute(
+                    "INSERT OR IGNORE INTO longforecasts VALUES (?,?,?,?)",
+                    (
+                        signature,
+                        bucket,
+                        target,
+                        self.dump({**payload, "issued_ms": issued, "response_version": 1}),
+                    ),
+                )
+
+    def long_rows(
+        self, signature: str, start: pd.Timestamp, cutoff: pd.Timestamp
+    ) -> list[dict[str, Any]]:
+        """Read issued long-horizon candidates, with no reconstructed past weather."""
+        with self.connection() as db:
+            rows = db.execute(
+                "SELECT * FROM longforecasts WHERE signature=? AND target_ms>=? AND target_ms<? ORDER BY target_ms,issue_ms",
+                (signature, self.milliseconds(start), self.milliseconds(cutoff)),
+            ).fetchall()
+        return [{**dict(row), **json.loads(row["payload"]), "payload": None} for row in rows]
 
     def resolve(self, signature: str, observed: pd.DataFrame, now: pd.Timestamp) -> None:
         """Attach first complete observations, preserving the original forecast."""
@@ -381,5 +669,7 @@ class PVLearningStore:
                 "DELETE FROM forecasts WHERE target_ms<?",
                 "DELETE FROM baselines WHERE target_ms<?",
                 "DELETE FROM latest WHERE target_ms<?",
+                "DELETE FROM weather WHERE issue_ms<?",
+                "DELETE FROM longforecasts WHERE target_ms<?",
             ):
                 db.execute(statement, (oldest,))

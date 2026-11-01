@@ -114,6 +114,31 @@ def test_battery_discharge_when_empty(setup_pv_battery):
     assert battery.current_soc_percentage() == 20, "SoC should remain at min_soc"
 
 
+@pytest.mark.parametrize("slot_duration_h", [0.25, 1.0])
+@pytest.mark.parametrize("initial_soc", [0, 5, 6])
+@pytest.mark.parametrize("requested_wh", [0.0, 280.0])
+def test_discharge_preserves_energy_at_or_below_min_soc(
+    slot_duration_h, initial_soc, requested_wh
+):
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=26_400,
+            initial_soc_percentage=initial_soc,
+            min_soc_percentage=6,
+        ),
+        prediction_hours=2,
+        slot_duration_h=slot_duration_h,
+    )
+    battery.set_discharge_per_hour(np.ones(2))
+    initial_wh = battery.soc_wh
+
+    for slot in (0, 0, 1):
+        assert battery.discharge_energy(requested_wh, slot) == (0.0, 0.0)
+        assert battery.soc_wh == initial_wh
+        assert battery.discharged_energy_wh(slot) == 0.0
+
+
 def test_battery_discharge_exactly_min_soc(setup_pv_battery):
     battery = setup_pv_battery
     battery.soc_wh = battery.min_soc_wh  # Set battery to exactly min SOC

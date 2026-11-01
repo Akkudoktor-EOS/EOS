@@ -18,6 +18,23 @@ it without an external PV forecast override.
   trend separately for each measurement group and lead. It compares genuinely
   issued candidates on completed previous days. Cold starts retain calibration.
   Fixed `calibrated`, `local` and `trend` modes are available for explicit control.
+- An optional empirical angular response learns repeatable differences between
+  arrays after dividing out the common error of separate reference arrays.
+  It uses smooth solar azimuth/elevation features, an identity prior and bounded
+  factors. It does not identify physical angles or a geometric horizon.
+- A separate weather response learns weights for the actually received weather
+  model members and bias by forecast cloud regime, separately at 2–6, 6–24 and
+  24–48 hours. Open-Meteo source issuance is unknown; the archive explicitly
+  records first local receipt and retains only future intervals from that response.
+  Returned past weather is never treated as a historical forecast.
+- New solar/weather candidates run in shadow until their **frozen issued outputs**
+  beat calibration on at least `min_validation_days` independent completed days
+  and `min_validation_samples` daylight pairs. Selection uses equal day weighting,
+  a minimum MAE improvement, wins on at least 60% of days, and an energy-bias
+  guard on identical observation support. Incomplete days are not reported as
+  complete daily yields. Models refitted to old labels do not validate themselves.
+  Training uses `min_training_days`; genuine validation therefore takes additional
+  days after cold start. The calibrated forecast remains available throughout.
 
 ICON D2 is preferred near term, with a transition to the other configured
 weather models between four and six hours. Missing daylight radiation cannot
@@ -41,6 +58,7 @@ works, with local corrections disabled.
 
 ```json
 {
+  "database": {"provider": "SQLite"},
   "pvforecast": {
     "provider": "PVForecastAdaptiveAkkudoktor",
     "adaptive": {
@@ -51,6 +69,8 @@ works, with local corrections disabled.
       "archive_retention_days": 60,
       "nowcast_enabled": true,
       "trend_enabled": true,
+      "solar_response_enabled": true,
+      "weather_response_enabled": true,
       "correction_mode": "auto"
     },
     "planes": [
@@ -254,7 +274,7 @@ installation has produced a valid forecast and an optimization using it.
 
 ## Learning progress and Grafana
 
-The private archive retains samples, issued forecasts and trained models across
+The configured EOS database retains samples, issued forecasts and trained models across
 restarts. Its default retention is 60 days; the learning window is 21 days.
 Changing the plant, weather configuration or response profiles changes the
 training signature so incompatible histories are not mixed.
@@ -295,3 +315,50 @@ with the optimizer, including on daylight-saving transitions.
 
 To revert, select the previous PV provider and restore its configuration.
 Retain the data directory or container volume with the learned archive.
+
+## EOS database and legacy migration
+
+Durable adaptive records use the existing EOS `Database` frontend and its configured
+`SQLite` or `LMDB` backend, under `pvakkuadapt.*` namespaces. No separate persistent
+SQLite database is created. An in-memory relational index serves the provider's
+bounded analytical queries. Database calls are made through the asynchronous EOS
+frontend from background numerical workers; REST handlers do not perform migration
+on the web event loop. Pruning removes only adaptive namespaces' expired records.
+
+Set `database.provider` to `SQLite` or `LMDB` before enabling persistent learning.
+With `null` or `NoDB`, learning is explicitly volatile and an old private file is
+not imported. `/status.storage` exposes the selected backend and persistence state.
+Changing the global database provider also affects other EOS persistence; choose it
+as part of the installation configuration.
+
+On first persistent startup, an existing
+`<data_output_subpath>/adaptive-pv/learning.sqlite3` is opened read-only and copied
+through the EOS frontend. Forecast IDs, issue times, first measurement availability,
+physical signatures and fitted models are preserved. A completion marker is written
+after all migrated records are flushed. Interrupted migration can be retried.
+Keep the original file as a rollback backup; subsequent writes use the common EOS
+backend. For later migrations between computers, stop EOS and copy the configured
+EOS data directory (including `db/`) together with its configuration. Instructions
+above mentioning the legacy SQLite archive apply to old installations only.
+
+## Inspect long-horizon learning
+
+`/v1/prediction/pv-adaptive/status` retains its existing fields and additionally
+exposes `storage` and `long_response`: fitted angular coefficients, sample/day counts,
+reference keys, weather member weights, regime factors, and per-group/horizon
+validation counts, MAE, energy bias on matched intervals, and the selected method.
+A fitted model and an activated correction are separate states. An unfitted or
+unvalidated candidate retains calibration. Angular learning needs a separate
+reference array; total-only installations can learn weather response but cannot
+separate their own shading from common weather error.
+
+Normal prediction keys additionally include
+`pvforecast_adaptive_solar_ac_power`, `pvforecast_adaptive_weather_ac_power`,
+`pvforecast_adaptive_long_validation_days`, and `pvforecast_adaptive_long_active`.
+The candidate curves are diagnostic; optimization consumes `pvforecast_ac_power`,
+which includes only selected corrections. These keys can be queried in Grafana
+without enlarging an existing dashboard. Status distinguishes the established
+short-term algorithm version from long-response version 1. Hourly immutable
+snapshots bound long-horizon storage; repeated polling cannot create extra evidence.
+The last received weather inputs and all candidates are retained for the configured
+archive retention period. Disabling either response switch prevents its activation.

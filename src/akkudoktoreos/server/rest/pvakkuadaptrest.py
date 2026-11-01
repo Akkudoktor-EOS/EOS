@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.measurement.quality import MeasurementSample
-from akkudoktoreos.prediction.pvforecastadaptiveakkudoktor import (
+from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
 )
 
@@ -25,7 +25,8 @@ def provider() -> PVForecastAdaptiveAkkudoktor:
 @router.get("/status")
 async def status() -> dict[str, Any]:
     """Status contains honest cold-start counts and matched per-lead error metrics."""
-    value = await asyncio.to_thread(provider().store().metadata, "status")
+    store = await asyncio.to_thread(provider().store)
+    value = await asyncio.to_thread(store.metadata, "status")
     return value or dict(
         state="initializing",
         state_code=0,
@@ -53,9 +54,8 @@ async def samples(values: list[MeasurementSample] = Body(max_length=10000)) -> d
             422, "Curtailment flags must be 0 (unrestricted), 1 (curtailed), or null."
         )
     try:
-        updated = await asyncio.to_thread(
-            instance.store().import_samples, values, pd.Timestamp.now(tz="UTC")
-        )
+        store = await asyncio.to_thread(instance.store)
+        updated = await asyncio.to_thread(store.import_samples, values, pd.Timestamp.now(tz="UTC"))
         return dict(updated=updated)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -69,15 +69,16 @@ async def comparisons(
 ) -> list[dict[str, Any]]:
     """Export genuinely issued forecasts with later measured truth, issuance and lead."""
     instance = provider()
-    state = await asyncio.to_thread(instance.store().metadata, "status")
+    store = await asyncio.to_thread(instance.store)
+    state = await asyncio.to_thread(store.metadata, "status")
     if not state:
         return []
     now = pd.Timestamp.now(tz="UTC")
     return await asyncio.to_thread(
-        instance.store().comparisons,
+        store.comparisons,
         state["signature"],
-        instance.store().milliseconds(now - pd.Timedelta(days=days)),
-        instance.store().milliseconds(now),
+        store.milliseconds(now - pd.Timedelta(days=days)),
+        store.milliseconds(now),
         limit,
         since_ms,
     )
@@ -87,5 +88,6 @@ async def comparisons(
 async def latest() -> list[dict[str, Any]]:
     """Latest complete output curve; validation uses the separate immutable archive."""
     instance = provider()
+    store = await asyncio.to_thread(instance.store)
     start = pd.Timestamp.now(tz=instance.config.general.timezone).normalize()
-    return await asyncio.to_thread(instance.store().latest, instance.store().milliseconds(start))
+    return await asyncio.to_thread(store.latest, store.milliseconds(start))
