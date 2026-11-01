@@ -227,6 +227,9 @@ class Genetic0Battery:
 
         # Raw extractable energy above minimum SoC
         raw_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
+        if raw_available_wh == 0.0:
+            # A measured SoC below the reserve must not be raised by discharging.
+            return 0.0, 0.0
 
         # Maximum raw discharge due to power limit
         max_raw_wh = self.max_charge_power_w  # TODO rename to max_discharge_power_w

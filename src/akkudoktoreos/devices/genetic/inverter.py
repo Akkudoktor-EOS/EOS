@@ -304,6 +304,9 @@ class Inverter:
         discharged_raw_wh = battery._discharged_raw_wh_per_slot
         discharging_efficiency = battery.discharging_efficiency
         raw_available_wh = max(soc_wh - min_soc_wh, 0.0)
+        if raw_available_wh == 0.0:
+            # Match Battery.discharge_energy(): preserve a SoC below the reserve.
+            return 0.0, 0.0
         max_raw_wh = max(
             battery.max_charge_power_w * battery.slot_duration_h - discharged_raw_wh[hour], 0.0
         )
