@@ -1014,7 +1014,17 @@ The prediction keys for the PV forecast data are:
 The `PVForecastForecastSolar` provider retrieves PV power forecasts from the free
 [Forecast.Solar](https://forecast.solar) API. No API key is required for the public endpoint; an
 optional key raises the rate limit. The location is taken from `general.latitude`/`longitude` and
-the system geometry from the configured `planes` (one request per plane, summed per timestamp).
+the system geometry from the configured `planes` (one request per plane).
+
+The provider integrates Forecast.Solar's instantaneous power samples into 15-minute
+interval-average W before summing the planes. Sunrise and sunset retain their actual
+timestamps during integration; explicit zero boundaries establish nighttime zeros within
+each forecast day. Missing daylight samples, invalid values, and unavailable days remain
+missing. GENETIC converts the averages to Wh for its configured 15-minute or hourly slots.
+Refreshing the provider replaces older samples and removes unavailable forecast tails.
+On the first refresh after upgrading, legacy forecasts with non-aligned timestamps are
+cleared, including history, so they cannot distort cadence detection. Later refreshes
+retain the normalized history.
 
 ```python
     {
