@@ -3506,6 +3506,92 @@
             "x-scope": [
               "GENETIC"
             ]
+          },
+          "cell_chemistry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "LFP",
+                  "NMC",
+                  "NCA",
+                  "LTO"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cell Chemistry",
+            "description": "Cell chemistry of the battery. Informational only, it does not enable anything. LFP batteries usually need a periodic full charge to recalibrate their state of charge, see 'full_charge_interval_days'.",
+            "examples": [
+              null,
+              "LFP"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_interval_days": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Interval Days",
+            "description": "Maximum number of days between two full charges of a stationary battery [d]. The last full charge is taken from the measured state of charge. When the next one falls due within the optimization horizon, the maximum state of charge is raised to 'full_charge_soc_percentage'. None disables the periodic full charge. Ignored for electric vehicles.",
+            "examples": [
+              null,
+              21
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Full Charge Soc Percentage",
+            "description": "State of charge a periodic full charge has to reach [%]. May be above 'max_soc_percentage', which then applies on the other days.",
+            "default": 100,
+            "examples": [
+              100
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_detect_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Full Charge Detect Percentage",
+            "description": "Measured state of charge from which the battery counts as fully charged [%]. Many battery management systems never report exactly 100 %.",
+            "default": 99,
+            "examples": [
+              99
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_allow_grid": {
+            "type": "boolean",
+            "title": "Full Charge Allow Grid",
+            "description": "Enforce a due full charge, charging from the grid if needed. False only raises the maximum state of charge, so that PV surplus can fill the battery, without enforcing the target.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
           }
         },
         "type": "object",
@@ -3749,6 +3835,92 @@
             "examples": [
               null,
               6.0
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "cell_chemistry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "LFP",
+                  "NMC",
+                  "NCA",
+                  "LTO"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cell Chemistry",
+            "description": "Cell chemistry of the battery. Informational only, it does not enable anything. LFP batteries usually need a periodic full charge to recalibrate their state of charge, see 'full_charge_interval_days'.",
+            "examples": [
+              null,
+              "LFP"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_interval_days": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Interval Days",
+            "description": "Maximum number of days between two full charges of a stationary battery [d]. The last full charge is taken from the measured state of charge. When the next one falls due within the optimization horizon, the maximum state of charge is raised to 'full_charge_soc_percentage'. None disables the periodic full charge. Ignored for electric vehicles.",
+            "examples": [
+              null,
+              21
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Full Charge Soc Percentage",
+            "description": "State of charge a periodic full charge has to reach [%]. May be above 'max_soc_percentage', which then applies on the other days.",
+            "default": 100,
+            "examples": [
+              100
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_detect_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Full Charge Detect Percentage",
+            "description": "Measured state of charge from which the battery counts as fully charged [%]. Many battery management systems never report exactly 100 %.",
+            "default": 99,
+            "examples": [
+              99
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_allow_grid": {
+            "type": "boolean",
+            "title": "Full Charge Allow Grid",
+            "description": "Enforce a due full charge, charging from the grid if needed. False only raises the maximum state of charge, so that PV surplus can fill the battery, without enforcing the target.",
+            "default": false,
+            "examples": [
+              false,
+              true
             ],
             "x-scope": [
               "GENETIC"
@@ -16044,6 +16216,41 @@
             "default": 0.0,
             "examples": [
               0.12
+            ]
+          },
+          "full_charge_soc_percentage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Soc Percentage",
+            "description": "State of charge a due full charge has to reach at least once before 'full_charge_deadline_datetime' [%]. Must not exceed 'max_soc_percentage'. None means no full charge is due.",
+            "examples": [
+              null,
+              100
+            ]
+          },
+          "full_charge_deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Deadline Datetime",
+            "description": "Moment by which 'full_charge_soc_percentage' has to be reached. A date time without timezone is read as local time. None means end of the optimization horizon.",
+            "examples": [
+              null,
+              "2026-11-20T07:00:00+01:00"
             ]
           }
         },
