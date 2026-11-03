@@ -49,6 +49,7 @@ akkudoktoreos/optimpost.md
 akkudoktoreos/optimauto.md
 akkudoktoreos/resource.md
 akkudoktoreos/prediction.md
+akkudoktoreos/pvakkuadapt.md
 akkudoktoreos/measurement.md
 akkudoktoreos/integration.md
 akkudoktoreos/logging.md

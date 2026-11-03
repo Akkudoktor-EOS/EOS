@@ -747,7 +747,7 @@ class SQLiteDatabase(DatabaseBackendABC):
 
         ns = self._ns(namespace)
 
-        with self.conn:
+        with self.lock, self.conn:
             # Ensure metadata table exists
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS metadata (
@@ -821,6 +821,9 @@ class SQLiteDatabase(DatabaseBackendABC):
 
         with self.lock:
             with self.conn:
+                # isolation_level=None disables implicit transactions. Without
+                # BEGIN each row commits separately and failed batches are partial.
+                self.conn.execute("BEGIN IMMEDIATE")
                 self.conn.executemany(
                     "INSERT OR REPLACE INTO records (namespace, key, value) VALUES (?, ?, ?)",
                     rows,
@@ -850,6 +853,7 @@ class SQLiteDatabase(DatabaseBackendABC):
 
         with self.lock:
             with self.conn:
+                self.conn.execute("BEGIN IMMEDIATE")
                 cursor = self.conn.executemany(
                     "DELETE FROM records WHERE namespace = ? AND key = ?",
                     rows,

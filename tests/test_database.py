@@ -10,7 +10,7 @@ import shutil
 import tempfile
 import time
 from pathlib import Path
-from typing import AsyncIterator, Optional, Type
+from typing import Any, AsyncIterator, Optional, Type, cast
 
 import pytest
 import pytest_asyncio
@@ -876,3 +876,26 @@ class TestPerformance:
         assert loaded == n
         print(f"\nLoaded {n} records in {load_duration:.2f}s "
               f"({n / load_duration:.0f} rec/s)")
+
+@pytest.mark.asyncio
+async def test_sqlite_bulk_operations_rollback_as_one_transaction(config_eos):
+    import sqlite3
+
+    config_eos.database.provider = "SQLite"
+    db = get_database()
+    await db.open()
+    try:
+        await db.save_records([(b"first", b"original"), (b"second", b"other")], namespace="atomic")
+        with pytest.raises(sqlite3.ProgrammingError):
+            await db.save_records(
+                [(b"first", b"changed"), (b"bad", cast(Any, object()))], namespace="atomic"
+            )
+        assert dict([row async for row in db.iterate_records(namespace="atomic")]) == {
+            b"first": b"original",
+            b"second": b"other",
+        }
+        with pytest.raises(sqlite3.ProgrammingError):
+            await db.delete_records([b"first", cast(Any, object())], namespace="atomic")
+        assert await db.count_records(namespace="atomic") == 2
+    finally:
+        await db.close()
