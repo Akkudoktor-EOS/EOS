@@ -15022,6 +15022,105 @@
             "examples": [
               1.5
             ]
+          },
+          "snow_enabled": {
+            "type": "boolean",
+            "title": "Snow Enabled",
+            "description": "Model snow lying on the modules. Requests snowfall and snow depth from Open-Meteo and runs the NREL snow coverage model (pvlib.snow) per plane, which covers the modules on heavy snowfall and lets the snow slide off with warmth and sunshine. Without this, the forecast after a snowfall assumes clean modules.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ]
+          },
+          "snow_lookback_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 1.0,
+            "title": "Snow Lookback Days",
+            "description": "Days of past weather (and PV measurements) replayed on every update to rebuild the current snow coverage. No state is stored between runs, so this must reach back before the last relevant snowfall.",
+            "default": 7,
+            "examples": [
+              7,
+              14
+            ]
+          },
+          "snow_threshold_snowfall_cm_per_hour": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Threshold Snowfall Cm Per Hour",
+            "description": "Snowfall rate that fully covers the modules (pvlib `threshold_snowfall`). pvlib's default of 1.0 cm/h was tuned on US station data; Open-Meteo's hourly model snowfall is smoother, so a lower rate fits better.",
+            "default": 0.5,
+            "examples": [
+              0.5,
+              1.0
+            ]
+          },
+          "snow_threshold_depth_cm": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Snow Threshold Depth Cm",
+            "description": "Ground snow depth below which the modules are assumed clear (pvlib `threshold_depth`).",
+            "default": 1.0,
+            "examples": [
+              1.0
+            ]
+          },
+          "snow_feedback_enabled": {
+            "type": "boolean",
+            "title": "Snow Feedback Enabled",
+            "description": "Correct the modelled snow coverage with measured PV production from `measurement.pv_production_emr_keys`. Production well above the snow model clears the coverage at once; production far below the clear-module model raises it, but only while snow is plausible (snow on the ground or already modelled on the modules). Needs cumulative meter readings.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "snow_feedback_gain": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Feedback Gain",
+            "description": "How far one measured interval pulls the coverage towards the observed value (1.0 = adopt the observation).",
+            "default": 0.8,
+            "examples": [
+              0.8,
+              1.0
+            ]
+          },
+          "snow_feedback_min_fraction": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Feedback Min Fraction",
+            "description": "A measured interval is only used when the clear-module model expects at least this fraction of the installed AC capacity. Dawn, dusk and dark overcast carry no usable evidence about snow.",
+            "default": 0.05,
+            "examples": [
+              0.05,
+              0.1
+            ]
+          },
+          "snow_feedback_memory_hours": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Feedback Memory Hours",
+            "description": "When measured production shows more snow than modelled, the snow is assumed to slide off slower than the NREL model says. This damping fades back to the model's rate with this time constant after the last measurement.",
+            "default": 12.0,
+            "examples": [
+              12.0,
+              24.0
+            ]
+          },
+          "snow_detection_ratio": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Detection Ratio",
+            "description": "Measured/clear-model production ratio below which an interval counts as evidence of snow the weather model missed.",
+            "default": 0.5,
+            "examples": [
+              0.5,
+              0.3
+            ]
           }
         },
         "type": "object",

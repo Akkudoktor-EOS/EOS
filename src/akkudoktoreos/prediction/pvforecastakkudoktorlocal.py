@@ -63,6 +63,13 @@ OPENMETEO_VARIABLES = (
     "direct_normal_irradiance",
 )
 
+# Snow variables. Open-Meteo serves snow depth only hourly, so both are always taken
+# from the `hourly` block, whatever the PV resolution.
+OPENMETEO_SNOW_VARIABLES = ("snowfall", "snow_depth")
+
+# Snow feedback warns when the newest PV meter reading is older than this.
+SNOW_FEEDBACK_STALE_HOURS = 3
+
 # Open-Meteo hard limits for a single forecast request.
 MAX_FORECAST_DAYS = 16
 MAX_PAST_DAYS = 92
@@ -346,6 +353,119 @@ class PVForecastAkkudoktorLocalCommonSettings(SettingsBaseModel):
         },
     )
 
+    snow_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "Model snow lying on the modules. Requests snowfall and snow depth from "
+                "Open-Meteo and runs the NREL snow coverage model (pvlib.snow) per plane, "
+                "which covers the modules on heavy snowfall and lets the snow slide off "
+                "with warmth and sunshine. Without this, the forecast after a snowfall "
+                "assumes clean modules."
+            ),
+            "examples": [False, True],
+        },
+    )
+    snow_lookback_days: int = Field(
+        default=7,
+        ge=1,
+        le=MAX_PAST_DAYS,
+        json_schema_extra={
+            "description": (
+                "Days of past weather (and PV measurements) replayed on every update to "
+                "rebuild the current snow coverage. No state is stored between runs, so "
+                "this must reach back before the last relevant snowfall."
+            ),
+            "examples": [7, 14],
+        },
+    )
+    snow_threshold_snowfall_cm_per_hour: float = Field(
+        default=0.5,
+        gt=0.0,
+        json_schema_extra={
+            "description": (
+                "Snowfall rate that fully covers the modules (pvlib `threshold_snowfall`). "
+                "pvlib's default of 1.0 cm/h was tuned on US station data; Open-Meteo's "
+                "hourly model snowfall is smoother, so a lower rate fits better."
+            ),
+            "examples": [0.5, 1.0],
+        },
+    )
+    snow_threshold_depth_cm: float = Field(
+        default=1.0,
+        ge=0.0,
+        json_schema_extra={
+            "description": (
+                "Ground snow depth below which the modules are assumed clear "
+                "(pvlib `threshold_depth`)."
+            ),
+            "examples": [1.0],
+        },
+    )
+    snow_feedback_enabled: bool = Field(
+        default=True,
+        json_schema_extra={
+            "description": (
+                "Correct the modelled snow coverage with measured PV production from "
+                "`measurement.pv_production_emr_keys`. Production well above the snow "
+                "model clears the coverage at once; production far below the clear-module "
+                "model raises it, but only while snow is plausible (snow on the ground or "
+                "already modelled on the modules). Needs cumulative meter readings."
+            ),
+            "examples": [True],
+        },
+    )
+    snow_feedback_gain: float = Field(
+        default=0.8,
+        gt=0.0,
+        le=1.0,
+        json_schema_extra={
+            "description": (
+                "How far one measured interval pulls the coverage towards the observed "
+                "value (1.0 = adopt the observation)."
+            ),
+            "examples": [0.8, 1.0],
+        },
+    )
+    snow_feedback_min_fraction: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        json_schema_extra={
+            "description": (
+                "A measured interval is only used when the clear-module model expects at "
+                "least this fraction of the installed AC capacity. Dawn, dusk and dark "
+                "overcast carry no usable evidence about snow."
+            ),
+            "examples": [0.05, 0.1],
+        },
+    )
+    snow_feedback_memory_hours: float = Field(
+        default=12.0,
+        gt=0.0,
+        json_schema_extra={
+            "description": (
+                "When measured production shows more snow than modelled, the snow is "
+                "assumed to slide off slower than the NREL model says. This damping "
+                "fades back to the model's rate with this time constant after the last "
+                "measurement."
+            ),
+            "examples": [12.0, 24.0],
+        },
+    )
+    snow_detection_ratio: float = Field(
+        default=0.5,
+        gt=0.0,
+        lt=1.0,
+        json_schema_extra={
+            "description": (
+                "Measured/clear-model production ratio below which an interval counts as "
+                "evidence of snow the weather model missed."
+            ),
+            "examples": [0.5, 0.3],
+        },
+    )
+
     @field_validator("resolution_minutes")
     @classmethod
     def validate_resolution(cls, value: int) -> int:
@@ -404,6 +524,9 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                     calibration_lookback, settings.calibration_reference_days
                 )
             past_days = max(past_days, calibration_lookback)
+        if settings.snow_enabled:
+            # The coverage is rebuilt from the replayed weather on every run.
+            past_days = max(past_days, settings.snow_lookback_days)
 
         return forecast_days, min(MAX_PAST_DAYS, past_days)
 
@@ -433,6 +556,11 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             "past_days": past_days,
             "models": ",".join(settings.weather_models),
         }
+        if settings.snow_enabled:
+            hourly_variables = list(OPENMETEO_SNOW_VARIABLES)
+            if block == "hourly":
+                hourly_variables = list(OPENMETEO_VARIABLES) + hourly_variables
+            params["hourly"] = ",".join(hourly_variables)
 
         response = None
         for attempt in range(1, 4):
@@ -500,7 +628,64 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         frame["wind_speed_10m"] = frame["wind_speed_10m"].fillna(1.0).clip(lower=0.0)
         frame["temperature_2m"] = frame["temperature_2m"].fillna(15.0)
 
+        if self._settings.snow_enabled:
+            snowfall, snow_depth = self._snow_weather(data, index)
+            frame["snowfall_cm"] = snowfall
+            frame["snow_depth_cm"] = snow_depth
+
         return frame
+
+    def _snow_weather(self, data: Any, index: pd.DatetimeIndex) -> tuple[pd.Series, pd.Series]:
+        """Map Open-Meteo's hourly snow variables onto the PV weather rows.
+
+        Returns snowfall in cm per PV row and ground snow depth in cm. Hourly snowfall
+        is the sum over the preceding hour and is spread evenly over the rows that make
+        up that hour. Snow depth is instantaneous and interpolated in time.
+        """
+        zero = pd.Series(0.0, index=index)
+        raw = data.get("hourly")
+        if not isinstance(raw, dict) or "time" not in raw:
+            logger.warning(
+                "Open-Meteo response carries no hourly snow data; local pvforecast assumes "
+                "snow-free modules."
+            )
+            return zero, zero
+        hourly_index = pd.DatetimeIndex(
+            [pendulum.parse(str(t), tz="UTC") for t in raw["time"]], name="time"
+        ).tz_convert("UTC")
+
+        def member_mean(variable: str) -> Optional[pd.Series]:
+            members = [
+                pd.to_numeric(pd.Series(raw[key], index=hourly_index), errors="coerce")
+                for key in raw
+                if key == variable or key.startswith(f"{variable}_")
+            ]
+            if not members:
+                return None
+            return pd.concat(members, axis=1).mean(axis=1, skipna=True)
+
+        snowfall_hourly = member_mean("snowfall")
+        depth_hourly = member_mean("snow_depth")
+        if snowfall_hourly is None or depth_hourly is None:
+            logger.warning(
+                "Open-Meteo response is missing snowfall or snow_depth; local pvforecast "
+                "assumes snow-free modules."
+            )
+            return zero, zero
+
+        rows_per_hour = 60 / self._settings.resolution_minutes
+        # A row stamped t (interval end) belongs to the hour that ends at or after t.
+        snowfall = (
+            snowfall_hourly.fillna(0.0).clip(lower=0.0).reindex(index, method="bfill").fillna(0.0)
+            / rows_per_hour
+        )
+        depth_m = depth_hourly.interpolate(method="time").ffill().bfill()
+        combined = depth_m.index.union(index)
+        snow_depth = (
+            depth_m.reindex(combined).interpolate(method="time").ffill().bfill().reindex(index)
+        )
+        snow_depth = (snow_depth.fillna(0.0) * 100.0).clip(lower=0.0)
+        return snowfall, snow_depth
 
     # ------------------------------------------------------------------ geometry
 
@@ -576,6 +761,25 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         airmass: pd.Series,
     ) -> tuple[pd.Series, pd.Series]:
         """Run the pvlib chain for one plane, returning (dc_power_w, ac_power_w)."""
+        dc_power, ac_power, _ = self._plane_power_and_poa(
+            plane, weather, solpos, dni_extra, airmass
+        )
+        return dc_power, ac_power
+
+    def _plane_power_and_poa(
+        self,
+        plane: Any,
+        weather: pd.DataFrame,
+        solpos: pd.DataFrame,
+        dni_extra: pd.Series,
+        airmass: pd.Series,
+    ) -> tuple[pd.Series, pd.Series, pd.Series]:
+        """Run the pvlib chain for one plane, also returning its irradiance.
+
+        Returns:
+            (dc_power_w, ac_power_w, poa_global_w_m2). The plane-of-array irradiance
+            drives the snow slide model.
+        """
         import pvlib
 
         settings = self._settings
@@ -584,7 +788,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         if peakpower_kw is None:
             logger.warning("Plane without peakpower skipped by local pvforecast.")
             zero = pd.Series(0.0, index=weather.index)
-            return zero, zero
+            return zero, zero, zero
         pdc0 = float(peakpower_kw) * 1000.0
 
         ghi = weather["shortwave_radiation"]
@@ -665,16 +869,16 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             )
         ac_power = ac_power.fillna(0.0).clip(lower=0.0)
 
-        return dc_power, ac_power
+        return dc_power, ac_power, poa_global
 
     async def _forecast_frame(self, data: Any, calibrate: bool = True) -> pd.DataFrame:
         """Run the full chain and return a frame with dc/ac power indexed as EOS records.
 
         Args:
             data: The Open-Meteo response.
-            calibrate: Apply the measurement-fitted correction when it is enabled and
-                fittable. Pass False to obtain the raw model output, which is what the
-                fit itself compares against.
+            calibrate: Apply the measurement-fitted correction and, when enabled, the
+                snow coverage. Pass False to obtain the raw clean-module model output,
+                which is what the fit itself compares against.
         """
         import pvlib
 
@@ -710,24 +914,43 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
 
         total_dc = pd.Series(0.0, index=weather.index)
         total_ac = pd.Series(0.0, index=weather.index)
+        plane_ac: list[np.ndarray] = []
+        plane_poa: list[np.ndarray] = []
+        plane_tilt: list[np.ndarray] = []
         for plane in self.config.pvforecast.planes or []:
-            dc_power, ac_power = self._plane_power(plane, weather, solpos, dni_extra, airmass)
+            dc_power, ac_power, poa_global = self._plane_power_and_poa(
+                plane, weather, solpos, dni_extra, airmass
+            )
             total_dc = total_dc.add(dc_power, fill_value=0.0)
             total_ac = total_ac.add(ac_power, fill_value=0.0)
+            if settings.snow_enabled:
+                surface_tilt, _ = self._tracked_orientation(plane, solpos)
+                plane_ac.append(ac_power.reindex(weather.index).fillna(0.0).to_numpy(float))
+                plane_poa.append(poa_global.reindex(weather.index).fillna(0.0).to_numpy(float))
+                plane_tilt.append(
+                    np.broadcast_to(np.asarray(surface_tilt, dtype=float), (len(weather),)).copy()
+                )
 
-        frame = pd.DataFrame(
-            {
-                "dc_power": total_dc,
-                "ac_power": total_ac,
-                "solar_elevation": solpos["apparent_elevation"].to_numpy(),
-                "solar_azimuth": solpos["azimuth"].to_numpy(),
-            }
-        )
+        columns: dict[str, Any] = {
+            "dc_power": total_dc,
+            "ac_power": total_ac,
+            "solar_elevation": solpos["apparent_elevation"].to_numpy(),
+            "solar_azimuth": solpos["azimuth"].to_numpy(),
+        }
+        if settings.snow_enabled:
+            # Rows where snow may lie on the modules. They carry no information about
+            # the plant's clean-module performance and are kept out of the calibration.
+            columns["snow_possible"] = (
+                (weather["snow_depth_cm"] >= settings.snow_threshold_depth_cm)
+                | (weather["snowfall_cm"] > 0.0)
+            ).to_numpy()
+        frame = pd.DataFrame(columns)
         # Relabel from Open-Meteo's interval-end stamps to the interval-start stamps
         # that EOS records use.
         if settings.shift_to_interval_start:
             frame.index = pd.DatetimeIndex(frame.index) - interval
 
+        raw_ac = frame["ac_power"].to_numpy(dtype=float).copy()
         if calibrate:
             # The fit needs the raw model to compare against, which is exactly `frame`.
             calibration = await self._fit_calibration(frame)
@@ -740,6 +963,15 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                     global_factor=global_factor,
                     timezone=self.config.general.timezone,
                 )
+        if calibrate and settings.snow_enabled and plane_ac:
+            frame = await self._apply_snow(
+                frame,
+                weather,
+                raw_ac,
+                np.vstack(plane_ac),
+                np.vstack(plane_poa),
+                np.vstack(plane_tilt),
+            )
         return frame
 
     # ------------------------------------------------------------ calibration
@@ -752,6 +984,26 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                 total += float(plane.inverter_paco)
             elif plane.peakpower is not None:
                 total += float(plane.peakpower) * 1000.0
+        return total
+
+    def _plant_peak_power_w(self) -> float:
+        """Plant output limit per plane: the smaller of module peak power and inverter.
+
+        Planes often share one inverter and each repeats its full rating, which makes
+        the summed inverter rating far too large to judge what a plant can deliver.
+        """
+        total = 0.0
+        for plane in self.config.pvforecast.planes or []:
+            limits = [
+                float(value)
+                for value in (
+                    plane.inverter_paco,
+                    None if plane.peakpower is None else plane.peakpower * 1000.0,
+                )
+                if value is not None
+            ]
+            if limits:
+                total += min(limits)
         return total
 
     async def _pv_measurement_window(self) -> Optional[tuple[Any, Any]]:
@@ -969,6 +1221,21 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         samples_frame = samples_frame.reindex(grid)
         modelled_kwh = samples_frame["ac_power"].to_numpy(dtype=float) / 1000.0 * interval_hours
         azimuth = samples_frame["solar_azimuth"].to_numpy(dtype=float)
+        snow_possible = np.zeros(len(samples_frame), dtype=bool)
+        if "snow_possible" in frame.columns:
+            # Snow on the modules is a transient loss, not a model error. The day-level
+            # outage filter catches fully covered days, but partly covered ones would
+            # still drag the factor down.
+            snow_possible = (
+                frame["snow_possible"]
+                .astype(float)
+                .resample(f"{interval_minutes}min")
+                .max()
+                .reindex(grid)
+                .fillna(0.0)
+                .to_numpy(dtype=float)
+                > 0.0
+            )
 
         # Only fit where the model says something meaningful is being produced. Dawn and
         # dusk intervals otherwise dominate the ratio with noise.
@@ -983,6 +1250,14 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             & (modelled_kwh > floor_kwh)
             & (measured_kwh >= 0.0)
         )
+        if snow_possible.any():
+            excluded = int((usable & snow_possible).sum())
+            usable &= ~snow_possible
+            if excluded:
+                logger.info(
+                    f"PVForecastAkkudoktorLocal calibration: excluded {excluded} "
+                    f"{interval_minutes}-minute intervals with possible snow on the modules."
+                )
         shape_usable = usable.copy()
 
         # Calibration represents the available PV potential. A battery or inverter
@@ -1188,6 +1463,290 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         if ac_cap_w > 0.0:
             # A factor above 1 must not push the plant past its inverters.
             frame["ac_power"] = frame["ac_power"].clip(upper=ac_cap_w)
+        return frame
+
+    # ------------------------------------------------------------------ snow
+
+    @staticmethod
+    def _simulate_snow_coverage(
+        snowfall_cm: np.ndarray,
+        snow_depth_cm: np.ndarray,
+        temp_air: np.ndarray,
+        poa_global: np.ndarray,
+        surface_tilt: np.ndarray,
+        interval_hours: float,
+        threshold_snowfall: float,
+        threshold_depth: float,
+        clear_ac_w: Optional[np.ndarray] = None,
+        observations: Optional[list[tuple[int, int, float]]] = None,
+        installed_ac_w: float = 0.0,
+        feedback_gain: float = 0.8,
+        feedback_min_fraction: float = 0.1,
+        detection_ratio: float = 0.5,
+        feedback_memory_hours: float = 12.0,
+        can_slide_coefficient: float = -80.0,
+        slide_amount_coefficient: float = 0.197,
+    ) -> tuple[np.ndarray, int]:
+        """Step the NREL snow coverage model, correcting it with measured production.
+
+        Without observations this reproduces ``pvlib.snow.coverage_nrel`` row by row:
+        a row whose snowfall rate exceeds ``threshold_snowfall`` (with snow on the
+        ground) covers the modules fully; otherwise the snow slides off by
+        ``slide_amount_coefficient * sin(tilt)`` per hour while
+        ``temp_air > poa / can_slide_coefficient``; and the modules are clear as soon
+        as the ground snow depth drops below ``threshold_depth``. pvlib evaluates the
+        series in one go, which leaves no point to inject a measurement, hence the
+        stepwise form.
+
+        After each observed interval the plant-level coverage is compared with the one
+        implied by the measurement (1 - measured / clear-module model):
+
+        * More production than modelled is accepted at once - the modules are at
+          least that clear, whatever the weather data says.
+        * Less production only raises the coverage while snow is plausible: either the
+          model already holds some coverage, or snow lies on the ground and the
+          production is below ``detection_ratio`` of the clear model. Everything else
+          (curtailment, an inverter fault, a cloudier day than analysed) is ignored.
+
+        Raising the coverage also damps the slide rate: if the snow is still there,
+        it slides slower than the model assumes. The damping fades back with
+        ``feedback_memory_hours`` since the last observation, so a warm night after a
+        covered day still clears the modules in the forecast. Clearing evidence or
+        fresh snowfall resets it.
+
+        Args:
+            snowfall_cm: Snowfall per row [cm], shape (N,).
+            snow_depth_cm: Ground snow depth per row [cm], shape (N,).
+            temp_air: Air temperature per row [degC], shape (N,).
+            poa_global: Plane-of-array irradiance [W/m2], shape (P, N).
+            surface_tilt: Plane tilt [deg], shape (P, N).
+            interval_hours: Row length in hours.
+            threshold_snowfall: Snowfall rate that covers the modules [cm/h].
+            threshold_depth: Ground snow depth below which the modules are clear [cm].
+            clear_ac_w: Clean-module AC power per plane [W], shape (P, N). Needed for
+                observations.
+            observations: (first_row, end_row_exclusive, measured_kwh) per measured
+                interval, ordered by time.
+            installed_ac_w: Installed AC capacity, for the evidence floor.
+            feedback_gain: Fraction of the observed difference adopted per interval.
+            feedback_min_fraction: Minimum clear-model output, as a fraction of the
+                installed capacity, for an interval to count as evidence.
+            detection_ratio: Production ratio below which unmodelled snow is assumed.
+            feedback_memory_hours: Time constant over which a learned slower slide
+                rate fades back to the model's rate.
+
+        Returns:
+            (coverage, corrections): coverage per plane and row in [0, 1], shape
+            (P, N), and the number of measured intervals that changed the coverage.
+        """
+        planes, rows = poa_global.shape
+        coverage = np.zeros((planes, rows), dtype=float)
+        if rows == 0:
+            return coverage, 0
+
+        rate = snowfall_cm / interval_hours
+        covered = (rate > threshold_snowfall) & (snow_depth_cm >= threshold_depth)
+        ground_clear = snow_depth_cm < threshold_depth
+        can_slide = temp_air[np.newaxis, :] > poa_global / can_slide_coefficient
+        slide = slide_amount_coefficient * np.sin(np.radians(surface_tilt)) * interval_hours
+        slide = np.where(can_slide, slide, 0.0)
+        slide[:, covered] = 0.0
+        slide[:, 0] = 0.0
+
+        evidence_at: dict[int, tuple[int, float]] = {}
+        if observations and clear_ac_w is not None:
+            for first_row, end_row, measured_kwh in observations:
+                if 0 <= first_row < end_row <= rows:
+                    evidence_at[end_row - 1] = (first_row, measured_kwh)
+
+        state = np.zeros(planes, dtype=float)
+        corrections = 0
+        # Learned slide damping: 1.0 is the plain NREL slide rate. When the plant shows
+        # more snow than the model, the snow evidently slides slower than modelled; the
+        # damping then fades back to 1.0 with the time since that observation.
+        damping_observed = 1.0
+        damping_row = 0
+        for row in range(rows):
+            if covered[row]:
+                # Fresh snow restarts the physical model.
+                state = np.ones(planes, dtype=float)
+                damping_observed = 1.0
+            elif ground_clear[row]:
+                state = np.zeros(planes, dtype=float)
+            else:
+                damping = 1.0
+                if damping_observed < 1.0:
+                    elapsed = (row - damping_row) * interval_hours
+                    damping = 1.0 - (1.0 - damping_observed) * math.exp(
+                        -elapsed / feedback_memory_hours
+                    )
+                state = np.clip(state - slide[:, row] * damping, 0.0, 1.0)
+            coverage[:, row] = state
+
+            evidence = evidence_at.get(row)
+            if evidence is None or clear_ac_w is None:
+                continue
+            first_row, measured_kwh = evidence
+            clear = clear_ac_w[:, first_row : row + 1]
+            clear_kwh = float(clear.sum()) * interval_hours / 1000.0
+            span_hours = (row + 1 - first_row) * interval_hours
+            if clear_kwh < feedback_min_fraction * installed_ac_w / 1000.0 * span_hours:
+                continue
+            modelled = float((clear * coverage[:, first_row : row + 1]).sum()) / float(clear.sum())
+            ratio = measured_kwh / clear_kwh
+            observed = float(np.clip(1.0 - ratio, 0.0, 1.0))
+            if abs(observed - modelled) < 0.02:
+                continue
+            if observed > modelled:
+                snow_on_ground = float(snow_depth_cm[first_row : row + 1].max()) >= threshold_depth
+                plausible = modelled > 0.01 or (snow_on_ground and ratio < detection_ratio)
+                if not plausible:
+                    continue
+            target = modelled + feedback_gain * (observed - modelled)
+            if target < modelled:
+                state = state * (target / modelled)
+                damping_observed = 1.0
+            else:
+                state = 1.0 - (1.0 - state) * (1.0 - target) / (1.0 - modelled)
+                damping_observed *= 1.0 - feedback_gain
+                damping_row = row
+            state = np.clip(state, 0.0, 1.0)
+            corrections += 1
+
+        return coverage, corrections
+
+    async def _snow_observations(
+        self, frame: pd.DataFrame
+    ) -> tuple[list[tuple[int, int, float]], Optional[float]]:
+        """Measured PV energy per meter interval, mapped onto forecast rows.
+
+        Returns:
+            (observations, interval_hours): (first_row, end_row_exclusive, kWh) per
+            complete meter interval within the lookback, and the meter interval length.
+        """
+        settings = self._settings
+        if not settings.snow_feedback_enabled or not self.config.measurement.pv_production_emr_keys:
+            return [], None
+        pv_window = await self._pv_measurement_window()
+        if pv_window is None:
+            logger.warning(
+                "PVForecastAkkudoktorLocal snow feedback: no PV production readings - "
+                "using the weather-only snow model."
+            )
+            return [], None
+        pv_first, pv_last = pv_window
+        if compare_datetimes(
+            pv_last.add(hours=SNOW_FEEDBACK_STALE_HOURS), self.ems_start_datetime
+        ).lt:
+            logger.warning(
+                f"PVForecastAkkudoktorLocal snow feedback: last PV production reading "
+                f"{pv_last} is older than {SNOW_FEEDBACK_STALE_HOURS} h - the snow "
+                "coverage relies on the weather model since then."
+            )
+
+        resolution = pd.Timedelta(minutes=settings.resolution_minutes)
+        row_start = pd.DatetimeIndex(frame.index)
+        if not settings.shift_to_interval_start:
+            row_start = row_start - resolution
+
+        lookback_start = pv_last.subtract(days=settings.snow_lookback_days)
+        interval_minutes = await self._calibration_interval_minutes(lookback_start, pv_last)
+        interval = pd.Timedelta(minutes=interval_minutes)
+
+        def floor_to_interval(value: pd.Timestamp) -> pd.Timestamp:
+            return value.floor(f"{interval_minutes}min")
+
+        start = max(
+            floor_to_interval(pd.Timestamp(lookback_start.in_timezone("UTC").isoformat())),
+            pd.Timestamp(pv_first.in_timezone("UTC").isoformat()).ceil(f"{interval_minutes}min"),
+            row_start[0].tz_convert("UTC").ceil(f"{interval_minutes}min"),
+        )
+        end = floor_to_interval(pd.Timestamp(pv_last.in_timezone("UTC").isoformat()))
+        if start >= end:
+            return [], None
+
+        measured = np.asarray(
+            await self._pv_production_total_kwh(
+                start_datetime=to_datetime(start.to_pydatetime()),
+                end_datetime=to_datetime(end.to_pydatetime()),
+                interval=to_duration(f"{interval_minutes} minutes"),
+            ),
+            dtype=float,
+        )
+        interval_hours = interval_minutes / 60.0
+        # A meter jump (reset, a sub-meter dropping out of a sum) shows up as an
+        # impossible yield. Drop it rather than learn snow - or its absence - from it.
+        ceiling_kwh = 1.1 * self._plant_peak_power_w() / 1000.0 * interval_hours
+        rows_per_interval = round(interval / resolution)
+        starts = row_start.tz_convert("UTC")
+        observations: list[tuple[int, int, float]] = []
+        for slot, value in enumerate(measured):
+            if not np.isfinite(value) or value < 0.0 or value > ceiling_kwh:
+                continue
+            slot_start = start + slot * interval
+            first_row = int(starts.searchsorted(slot_start, side="left"))
+            end_row = int(starts.searchsorted(slot_start + interval, side="left"))
+            if end_row - first_row != rows_per_interval:
+                continue
+            observations.append((first_row, end_row, float(value)))
+        return observations, interval_hours
+
+    async def _apply_snow(
+        self,
+        frame: pd.DataFrame,
+        weather: pd.DataFrame,
+        raw_ac: np.ndarray,
+        plane_ac: np.ndarray,
+        plane_poa: np.ndarray,
+        plane_tilt: np.ndarray,
+    ) -> pd.DataFrame:
+        """Reduce the forecast by the (measurement-corrected) snow coverage."""
+        settings = self._settings
+        calibrated_ac = frame["ac_power"].to_numpy(dtype=float)
+        # Calibration scales the plant total per row; carry that onto the planes.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            scale = np.where(raw_ac > 0.0, calibrated_ac / raw_ac, 1.0)
+        clear_ac = plane_ac * scale[np.newaxis, :]
+
+        observations, _ = await self._snow_observations(frame)
+        coverage, corrections = self._simulate_snow_coverage(
+            snowfall_cm=weather["snowfall_cm"].to_numpy(dtype=float),
+            snow_depth_cm=weather["snow_depth_cm"].to_numpy(dtype=float),
+            temp_air=weather["temperature_2m"].to_numpy(dtype=float),
+            poa_global=plane_poa,
+            surface_tilt=plane_tilt,
+            interval_hours=settings.resolution_minutes / 60.0,
+            threshold_snowfall=settings.snow_threshold_snowfall_cm_per_hour,
+            threshold_depth=settings.snow_threshold_depth_cm,
+            clear_ac_w=clear_ac,
+            observations=observations,
+            installed_ac_w=self._plant_peak_power_w(),
+            feedback_gain=settings.snow_feedback_gain,
+            feedback_min_fraction=settings.snow_feedback_min_fraction,
+            detection_ratio=settings.snow_detection_ratio,
+            feedback_memory_hours=settings.snow_feedback_memory_hours,
+        )
+
+        clear_total = clear_ac.sum(axis=0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            plant_coverage = np.where(
+                clear_total > 0.0,
+                (clear_ac * coverage).sum(axis=0) / clear_total,
+                coverage.mean(axis=0),
+            )
+        frame = frame.copy()
+        frame["ac_power"] = frame["ac_power"] * (1.0 - plant_coverage)
+        frame["dc_power"] = frame["dc_power"] * (1.0 - plant_coverage)
+        frame["snow_coverage"] = plant_coverage
+
+        if plant_coverage.max() > 0.0 or corrections:
+            now = pd.Timestamp(self.ems_start_datetime.in_timezone("UTC").isoformat())
+            position = int(pd.DatetimeIndex(frame.index).searchsorted(now))
+            current = float(plant_coverage[min(position, len(plant_coverage) - 1)])
+            logger.info(
+                f"PVForecastAkkudoktorLocal snow: coverage {current:.0%} at run start, "
+                f"{corrections} correction(s) from {len(observations)} measured interval(s)."
+            )
         return frame
 
     # ------------------------------------------------------------------ update

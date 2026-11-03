@@ -326,7 +326,16 @@
                "calibration_azimuth_bin_degrees": 45,
                "calibration_prior_kwh": 5.0,
                "calibration_min_factor": 0.5,
-               "calibration_max_factor": 1.5
+               "calibration_max_factor": 1.5,
+               "snow_enabled": false,
+               "snow_lookback_days": 7,
+               "snow_threshold_snowfall_cm_per_hour": 0.5,
+               "snow_threshold_depth_cm": 1.0,
+               "snow_feedback_enabled": true,
+               "snow_feedback_gain": 0.8,
+               "snow_feedback_min_fraction": 0.05,
+               "snow_feedback_memory_hours": 12.0,
+               "snow_detection_ratio": 0.5
            },
            "adaptive": {
                "backend": "local",
