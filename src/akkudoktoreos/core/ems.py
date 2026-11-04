@@ -20,6 +20,9 @@ from akkudoktoreos.core.coreabc import (
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.optimization.fleet import FleetSolution, optimize_fleet
+from akkudoktoreos.optimization.fleetrequest import FleetConfigRequest
+from akkudoktoreos.optimization.fleetsolution import fleet_representations
 from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
@@ -129,6 +132,7 @@ class EnergyManagement(
     # Solution of the genetic0 algorithm of latest energy management run with optimization
     # For classic API
     _genetic0_solution: ClassVar[Optional[Genetic0Solution]] = None
+    _fleet_solution: ClassVar[Optional[FleetSolution]] = None
 
     # energy management lock (for energy management run)
     _run_lock: ClassVar[Lock] = Lock()
@@ -180,6 +184,8 @@ class EnergyManagement(
                 if cls.config.optimization.algorithm == OptimizationAlgorithm.GENETIC
                 else 3600
             )
+            if cls.config.optimization.algorithm == OptimizationAlgorithm.FLEET:
+                interval_seconds = cls.config.optimization.fleet.interval_sec
         if interval_seconds not in (900, 3600):
             raise ValueError("Optimization slots must be 900 or 3600 seconds.")
         midnight = start_datetime.start_of("day").int_timestamp
@@ -235,6 +241,11 @@ class EnergyManagement(
         """
         return cls._genetic0_solution
 
+    @classmethod
+    def fleet_solution(cls) -> Optional[FleetSolution]:
+        """Return the latest successfully published fleet solution."""
+        return cls._fleet_solution
+
     async def run(
         self,
         start_datetime: Optional[DateTime] = None,
@@ -249,9 +260,10 @@ class EnergyManagement(
         genetic0_parameters: Optional[Genetic0OptimizationParameters] = None,
         genetic0_generations: Optional[int] = None,
         genetic0_seed: Optional[int] = None,
+        fleet_parameters: Optional[FleetConfigRequest] = None,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
-    ) -> Optional[GeneticSolution | Genetic0Solution]:
+    ) -> Optional[GeneticSolution | Genetic0Solution | FleetSolution]:
         """Run the energy management.
 
         This method initializes the energy management run by setting its
@@ -270,6 +282,7 @@ class EnergyManagement(
                 The algorithm to use. Must be one of:
                 - "GENETIC": Optimization uses the `GENETIC` optimization algorithm.
                 - "GENETIC0": Optimization uses the `GENETIC0` optimization algorithm.
+                - "FLEET": Joint AC-bus scheduling of configured batteries and EVs.
 
                 Defaults to the algorithm defined in the current configuration.
             genetic_parameters (GeneticOptimizationParameters, optional): The
@@ -289,6 +302,8 @@ class EnergyManagement(
                 if not specified.
             genetic0_seed (int, optional): The seed for the `GENETIC0` algorithm. Defaults
                 to the algorithm's internal random seed if not specified.
+            fleet_parameters (FleetConfigRequest, optional): Runtime SoC, availability
+                and forecasts for FLEET. Omitted inputs use configured providers.
             force_enable (bool, optional): If True, bypasses any disabled state
                 to force the update process. This is mostly applicable to
                 prediction providers.
@@ -319,7 +334,10 @@ class EnergyManagement(
             # None leads to current time as start datetime
             if algorithm is None:
                 algorithm = self.config.optimization.algorithm
-            if start_datetime is None and algorithm == OptimizationAlgorithm.GENETIC:
+            if start_datetime is None and algorithm in (
+                OptimizationAlgorithm.GENETIC,
+                OptimizationAlgorithm.FLEET,
+            ):
                 # Consumer windows and midnight-based forecasts use the site clock,
                 # which can differ from the server's local timezone.
                 start_datetime = to_datetime(in_timezone=self.config.general.timezone)
@@ -328,6 +346,8 @@ class EnergyManagement(
                 interval_seconds=(
                     self.config.optimization.genetic.interval_sec
                     if algorithm == OptimizationAlgorithm.GENETIC
+                    else self.config.optimization.fleet.interval_sec
+                    if algorithm == OptimizationAlgorithm.FLEET
                     else 3600
                 ),
             )
@@ -374,7 +394,7 @@ class EnergyManagement(
             if algorithm is None:
                 algorithm = self.config.optimization.algorithm
 
-            run_solution: GeneticSolution | Genetic0Solution
+            run_solution: GeneticSolution | Genetic0Solution | FleetSolution
 
             # --- GENETIC algorithm ---
             if algorithm == OptimizationAlgorithm.GENETIC:
@@ -445,6 +465,26 @@ class EnergyManagement(
                     algorithm,
                     EnergyManagement._genetic_solution,
                 )
+
+            # --- FLEET algorithm ---
+            elif algorithm == OptimizationAlgorithm.FLEET:
+                try:
+                    fleet_request = await (fleet_parameters or FleetConfigRequest()).resolve()
+                    fleet_solution = await get_running_loop().run_in_executor(
+                        None, optimize_fleet, fleet_request
+                    )
+                    if fleet_solution.status not in ("optimal", "feasible"):
+                        EnergyManagement._stage = EnergyManagementStage.IDLE
+                        return fleet_solution
+                    optimization_solution, plan = fleet_representations(fleet_solution)
+                except Exception:
+                    logger.exception("FLEET: Energy management optimization failed.")
+                    EnergyManagement._stage = EnergyManagementStage.IDLE
+                    return None
+                EnergyManagement._fleet_solution = fleet_solution
+                EnergyManagement._optimization_solution = optimization_solution
+                EnergyManagement._plan = plan
+                run_solution = fleet_solution
 
             # --- GENETIC0 algorithm ---
             elif algorithm == OptimizationAlgorithm.GENETIC0:
