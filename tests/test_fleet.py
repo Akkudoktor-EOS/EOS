@@ -60,6 +60,32 @@ def test_export_only_pays_for_energy_within_limit():
     assert sol.grid_cost_eur == pytest.approx(-0.2)
 
 
+def test_export_prohibition_is_hard_even_with_positive_export_revenue():
+    sol = optimize_fleet(request(pv_w=[2000, 2000], export_allowed=[False, True]))
+    assert sol.status == "optimal"
+    assert sol.export_w == pytest.approx([0, 2000])
+    assert sol.curtailed_pv_w == pytest.approx([2000, 0])
+    assert sol.grid_cost_eur == pytest.approx(-0.2)
+
+
+def test_store_pv_during_export_prohibition():
+    sol = optimize_fleet(
+        request(
+            pv_w=[1000, 1000],
+            export_allowed=[False, True],
+            devices=[battery(target_energy_wh=1000)],
+        )
+    )
+    assert sol.status == "optimal"
+    assert sol.devices["bat"].charge_w == pytest.approx([1000, 0])
+    assert sol.export_w == pytest.approx([0, 1000])
+
+
+def test_export_prohibition_requires_complete_horizon():
+    with pytest.raises(ValidationError, match="Export availability"):
+        request(export_allowed=[False])
+
+
 def test_two_evs_share_grid_and_keep_individual_targets():
     evs = [
         battery(
@@ -159,10 +185,15 @@ def test_shared_converter_cap():
 
 @pytest.mark.parametrize("enabled", [False, True])
 def test_storage_export_policy_with_concurrent_pv(enabled):
-    sol = optimize_fleet(request(
-        load_w=[1000, 0], pv_w=[1000, 0], export_price_eur_per_kwh=[2, 2],
-        devices=[battery(initial_energy_wh=1000)], allow_battery_export=enabled,
-    ))
+    sol = optimize_fleet(
+        request(
+            load_w=[1000, 0],
+            pv_w=[1000, 0],
+            export_price_eur_per_kwh=[2, 2],
+            devices=[battery(initial_energy_wh=1000)],
+            allow_battery_export=enabled,
+        )
+    )
     assert sol.status == "optimal"
     if enabled:
         assert sum(sol.export_w) >= 1000 - 1e-5
@@ -171,10 +202,13 @@ def test_storage_export_policy_with_concurrent_pv(enabled):
 
 
 def test_max_energy_and_minimum_power_constraints():
-    sol = optimize_fleet(request(
-        pv_w=[1000, 1000], export_limit_w=0,
-        devices=[battery(max_energy_wh=500, min_charge_power_w=600)],
-    ))
+    sol = optimize_fleet(
+        request(
+            pv_w=[1000, 1000],
+            export_limit_w=0,
+            devices=[battery(max_energy_wh=500, min_charge_power_w=600)],
+        )
+    )
     assert sol.status == "optimal"
     assert sol.devices["bat"].charge_w == pytest.approx([0, 0])
     assert sol.curtailed_pv_w == pytest.approx([1000, 1000])

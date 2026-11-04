@@ -16,6 +16,7 @@ Select `optimization.algorithm: "FLEET"` and configure `optimization.fleet`:
     "horizon_hours": 24,
     "import_limit_w": 11000,
     "export_limit_w": 6000,
+    "prevent_export_at_negative_market_price": false,
     "solver_time_limit_seconds": 30,
     "measurement_max_age_seconds": 300,
     "terminal_value_eur_per_kwh": 0.15,
@@ -37,6 +38,22 @@ The device IDs above must already exist in `devices.batteries` or
 efficiency, charging power, minimum/maximum SoC and EV charging steps/deadlines.
 There is no one-device restriction for FLEET. Configured collection maxima
 still apply. The solver supports up to 32 storage/EV devices and 384 slots.
+
+Set `prevent_export_at_negative_market_price: true` to prohibit planned grid
+export whenever the raw market price (`elecprice_marketprice_raw_wh`) is
+negative. This uses the market price before import fees, independently of
+the export remuneration. Zero prices remain eligible for export. Prices
+must cover the entire horizon; missing or invalid values fail explicitly.
+For hourly planning, any negative quarter-hour blocks export for that hour.
+This option defaults to false and applies only to FLEET. External fallbacks
+to another optimizer must enforce their own policy.
+
+The explicit simulation API accepts optional run-relative `export_allowed`
+booleans, one per slot. A false value imposes a hard zero export bound in
+addition to `export_limit_w`; available PV is stored, consumed or curtailed.
+Neither this policy nor a watt limit implements a physical grid clamp:
+the installation's local controller must enforce curtailment at the grid
+connection, including PV sources outside a battery inverter's control.
 
 Call the existing `POST /v1/optimize`, or run the regular automatic EMS schedule.
 An empty request reads configured providers and fresh SoC measurements. Runtime

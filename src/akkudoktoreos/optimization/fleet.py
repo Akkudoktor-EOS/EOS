@@ -77,6 +77,7 @@ class FleetRequest(FleetModel):
     export_price_eur_per_kwh: list[float]
     import_limit_w: float = Field(ge=0)
     export_limit_w: float = Field(ge=0)
+    export_allowed: list[bool] | None = None
     devices: list[FleetDevice] = Field(default_factory=list, max_length=32)
     power_groups: list[FleetPowerGroup] = Field(default_factory=list, max_length=32)
     allow_battery_export: bool = False
@@ -95,6 +96,8 @@ class FleetRequest(FleetModel):
             raise ValueError("Forecasts must be finite and have equal lengths")
         if min(self.load_w + self.pv_w) < 0:
             raise ValueError("Load and PV must be nonnegative AC power")
+        if self.export_allowed is not None and len(self.export_allowed) != n:
+            raise ValueError("Export availability must match the horizon")
         if len({d.device_id for d in self.devices}) != len(self.devices):
             raise ValueError("Device IDs must be unique")
         groups = {g.group_id for g in self.power_groups}
@@ -176,6 +179,8 @@ def optimize_fleet(request: FleetRequest) -> FleetSolution:
     grid_direction = var(n, 1, binary=True)
     balances = []
     for t in range(n):
+        if request.export_allowed is not None and not request.export_allowed[t]:
+            upper[exports[t]] = 0
         costs[imports[t]] = request.import_price_eur_per_kwh[t] * hours / 1000
         costs[exports[t]] = -request.export_price_eur_per_kwh[t] * hours / 1000
         upper[curtailed[t]] = request.pv_w[t]

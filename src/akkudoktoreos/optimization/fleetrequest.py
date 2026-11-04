@@ -215,6 +215,26 @@ class FleetConfigRequest(
             return [v * (3600 / seconds if energy else 1000) for v in values]
 
         forecasts = self.forecasts
+        export_allowed = None
+        if settings.prevent_export_at_negative_market_price:
+            if not updated:
+                await self.prediction.update_data()
+                updated = True
+            # Check each quarter-hour before aggregating: a positive hourly
+            # average must not hide a negative-price quarter-hour.
+            market = await bounded_forecast_array(
+                self.prediction,
+                key="elecprice_marketprice_raw_wh",
+                start_datetime=start,
+                end_datetime=end,
+                interval=to_duration(900),
+            )
+            quarters = seconds // 900
+            if len(market) != count * quarters or not all(math.isfinite(v) for v in market):
+                raise ValueError("Missing or invalid raw market prices within FLEET horizon")
+            export_allowed = [
+                all(v >= 0 for v in market[i * quarters : (i + 1) * quarters]) for i in range(count)
+            ]
         return FleetRequest(
             start_datetime=start,
             interval_seconds=seconds,
@@ -228,6 +248,7 @@ class FleetConfigRequest(
             ),
             import_limit_w=settings.import_limit_w,
             export_limit_w=settings.export_limit_w,
+            export_allowed=export_allowed,
             devices=resolved,
             allow_battery_export=settings.allow_battery_export,
             power_groups=[

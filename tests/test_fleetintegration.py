@@ -97,6 +97,35 @@ async def test_resolver_preserves_devices_units_and_config(configured_fleet):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("interval", [900, 3600])
+async def test_negative_raw_market_price_blocks_export(configured_fleet, monkeypatch, interval):
+    config, _, _, _, data = configured_fleet
+    config.optimization.fleet.prevent_export_at_negative_market_price = True
+    config.optimization.fleet.interval_sec = interval
+    read = AsyncMock(return_value=np.array([-0.0001, 0, 0.0003, 0.0003]))
+    monkeypatch.setattr(fleetrequest, "bounded_forecast_array", read)
+    monkeypatch.setattr(FleetConfigRequest, "prediction", Mock(update_data=AsyncMock()))
+    result = await FleetConfigRequest.model_validate(data).resolve()
+    assert result.export_allowed == ([False, True, True, True] if interval == 900 else [False])
+    assert all(value > 0 for value in result.import_price_eur_per_kwh)
+    assert all(value > 0 for value in result.export_price_eur_per_kwh)
+    assert read.call_args.kwargs["key"] == "elecprice_marketprice_raw_wh"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("market", [[0.1], [0.1, float("nan"), 0.1, 0.1]])
+async def test_export_policy_rejects_missing_market_prices(configured_fleet, monkeypatch, market):
+    config, _, _, _, data = configured_fleet
+    config.optimization.fleet.prevent_export_at_negative_market_price = True
+    monkeypatch.setattr(
+        fleetrequest, "bounded_forecast_array", AsyncMock(return_value=np.array(market))
+    )
+    monkeypatch.setattr(FleetConfigRequest, "prediction", Mock(update_data=AsyncMock()))
+    with pytest.raises(ValueError, match="raw market prices"):
+        await FleetConfigRequest.model_validate(data).resolve()
+
+
+@pytest.mark.asyncio
 async def test_real_ems_publishes_all_devices_and_terminal_idle(configured_fleet):
     _, ems, start, _, data = configured_fleet
     result = await ems.run(
@@ -264,14 +293,18 @@ async def test_inverter_conversion_limits_and_disabled_ac_charge(configured_flee
 @pytest.mark.parametrize("explicit", [False, True])
 async def test_fleet_dispatch_does_not_invoke_genetic(configured_fleet, monkeypatch, explicit):
     from akkudoktoreos.core import ems as ems_module
+
     config, ems, start, _, data = configured_fleet
     genetic = Mock(side_effect=AssertionError("GENETIC must not run"))
     monkeypatch.setattr(ems_module, "GeneticOptimization", genetic)
     if explicit:
         config.optimization.algorithm = OptimizationAlgorithm.GENETIC
-    result = await ems.run(start_datetime=start, mode=EnergyManagementMode.OPTIMIZATION,
+    result = await ems.run(
+        start_datetime=start,
+        mode=EnergyManagementMode.OPTIMIZATION,
         algorithm=OptimizationAlgorithm.FLEET if explicit else None,
-        fleet_parameters=FleetConfigRequest.model_validate(data))
+        fleet_parameters=FleetConfigRequest.model_validate(data),
+    )
     assert result.status == "optimal"
     genetic.assert_not_called()
 
@@ -279,13 +312,25 @@ async def test_fleet_dispatch_does_not_invoke_genetic(configured_fleet, monkeypa
 @pytest.mark.asyncio
 async def test_shared_group_settings_resolve_and_roundtrip(configured_fleet):
     from akkudoktoreos.optimization.fleetsettings import FleetCommonSettings
+
     config, _, _, _, data = configured_fleet
-    config.merge_settings_from_dict({"optimization": {"fleet": {
-        "devices": {"car1": {"power_group": "cars"}, "car2": {"power_group": "cars"}},
-        "power_groups": {"cars": {"max_charge_power_w": 1500, "max_discharge_power_w": 0}}
-    }}})
+    config.merge_settings_from_dict(
+        {
+            "optimization": {
+                "fleet": {
+                    "devices": {"car1": {"power_group": "cars"}, "car2": {"power_group": "cars"}},
+                    "power_groups": {
+                        "cars": {"max_charge_power_w": 1500, "max_discharge_power_w": 0}
+                    },
+                }
+            }
+        }
+    )
     settings = config.optimization.fleet
-    assert FleetCommonSettings.model_validate_json(settings.model_dump_json()).model_dump() == settings.model_dump()
+    assert (
+        FleetCommonSettings.model_validate_json(settings.model_dump_json()).model_dump()
+        == settings.model_dump()
+    )
     resolved = await FleetConfigRequest.model_validate(data).resolve()
     assert resolved.power_groups[0].max_charge_power_w == 1500
     assert resolved.devices[2].power_group == "cars"

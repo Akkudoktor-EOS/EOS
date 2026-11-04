@@ -28,6 +28,7 @@ class FleetCommonSettings(SettingsBaseModel):
     horizon_hours: int = Field(default=24, ge=1, le=96)
     import_limit_w: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     export_limit_w: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    prevent_export_at_negative_market_price: bool = False
     solver_time_limit_seconds: float = Field(default=30, gt=0, le=120, allow_inf_nan=False)
     measurement_max_age_seconds: int = Field(default=300, gt=0)
     terminal_value_eur_per_kwh: float = Field(default=0, ge=0, allow_inf_nan=False)
