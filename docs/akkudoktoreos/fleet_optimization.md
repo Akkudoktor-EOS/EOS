@@ -111,6 +111,25 @@ resolved device's AC power rating, and explicitly end in IDLE at horizon end.
 Adapters must support those modes and ratings before using these instructions
 for real hardware. No hardware adapter is added by this change.
 
+### Dashboard and history integrations
+
+Treat the algorithm, run timestamp and horizon as part of a stored plan's
+identity. FLEET does not produce a GENETIC continuation tail. After switching
+algorithms, selecting the newest record from a tail-only history can therefore
+return an obsolete GENETIC run. Select optional tail data by the latest
+successful plan's run identifier, and show no tail when that run has none.
+Retain historical records for comparison without presenting them as current
+instructions or forecasts. A 24-hour FLEET plan does not provide a 72-hour
+forecast merely because a dashboard displays that time range.
+
+When a dashboard joins actual and forecast series into one timeline, use a
+consistent time boundary and explicit plan timestamps. Separate historical
+forecast comparisons from that view. Native FLEET power is W; a legacy bridge
+that stores Wh per interval must divide by the interval duration in hours
+before comparing with measured W (multiply by four for 15-minute intervals).
+Use each device's `energy_wh` boundary values and capacity to derive SoC;
+the initial boundary is at `start_datetime`, followed by one boundary per slot.
+
 An infeasible or failed run does not overwrite the last successful plan.
 Callers must check the status and validity window instead of treating an old
 plan as a new result. The native result distinguishes `optimal` from `feasible`
