@@ -795,3 +795,70 @@ class TestCacheFileDecorators:
         assert len(cache_file_store._store) == 1
         assert cache_file_store._store[key].cache_file is not None
         assert result1 == result
+
+    def test_cache_in_file_distinguishes_different_function_bodies(self, cache_file_store):
+        """Cache key must change when the function's code changes."""
+        cache_file_store.clear(clear_all=True)
+
+        @cache_in_file(mode="w+")
+        def f(x=None, until_date=None):
+            return x + 100
+
+        @cache_in_file(mode="w+")
+        def g(x=None, until_date=None):
+            return x + 200
+
+        until = to_datetime().add(days=1)
+        assert f(x=1, until_date=until) == 101
+        assert g(x=1, until_date=until) == 201
+        assert len(cache_file_store._store) == 2
+
+    def test_force_update_combined_with_until_date(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+
+        @cache_in_file(mode="w+")
+        def my_function(until_date=None):
+            return "New result"
+
+        until = to_datetime().add(days=1).date()
+        my_function(until_date=until)
+
+        key = next(iter(cache_file_store._store))
+        cf = cache_file_store._store[key].cache_file
+        cf.seek(0)
+        cf.write("Cached result")
+
+        # force_update must win even though until_date comes first in the call.
+        assert my_function(until_date=until, force_update=True) == "New result"  # type: ignore[call-arg]
+
+
+class TestFuncCodeHash:
+    def test_hash_is_stable(self):
+        from akkudoktoreos.core.cache import _get_func_code_hash
+
+        def f(x):
+            return x + 1
+
+        assert _get_func_code_hash(f) == _get_func_code_hash(f)
+
+    def test_hash_changes_with_logic(self):
+        from akkudoktoreos.core.cache import _get_func_code_hash
+
+        def f(x):
+            return x + 1
+
+        def g(x):
+            return x + 2
+
+        assert _get_func_code_hash(f) != _get_func_code_hash(g)
+
+    def test_hash_changes_with_constant(self):
+        from akkudoktoreos.core.cache import _get_func_code_hash
+
+        def f(x):
+            return x + 100
+
+        def g(x):
+            return x + 200
+
+        assert _get_func_code_hash(f) != _get_func_code_hash(g)
