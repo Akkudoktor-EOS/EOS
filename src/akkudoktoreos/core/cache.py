@@ -7,7 +7,6 @@ mechanisms for managing cache file expiration and retrieval.
 
 import functools
 import hashlib
-import inspect
 import json
 import os
 import pickle
@@ -51,8 +50,23 @@ Param = ParamSpec("Param")
 RetType = TypeVar("RetType")
 
 
+def _get_func_code_hash(func: Callable[..., Any]) -> str:
+    """Return a stable hash that changes whenever the function's code changes.
+
+    Uses the compiled bytecode (`co_code`) plus the constants
+    (`co_consts`) so that both logic changes and literal changes are
+    detected. This does not require the source code to be readable from
+    disk, which makes it safe to use for functions defined in tests,
+    inside other functions, or in a container where the file may have
+    changed.
+    """
+    code = func.__code__
+    data = code.co_code + repr(code.co_consts).encode("utf-8")
+    return hashlib.md5(data, usedforsecurity=False).hexdigest()
+
+
 def cache_energy_management_store_callback(event: int, key: Any, value: Any) -> None:
-    """Calback function for CacheEnergyManagementStore."""
+    """Callback function for CacheEnergyManagementStore."""
     CacheEnergyManagementStore.last_event = event
     CacheEnergyManagementStore.last_key = key
     CacheEnergyManagementStore.last_value = value
@@ -899,8 +913,6 @@ def cache_in_file(
     The cache file is created using `CacheFileStore` and stored with the generated key. If a valid
     cache file exists, it is returned instead of recomputing the result. The cache expiration is
     controlled by the `until_date`, `until_datetime`, `with_ttl`, or `force_update` arguments.
-    If these arguments are present in the function call, their values override those specified in
-    the decorator.
 
     By default, cache files are pickled to save storage space unless a `suffix` is provided. The
     `mode` parameter allows specifying file modes for reading and writing, and the `delete`
@@ -949,6 +961,13 @@ def cache_in_file(
         - The cache key is based on the function arguments after excluding those in `ignore_params`.
         - If conflicting expiration parameters are provided (`until_date`, `until_datetime`,
           `with_ttl`), the one in the function call takes precedence.
+        - The decorator/call control parameters (`force_update`, `until_date`,
+          `until_datetime`, `with_ttl`) are consumed by the wrapper and are not
+          forwarded to the wrapped function.
+        - A control parameter supplied at call time becomes the new current
+          setting for that decorated function on subsequent calls (they are
+          not one-shot overrides).
+
     """
 
     def decorator(func: Callable[Param, RetType]) -> Callable[Param, RetType]:
@@ -961,7 +980,7 @@ def cache_in_file(
             mode, \
             delete, \
             suffix
-        func_source_code = inspect.getsource(func)
+        func_code_hash = _get_func_code_hash(func)
 
         def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
             nonlocal \
@@ -978,28 +997,23 @@ def cache_in_file(
             args_dict = dict(zip(args_names, args))
 
             # Search for caching parameters of function and remove
-            for param in ["force_update", "until_datetime", "with_ttl", "until_date"]:
+            for param in ("force_update", "until_datetime", "until_date", "with_ttl"):
                 if param in kwargs:
                     if param == "force_update":
                         force_update = kwargs[param]  # type: ignore[assignment]
-                        kwargs.pop("force_update")
-                    if param == "until_datetime":
+                    elif param == "until_datetime":
                         until_datetime = kwargs[param]
                         until_date = None
                         with_ttl = None
                     elif param == "with_ttl":
+                        with_ttl = kwargs[param]
                         until_datetime = None
                         until_date = None
-                        with_ttl = kwargs[param]
                     elif param == "until_date":
-                        until_datetime = None
                         until_date = kwargs[param]
+                        until_datetime = None
                         with_ttl = None
-                    kwargs.pop("force_update", None)
-                    kwargs.pop("until_datetime", None)
-                    kwargs.pop("until_date", None)
-                    kwargs.pop("with_ttl", None)
-                    break
+                    del kwargs[param]
 
             # Remove ignored params
             kwargs_clone = kwargs.copy()
@@ -1008,7 +1022,7 @@ def cache_in_file(
                 kwargs_clone.pop(param, None)
 
             # Create key based on argument names, argument values, and function source code
-            key = str(args_dict) + str(kwargs_clone) + str(func_source_code)
+            key = str(args_dict) + str(kwargs_clone) + func_code_hash
 
             result: Optional[RetType | bytes] = None
             # Get cache file that is currently valid
