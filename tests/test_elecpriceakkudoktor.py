@@ -178,11 +178,12 @@ class TestElecPriceAkkudokor:
             requests.exceptions.HTTPError if exception else None
         )
         mock_get.return_value = mock_response
+        # force_update: bypass the file cache, the request must be made in every case.
         if exception:
             with pytest.raises(exception):
-                provider._request_forecast()
+                provider._request_forecast(force_update=True)
         else:
-            provider._request_forecast()
+            provider._request_forecast(force_update=True)
 
 
     @pytest.mark.asyncio

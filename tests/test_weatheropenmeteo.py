@@ -273,8 +273,8 @@ def test_openmeteo_request_mode_selection(
         ems_eos = get_ems()
         ems_eos.set_start_datetime(start)
 
-        # Execute
-        provider._request_forecast()
+        # Execute; force_update bypasses the file cache, the request must be made.
+        provider._request_forecast(force_update=True)
 
     # Inspect request params
     params = mock_get.call_args[1]["params"]
