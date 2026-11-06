@@ -120,6 +120,10 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Updating a read-only computed configuration field, e.g. `adapter.homeassistant.eos_solution_entity_ids`
   via `PUT /v1/config/{path}`, now reports a read-only error instead of claiming the field does
   not exist ([#913](https://github.com/Akkudoktor-EOS/EOS/issues/913)).
+- GENETIC now seeds its initial population with EV charging plans. The EV seeding heuristic
+  read the vehicle's minimum SoC, which is always 0 %, instead of the requested target, so no
+  seed ever charged the vehicle. A new EV mutation moves planned charging in time without changing
+  its energy, so the cheapest slots before the deadline are found reliably.
 
 ## 0.3.0 (2026-03-17)
 
