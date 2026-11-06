@@ -1,0 +1,9 @@
+# ai/.dockerignore
+# Keep the build context small and free of host-specific artifacts.
+.git
+.venv
+__pycache__
+*.pyc
+node_modules
+.env
+ai-home

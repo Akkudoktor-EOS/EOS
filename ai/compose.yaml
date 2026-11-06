@@ -1,0 +1,108 @@
+# ai/compose.yaml
+# Sandbox for the AkkudoktorEOS AI coding agent.
+# Every defense below must be present; run.sh verifies them and refuses to start otherwise.
+
+services:
+  ai-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UID: ${HOST_UID:-1000}
+        GID: ${HOST_GID:-1000}
+    image: akkudoktor-eos-ai:latest
+    # NOTE: no container_name — required for `docker compose run` and parallelism.
+    working_dir: /workspace
+
+    # ------------------------------------------------------------------
+    # Filesystem isolation
+    # ------------------------------------------------------------------
+    read_only: true
+
+    volumes:
+      # Repo, read-write (needed by the agent to edit code).
+      # `rw` (drop `:cached`; it is macOS-only and misleading).
+      - ..:/workspace:rw
+
+      # Persistent state for CLI auth, caches and Claude memory/transcripts.
+      # NOTE: a plain named volume CANNOT be mounted noexec/nosuid/nodev,
+      # so files here are executable in principle. Mitigations:
+      #   - entrypoint.sh lives in the image (/usr/local/bin), not here,
+      #     so nothing in this volume runs automatically at startup;
+      #   - entrypoint.sh strips exec bits from $HOME on every start;
+      #   - no-new-privileges + cap_drop ALL neutralize setuid binaries.
+      # Never put anything here that the container executes by default.
+      - type: volume
+        source: ai-home
+        target: /home/dev
+        volume:
+          nocopy: true
+
+    tmpfs:
+      # /tmp is needed by many tools but must never be executable.
+      - /tmp:rw,nosuid,nodev,noexec,size=512m,mode=1777
+      # /run and /var/tmp kept in-memory, noexec.
+      - /run:rw,nosuid,nodev,noexec,size=64m
+      - /var/tmp:rw,nosuid,nodev,noexec,size=256m
+
+    # ------------------------------------------------------------------
+    # Privilege & capability isolation
+    # ------------------------------------------------------------------
+    privileged: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # ------------------------------------------------------------------
+    # Network
+    # ------------------------------------------------------------------
+    networks:
+      - ai-net
+
+    # ------------------------------------------------------------------
+    # Testing ports — loopback-only on the host.
+    # 127.0.0.1:... prevents exposing these services to the LAN/VPN.
+    # Add new ports here only when you have a concrete test need.
+    # ------------------------------------------------------------------
+    ports:
+      - "127.0.0.1:8503:8503"
+      - "127.0.0.1:8504:8504"
+
+    # ------------------------------------------------------------------
+    # Resource limits (defense in depth against runaway agents)
+    # ------------------------------------------------------------------
+    mem_limit: 4g
+    memswap_limit: 4g          # == mem_limit: disables swap for this cgroup
+    pids_limit: 512            # fork-bomb protection
+    cpus: 2.0
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
+
+    # ------------------------------------------------------------------
+    # Environment
+    # ------------------------------------------------------------------
+    environment:
+      - TERM=xterm-256color
+      - CLAUDE_CONFIG_DIR=/home/dev/.claude
+      - HOME=/home/dev
+      # Disable shell history writing so a hijacked home doesn't retain commands.
+      - HISTFILE=/dev/null
+      - HISTSIZE=0
+      # Optional git identity, passed through from the host shell
+      # (export GIT_USER_NAME / GIT_USER_EMAIL before ./ai/run.sh).
+      - GIT_USER_NAME
+      - GIT_USER_EMAIL
+
+    stdin_open: true
+    tty: true
+
+networks:
+  ai-net:
+    driver: bridge
+
+volumes:
+  ai-home:
+    name: akkudoktor-ai-home
