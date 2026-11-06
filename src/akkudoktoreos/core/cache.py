@@ -13,6 +13,7 @@ import os
 import pickle
 import tempfile
 import threading
+import types
 from pathlib import Path
 from typing import (
     IO,
@@ -51,8 +52,91 @@ Param = ParamSpec("Param")
 RetType = TypeVar("RetType")
 
 
+def _get_func_code_hash(func: Callable[..., Any]) -> str:
+    """Return a hash that identifies a function's behaviour for the file cache.
+
+    Covers what decides the result besides the call arguments: the function's
+    qualified name, its compiled code (bytecode, referenced names and
+    constants, including nested functions), its default values and the values
+    it captures from an enclosing function. Wrappers made with
+    ``functools.wraps`` are unwrapped first.
+
+    The hash is the same in every process as long as the code is unchanged, so
+    the file cache keeps hitting across restarts. It changes when the Python
+    minor version changes the bytecode, which invalidates cache entries once.
+    Values whose ``repr()`` contains a memory address (e.g. an object without a
+    custom ``__repr__`` used as a default) make the hash process specific.
+
+    Args:
+        func: The decorated function.
+
+    Returns:
+        The hexadecimal MD5 digest.
+    """
+    func = inspect.unwrap(func)
+    digest = hashlib.md5(usedforsecurity=False)
+    digest.update(f"{func.__module__}.{func.__qualname__}".encode("utf-8"))
+    _update_value_digest(digest, func.__defaults__)
+    _update_value_digest(digest, func.__kwdefaults__)
+    for cell in func.__closure__ or ():
+        try:
+            value = cell.cell_contents
+        except ValueError:
+            # Cell of a variable that is not assigned yet.
+            value = "<empty cell>"
+        _update_value_digest(digest, value)
+    _update_code_digest(digest, func.__code__)
+    return digest.hexdigest()
+
+
+def _update_code_digest(digest: Any, code: types.CodeType) -> None:
+    """Feed a code object into ``digest`` without process-specific parts.
+
+    Args:
+        digest: A ``hashlib`` hash object.
+        code: The code object.
+    """
+    digest.update(code.co_code)
+    # Names of called functions, attributes and globals; co_code only indexes them.
+    digest.update(repr(code.co_names).encode("utf-8"))
+    for const in code.co_consts:
+        _update_value_digest(digest, const)
+
+
+def _update_value_digest(digest: Any, value: Any) -> None:
+    """Feed a constant, default or captured value into ``digest`` reproducibly.
+
+    Args:
+        digest: A ``hashlib`` hash object.
+        value: The value.
+    """
+    if isinstance(value, types.CodeType):
+        # repr() of a code object contains its memory address.
+        _update_code_digest(digest, value)
+    elif isinstance(value, types.FunctionType):
+        # E.g. a function captured from the enclosing scope; its repr() has an address.
+        digest.update(f"{value.__module__}.{value.__qualname__}".encode("utf-8"))
+        _update_code_digest(digest, value.__code__)
+    elif isinstance(value, (frozenset, set)):
+        # Iteration order of a set of str depends on the hash seed.
+        digest.update(repr(sorted(map(repr, value))).encode("utf-8"))
+    elif isinstance(value, tuple):
+        digest.update(b"(")
+        for item in value:
+            _update_value_digest(digest, item)
+        digest.update(b")")
+    elif isinstance(value, dict):
+        digest.update(b"{")
+        for key in sorted(value, key=repr):
+            digest.update(repr(key).encode("utf-8"))
+            _update_value_digest(digest, value[key])
+        digest.update(b"}")
+    else:
+        digest.update(repr(value).encode("utf-8"))
+
+
 def cache_energy_management_store_callback(event: int, key: Any, value: Any) -> None:
-    """Calback function for CacheEnergyManagementStore."""
+    """Callback function for CacheEnergyManagementStore."""
     CacheEnergyManagementStore.last_event = event
     CacheEnergyManagementStore.last_key = key
     CacheEnergyManagementStore.last_value = value
@@ -899,8 +983,6 @@ def cache_in_file(
     The cache file is created using `CacheFileStore` and stored with the generated key. If a valid
     cache file exists, it is returned instead of recomputing the result. The cache expiration is
     controlled by the `until_date`, `until_datetime`, `with_ttl`, or `force_update` arguments.
-    If these arguments are present in the function call, their values override those specified in
-    the decorator.
 
     By default, cache files are pickled to save storage space unless a `suffix` is provided. The
     `mode` parameter allows specifying file modes for reading and writing, and the `delete`
@@ -946,76 +1028,61 @@ def cache_in_file(
             result = expensive_computation(until_date=date.today())
 
     Notes:
-        - The cache key is based on the function arguments after excluding those in `ignore_params`.
-        - If conflicting expiration parameters are provided (`until_date`, `until_datetime`,
-          `with_ttl`), the one in the function call takes precedence.
+        - The cache key is based on the function arguments after excluding those in
+          `ignore_params`, and on a hash of the function's code, defaults and captured
+          values (see `_get_func_code_hash`).
+        - The control parameters (`force_update`, `until_date`, `until_datetime`,
+          `with_ttl`) are consumed by the wrapper and are not forwarded to the wrapped
+          function.
+        - Control parameters given at call time apply to that call only. Expiration
+          parameters given at call time replace those of the decorator.
+        - If several expiration parameters are given, `until_datetime` takes
+          precedence over `with_ttl`, which takes precedence over `until_date`.
     """
 
     def decorator(func: Callable[Param, RetType]) -> Callable[Param, RetType]:
-        nonlocal \
-            ignore_params, \
-            force_update, \
-            until_date, \
-            until_datetime, \
-            with_ttl, \
-            mode, \
-            delete, \
-            suffix
-        func_source_code = inspect.getsource(func)
+        func_code_hash = _get_func_code_hash(func)
+        # Follows functools.wraps wrappers to the signature of the wrapped function.
+        func_signature = inspect.signature(func)
 
         def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
-            nonlocal \
-                ignore_params, \
-                force_update, \
-                until_date, \
-                until_datetime, \
-                with_ttl, \
-                mode, \
-                delete, \
-                suffix
-            # Convert args to a dictionary based on the function's signature
-            args_names = func.__code__.co_varnames[: func.__code__.co_argcount]
-            args_dict = dict(zip(args_names, args))
+            # Control parameters given at call time apply to this call only.
+            call_force_update = kwargs.pop("force_update", force_update)
+            # In order of precedence: until_datetime > with_ttl > until_date.
+            call_expiry = [
+                (param, kwargs.pop(param))
+                for param in ("until_datetime", "with_ttl", "until_date")
+                if param in kwargs
+            ]
+            if call_expiry:
+                # The call's expiry replaces the decorator's; the first given one wins.
+                expiry: dict[str, Any] = {
+                    "until_datetime": None,
+                    "with_ttl": None,
+                    "until_date": None,
+                }
+                param, value = call_expiry[0]
+                expiry[param] = value
+            else:
+                expiry = {
+                    "until_datetime": until_datetime,
+                    "with_ttl": with_ttl,
+                    "until_date": until_date,
+                }
 
-            # Search for caching parameters of function and remove
-            for param in ["force_update", "until_datetime", "with_ttl", "until_date"]:
-                if param in kwargs:
-                    if param == "force_update":
-                        force_update = kwargs[param]  # type: ignore[assignment]
-                        kwargs.pop("force_update")
-                    if param == "until_datetime":
-                        until_datetime = kwargs[param]
-                        until_date = None
-                        with_ttl = None
-                    elif param == "with_ttl":
-                        until_datetime = None
-                        until_date = None
-                        with_ttl = kwargs[param]
-                    elif param == "until_date":
-                        until_datetime = None
-                        until_date = kwargs[param]
-                        with_ttl = None
-                    kwargs.pop("force_update", None)
-                    kwargs.pop("until_datetime", None)
-                    kwargs.pop("until_date", None)
-                    kwargs.pop("with_ttl", None)
-                    break
-
-            # Remove ignored params
-            kwargs_clone = kwargs.copy()
-            for param in ignore_params:
-                args_dict.pop(param, None)
-                kwargs_clone.pop(param, None)
-
-            # Create key based on argument names, argument values, and function source code
-            key = str(args_dict) + str(kwargs_clone) + str(func_source_code)
+            # Create key based on argument names, argument values, and function code
+            key = str(_cache_key_arguments(func_signature, args, kwargs, ignore_params))
+            key += func_code_hash
 
             result: Optional[RetType | bytes] = None
             # Get cache file that is currently valid
             cache_file = CacheFileStore().get(
-                key, until_date=until_date, until_datetime=until_datetime, ttl_duration=with_ttl
+                key,
+                until_date=expiry["until_date"],
+                until_datetime=expiry["until_datetime"],
+                ttl_duration=expiry["with_ttl"],
             )
-            if not force_update and cache_file is not None:
+            if not call_force_update and cache_file is not None:
                 # cache file is available
                 try:
                     logger.debug("Used cache file for function: " + func.__name__)
@@ -1026,9 +1093,9 @@ def cache_in_file(
                         result = cache_file.read()
                 except Exception as e:
                     logger.info(f"Read failed: {e}")
-                    # Fail gracefully - force creation
-                    force_update = True
-            if force_update or cache_file is None:
+                    # Fail gracefully - recreate the cache file in this call
+                    call_force_update = True
+            if call_force_update or cache_file is None:
                 # Otherwise, call the function and save its result to the cache
                 logger.debug("Created cache file for function: " + func.__name__)
                 cache_file = CacheFileStore().create(
@@ -1036,9 +1103,9 @@ def cache_in_file(
                     mode=mode,
                     delete=delete,
                     suffix=suffix,
-                    until_datetime=until_datetime,
-                    until_date=until_date,
-                    with_ttl=with_ttl,
+                    until_datetime=expiry["until_datetime"],
+                    until_date=expiry["until_date"],
+                    with_ttl=expiry["with_ttl"],
                 )
                 result = func(*args, **kwargs)
                 try:
@@ -1056,3 +1123,42 @@ def cache_in_file(
         return wrapper
 
     return decorator
+
+
+def _cache_key_arguments(
+    signature: inspect.Signature,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    ignore_params: List[str],
+) -> dict[str, Any]:
+    """Return the call arguments that identify a cache entry.
+
+    Binds the arguments to the function's signature, so positional and keyword
+    passing give the same key and ``*args``/``**kwargs`` are included. Defaults
+    are not filled in; they are part of the function hash.
+
+    Args:
+        signature: Signature of the decorated (unwrapped) function.
+        args: Positional call arguments.
+        kwargs: Keyword call arguments, without the cache control parameters.
+        ignore_params: Parameter names to leave out of the key.
+
+    Returns:
+        The arguments by parameter name.
+    """
+    try:
+        arguments = dict(signature.bind_partial(*args, **kwargs).arguments)
+    except TypeError:
+        # Arguments that do not fit the signature (e.g. a wrapper that adds parameters).
+        arguments = {"*args": args, **kwargs}
+    var_keyword = next(
+        (p.name for p in signature.parameters.values() if p.kind is p.VAR_KEYWORD), None
+    )
+    if var_keyword in arguments:
+        # Copy: the dict collected by **kwargs is the one passed to the function.
+        arguments[var_keyword] = dict(arguments[var_keyword])
+    for param in ignore_params:
+        arguments.pop(param, None)
+        if var_keyword in arguments:
+            arguments[var_keyword].pop(param, None)
+    return arguments

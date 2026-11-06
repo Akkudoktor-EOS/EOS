@@ -1,7 +1,12 @@
+import functools
 import io
 import json
+import os
 import pickle
+import subprocess
+import sys
 import tempfile
+import textwrap
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from time import sleep
@@ -14,6 +19,7 @@ from akkudoktoreos.core.cache import (
     CacheEnergyManagementStore,
     CacheFileRecord,
     CacheFileStore,
+    _get_func_code_hash,
     cache_energy_management,
     cache_in_file,
 )
@@ -795,3 +801,300 @@ class TestCacheFileDecorators:
         assert len(cache_file_store._store) == 1
         assert cache_file_store._store[key].cache_file is not None
         assert result1 == result
+
+    def test_cache_in_file_distinguishes_different_function_bodies(self, cache_file_store):
+        """Cache key must change when the function's code changes."""
+        cache_file_store.clear(clear_all=True)
+
+        @cache_in_file(mode="w+")
+        def f(x=None, until_date=None):
+            return x + 100
+
+        @cache_in_file(mode="w+")
+        def g(x=None, until_date=None):
+            return x + 200
+
+        until = to_datetime().add(days=1)
+        assert f(x=1, until_date=until) == 101
+        assert g(x=1, until_date=until) == 201
+        assert len(cache_file_store._store) == 2
+
+    def test_force_update_combined_with_until_date(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+
+        @cache_in_file(mode="w+")
+        def my_function(until_date=None):
+            return "New result"
+
+        until = to_datetime().add(days=1).date()
+        my_function(until_date=until)
+
+        key = next(iter(cache_file_store._store))
+        cf = cache_file_store._store[key].cache_file
+        cf.seek(0)
+        cf.write("Cached result")
+
+        # force_update must win even though until_date comes first in the call.
+        assert my_function(until_date=until, force_update=True) == "New result"  # type: ignore[call-arg]
+
+
+    def test_call_time_control_parameters_apply_to_the_call_only(self, cache_file_store):
+        """A force_update given once does not stick to later calls."""
+        cache_file_store.clear(clear_all=True)
+        calls: list[int] = []
+
+        @cache_in_file()
+        def f():
+            calls.append(1)
+            return len(calls)
+
+        f()
+        f(force_update=True)  # type: ignore[call-arg]
+        f()
+        f()
+
+        assert len(calls) == 2
+
+    def test_call_time_expiry_does_not_replace_the_decorator_expiry(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+
+        @cache_in_file(with_ttl="1 hour")
+        def f():
+            return "result"
+
+        f(until_datetime=to_datetime().add(days=2))  # type: ignore[call-arg]
+        cache_file_store.clear(clear_all=True)
+        f()
+
+        (record,) = cache_file_store._store.values()
+        assert record.ttl_duration == to_duration("1 hour")
+
+    def test_call_time_expiry_precedence(self, cache_file_store):
+        """until_datetime takes precedence over with_ttl and until_date."""
+        cache_file_store.clear(clear_all=True)
+
+        @cache_in_file()
+        def f():
+            return "result"
+
+        until = to_datetime().add(days=3)
+        f(until_date=to_datetime().add(days=1).date(), with_ttl="1 hour", until_datetime=until)  # type: ignore[call-arg]
+
+        (record,) = cache_file_store._store.values()
+        assert compare_datetimes(record.until_datetime, until).equal
+        assert record.ttl_duration is None
+
+    def test_read_failure_recreates_the_cache_file_once(self, cache_file_store):
+        """A broken cache file is recreated, and caching works again afterwards."""
+        cache_file_store.clear(clear_all=True)
+        calls: list[int] = []
+
+        @cache_in_file()
+        def f():
+            calls.append(1)
+            return "result"
+
+        f()
+        (record,) = cache_file_store._store.values()
+        record.cache_file.seek(0)
+        record.cache_file.truncate()
+        record.cache_file.write(b"not a pickle")
+
+        assert f() == "result"
+        assert f() == "result"
+        assert len(calls) == 2
+
+    def test_var_positional_arguments_are_part_of_the_key(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+
+        @cache_in_file()
+        def f(*items):
+            return sum(items)
+
+        assert f(1) == 1
+        assert f(2) == 2
+
+    def test_arguments_of_a_wrapped_function_are_part_of_the_key(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+
+        def passthrough(func):
+            @functools.wraps(func)
+            def inner(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            return inner
+
+        @cache_in_file()
+        @passthrough
+        def f(x):
+            return x * 10
+
+        assert f(1) == 10
+        assert f(2) == 20
+
+    def test_positional_and_keyword_arguments_give_the_same_key(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+        calls: list[int] = []
+
+        @cache_in_file()
+        def f(x):
+            calls.append(x)
+            return x
+
+        f(1)
+        f(x=1)
+
+        assert calls == [1]
+
+    def test_ignored_keyword_arguments_still_reach_the_function(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+        received: list[dict] = []
+
+        @cache_in_file(ignore_params=["token"])
+        def f(**options):
+            received.append(options)
+            return options["a"]
+
+        f(a=1, token="secret-1")
+        f(a=1, token="secret-2")  # same key: token is ignored
+
+        assert received == [{"a": 1, "token": "secret-1"}]
+
+
+class TestFuncCodeHash:
+    def test_hash_is_stable(self):
+        from akkudoktoreos.core.cache import _get_func_code_hash
+
+        def f(x):
+            return x + 1
+
+        assert _get_func_code_hash(f) == _get_func_code_hash(f)
+
+    def test_hash_changes_with_logic(self):
+        from akkudoktoreos.core.cache import _get_func_code_hash
+
+        def f(x):
+            return x + 1
+
+        def g(x):
+            return x + 2
+
+        assert _get_func_code_hash(f) != _get_func_code_hash(g)
+
+    def test_hash_changes_with_constant(self):
+        from akkudoktoreos.core.cache import _get_func_code_hash
+
+        def f(x):
+            return x + 100
+
+        def g(x):
+            return x + 200
+
+        assert _get_func_code_hash(f) != _get_func_code_hash(g)
+
+
+    @staticmethod
+    def compile_function(source: str):
+        """Compile ``def f`` from source, so compared functions share the qualified name."""
+        namespace: dict = {"__name__": "cache_probe"}
+        exec(textwrap.dedent(source), namespace)  # noqa: S102
+        return namespace["f"]
+
+    @pytest.mark.parametrize(
+        ("source_a", "source_b"),
+        [
+            # Called method (co_names)
+            ("def f(s): return s.upper()", "def f(s): return s.lower()"),
+            # Global function (co_names)
+            ("def f(x): return str(x)", "def f(x): return hex(x)"),
+            # Positional default
+            ("def f(x, factor=5): return x * factor", "def f(x, factor=6): return x * factor"),
+            # Keyword-only default
+            ("def f(x, *, factor=5): return x * factor", "def f(x, *, factor=6): return x * factor"),
+            # Constant in a nested function
+            ("def f(x): return list(map(lambda v: v + 1, x))", "def f(x): return list(map(lambda v: v + 2, x))"),
+        ],
+    )
+    def test_hash_distinguishes_functions(self, source_a, source_b):
+        assert _get_func_code_hash(self.compile_function(source_a)) != _get_func_code_hash(
+            self.compile_function(source_b)
+        )
+
+    def test_hash_covers_captured_values(self):
+        def make(n):
+            def inner(x):
+                return x + n
+
+            return inner
+
+        assert _get_func_code_hash(make(1)) != _get_func_code_hash(make(2))
+        assert _get_func_code_hash(make(1)) == _get_func_code_hash(make(1))
+
+    def test_hash_unwraps_functools_wraps(self):
+        def passthrough(func):
+            @functools.wraps(func)
+            def inner(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            return inner
+
+        def plain(x):
+            return 1
+
+        wrapped_1 = passthrough(plain)
+        wrapped_2 = passthrough(self.compile_function("def f(x): return 2"))
+
+        assert _get_func_code_hash(wrapped_1) == _get_func_code_hash(plain)
+        assert _get_func_code_hash(wrapped_1) != _get_func_code_hash(wrapped_2)
+
+    def test_hash_is_the_same_in_every_process(self, tmp_path):
+        """The file cache outlives the process: the hash must not depend on addresses or the hash seed."""
+        (tmp_path / "cacheprobe.py").write_text(
+            textwrap.dedent(
+                """
+                def with_lambda(x):
+                    return sorted(x, key=lambda v: -v)
+
+                def with_genexpr(x):
+                    return sum(v * v for v in x)
+
+                def with_set_literal(x):
+                    return x in {"alpha", "beta", "gamma", "delta", "epsilon"}
+
+                def with_set_default(x, allowed=frozenset({"alpha", "beta", "gamma"})):
+                    return x in allowed
+
+                def make(n):
+                    def inner(x):
+                        return x in {"alpha", "beta"} and n
+                    return inner
+
+                with_closure = make(3)
+                """
+            ),
+            encoding="utf-8",
+        )
+        script = (
+            "import cacheprobe as m\n"
+            "from akkudoktoreos.core.cache import _get_func_code_hash as h\n"
+            "for name in ('with_lambda', 'with_genexpr', 'with_set_literal',\n"
+            "             'with_set_default', 'with_closure'):\n"
+            "    print(name, h(getattr(m, name)))\n"
+        )
+
+        def hashes(seed: str) -> str:
+            env = {**os.environ, "PYTHONHASHSEED": seed, "PYTHONPATH": str(tmp_path)}
+            result = subprocess.run(
+                [sys.executable, "-c", script],
+                env=env,
+                cwd=tmp_path,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=120,
+            )
+            return result.stdout
+
+        first = hashes("1")
+        assert len(set(first.split()[1::2])) == 5
+        assert hashes("2") == first
