@@ -160,6 +160,16 @@ def Success(*c: Any) -> Alert:
     )
 
 
+def Info(*c: Any) -> Alert:
+    return Alert(
+        DivLAligned(
+            UkIcon("info"),
+            TextView(*c),
+        ),
+        cls=AlertT.info,
+    )
+
+
 def Error(*c: Any) -> Alert:
     return Alert(
         DivLAligned(

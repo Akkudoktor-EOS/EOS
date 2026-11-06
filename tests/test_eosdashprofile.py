@@ -149,6 +149,50 @@ class TestSave:
         )
 
 
+
+class TestPreview:
+    def test_preview_draws_the_edited_text_without_saving(self, rest):
+        document = {**generic_lfp(), "battery_model": "Edited Model", "nominal_capacity_wh": 7777.0}
+        html = render(
+            {"action": "preview", "profile_name": "generic-lfp", "document": json.dumps(document)}
+        )
+        assert "Preview of unsaved changes" in html
+        assert '<td class="">Edited Model</td>' in html  # summary of the edited document
+        assert '<td class="">7777.0 Wh</td>' in html
+        assert "Charge and discharge limits" in html and "Bokeh" in html
+        assert not any(method in ("put", "delete") for method, _ in rest.calls)
+        assert user_profile("generic-lfp").battery_model != "Edited Model"
+        assert get_profile_store().path(BatteryProfileSettings, "generic-lfp")[0].parent == (
+            get_profile_store().package_dir(BatteryProfileSettings)
+        )
+
+    def test_preview_of_invalid_json_is_reported_and_kept(self, rest):
+        html = render(
+            {"action": "preview", "profile_name": "generic-lfp", "document": '{"broken": '}
+        )
+        assert "not valid JSON" in html
+        assert "{&quot;broken&quot;: " in html or '{"broken": ' in html
+
+    @pytest.mark.parametrize("text", ["[1, 2]", "42", "null"])
+    def test_preview_of_a_non_object_is_reported(self, rest, text):
+        html = render({"action": "preview", "profile_name": "generic-lfp", "document": text})
+        assert "must be a JSON object" in html
+
+    def test_preview_of_an_invalid_document_is_reported_and_drawn(self, rest):
+        document = {**generic_lfp(), "nominal_capacity_wh": -5}
+        html = render(
+            {"action": "preview", "profile_name": "generic-lfp", "document": json.dumps(document)}
+        )
+        assert "the document is invalid" in html and "nominal_capacity_wh" in html
+        assert "-5" in html  # the edited text is still in the editor
+        assert not any(method == "put" for method, _ in rest.calls)
+
+    def test_editor_has_a_preview_button_and_explains_it(self, rest):
+        html = render()
+        assert "&quot;preview&quot;" in html or '"preview"' in html
+        assert "Preview draws them from the text below without saving" in html
+
+
 class TestDelete:
     def test_delete_of_a_user_profile(self, rest):
         get_profile_store().save("my-battery", BatteryProfileSettings.model_validate(generic_lfp()))

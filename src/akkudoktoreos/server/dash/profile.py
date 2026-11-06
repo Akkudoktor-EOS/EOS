@@ -9,7 +9,10 @@ profile of the same name that overrides it; deleting that user profile reverts
 to the packaged one. Saved profiles take effect at once in EOS, also for
 running device controllers.
 
-The document is edited as JSON. Bokeh plots show the loaded document:
+The document is edited as JSON. The summary and the Bokeh plots show the
+stored profile, after a save the saved one. *Preview* draws them from the
+editor text instead, without saving, so changes can be checked before they
+reach EOS and the device controllers. The plots show:
 
 - heat maps of the charge and discharge limit maps (SoC versus temperature),
   drawn from the limit maps compiled by EOS (``compile_battery_profile``), i.e.
@@ -79,7 +82,7 @@ from akkudoktoreos.server.dash.bokeh import (
     bokey_apply_theme_to_plot,
     create_figure,
 )
-from akkudoktoreos.server.dash.components import ConfigButton, Error, Success
+from akkudoktoreos.server.dash.components import ConfigButton, Error, Info, Success
 from akkudoktoreos.server.dash.context import request_url_for
 
 PROFILE_KIND = "battery"
@@ -571,7 +574,7 @@ def ProfileEditor(name: str, entry: Optional[dict[str, Any]], document_text: str
             **kwargs,
         )
 
-    buttons: list[Any] = [action_button("Save", "save")]
+    buttons: list[Any] = [action_button("Preview", "preview"), action_button("Save", "save")]
     if is_user:
         buttons.append(
             action_button(
@@ -587,6 +590,11 @@ def ProfileEditor(name: str, entry: Optional[dict[str, Any]], document_text: str
     return Card(
         H4(f"Edit '{name}'"),
         P(save_hint, cls="text-sm opacity-70"),
+        P(
+            "The summary and the plots show the stored profile. Preview draws them from the "
+            "text below without saving; Save stores it and EOS uses it at once.",
+            cls="text-sm opacity-70",
+        ),
         Form(
             Input(type="hidden", name="profile_name", value=name),
             TextArea(
@@ -629,6 +637,27 @@ def _apply_action(
 
     if action == "select":
         return None, name or None, None
+
+    if action == "preview":
+        try:
+            document = json.loads(text)
+        except json.JSONDecodeError as exc:
+            return Error(f"The document is not valid JSON: {exc}"), name or None, text
+        if not isinstance(document, dict):
+            return Error("The document must be a JSON object."), name or None, text
+        try:
+            BatteryProfileSettings.model_validate(document)
+        except ValueError as exc:
+            return (
+                Error(f"Preview of unsaved changes to '{name}', the document is invalid: {exc}"),
+                name or None,
+                text,
+            )
+        return (
+            Info(f"Preview of unsaved changes to '{name}'. Save to apply them."),
+            name or None,
+            text,
+        )
 
     if action in ("save", "save_as"):
         target = name if action == "save" else str(data.get("new_name") or "").strip()
@@ -696,11 +725,13 @@ def Profile(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = Non
     if document_text is None:
         document_text = json.dumps(document, indent=2) if document else ""
     else:
-        # Show the preview of the edited text if it is valid JSON.
+        # Show the preview of the edited text if it is a JSON object.
         try:
-            document = json.loads(document_text)
+            edited = json.loads(document_text)
         except json.JSONDecodeError:
-            pass
+            edited = None
+        if isinstance(edited, dict):
+            document = edited
 
     selection = Card(
         H4("Battery profile"),
