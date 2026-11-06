@@ -844,7 +844,7 @@ class TestConfigEOSToConfigFile:
 
 class TestDeviceSettings:
     def test_device_map_supplies_stable_identity(self):
-        raw = {"batteries": {"house": {"capacity_wh": 12000}}}
+        raw = {"batteries": {"house": {"nominal_capacity_wh": 12000}}}
         a = DevicesCommonSettings.model_validate(raw)
         b = DevicesCommonSettings.model_validate(raw)
         assert a.batteries is not None and b.batteries is not None

@@ -38,12 +38,17 @@ _KEEP_DEFAULT = object()
 
 def _list_to_device_dict(
     prefix: str,
+    migrate_item: Callable[[Dict[str, Any]], None] | None = None,
 ) -> Callable[[Any], Any]:
     """Return a transform that converts a list of device dicts to a keyed dict.
 
     Each item must be a dict.  The key is taken from the item's own
     ``device_id`` field when present; otherwise a key is synthesised
     from *prefix* + the zero-based index (e.g. ``"bat0"``, ``"bat1"``).
+
+    A dict that is already keyed by device id is accepted as well. If given,
+    *migrate_item* is called with a copy of every item (after the device id was
+    set) and migrates it in place, e.g. to rename or drop device specific fields.
     """
 
     def _transform(value: Any) -> Any:
@@ -67,10 +72,38 @@ def _list_to_device_dict(
                 item.setdefault(
                     "levelized_cost_of_storage_amt_kwh", item.pop("levelized_cost_of_storage_kwh")
                 )
+            if migrate_item is not None:
+                migrate_item(item)
             result[key] = item
         return result
 
     return _transform
+
+
+# Fields of BatteriesCommonSettings that used to be configuration fields and are
+# computed from the battery profile and the measurements now. Old values are dropped.
+# (max_charge_power_w is now the effective limit; the installation limit is the new
+# field max_charge_power_limit_w.)
+_BATTERY_FIELDS_NOW_COMPUTED = (
+    "charging_efficiency",
+    "discharging_efficiency",
+    "max_charge_power_w",
+)
+
+
+def _migrate_battery_item(item: Dict[str, Any]) -> None:
+    """Migrate one battery or electric vehicle settings dict in place.
+
+    - ``capacity_wh`` (the former configuration field) becomes
+      ``nominal_capacity_wh``. An already present ``nominal_capacity_wh`` wins.
+      The computed field is named ``resolved_nominal_capacity_wh``, so ``capacity_wh``
+      in a file is always a legacy value.
+    - Fields that are computed from the battery profile now are dropped.
+    """
+    if "capacity_wh" in item:
+        item.setdefault("nominal_capacity_wh", item.pop("capacity_wh"))
+    for name in _BATTERY_FIELDS_NOW_COMPUTED:
+        item.pop(name, None)
 
 
 # -----------------------------
@@ -105,15 +138,17 @@ MIGRATION_MAP: Dict[
     # These must come *before* any sub-path entries that reference the old list indices,
     # so the whole collection is moved first; the sub-path None-drops clean up leftovers.
     # - batteries
+    #   capacity_wh -> nominal_capacity_wh, fields that are computed now are dropped
     "devices/batteries": (
         "devices/batteries",
-        _list_to_device_dict("bat"),
+        _list_to_device_dict("bat", _migrate_battery_item),
     ),
     "devices/batteries/0/initial_soc_percentage": None,
     # - electric_vehicles
+    #   same item migration as for batteries
     "devices/electric_vehicles": (
         "devices/electric_vehicles",
-        _list_to_device_dict("ev"),
+        _list_to_device_dict("ev", _migrate_battery_item),
     ),
     "devices/electric_vehicles/0/initial_soc_percentage": None,
     # - inverters

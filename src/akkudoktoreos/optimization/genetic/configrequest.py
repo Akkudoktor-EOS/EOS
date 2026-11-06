@@ -167,7 +167,10 @@ class ConfigOptimizationRequest(
         battery = None
         if groups["batteries"]:
             device = groups["batteries"][0]
-            battery = device.to_genetic_pv_bat_param()
+            operating_parameters = await device.resolve_current_operating_parameters(
+                observation_time
+            )
+            battery = device.to_genetic_pv_bat_param(operating_parameters)
             battery.initial_soc_percentage = await state(device)
             deadline = await full_charge(device)
             horizon_end = start.add(seconds=settings.horizon * settings.interval_sec)
@@ -198,7 +201,10 @@ class ConfigOptimizationRequest(
         ev = None
         if groups["electric_vehicles"]:
             device = groups["electric_vehicles"][0]
-            ev = device.to_genetic_ev_bat_param()
+            operating_parameters = await device.resolve_current_operating_parameters(
+                observation_time
+            )
+            ev = device.to_genetic_ev_bat_param(operating_parameters)
             ev.initial_soc_percentage = await state(device)
         inverter = None
         if groups["inverters"]:

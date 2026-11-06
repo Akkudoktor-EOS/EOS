@@ -428,7 +428,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             channel,
             samples,
             battery_id=battery.device_id,
-            capacity_wh=battery.capacity_wh,
+            capacity_wh=battery.resolved_nominal_capacity_wh,
             charging_efficiency=battery.charging_efficiency,
             discharging_efficiency=battery.discharging_efficiency,
         )

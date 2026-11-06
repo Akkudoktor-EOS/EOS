@@ -580,13 +580,15 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.batteries = {
                         "battery1": {
                             "device_id": "battery1",
-                            "capacity_wh": 8000,
+                            "nominal_capacity_wh": 8000,
                         },
                     }
                 try:
                     # Take first battery
                     battery_config = list(cls.config.devices.batteries.values())[0]
-                    battery_params = battery_config.to_genetic0_pv_bat_param()
+                    battery_params = battery_config.to_genetic0_pv_bat_param(
+                        await battery_config.resolve_current_operating_parameters()
+                    )
                 except Exception as e:
                     logger.info(
                         "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
@@ -596,7 +598,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.batteries = {
                         "battery1": {
                             "device_id": "battery1",
-                            "capacity_wh": 8000,
+                            "nominal_capacity_wh": 8000,
                         },
                     }
                     # Retry
@@ -646,7 +648,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.electric_vehicles = {
                         "ev1": {
                             "device_id": "ev1",
-                            "capacity_wh": 50000,
+                            "nominal_capacity_wh": 50000,
                             "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
                         },
@@ -654,7 +656,9 @@ class Genetic0OptimizationParameters(
                 try:
                     # Take first electric_vehicle
                     electric_vehicle_config = list(cls.config.devices.electric_vehicles.values())[0]
-                    electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param()
+                    electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(
+                        await electric_vehicle_config.resolve_current_operating_parameters()
+                    )
                 except Exception as e:
                     logger.info(
                         "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
@@ -665,7 +669,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.electric_vehicles = {
                         "ev1": {
                             "device_id": "ev1",
-                            "capacity_wh": 50000,
+                            "nominal_capacity_wh": 50000,
                             "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
                         },

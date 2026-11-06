@@ -38,7 +38,7 @@ class DevicesCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "Stationary battery storage devices, keyed by device_id.",
-            "examples": [{"bat0": {"device_id": "bat0", "capacity_wh": 8000, "ports": []}}],
+            "examples": [{"bat0": {"device_id": "bat0", "nominal_capacity_wh": 8000, "ports": []}}],
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
@@ -57,7 +57,7 @@ class DevicesCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "Electric vehicle battery packs, keyed by device_id.",
-            "examples": [{"ev0": {"device_id": "ev0", "capacity_wh": 60000, "ports": []}}],
+            "examples": [{"ev0": {"device_id": "ev0", "nominal_capacity_wh": 60000, "ports": []}}],
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )

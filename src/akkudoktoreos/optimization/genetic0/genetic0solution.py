@@ -529,16 +529,28 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
           - Discharge: blocked when SOC is at or below min SOC.
+
+        The battery values are the optimizer parameters the solution was computed
+        with (capacity, efficiency, power limit and SOC range as resolved from the
+        battery profile), not the raw battery settings.
         """
-        bat_dict = self.config.devices.batteries
-        if bat_dict is None or len(bat_dict) <= 0:
+        parameters = getattr(self, "parameters", None)
+        if parameters is not None:
+            bat = parameters.pv_battery
+        else:
+            bat_dict = self.config.devices.batteries or {}
+            bat = list(bat_dict.values())[0].to_genetic0_pv_bat_param() if bat_dict else None
+        if bat is None:
             return ac_charge, dc_charge, discharge_allowed
 
-        bat = list(bat_dict.values())[0]
         min_soc = float(bat.min_soc_percentage)
         max_soc = float(bat.max_soc_percentage)
         capacity_wh = float(bat.capacity_wh)
         ch_eff = float(bat.charging_efficiency)
+        # Same fallback as the GENETIC0 battery simulation.
+        bat_max_charge_power_w = (
+            float(bat.max_charge_power_w) if bat.max_charge_power_w is not None else capacity_wh
+        )
         headroom_wh = max(0.0, (max_soc - soc_pct) / 100.0 * capacity_wh)
 
         # --- AC charge: scale to available headroom ---
@@ -553,7 +565,7 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
                 max_ac_cp_w = (
                     float(inv.max_ac_charge_power_w)
                     if inv and inv.max_ac_charge_power_w is not None
-                    else float(bat.max_charge_power_w)
+                    else bat_max_charge_power_w
                 )
                 max_dc_per_h_wh = effective_ac * max_ac_cp_w * ac_to_dc_eff * ch_eff
                 if max_dc_per_h_wh > headroom_wh:

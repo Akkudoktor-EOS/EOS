@@ -158,7 +158,9 @@ class TestGenetic0MeasuredSOC:
                     "max_electric_vehicles": 0,
                     "max_inverters": 1,
                     "max_home_appliances": 0,
-                    "batteries": {"storage": {"capacity_wh": 2000, "max_charge_power_w": 1000}},
+                    "batteries": {
+                        "storage": {"nominal_capacity_wh": 2000, "max_charge_power_limit_w": 1000}
+                    },
                     "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
                 },
             }
@@ -203,7 +205,9 @@ class TestGenetic0MeasuredSOC:
                     "max_electric_vehicles": 0,
                     "max_inverters": 1,
                     "max_home_appliances": 0,
-                    "batteries": {"storage": {"capacity_wh": 2000, "max_charge_power_w": 1000}},
+                    "batteries": {
+                        "storage": {"nominal_capacity_wh": 2000, "max_charge_power_limit_w": 1000}
+                    },
                     "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
                 },
             }
@@ -247,7 +251,9 @@ class TestGenetic0MeasuredSOC:
                     "max_electric_vehicles": 0,
                     "max_inverters": 1,
                     "max_home_appliances": 0,
-                    "batteries": {"storage": {"capacity_wh": 2000, "max_charge_power_w": 1000}},
+                    "batteries": {
+                        "storage": {"nominal_capacity_wh": 2000, "max_charge_power_limit_w": 1000}
+                    },
                     "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
                 },
             }
@@ -277,3 +283,50 @@ class TestGenetic0MeasuredSOC:
         assert parameters is not None
         assert parameters.pv_battery is not None
         assert parameters.pv_battery.initial_soc_percentage == 42
+
+
+class TestGenetic0DemoData:
+    """Demo device data used when no battery / electric vehicle is configured."""
+
+    @pytest.mark.asyncio
+    async def test_demo_devices_use_nominal_capacity(self, config_eos):
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {"hours": 48},
+                "optimization": {"genetic0": {"horizon_hours": 24}},
+                "elecfee": {"provider": None},
+                "devices": {
+                    "max_batteries": 1,
+                    "max_electric_vehicles": 1,
+                    "max_inverters": 0,
+                    "max_home_appliances": 0,
+                    "batteries": None,
+                    "electric_vehicles": None,
+                },
+            }
+        )
+        get_ems().set_start_datetime(to_datetime("2026-08-01T14:00:00+00:00"))
+        tariff = pd.Series(
+            0.00008, index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min")
+        )
+
+        async def read_array(**kwargs):
+            return np.full(48, 0.0003)
+
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(side_effect=read_array),
+            key_to_raw_series=AsyncMock(return_value=tariff),
+        )
+        with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
+            parameters = await Genetic0OptimizationParameters.prepare()
+
+        assert parameters is not None
+        # The demo capacities must reach the settings (``nominal_capacity_wh``);
+        # the legacy key ``capacity_wh`` would be ignored and fall back to 8000 Wh.
+        assert config_eos.devices.batteries["battery1"].nominal_capacity_wh == 8000
+        assert config_eos.devices.electric_vehicles["ev1"].nominal_capacity_wh == 50000
+        assert parameters.pv_battery is not None
+        assert parameters.pv_battery.capacity_wh == 8000
+        assert parameters.ev is not None
+        assert parameters.ev.capacity_wh == 50000

@@ -227,9 +227,8 @@ def test_ev_deadlines_roundtrip_without_changing_slot_physics() -> None:
     settings = BatteriesCommonSettings.model_validate(
         {
             "device_id": "car",
-            "capacity_wh": 10000,
-            "charging_efficiency": 0.8,
-            "max_charge_power_w": 4000,
+            "nominal_capacity_wh": 10000,
+            "max_charge_power_limit_w": 4000,
             "min_soc_deadline_datetime": "2026-09-16T07:30:00+02:00",
             "min_soc_max_duration_h": 2.5,
         }
@@ -238,20 +237,28 @@ def test_ev_deadlines_roundtrip_without_changing_slot_physics() -> None:
     assert params.min_soc_max_duration_h == 2.5
     assert params.min_soc_deadline_datetime is not None
     assert params.min_soc_deadline_datetime.in_timezone("Europe/Berlin").hour == 7
+    assert params.capacity_wh == 10000
+    assert params.max_charge_power_w == pytest.approx(4000)
     battery = Battery(params, prediction_hours=16, slot_duration_h=0.25)
     battery.charge_array[0] = 1
+    # 4000 W for a 0.25 h slot caps the 2000 Wh request at 1000 Wh; the charging
+    # efficiency comes from the battery profile.
     charged, losses = battery.charge_energy(2000, hour=0)
-    assert charged == pytest.approx(800)
-    assert losses == pytest.approx(200)
+    assert charged == pytest.approx(1000 * params.charging_efficiency)
+    assert losses == pytest.approx(1000 * (1 - params.charging_efficiency))
     assert "min_soc_deadline_datetime" not in settings.to_genetic0_ev_bat_param().model_dump()
 
 
 @pytest.mark.parametrize("duration", [0.0, -1.0, float("inf"), float("nan")])
 def test_ev_invalid_departure_durations_rejected(duration: float) -> None:
-    for model in (ElectricVehicleParameters, BatteriesCommonSettings):
+    # Optimizer parameters take "capacity_wh", settings take "nominal_capacity_wh".
+    for model, capacity_key in (
+        (ElectricVehicleParameters, "capacity_wh"),
+        (BatteriesCommonSettings, "nominal_capacity_wh"),
+    ):
         with pytest.raises(ValidationError):
             model.model_validate(
-                {"device_id": "car", "capacity_wh": 10000, "min_soc_max_duration_h": duration}
+                {"device_id": "car", capacity_key: 10000, "min_soc_max_duration_h": duration}
             )
 
 

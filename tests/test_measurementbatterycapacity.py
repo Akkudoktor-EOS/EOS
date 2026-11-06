@@ -4,6 +4,7 @@ import pytest_asyncio
 
 # ruff: noqa: S101
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -169,9 +170,7 @@ async def database_case(config_eos):
                 "batteries": {
                     "battery": {
                         "device_id": "battery",
-                        "capacity_wh": 12000,
-                        "charging_efficiency": 1,
-                        "discharging_efficiency": 1,
+                        "nominal_capacity_wh": 12000,
                         "capacity_estimation": {
                             "power_key": "battery_dc",
                             "positive_power": "charging",
@@ -217,29 +216,33 @@ def test_http_reads_database_and_stores_only_explicit_estimate(database_case):
         "start_soc_percentage": 20,
         "soc_reference": "voltage_current_anchor",
     }
+    # The charging efficiency comes from the battery profile; at efficiency 1 the
+    # samples give 10000 Wh.
+    battery = database_case.devices.batteries["battery"]
+    expected_wh = 10000 * battery.charging_efficiency
     response = client.post("/v1/measurement/battery-capacity/battery", json=body)
     assert response.status_code == 200, response.text
-    assert response.json()["estimated_capacity_wh"] == pytest.approx(10000)
-    battery = database_case.devices.batteries["battery"]
+    assert response.json()["estimated_capacity_wh"] == pytest.approx(expected_wh)
     assert battery.capacity_estimate is None
-    assert battery.capacity_wh == 12000
+    assert battery.resolved_nominal_capacity_wh == 12000
     body["store_estimate"] = True
     response = client.post("/v1/measurement/battery-capacity/battery", json=body)
     assert response.status_code == 200, response.text
     battery = database_case.devices.batteries["battery"]
     assert battery.capacity_estimate is not None
-    assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(10000)
-    assert battery.capacity_wh == 12000
+    assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(expected_wh)
+    assert battery.resolved_nominal_capacity_wh == 12000
     database_case.merge_settings_from_dict({"optimization": {"genetic": {"individuals": 100}}})
     battery = database_case.devices.batteries["battery"]
     assert battery.capacity_estimate is not None
-    assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(10000)
-    assert battery.capacity_wh == 12000
+    assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(expected_wh)
+    assert battery.resolved_nominal_capacity_wh == 12000
 
-    # The estimate survives normal config serialization without becoming capacity_wh.
+    # The estimate survives normal config serialization without becoming nominal_capacity_wh.
     data = database_case.to_config_json()
-    assert '"estimated_capacity_wh": 10000.0' in data
-    assert '"capacity_wh": 12000' in data
+    stored = json.loads(data)["devices"]["batteries"]["battery"]
+    assert stored["capacity_estimate"]["estimated_capacity_wh"] == pytest.approx(expected_wh)
+    assert stored["nominal_capacity_wh"] == 12000
     previous = battery.capacity_estimate
     body["start_soc_percentage"] = 100
     assert client.post("/v1/measurement/battery-capacity/battery", json=body).status_code == 422

@@ -15,7 +15,7 @@
         "batteries": {
             "pv_akku": {
                 "device_id": "pv_akku",
-                "capacity_wh": 30000
+                "nominal_capacity_wh": 30000
             }
         },
         "electric_vehicles": {

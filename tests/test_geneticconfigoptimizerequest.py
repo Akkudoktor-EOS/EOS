@@ -61,8 +61,8 @@ def configured_request(config_eos, monkeypatch):
                 "max_home_appliances": 2,
                 "batteries": {
                     "storage": {
-                        "capacity_wh": 2000,
-                        "max_charge_power_w": 1000,
+                        "nominal_capacity_wh": 2000,
+                        "max_charge_power_limit_w": 1000,
                         "levelized_cost_of_storage_amt_kwh": 0.01,
                     }
                 },
@@ -534,7 +534,7 @@ async def test_missing_ev_soc_does_not_replace_explicit_battery_soc(configured_r
     config, _, _, data = configured_request
     config.merge_settings_from_dict(
         {"devices": {"max_electric_vehicles": 1,
-                     "electric_vehicles": {"car": {"capacity_wh": 60000}}}}
+                     "electric_vehicles": {"car": {"nominal_capacity_wh": 60000}}}}
     )
     parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
@@ -551,8 +551,8 @@ async def test_http_config_and_real_optimizer_allow_full_ev_target(configured_re
 
     config, fake, _, data = configured_request
     config.merge_settings_from_dict({"devices": {"max_electric_vehicles": 1,
-        "electric_vehicles": {"ev": {"capacity_wh": 1000, "max_charge_power_w": 1000,
-            "charging_efficiency": 1, "min_soc_percentage": 0,
+        "electric_vehicles": {"ev": {"nominal_capacity_wh": 1000,
+            "max_charge_power_limit_w": 1000, "min_soc_percentage": 0,
             "max_soc_percentage": 100}}}})
     data["soc"]["ev"] = soc
     ems = EnergyManagement()
@@ -589,7 +589,7 @@ async def test_explicit_ev_soc_has_no_measurement_age_limit(configured_request, 
     config, ems, measurement, data = configured_request
     config.merge_settings_from_dict(
         {"devices": {"max_electric_vehicles": 1,
-                     "electric_vehicles": {"car": {"capacity_wh": 60000,
+                     "electric_vehicles": {"car": {"nominal_capacity_wh": 60000,
                                                  "min_soc_percentage": 100,
                                                  "max_soc_percentage": 100}}}}
     )

@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.0",
+  "battery_model": "Generic LFP home battery",
+  "chemistry": "LFP",
+  "nominal_capacity_kwh": null,
+  "nominal_voltage_v": null,
+  "units": {
+    "temperature": "degC",
+    "soc": "percent",
+    "limit": "C-rate"
+  },
+  "interpolation": "bilinear",
+  "out_of_range_behavior": "clamp_to_nearest",
+  "axes": {
+    "temperature_degC": [
+      -10.0, -7.5, -5.0, -2.5,
+      0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0,
+      20.0, 25.0, 35.0, 48.0, 55.0, 60.0
+    ],
+    "soc_percent": [0, 40, 80, 100]
+  },
+  "charge_limit_crate": {
+    "description": "Max charge C-rate; rows = temperature, cols = SOC. Rows below 0 degC are zero because the datasheet curve ends at 0 degC with C-rate 0 and the charge hard cutoff is at 0 degC. The two nearly coincident SOC columns at 79.9999 and 80.0001 reproduce the datasheet's step at SOC 80 under bilinear interpolation.",
+    "values": [
+      [0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0],
+      [0.1, 0.1, 0.1, 0.1],
+      [0.1, 0.1, 0.1, 0.1],
+      [0.38, 0.38, 0.38, 0.38],
+      [0.38, 0.38, 0.38, 0.38],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.5, 0.5, 0.5, 0.5],
+      [1.0, 1.0, 1.0, 0.75],
+      [1.0, 1.0, 1.0, 0.8],
+      [1.0, 1.0, 1.0, 0.8],
+      [0.8, 0.8, 0.8, 0.8],
+      [0.27, 0.27, 0.27, 0.27],
+      [0.0, 0.0, 0.0, 0.0]
+    ]
+  },
+  "discharge_limit_crate": {
+    "description": "Generic continuous discharge C-rate for an LFP home battery. 0.5C in the normal range, derated near the low and high temperature ends. Peak discharge (typically around 1C) is deliberately not represented; only the continuous rating is stored, which is the safe value for controller-side power limiting.",
+    "values": [
+      [0.0, 0.0, 0.0, 0.0],
+      [0.1, 0.1, 0.1, 0.1],
+      [0.2, 0.2, 0.2, 0.2],
+      [0.3, 0.3, 0.3, 0.3],
+      [0.3, 0.3, 0.3, 0.3],
+      [0.3, 0.3, 0.3, 0.3],
+      [0.3, 0.3, 0.3, 0.3],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.5, 0.5, 0.5, 0.5],
+      [0.3, 0.3, 0.3, 0.3],
+      [0.2, 0.2, 0.2, 0.2],
+      [0.0, 0.0, 0.0, 0.0]
+    ]
+  },
+  "charge_efficiency": {
+    "description": "Generic one-way DC charge efficiency of an LFP battery pack (cells and BMS) versus absolute C-rate. Losses grow with current (I^2 R), so efficiency falls slowly with C-rate. AC/DC conversion losses are not included; they belong to the inverter settings (ac_to_dc_efficiency).",
+    "c_rate": [0.05, 0.1, 0.25, 0.5, 0.75, 1.0],
+    "efficiency": [0.975, 0.975, 0.97, 0.96, 0.95, 0.94],
+    "interpolation": "linear",
+    "out_of_range_behavior": "clamp_to_nearest"
+  },
+  "discharge_efficiency": {
+    "description": "Generic one-way DC discharge efficiency of an LFP battery pack (cells and BMS) versus absolute C-rate. The curve ends at the 0.5C continuous discharge rating of this profile; higher C-rates are clamped to the last point. DC/AC conversion losses are not included; they belong to the inverter settings (dc_to_ac_efficiency).",
+    "c_rate": [0.05, 0.1, 0.25, 0.5],
+    "efficiency": [0.975, 0.975, 0.97, 0.96],
+    "interpolation": "linear",
+    "out_of_range_behavior": "clamp_to_nearest"
+  },
+  "hard_cutoffs": {
+    "charge_allowed_below_degC": 0.0,
+    "charge_allowed_above_degC": 60.0,
+    "discharge_allowed_below_degC": -10.0,
+    "discharge_allowed_above_degC": 60.0,
+    "note": "Charge is inhibited strictly below 0 degC and strictly above 60 degC. At exactly 0 degC and exactly 60 degC the charge map returns 0.0, so charging is effectively disabled there too. Discharge is inhibited strictly below -10 degC and strictly above 60 degC; the discharge map already reaches 0.0 at both ends, so the hard cutoff only governs whether the accessor returns None or 0.0."
+  }
+}
