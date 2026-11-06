@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help install dist test test-system test-ci test-profile \
+.PHONY: help install dist test test-system test-ci test-browser test-profile \
         docker-run docker-build docs read-docs clean format gitlint mypy \
         run run-dev run-dash run-dash-dev prepare-version test-version uv-update
 
@@ -41,6 +41,7 @@ help:
 	@echo "  test-finalize - Run all tests (e.g. to finalize a commit)."
 	@echo "  test-system   - Run tests with system tests enabled."
 	@echo "  test-ci       - Run tests as CI does. No user config file allowed."
+	@echo "  test-browser  - Run the EOSdash browser tests in headless Chromium (installs Chromium)."
 	@echo "  test-profile  - Run single test optimization with profiling."
 	@echo "  dist          - Create distribution (in dist/)."
 	@echo "  clean         - Remove generated documentation, distribution and virtual environment."
@@ -138,6 +139,13 @@ test:
 test-ci:
 	@echo "Running tests as CI..."
 	$(PYTEST) --finalize --check-config-side-effect -vs --cov src --cov-report term-missing
+
+# Target to run the EOSdash browser tests in headless Chromium.
+# The browser is installed for the user (~/.cache/ms-playwright), not in the virtual environment.
+test-browser:
+	@echo "Running EOSdash browser tests..."
+	$(UV) run playwright install chromium
+	$(PYTEST) --browser-test -m browser -vs
 
 # Target to run tests including the system tests.
 test-system:

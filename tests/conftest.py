@@ -110,6 +110,48 @@ def pytest_addoption(parser):
         default=False,
         help="System test mode. Tests may access real resources, like prediction providers!",
     )
+    parser.addoption(
+        "--browser-test",
+        action="store_true",
+        default=False,
+        help=(
+            "Run the EOSdash browser tests (marker 'browser') in headless Chromium. "
+            "Needs the browser: uv run playwright install chromium"
+        ),
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip the browser tests unless --browser-test is given."""
+    if config.getoption("--browser-test"):
+        return
+    skip_browser = pytest.mark.skip(reason="browser test: enable with --browser-test")
+    for item in items:
+        if "browser" in item.keywords:
+            item.add_marker(skip_browser)
+
+
+@pytest.fixture(scope="session")
+def chromium():
+    """Headless Chromium for the EOSdash browser tests, shared by the session.
+
+    Fails (does not skip) if the browser cannot be started: browser tests only
+    run when requested by --browser-test, so a missing browser is an error.
+    """
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        try:
+            browser = playwright.chromium.launch()
+        except PlaywrightError as exc:
+            pytest.fail(
+                f"Headless Chromium cannot be started: {exc}\n"
+                "Install it with: uv run playwright install --with-deps chromium",
+                pytrace=False,
+            )
+        yield browser
+        browser.close()
 
 
 @pytest.fixture
