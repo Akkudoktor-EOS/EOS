@@ -6,10 +6,10 @@ request covers a single plane:
 
     GET https://api.forecast.solar[/{api_key}]/estimate/{lat}/{lon}/{dec}/{az}/{kwp}
 
-``result.watts`` is the instantaneous AC power per timestamp — exactly what the
-optimizer consumes as ``pvforecast_ac_power``. EOS plants with several roof
-planes issue one request per plane and the instantaneous powers are summed per
-timestamp.
+``result.watts`` contains instantaneous AC power, including non-aligned sunrise
+and sunset samples. Integrate each plane's piecewise-linear power curve into
+15-minute interval averages before summing planes. This is the interval-start
+power representation consumed by EOS; conversion to slot Wh happens downstream.
 
 Note on conventions:
     - Forecast.Solar azimuth is -180=N, -90=E, 0=S, 90=W, whereas EOS
@@ -19,6 +19,7 @@ Note on conventions:
       to resolve them to absolute instants before EOS resamples them.
 """
 
+import math
 import re
 from typing import Any, Optional
 
@@ -30,11 +31,12 @@ from pydantic import Field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 FORECAST_SOLAR_BASE = "https://api.forecast.solar"
 
 _TZ_SUFFIX = re.compile(r"([zZ]|[+-]\d\d:?\d\d)$")
+_INTERVAL_SECONDS = 900
 
 
 class PVForecastForecastSolarCommonSettings(SettingsBaseModel):
@@ -65,7 +67,7 @@ class PVForecastForecastSolar(PVForecastProvider):
         settings = self.config.pvforecast.forecastsolar
         return settings.api_key if settings is not None else None
 
-    def _to_utc_datetime(self, local_ts: Any, iana_tz: Optional[str]) -> Any:
+    def _to_utc_datetime(self, local_ts: Any, iana_tz: Optional[str]) -> DateTime:
         """Resolve a Forecast.Solar wall-clock timestamp to a timezone-aware datetime."""
         s = str(local_ts).strip()
         if _TZ_SUFFIX.search(s):
@@ -75,6 +77,63 @@ class PVForecastForecastSolar(PVForecastProvider):
         if not isinstance(dt, pendulum.DateTime):
             raise ValueError(f"Expected a datetime, got {local_ts!r}")
         return to_datetime(dt.isoformat())
+
+    def _interval_power(self, watts: dict[str, Any], timezone: Optional[str]) -> dict[int, float]:
+        """Integrate instantaneous samples without bridging missing daylight data.
+
+        Forecast.Solar supplies at most hourly daylight samples. A larger gap,
+        invalid power, or an unobserved day remains missing. Only an explicit
+        zero at the first/last sample of a day establishes the adjacent night,
+        up to that local day's midnight. Never extend into an unforecast day.
+        UTC seconds preserve energy and both occurrences of a DST fall-back hour.
+        """
+        tz = timezone or str(self.config.general.timezone)
+        days: dict[DateTime, dict[int, float]] = {}
+        for ts, power in watts.items():
+            try:
+                date = self._to_utc_datetime(ts, timezone).in_timezone(tz)
+            except (ValueError, TypeError) as exc:
+                logger.warning(f"Forecast.Solar: skipping unparseable timestamp {ts!r}: {exc}")
+                continue
+            try:
+                value = float(power)
+            except (ValueError, TypeError):
+                value = math.nan
+            if not math.isfinite(value) or value < 0:
+                value = math.nan
+            days.setdefault(date.start_of("day"), {})[int(date.timestamp())] = value
+
+        averages: dict[int, float] = {}
+        for day, samples in sorted(days.items()):
+            start = int(day.timestamp())
+            end = int(day.add(days=1).timestamp())
+            points = sorted(samples.items())
+            segments: list[tuple[int, int, float, float]] = []
+            if len(points) >= 2:
+                if points[0][1] == 0:
+                    segments.append((start, points[0][0], 0.0, 0.0))
+                for (left, p_left), (right, p_right) in zip(points, points[1:]):
+                    if right - left <= 3600 and math.isfinite(p_left) and math.isfinite(p_right):
+                        segments.append((left, right, p_left, p_right))
+                if points[-1][1] == 0:
+                    segments.append((points[-1][0], end, 0.0, 0.0))
+
+            for slot in range(start, end, _INTERVAL_SECONDS):
+                energy = 0.0
+                covered = 0
+                for left, right, p_left, p_right in segments:
+                    a = max(slot, left)
+                    b = min(slot + _INTERVAL_SECONDS, right)
+                    if b <= a:
+                        continue
+                    slope = (p_right - p_left) / (right - left)
+                    # Exact trapezoidal integral of this linear segment, in W s.
+                    energy += (p_left + slope * ((a + b) / 2 - left)) * (b - a)
+                    covered += b - a
+                averages[slot] = (
+                    energy / _INTERVAL_SECONDS if covered == _INTERVAL_SECONDS else math.nan
+                )
+        return averages
 
     def _plane_url(self, plane: Any) -> str:
         """Build the single-plane estimate URL for the given plane configuration."""
@@ -105,8 +164,7 @@ class PVForecastForecastSolar(PVForecastProvider):
         if not planes:
             raise ValueError("PVForecastForecastSolar needs at least one pvforecast.planes entry")
 
-        summed: dict[str, float] = {}
-        timezone: Optional[str] = None
+        plane_power: list[dict[int, float]] = []
         for plane in planes:
             url = self._plane_url(plane)
             logger.debug(f"Requesting Forecast.Solar estimate: {url}")
@@ -117,17 +175,22 @@ class PVForecastForecastSolar(PVForecastProvider):
                 logger.error(f"Failed to fetch pvforecast from Forecast.Solar: {e}")
                 raise RuntimeError("Failed to fetch pvforecast from Forecast.Solar API") from e
             data = response.json()
-            if timezone is None:
-                timezone = (data.get("message", {}).get("info", {}) or {}).get("timezone")
+            timezone = (data.get("message", {}).get("info", {}) or {}).get("timezone")
             watts = (data.get("result", {}) or {}).get("watts", {}) or {}
-            for ts, power in watts.items():
-                try:
-                    summed[ts] = summed.get(ts, 0.0) + float(power)
-                except (TypeError, ValueError):
-                    continue
+            plane_power.append(self._interval_power(watts, timezone))
+
+        # Align before adding: planes can have different sunrise/sunset timestamps.
+        # Missing coverage on any plane must not become a valid partial plant forecast.
+        stamps = sorted({stamp for power in plane_power for stamp in power})
+        summed = {
+            to_datetime(stamp, in_timezone="UTC").isoformat(): sum(
+                power.get(stamp, math.nan) for power in plane_power
+            )
+            for stamp in stamps
+        }
 
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
-        return {"timezone": timezone, "watts": summed}
+        return {"timezone": "UTC", "watts": summed}
 
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the PVForecastDataRecord format."""
@@ -139,6 +202,16 @@ class PVForecastForecastSolar(PVForecastProvider):
         timezone = body.get("timezone")
         watts = body.get("watts", {})
 
+        if watts:
+            # Replace the refreshed forecast, including old irregular timestamps
+            # and stale tails. Cadence inference also sees historical rows, so
+            # invalidate legacy non-aligned forecasts once on upgrade. Subsequent
+            # refreshes preserve the normalized forecast history.
+            stored = await self.key_to_raw_series("pvforecast_ac_power", dropna=False)
+            legacy = any(stamp.timestamp() % _INTERVAL_SECONDS for stamp in stored.index)
+            start = min(self._to_utc_datetime(ts, timezone) for ts in watts)
+            await self.delete_by_datetime(start_datetime=None if legacy else start)
+
         count = 0
         for ts, power_w in sorted(watts.items()):
             try:
@@ -146,7 +219,7 @@ class PVForecastForecastSolar(PVForecastProvider):
             except Exception as e:  # noqa: BLE001 - skip unparseable rows
                 logger.warning(f"Forecast.Solar: skipping unparseable timestamp {ts!r}: {e}")
                 continue
-            value = round(float(power_w), 1)
+            value = float(power_w)
             await self.update_value(
                 date,
                 {"pvforecast_ac_power": value, "pvforecast_dc_power": value},

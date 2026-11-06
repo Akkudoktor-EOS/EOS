@@ -1,7 +1,7 @@
 """Configuration-owned requests and the real automatic GENETIC path."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import numpy as np
@@ -21,6 +21,7 @@ from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationCommonSettings,
 )
+from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
@@ -88,6 +89,80 @@ def configured_request(config_eos, monkeypatch):
         },
     }
     return config_eos, ems, measurement, data
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("interval", [900, 3600])
+async def test_forecastsolar_resolves_without_runtime_override(
+    configured_request, monkeypatch, interval
+):
+    config, ems, _, data = configured_request
+    config.merge_settings_from_dict(
+        {
+            "general": {"latitude": 52.5, "longitude": 13.4, "timezone": "Europe/Berlin"},
+            "prediction": {"hours": 48},
+            "optimization": {"genetic": {"interval_sec": interval, "horizon_hours": 24}},
+            "pvforecast": {
+                "provider": "PVForecastForecastSolar",
+                "planes": [
+                    {"surface_tilt": 45, "surface_azimuth": 217, "peakpower": 8.05},
+                ],
+            },
+        }
+    )
+    ems.start_datetime = to_datetime("2026-11-02T10:00:00+01:00", in_timezone="Europe/Berlin")
+    ems.observation_datetime = ems.start_datetime
+    data["forecasts"] = {}
+    pv = PVForecastForecastSolar(config=config.load)
+    watts = {
+        f"2026-11-{day} {time}": power
+        for day in ("02", "03")
+        for time, power in {
+            "07:16:18": 0,
+            "08:00:00": 1000,
+            "09:00:00": 1000,
+            "10:00:00": 1000,
+            "11:00:00": 1000,
+            "12:00:00": 1000,
+            "13:00:00": 1000,
+            "14:00:00": 1000,
+            "15:00:00": 1000,
+            "16:00:00": 1000,
+            "16:55:54": 0,
+        }.items()
+    }
+
+    async def read(key, **kwargs):
+        if key == "pvforecast_ac_power":
+            return await pv.key_to_raw_series(key, **kwargs)
+        value = {
+            "loadforecast_power_w": 2000,
+            "elecprice_marketprice_wh": 0.0003,
+            "feed_in_tariff_wh": 0.00008,
+        }[key]
+        return pd.Series(
+            [value] * 72, index=pd.date_range("2026-11-02T00:00:00+01:00", periods=72, freq="h")
+        )
+
+    async def update():
+        # Isolate this synthetic response from the provider's on-disk cache.
+        await pv._update_data(force_update=True)
+
+    prediction = SimpleNamespace(update_data=AsyncMock(side_effect=update), key_to_raw_series=read)
+    monkeypatch.setattr(ConfigOptimizationRequest, "prediction", prediction)
+    response = Mock()
+    response.json.return_value = {
+        "result": {"watts": watts},
+        "message": {"info": {"timezone": "Europe/Berlin"}},
+    }
+    with patch("requests.get", return_value=response):
+        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    prediction.update_data.assert_awaited_once()
+    energy = parameters.ems.pv_forecast_wh
+    assert energy[10 * 3600 // interval] == pytest.approx(1000 * interval / 3600)
+    assert energy[17 * 3600 // interval : 24 * 3600 // interval] == [0] * (7 * 3600 // interval)
+    assert np.isfinite(energy[10 * 3600 // interval : 34 * 3600 // interval]).all()
+    await pv.delete_by_datetime()
 
 
 @pytest.mark.asyncio
@@ -208,8 +283,10 @@ async def test_control_gaps_fail_but_shorter_tail_is_accepted(configured_request
     parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
     assert len(parameters.ems.total_load) == 50
     data["forecasts"]["electricity_price_per_wh"][42] = np.nan
-    with pytest.raises(ValueError, match="control horizon"):
+    with pytest.raises(ValueError, match="control horizon") as error:
         await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert "2026-09-12T10:30:00+00:00, 2026-09-12T10:45:00+00:00" in str(error.value)
+    assert "1 invalid interval(s)" in str(error.value)
 
 
 @pytest.mark.asyncio
