@@ -1082,6 +1082,10 @@ class GeneticOptimization(OptimizationBase):
         # Slot by which the EV has to reach its target SoC. None means the SoC is
         # only required at the end of the horizon (the behaviour without a deadline).
         self._ev_soc_deadline_slot: Optional[int] = None
+        # Slot by which a due periodic full charge of the stationary battery has
+        # to have happened. None means no full charge is enforced in this run.
+        self._full_charge_deadline_slot: Optional[int] = None
+        self._full_charge_target_soc: Optional[int] = None
         # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
@@ -1235,6 +1239,32 @@ class GeneticOptimization(OptimizationBase):
             return None
         # A deadline in the past means the target is due right now.
         return max(deadline_slot, start_slot)
+
+    def _full_charge_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
+        """Slot by which the battery has to reach its full charge target once.
+
+        Args:
+            parameters: Optimization parameters of this run.
+
+        Returns:
+            Absolute slot index, capped to the end of the control horizon, or None
+            when no full charge is due.
+        """
+        battery = parameters.pv_battery
+        if battery is None or battery.full_charge_soc_percentage is None:
+            return None
+
+        start_slot = self._control_start_slot()
+        deadline = battery.full_charge_deadline_datetime
+        if deadline is None:
+            return self.control_end_slot
+        if self._slot0_datetime is None:
+            raise ValueError("Full charge deadline requires a run start timestamp.")
+        seconds = (
+            deadline.in_timezone(self._slot0_datetime.timezone) - self._slot0_datetime
+        ).total_seconds()
+        deadline_slot = math.floor(seconds / (self.slot_duration_h * 3600) + 1e-9)
+        return min(max(deadline_slot, start_slot), self.control_end_slot)
 
     def _validate_forecast_availability(self) -> None:
         """Use only the contiguous finite forecast prefix after now."""
@@ -3560,6 +3590,38 @@ class GeneticOptimization(OptimizationBase):
         except (TypeError, ValueError):
             return _pack_genes([int(value) for value in relevant])
 
+    def _battery_max_soc_until_full_charge_deadline(
+        self, simulation_result: dict[str, Any], start_slot: int
+    ) -> Optional[float]:
+        """Highest battery SoC reached before the full charge deadline [%].
+
+        The full charge only has to happen once, so the maximum counts, not the
+        SoC at the deadline. ``akku_soc_pro_stunde`` holds the SoC at the start of
+        each slot; the SoC at the start of the deadline slot includes every charge
+        that finished in time. A deadline at the end of the horizon also counts
+        the SoC after the last slot.
+
+        Args:
+            simulation_result: Result of the simulation run for this individual.
+            start_slot: Slot index the result arrays start at.
+
+        Returns:
+            State of charge in percent, or None when no full charge is due.
+        """
+        deadline_slot = getattr(self, "_full_charge_deadline_slot", None)
+        battery = self.simulation.battery
+        if deadline_slot is None or battery is None:
+            return None
+        soc_per_slot = simulation_result.get("akku_soc_pro_stunde")
+        if soc_per_slot is None:
+            return battery.current_soc_percentage()
+        index = deadline_slot - start_slot
+        reached = [float(value) for value in soc_per_slot[: max(index, 0) + 1]]
+        if index >= len(soc_per_slot):
+            reached.append(battery.current_soc_percentage())
+        reached = [value for value in reached if math.isfinite(value)]
+        return max(reached) if reached else battery.current_soc_percentage()
+
     def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
         """EV state of charge the target is checked against [%].
 
@@ -3793,6 +3855,25 @@ class GeneticOptimization(OptimizationBase):
                         ac_wh = dc_wh / max(inv.ac_to_dc_efficiency, 1e-9)
                         excess_cost_per_wh = break_even_price - best_uncovered_price
                         gesamtbilanz += ac_wh * excess_cost_per_wh * ac_penalty_factor
+
+        # --- Periodic full charge (e.g. LFP recalibration) ---
+        # Only the shortfall of the best SoC reached before the deadline counts,
+        # so the optimizer is free to pick the cheapest slot for it.
+        # Lightweight callers construct the optimizer without __init__ (see
+        # evaluate()); a missing target must behave like no full charge.
+        target = getattr(self, "_full_charge_target_soc", None)
+        if target is not None:
+            reached = self._battery_max_soc_until_full_charge_deadline(
+                simulation_result, start_hour
+            )
+            if reached is not None and reached < target:
+                try:
+                    full_charge_penalty = float(
+                        self._genetic_cfg.penalties["battery_full_charge_miss"]
+                    )
+                except Exception:
+                    full_charge_penalty = 10.0
+                gesamtbilanz += (target - reached) * full_charge_penalty
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
@@ -4242,6 +4323,16 @@ class GeneticOptimization(OptimizationBase):
         # EV charging deadline (departure). Resolved once per run; the seeding
         # heuristic and the SoC penalty both read it.
         self._ev_soc_deadline_slot = self._ev_deadline_slot(parameters)
+        self._full_charge_deadline_slot = self._full_charge_slot(parameters)
+        self._full_charge_target_soc = (
+            parameters.pv_battery.full_charge_soc_percentage
+            if self._full_charge_deadline_slot is not None and parameters.pv_battery
+            else None
+        )
+        if self._full_charge_deadline_slot is not None:
+            logger.debug(
+                "Battery full charge required by slot {}.", self._full_charge_deadline_slot
+            )
         if self._ev_soc_deadline_slot is not None:
             logger.debug(
                 "EV target SoC required by slot {} ({}).",
