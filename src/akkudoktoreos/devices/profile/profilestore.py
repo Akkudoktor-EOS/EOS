@@ -258,7 +258,7 @@ class ProfileStore(SingletonMixin):
         if hasattr(self, "_initialized"):
             return
         self._compiled: dict[_CacheKey, tuple[_FileState, Any]] = {}
-        self._lock = threading.Lock()  # guards _compiled and _write_locks, never held for I/O
+        self._cache_lock = threading.Lock()  # guards _compiled and _write_locks, never held for I/O
         self._write_locks: dict[Path, threading.Lock] = {}
         self._initialized = True
 
@@ -374,12 +374,12 @@ class ProfileStore(SingletonMixin):
 
     def _write_lock(self, path: Path) -> threading.Lock:
         """Return the lock that serializes writes of one profile file."""
-        with self._lock:
+        with self._cache_lock:
             return self._write_locks.setdefault(path, threading.Lock())
 
     def _invalidate(self, path: Path) -> None:
         """Drop the compiled profiles built from a file."""
-        with self._lock:
+        with self._cache_lock:
             for key in [key for key in self._compiled if key.path == path]:
                 del self._compiled[key]
 
@@ -479,14 +479,14 @@ class ProfileStore(SingletonMixin):
         state = _FileState(stat.st_mtime_ns, stat.st_size)
         key = _CacheKey(document_type, path, _options_key(document_type, options))
 
-        with self._lock:
+        with self._cache_lock:
             cached = self._compiled.get(key)
         if cached is not None and cached[0] == state:
             compiled_cached: CompiledT = cached[1]
             return compiled_cached
 
         compiled = self.load_file(document_type, path).compile_profile(**options)
-        with self._lock:
+        with self._cache_lock:
             self._compiled[key] = (state, compiled)
         return compiled
 
@@ -496,7 +496,7 @@ class ProfileStore(SingletonMixin):
         Args:
             document_type: Drop only the profiles of this type; all if None.
         """
-        with self._lock:
+        with self._cache_lock:
             if document_type is None:
                 self._compiled.clear()
                 return
