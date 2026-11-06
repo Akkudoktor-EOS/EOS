@@ -987,6 +987,12 @@ class GeneticOptimization(OptimizationBase):
     IMMIGRANT_PROTECTION_FRACTION = 0.25
     SOFT_RESTART_SURVIVOR_FRACTION = 0.20
     POINT_MUTATION_EXPECTED_GENES = 3.0
+    # Share of EV mutations that only shift charging in time (_mutate_ev_shift),
+    # and the longest segment such a shift moves at once. The length is counted
+    # in slots, so it is 2 h on a 15-minute grid and 8 h on an hourly grid; a
+    # segment never exceeds half of the slots the shift can use.
+    EV_SHIFT_MUTATION_PROBABILITY = 0.50
+    EV_SHIFT_MAX_SLOTS = 8
 
     # Per-run configuration snapshot. The optimization reads horizon, tail,
     # interval and prediction hours many times during a run. A client that
@@ -1110,6 +1116,10 @@ class GeneticOptimization(OptimizationBase):
         # First slot the EV may charge in (earliest charge start). The control
         # start means no restriction (the behaviour without a charge start).
         self._ev_first_charge_slot: int = 0
+        # Target SoC [%] the EV has to reach (parameters.ev.min_soc_percentage).
+        # The EV Battery itself always has a minimum SoC of 0 %, so the target
+        # has to be kept here for the seeding heuristic.
+        self._ev_target_soc_percentage: Optional[float] = None
         # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
@@ -2359,33 +2369,96 @@ class GeneticOptimization(OptimizationBase):
             changed = True
 
         if self.optimize_ev and random.random() < 0.40:  # noqa: S311
-            ev_start = self.control_end_slot + self._ev_first_charge_gene_slot()
-            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
-            ev_part = list(individual[ev_start:ev_end])
-            ev_before = list(ev_part)
-            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
-            if ev_part == ev_before:
-                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
-            if ev_part != ev_before:
-                individual[ev_start:ev_end] = ev_part
-                changed = True
+            changed = self._mutate_ev_controls(individual) or changed
 
         return changed
+
+    def _mutate_ev_controls(self, individual: list[int]) -> bool:
+        """Mutate the EV charge genes: shift charging in time or change rates.
+
+        A share of EV_SHIFT_MUTATION_PROBABILITY of the moves only shifts
+        charging in time (see ``_mutate_ev_shift``); the others are point
+        mutations that change the charged energy.
+        """
+        try_shift = random.random() < self.EV_SHIFT_MUTATION_PROBABILITY  # noqa: S311
+        if try_shift and self._mutate_ev_shift(individual):
+            return True
+        ev_start = self.control_end_slot + self._ev_first_charge_gene_slot()
+        ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
+        ev_part = list(individual[ev_start:ev_end])
+        ev_before = list(ev_part)
+        (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
+        if ev_part == ev_before:
+            self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
+        if ev_part != ev_before:
+            individual[ev_start:ev_end] = ev_part
+            return True
+        return False
+
+    def _mutate_ev_shift(self, individual: list[int]) -> bool:
+        """Move EV charging to other slots without changing the charged energy.
+
+        A point mutation changes the energy charged in a slot and with it
+        whether the target SoC is reached: less energy is punished by the SoC
+        penalty, more energy is paid for. Such moves rarely move charging from
+        an expensive to a cheap slot. Swapping the charge rates of two equally
+        long segments keeps the planned energy and only moves it in time, so
+        the fitness compares the timing alone.
+
+        Only slots in which charging can still count towards the target take
+        part: from the control start (or the charge start) to the deadline
+        (or the control end).
+
+        Returns:
+            Whether the genome was changed.
+        """
+        start_slot = self._ev_first_charge_gene_slot()
+        end_slot = self.control_end_slot - self.fixed_eauto_hours
+        deadline_slot = getattr(self, "_ev_soc_deadline_slot", None)
+        if deadline_slot is not None:
+            end_slot = min(end_slot, deadline_slot)
+        span = end_slot - start_slot
+        if span < 2:
+            return False
+
+        offset = self.control_end_slot
+        rates = self.ev_possible_charge_values
+        # A warm start from a run with other charge rates may carry indices
+        # outside the current rate list. They are never looked up here and are
+        # not chosen as a source; a swap may still move them along.
+        charging = [
+            slot
+            for slot in range(start_slot, end_slot)
+            if 0 <= int(individual[offset + slot]) < len(rates)
+            and rates[int(individual[offset + slot])] > 0.0
+        ]
+        if not charging:
+            return False
+
+        length = random.randint(1, max(1, min(self.EV_SHIFT_MAX_SLOTS, span // 2)))  # noqa: S311
+        source = min(random.choice(charging), end_slot - length)  # noqa: S311
+        targets = [
+            slot
+            for slot in range(start_slot, end_slot - length + 1)
+            if slot + length <= source or slot >= source + length
+        ]
+        if not targets:
+            return False
+        target = random.choice(targets)  # noqa: S311
+
+        source_genes = individual[offset + source : offset + source + length]
+        target_genes = individual[offset + target : offset + target + length]
+        if source_genes == target_genes:
+            return False
+        individual[offset + source : offset + source + length] = target_genes
+        individual[offset + target : offset + target + length] = source_genes
+        return True
 
     def _mutate_flexible_controls(self, individual: list[int]) -> bool:
         """Mutate EV or appliance controls without disturbing a good battery schedule."""
         changed = False
         if self.optimize_ev:
-            ev_start = self.control_end_slot + self._ev_first_charge_gene_slot()
-            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
-            ev_part = list(individual[ev_start:ev_end])
-            ev_before = list(ev_part)
-            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
-            if ev_part == ev_before:
-                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
-            if ev_part != ev_before:
-                individual[ev_start:ev_end] = ev_part
-                changed = True
+            changed = self._mutate_ev_controls(individual)
 
         n_appliance_genes = self.appliance_layout.n_genes
         if n_appliance_genes > 0:
@@ -2629,8 +2702,14 @@ class GeneticOptimization(OptimizationBase):
         if ev is None:
             return schedule
 
+        # The target is the requested EV SoC, not ev.min_soc_wh: an EV Battery
+        # has no minimum SoC of its own (always 0 %).
+        target_soc = getattr(self, "_ev_target_soc_percentage", None)
+        if target_soc is None:
+            return schedule
+        target_soc = min(target_soc, ev.max_soc_percentage)
         required_stored_wh = max(
-            ev.min_soc_wh - ev.capacity_wh * ev.initial_soc_percentage / 100.0,
+            ev.capacity_wh * (target_soc - ev.initial_soc_percentage) / 100.0,
             0.0,
         )
         if required_stored_wh <= 0.0:
@@ -4384,6 +4463,7 @@ class GeneticOptimization(OptimizationBase):
             self.optimize_ev = (
                 parameters.ev.min_soc_percentage > parameters.ev.initial_soc_percentage
             )
+            self._ev_target_soc_percentage = float(parameters.ev.min_soc_percentage)
             # electrical vehicle charge rates
             if parameters.ev.charge_rates is not None:
                 self.ev_possible_charge_values = parameters.ev.charge_rates
@@ -4414,6 +4494,7 @@ class GeneticOptimization(OptimizationBase):
                 ]
         else:
             self.optimize_ev = False
+            self._ev_target_soc_percentage = None
 
         # Battery AC charge rates — use the battery's configured charge_rates so the
         # optimizer can select partial AC charge power (e.g. 10 %, 50 %, 100 %) instead

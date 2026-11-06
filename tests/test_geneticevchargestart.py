@@ -647,10 +647,7 @@ def test_genome_operators_never_charge_before_charge_start(
         assert individual[end : end + 4] == [0] * 4
         (mutated,) = optimizer.mutate(individual)
         assert mutated[end : end + 4] == [0] * 4
-    # The seeding heuristic picks the cheapest slots after arrival. It reads the
-    # required energy from the device's minimum SoC, set here to the 25 % target.
-    assert optimizer.simulation.ev is not None
-    optimizer.simulation.ev.min_soc_wh = 1000.0
+    # The seeding heuristic plans the 25 % target in the cheapest slots after arrival.
     for prefer_pv in (False, True):
         schedule = optimizer._heuristic_ev_schedule(prefer_pv=prefer_pv)
         assert schedule[:4] == [0] * 4

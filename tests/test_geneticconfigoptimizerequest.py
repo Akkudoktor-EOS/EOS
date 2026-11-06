@@ -580,7 +580,9 @@ async def test_http_config_and_real_optimizer_allow_full_ev_target(configured_re
     assert plan["parameters"]["ev"]["initial_soc_percentage"] == soc
     assert len(plan["result"]["ev_soc_per_hour"]) == 4
     assert all(0 <= value <= 100 for value in plan["result"]["ev_soc_per_hour"])
-    assert plan["result"]["ev_soc_per_hour"][-1] == pytest.approx(100)
+    # ev_soc_per_hour is the SoC at the start of each slot; the target is
+    # reached after the last slot, i.e. in the final vehicle state.
+    assert plan["ev_obj"]["soc_wh"] == pytest.approx(1000)
 
 
 @pytest.mark.asyncio
