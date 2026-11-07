@@ -265,7 +265,7 @@ async def empty_measurement(config_eos):
     measurement = get_measurement()
     await measurement.delete_by_datetime(None, None)
     config_eos.merge_settings_from_dict(
-        {"devices": {"max_batteries": 1, "batteries": {"storage": {"nominal_capacity_wh": 2000}}}}
+        {"devices": {"max_batteries": 1, "batteries": {"storage": {"profile_adjustment": {"nominal_capacity_wh": 2000}}}}}
     )
     try:
         yield measurement

@@ -186,7 +186,7 @@ class TestGenetic0SocClampedOperationFactors:
                 "devices": {
                     "max_batteries": 1,
                     "batteries": {
-                        "battery1": {"device_id": "battery1", "nominal_capacity_wh": 8000}
+                        "battery1": {"device_id": "battery1", "profile_adjustment": {"nominal_capacity_wh": 8000}}
                     },
                     "max_inverters": 0,
                     "inverters": None,

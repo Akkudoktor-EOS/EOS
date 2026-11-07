@@ -19,7 +19,9 @@
         "electric_vehicles": {
             "ev11": {
                 "device_id": "ev11",
-                "nominal_capacity_wh": 50000,
+                "profile_adjustment": {
+                    "nominal_capacity_wh": 50000
+                },
                 "min_soc_percentage": 70
             }
         },

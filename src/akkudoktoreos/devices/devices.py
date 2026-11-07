@@ -38,7 +38,15 @@ class DevicesCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "Stationary battery storage devices, keyed by device_id.",
-            "examples": [{"bat0": {"device_id": "bat0", "nominal_capacity_wh": 8000, "ports": []}}],
+            "examples": [
+                {
+                    "bat0": {
+                        "device_id": "bat0",
+                        "profile_adjustment": {"nominal_capacity_wh": 8000},
+                        "ports": [],
+                    }
+                }
+            ],
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
@@ -57,7 +65,15 @@ class DevicesCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "Electric vehicle battery packs, keyed by device_id.",
-            "examples": [{"ev0": {"device_id": "ev0", "nominal_capacity_wh": 60000, "ports": []}}],
+            "examples": [
+                {
+                    "ev0": {
+                        "device_id": "ev0",
+                        "profile_adjustment": {"nominal_capacity_wh": 60000},
+                        "ports": [],
+                    }
+                }
+            ],
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
@@ -153,6 +169,24 @@ class DevicesCommonSettings(SettingsBaseModel):
             for device in (device_dict or {}).values():
                 keys.extend(device.measurement_keys or [])
         return keys
+
+    def check_battery_profiles(self) -> tuple[list[str], list[str]]:
+        """Check that every battery and electric vehicle can be resolved from its profile.
+
+        See ``BatteriesCommonSettings.check_profile``.
+
+        Returns:
+            ``(errors, warnings)`` of all batteries and electric vehicles, each
+            message naming its device.
+        """
+        errors: list[str] = []
+        warnings: list[str] = []
+        for device_dict in (self.batteries, self.electric_vehicles):
+            for device in (device_dict or {}).values():
+                device_errors, device_warnings = device.check_profile()
+                errors.extend(device_errors)
+                warnings.extend(device_warnings)
+        return errors, warnings
 
 
 # Type used for indexing: (resource_id, optional actuator_id)

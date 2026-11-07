@@ -32,7 +32,7 @@ entry point is the store::
 from pathlib import Path
 from typing import Any, ClassVar, List, Optional, Union
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.devices.profile.batteryprofileruntime import (
@@ -66,7 +66,17 @@ from akkudoktoreos.devices.profile.profilestore import (
 )
 
 
-class Units(SettingsBaseModel):
+class ProfileBaseModel(SettingsBaseModel):
+    """Base of all battery profile document models.
+
+    Unknown keys are rejected, so a misspelled key (e.g. ``nominal_capacity_kwh``
+    for ``nominal_capacity_wh``) fails validation instead of being ignored.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class Units(ProfileBaseModel):
     """Units of the axes and of the limit values in a limit table.
 
     The units describe how to interpret the numbers in Axes and CargeDischargeLimitMap.
@@ -90,7 +100,7 @@ class Units(SettingsBaseModel):
         },
     )
     limit: str = Field(
-        default="C-rate",
+        ...,
         json_schema_extra={
             "description": (
                 "Unit of the limit values. 'C-rate' (multiply by nominal capacity for power), "
@@ -101,7 +111,7 @@ class Units(SettingsBaseModel):
     )
 
 
-class EfficiencyCurve(SettingsBaseModel):
+class EfficiencyCurve(ProfileBaseModel):
     """Battery charge or discharge efficiency as a function of C-rate.
 
     C-rate is based on the effective nominal battery capacity: the capacity
@@ -109,6 +119,13 @@ class EfficiencyCurve(SettingsBaseModel):
     Efficiency is expressed as a fraction in the range (0, 1].
     """
 
+    description: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Free-form note about the source or meaning of this curve.",
+            "examples": ["Charge efficiency of a typical LFP pack"],
+        },
+    )
     c_rate: List[float] = Field(
         ...,
         min_length=2,
@@ -171,7 +188,7 @@ class EfficiencyCurve(SettingsBaseModel):
         return reference_efficiency_lookup(self, c_rate)
 
 
-class Axes(SettingsBaseModel):
+class Axes(ProfileBaseModel):
     """Breakpoints of the temperature and SOC axes of a limit table.
 
     Both axes must be strictly increasing. The rows of a CargeDischargeLimitMap align with
@@ -179,7 +196,7 @@ class Axes(SettingsBaseModel):
     """
 
     temperature_degC: List[float] = Field(
-        default=[-10, -5, 0, 5, 10, 15, 25, 35, 45, 50],
+        ...,
         min_length=2,
         json_schema_extra={
             "description": (
@@ -190,7 +207,7 @@ class Axes(SettingsBaseModel):
         },
     )
     soc_percent: List[float] = Field(
-        default=[0, 5, 10, 20, 40, 60, 80, 90, 95, 100],
+        ...,
         min_length=2,
         json_schema_extra={
             "description": (
@@ -239,7 +256,7 @@ class Axes(SettingsBaseModel):
         return v
 
 
-class CargeDischargeLimitMap(SettingsBaseModel):
+class CargeDischargeLimitMap(ProfileBaseModel):
     """Two-dimensional grid of non-negative charge or discharge limits.
 
     The grid is indexed by temperature along rows and by SOC along columns,
@@ -292,7 +309,7 @@ class CargeDischargeLimitMap(SettingsBaseModel):
         return v
 
 
-class HardCutoffs(SettingsBaseModel):
+class HardCutoffs(ProfileBaseModel):
     """Absolute temperature thresholds that override the limit maps.
 
     Outside these bounds the controller must inhibit the operation entirely,
@@ -300,29 +317,36 @@ class HardCutoffs(SettingsBaseModel):
     bounds are independent and may differ.
     """
 
+    description: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Free-form note about the cutoffs, e.g. their source.",
+            "examples": ["Cell manufacturer data sheet"],
+        },
+    )
     charge_allowed_below_degC: float = Field(
-        default=-10.0,
+        ...,
         json_schema_extra={
             "description": "Charging is inhibited strictly below this temperature.",
             "examples": [-10.0],
         },
     )
     charge_allowed_above_degC: float = Field(
-        default=55.0,
+        ...,
         json_schema_extra={
             "description": "Charging is inhibited strictly above this temperature.",
             "examples": [55.0],
         },
     )
     discharge_allowed_below_degC: float = Field(
-        default=-15.0,
+        ...,
         json_schema_extra={
             "description": "Discharging is inhibited strictly below this temperature.",
             "examples": [-15.0],
         },
     )
     discharge_allowed_above_degC: float = Field(
-        default=60.0,
+        ...,
         json_schema_extra={
             "description": "Discharging is inhibited strictly above this temperature.",
             "examples": [60.0],
@@ -347,18 +371,21 @@ class HardCutoffs(SettingsBaseModel):
         return self
 
 
-class BatteryProfileSettings(SettingsBaseModel, ProfileDocument[BatteryProfile]):
+class BatteryProfileSettings(ProfileBaseModel, ProfileDocument[BatteryProfile]):
     """Temperature- and SOC-dependent charge/discharge limits for a battery.
 
     This profile holds model-specific operating characteristics: charge and
-    discharge power-limit maps, optional efficiency curves, optional absolute
-    power limits, technical SOC bounds, nominal voltage, an optional nominal
-    capacity, and hard temperature cutoffs. A capacity configured on the battery
-    device overrides the profile capacity.
-    It is the configuration object read by an AkkudoktorEOS device controller
-    to constrain a battery or hybrid
-    inverter at the current operating point, and by the simulation to model
-    the same limits.
+    discharge power-limit maps, efficiency curves, technical SOC bounds, hard
+    temperature cutoffs, optional absolute power limits, an optional nominal
+    voltage and the nominal capacity. It is the configuration object read by an
+    AkkudoktorEOS device controller to constrain a battery or hybrid inverter at
+    the current operating point, and by the simulation to model the same limits.
+
+    A profile contains every value the computation uses. The one exception is
+    the nominal capacity of a generic profile: its limits are C-rates that scale
+    with any capacity, so it may leave the capacity out. The battery device then
+    has to provide the capacity in its ``profile_adjustment``. Unknown keys are
+    rejected.
 
     The caller should not query this document directly. Use
     ``get_profile_store().get(BatteryProfileSettings, name)`` (or the delegate
@@ -369,13 +396,14 @@ class BatteryProfileSettings(SettingsBaseModel, ProfileDocument[BatteryProfile])
         battery_model: Model name of the battery pack.
         chemistry: Cell chemistry, if relevant for interpretation.
         nominal_voltage_v: Nominal voltage, if known.
-        nominal_capacity_wh: Optional nominal capacity of the battery model.
+        nominal_capacity_wh: Nominal capacity of the battery model, None for a
+            generic profile.
         max_charge_power_w: Optional absolute model charge-power limit.
         max_discharge_power_w: Optional absolute model discharge-power limit.
-        technical_min_soc_percent: Optional manufacturer-defined lower SOC limit.
-        technical_max_soc_percent: Optional manufacturer-defined upper SOC limit.
-        charge_efficiency: Optional charge-efficiency curve versus C-rate.
-        discharge_efficiency: Optional discharge-efficiency curve versus C-rate.
+        technical_min_soc_percent: Manufacturer-defined lower SOC limit.
+        technical_max_soc_percent: Manufacturer-defined upper SOC limit.
+        charge_efficiency: Charge-efficiency curve versus C-rate.
+        discharge_efficiency: Discharge-efficiency curve versus C-rate.
         units: Units of the axes and of the limit values.
         interpolation: Interpolation strategy between grid points.
         out_of_range_behavior: Behavior for queries outside the axis range
@@ -424,9 +452,10 @@ class BatteryProfileSettings(SettingsBaseModel, ProfileDocument[BatteryProfile])
         allow_inf_nan=False,
         json_schema_extra={
             "description": (
-                "Optional nominal capacity of this battery model [Wh]. Used when the "
-                "battery device settings configure no 'nominal_capacity_wh'. None means "
-                "the profile provides no capacity."
+                "Nominal capacity of this battery model [Wh]. Required for the profile "
+                "of a specific battery model. A generic profile, whose limits are "
+                "C-rates, leaves it out; the battery device then has to set "
+                "'profile_adjustment.nominal_capacity_wh'."
             ),
             "examples": [None, 10240.0],
         },
@@ -453,44 +482,40 @@ class BatteryProfileSettings(SettingsBaseModel, ProfileDocument[BatteryProfile])
             "examples": [5000.0],
         },
     )
-    technical_min_soc_percent: Optional[float] = Field(
-        default=None,
+    technical_min_soc_percent: float = Field(
+        ...,
         ge=0,
         le=100,
         json_schema_extra={
             "description": (
-                "Optional manufacturer-defined technical minimum SOC, not the user's "
+                "Manufacturer-defined technical minimum SOC [%], not the user's "
                 "operational reserve setting."
             ),
             "examples": [5.0],
         },
     )
-    technical_max_soc_percent: Optional[float] = Field(
-        default=None,
+    technical_max_soc_percent: float = Field(
+        ...,
         ge=0,
         le=100,
         json_schema_extra={
             "description": (
-                "Optional manufacturer-defined technical maximum SOC, not the user's "
+                "Manufacturer-defined technical maximum SOC [%], not the user's "
                 "operational target setting."
             ),
             "examples": [95.0],
         },
     )
-    charge_efficiency: Optional[EfficiencyCurve] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "Optional charge efficiency curve versus absolute C-rate."
-        },
+    charge_efficiency: EfficiencyCurve = Field(
+        ...,
+        json_schema_extra={"description": "Charge efficiency curve versus absolute C-rate."},
     )
-    discharge_efficiency: Optional[EfficiencyCurve] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "Optional discharge efficiency curve versus absolute C-rate."
-        },
+    discharge_efficiency: EfficiencyCurve = Field(
+        ...,
+        json_schema_extra={"description": "Discharge efficiency curve versus absolute C-rate."},
     )
     units: Units = Field(
-        default_factory=Units,
+        ...,
         json_schema_extra={
             "description": "Units of axes and limit values.",
         },
@@ -516,7 +541,7 @@ class BatteryProfileSettings(SettingsBaseModel, ProfileDocument[BatteryProfile])
         },
     )
     axes: Axes = Field(
-        default_factory=Axes,
+        ...,
         json_schema_extra={"description": "Axis breakpoints for both dimensions."},
     )
     charge_limit_crate: CargeDischargeLimitMap = Field(
@@ -528,7 +553,7 @@ class BatteryProfileSettings(SettingsBaseModel, ProfileDocument[BatteryProfile])
         json_schema_extra={"description": "Maximum discharge limit map."},
     )
     hard_cutoffs: HardCutoffs = Field(
-        default_factory=HardCutoffs,
+        ...,
         json_schema_extra={"description": "Absolute protection thresholds."},
     )
 
@@ -559,11 +584,7 @@ class BatteryProfileSettings(SettingsBaseModel, ProfileDocument[BatteryProfile])
                     raise ValueError(
                         f"{name}: row {i} expected {n_soc} columns (SOC), got {len(row)}"
                     )
-        if (
-            self.technical_min_soc_percent is not None
-            and self.technical_max_soc_percent is not None
-            and self.technical_min_soc_percent >= self.technical_max_soc_percent
-        ):
+        if self.technical_min_soc_percent >= self.technical_max_soc_percent:
             raise ValueError(
                 "technical_min_soc_percent must be less than technical_max_soc_percent"
             )

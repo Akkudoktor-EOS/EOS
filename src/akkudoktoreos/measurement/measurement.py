@@ -422,15 +422,18 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                 )
                 if len(samples) > 250000:
                     raise ValueError("More than 250000 power samples; request a shorter period.")
+        # Raises a BatteryResolutionError (a ValueError) naming the battery if
+        # its profile cannot be resolved.
+        parameters = battery.resolve_operating_parameters()
         return estimate_capacity(
             request,
             settings,
             channel,
             samples,
             battery_id=battery.device_id,
-            capacity_wh=battery.resolved_nominal_capacity_wh,
-            charging_efficiency=battery.charging_efficiency,
-            discharging_efficiency=battery.discharging_efficiency,
+            capacity_wh=parameters.capacity_wh,
+            charging_efficiency=parameters.charging_efficiency,
+            discharging_efficiency=parameters.discharging_efficiency,
         )
 
     async def _energy_from_meter_readings(

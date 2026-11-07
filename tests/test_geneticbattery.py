@@ -10,6 +10,7 @@ from akkudoktoreos.devices.genetic.battery import (
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,
 )
+from akkudoktoreos.devices.settings.batterysettings import BatteryProfileAdjustment
 
 
 @pytest.fixture
@@ -417,6 +418,7 @@ def test_rated_discharge_energy_scales_with_slot_duration(setup_pv_battery):
 def test_pv_converter_preserves_id_lcos_charge_and_export_rates():
     settings = BatteriesCommonSettings(
         device_id="house",
+        profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8000),
         charge_rates=[0.0, 0.5, 1.0],
         grid_export_rates=[1.0, 0.25],
         levelized_cost_of_storage_amt_kwh=0.123,
@@ -434,7 +436,8 @@ def test_pv_converter_preserves_id_lcos_charge_and_export_rates():
 @pytest.mark.parametrize("target", [0, 50, 100])
 def test_equal_soc_limits_are_valid(target):
     settings = BatteriesCommonSettings(device_id="ev", min_soc_percentage=target,
-                                      max_soc_percentage=target)
+                                      max_soc_percentage=target,
+                                      profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8000))
     assert settings.to_genetic_ev_bat_param().min_soc_percentage == target
     assert settings.to_genetic0_ev_bat_param().min_soc_percentage == target
 
@@ -447,9 +450,11 @@ def test_inverted_or_out_of_range_limits_still_fail(minimum, maximum):
 
 
 def test_full_target_charges_to_capacity_without_overcharge():
-    settings = BatteriesCommonSettings(device_id="ev", capacity_wh=1000,
-        min_soc_percentage=100, max_soc_percentage=100, max_charge_power_w=1000,
-        charging_efficiency=1)
+    settings = BatteriesCommonSettings(device_id="ev",
+        profile_adjustment=BatteryProfileAdjustment(
+            nominal_capacity_wh=1000, max_charge_power_w=1000
+        ),
+        min_soc_percentage=100, max_soc_percentage=100)
     params = settings.to_genetic_ev_bat_param()
     params.initial_soc_percentage = 70
     battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
@@ -585,7 +590,9 @@ class TestMaxDischargePower:
     @pytest.mark.parametrize("converter", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
     def test_converter_passes_profile_discharge_limit(self, converter):
         """generic-lfp allows 1C charge but only 0.5C continuous discharge."""
-        settings = BatteriesCommonSettings(device_id="battery1", nominal_capacity_wh=8_000)
+        settings = BatteriesCommonSettings(
+            device_id="battery1", profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8_000)
+        )
         parameters = getattr(settings, converter)()
         assert parameters.max_charge_power_w == pytest.approx(8_000.0)
         assert parameters.max_discharge_power_w == pytest.approx(4_000.0)

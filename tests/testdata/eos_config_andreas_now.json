@@ -15,7 +15,9 @@
         "batteries": {
             "pv_akku": {
                 "device_id": "pv_akku",
-                "nominal_capacity_wh": 30000
+                "profile_adjustment": {
+                    "nominal_capacity_wh": 30000
+                }
             }
         },
         "electric_vehicles": {

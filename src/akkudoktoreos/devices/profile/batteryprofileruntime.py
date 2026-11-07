@@ -259,14 +259,15 @@ class BatteryProfile:
         nominal_voltage_v: Nominal voltage, if known.
         max_charge_power_w: Optional absolute model charge-power limit.
         max_discharge_power_w: Optional absolute model discharge-power limit.
-        technical_min_soc_percent: Optional manufacturer-defined lower SOC limit.
-        technical_max_soc_percent: Optional manufacturer-defined upper SOC limit.
-        charge_efficiency: Optional charge-efficiency curve.
-        discharge_efficiency: Optional discharge-efficiency curve.
+        technical_min_soc_percent: Manufacturer-defined lower SOC limit.
+        technical_max_soc_percent: Manufacturer-defined upper SOC limit.
+        charge_efficiency: Charge-efficiency curve.
+        discharge_efficiency: Discharge-efficiency curve.
         limit_unit: Unit of the values returned by the limit accessors.
         charge_map: Precomputed charge limit map.
         discharge_map: Precomputed discharge limit map.
-        nominal_capacity_wh: Optional nominal capacity of the battery model [Wh].
+        nominal_capacity_wh: Nominal capacity of the battery model [Wh], None for
+            a generic profile.
     """
 
     battery_model: str
@@ -274,10 +275,10 @@ class BatteryProfile:
     nominal_voltage_v: Optional[float]
     max_charge_power_w: Optional[float]
     max_discharge_power_w: Optional[float]
-    technical_min_soc_percent: Optional[float]
-    technical_max_soc_percent: Optional[float]
-    charge_efficiency: Optional[PrecomputedEfficiencyCurve]
-    discharge_efficiency: Optional[PrecomputedEfficiencyCurve]
+    technical_min_soc_percent: float
+    technical_max_soc_percent: float
+    charge_efficiency: PrecomputedEfficiencyCurve
+    discharge_efficiency: PrecomputedEfficiencyCurve
     limit_unit: str
     charge_map: PrecomputedCargeDischargeLimitMap
     discharge_map: PrecomputedCargeDischargeLimitMap
@@ -310,15 +311,18 @@ class BatteryProfile:
         return self.discharge_map.lookup(temperature_degC, soc_percent)
 
     def charge_efficiency_at(self, c_rate: float) -> Optional[float]:
-        """Return charge efficiency at the given absolute C-rate, if defined."""
-        if self.charge_efficiency is None:
-            return None
+        """Return charge efficiency at the given absolute C-rate.
+
+        None if the C-rate is outside the curve and the curve rejects it, or the
+        curve does not interpolate and the C-rate is no breakpoint.
+        """
         return self.charge_efficiency.lookup(abs(c_rate))
 
     def discharge_efficiency_at(self, c_rate: float) -> Optional[float]:
-        """Return discharge efficiency at the given absolute C-rate, if defined."""
-        if self.discharge_efficiency is None:
-            return None
+        """Return discharge efficiency at the given absolute C-rate.
+
+        None in the same cases as ``charge_efficiency_at``.
+        """
         return self.discharge_efficiency.lookup(abs(c_rate))
 
 
@@ -624,16 +628,8 @@ def compile_battery_profile(
         max_discharge_power_w=document.max_discharge_power_w,
         technical_min_soc_percent=document.technical_min_soc_percent,
         technical_max_soc_percent=document.technical_max_soc_percent,
-        charge_efficiency=(
-            PrecomputedEfficiencyCurve.from_curve(document.charge_efficiency)
-            if document.charge_efficiency is not None
-            else None
-        ),
-        discharge_efficiency=(
-            PrecomputedEfficiencyCurve.from_curve(document.discharge_efficiency)
-            if document.discharge_efficiency is not None
-            else None
-        ),
+        charge_efficiency=PrecomputedEfficiencyCurve.from_curve(document.charge_efficiency),
+        discharge_efficiency=PrecomputedEfficiencyCurve.from_curve(document.discharge_efficiency),
         limit_unit=document.units.limit,
         charge_map=charge_map,
         discharge_map=discharge_map,

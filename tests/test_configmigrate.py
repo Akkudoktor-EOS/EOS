@@ -281,35 +281,113 @@ class TestDeviceMigration:
         devices = getattr(migrated.devices, devices_key)
         assert devices is not None
         settings = devices["house"]
-        assert settings.nominal_capacity_wh == 12000
+        assert settings.profile_adjustment.nominal_capacity_wh == 12000
         # The configured charge power limit of the installation still applies.
-        assert settings.max_charge_power_limit_w == 3000
-        assert settings.max_charge_power_w <= 3000
+        assert settings.profile_adjustment.max_charge_power_w == 3000
+        assert settings.effective_max_charge_power_w <= 3000
         dumped = settings.model_dump(exclude_computed_fields=True)
         for legacy in ("capacity_wh", "charging_efficiency", "discharging_efficiency",
                        "max_charge_power_w"):
             assert legacy not in dumped
 
-    @pytest.mark.parametrize(
-        "legacy_name, new_name",
-        [
-            ("capacity_wh", "nominal_capacity_wh"),
-            ("max_charge_power_w", "max_charge_power_limit_w"),
-        ],
-    )
-    def test_migration_keeps_present_new_field(self, legacy_name, new_name):
-        """An already present new field wins over its legacy field."""
-        battery = {"device_id": "house", legacy_name: 12000, new_name: 10000}
+    def test_migration_writes_former_defaults_of_a_battery_before_profiles(self):
+        """Former defaults were left out of files; the battery keeps them."""
+        battery = {"device_id": "house", "min_soc_percentage": 10}
         migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
         assert migrated.devices.batteries is not None
-        assert getattr(migrated.devices.batteries["house"], new_name) == 10000
+        adjustment = migrated.devices.batteries["house"].profile_adjustment
+        assert adjustment.nominal_capacity_wh == 8000
+        assert adjustment.max_charge_power_w == 5000
+        assert adjustment.max_discharge_power_w is None
+        assert migrated.devices.batteries["house"].min_soc_percentage == 10
+
+    @pytest.mark.parametrize(
+        "legacy_name, adjustment_name",
+        [
+            ("nominal_capacity_wh", "nominal_capacity_wh"),
+            ("max_charge_power_limit_w", "max_charge_power_w"),
+            ("max_discharge_power_limit_w", "max_discharge_power_w"),
+        ],
+    )
+    def test_migration_of_interim_profile_fields(self, legacy_name, adjustment_name):
+        """Interim fields of the settings with profiles move into the adjustment.
+
+        Such a battery is not from before battery profiles, so it gets no former
+        defaults.
+        """
+        battery = {"device_id": "house", legacy_name: 4000}
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        adjustment = migrated.devices.batteries["house"].profile_adjustment
+        assert getattr(adjustment, adjustment_name) == 4000
+        for name, value in adjustment.model_dump().items():
+            if name != adjustment_name:
+                assert value is None
+
+    def test_migration_keeps_a_migrated_battery(self):
+        """A battery in the current layout is not changed, e.g. on a version bump."""
+        battery = {
+            "device_id": "house",
+            "battery_profile": "my-battery",
+            "profile_adjustment": {"max_discharge_power_w": 3000},
+        }
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        settings = migrated.devices.batteries["house"]
+        assert settings.battery_profile == "my-battery"
+        assert settings.profile_adjustment.max_discharge_power_w == 3000
+        assert settings.profile_adjustment.nominal_capacity_wh is None
+        assert settings.profile_adjustment.max_charge_power_w is None
+
+    @pytest.mark.parametrize(
+        "legacy_name, adjustment_name",
+        [
+            ("capacity_wh", "nominal_capacity_wh"),
+            ("max_charge_power_w", "max_charge_power_w"),
+            ("nominal_capacity_wh", "nominal_capacity_wh"),
+            ("max_charge_power_limit_w", "max_charge_power_w"),
+        ],
+    )
+    def test_migration_keeps_present_adjustment(self, legacy_name, adjustment_name):
+        """A value already in the profile adjustment wins over its legacy field."""
+        battery = {
+            "device_id": "house",
+            legacy_name: 12000,
+            "profile_adjustment": {adjustment_name: 10000},
+        }
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        adjustment = migrated.devices.batteries["house"].profile_adjustment
+        assert getattr(adjustment, adjustment_name) == 10000
+
+    def test_migration_of_home_assistant_config_paths(self):
+        """Config paths of moved battery fields follow them into the adjustment."""
+        raw = {
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/house/capacity_wh": "sensor.capacity",
+                        "devices/electric_vehicles/car/max_charge_power_w": "sensor.ev_limit",
+                        "devices/batteries/house/charging_efficiency": "sensor.efficiency",
+                        "devices/batteries/house/min_soc_percentage": "sensor.min_soc",
+                        "general/latitude": "sensor.latitude",
+                    }
+                }
+            }
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/house/profile_adjustment/nominal_capacity_wh": "sensor.capacity",
+            "devices/electric_vehicles/car/profile_adjustment/max_charge_power_w": (
+                "sensor.ev_limit"
+            ),
+            # charging_efficiency is computed now and cannot be set.
+            "devices/batteries/house/min_soc_percentage": "sensor.min_soc",
+            "general/latitude": "sensor.latitude",
+        }
 
     def test_migrate_config_file_keeps_charge_power_limit(self, tmp_path: Path):
-        """The legacy charge power limit survives the file migration.
-
-        The file migration strips computed fields before migrating; the legacy
-        max_charge_power_w shares its name with a computed field now.
-        """
+        """The legacy charge power limit survives the file migration."""
         config_file = tmp_path / "EOS.config.json"
         battery = {"device_id": "house", "capacity_wh": 12000, "max_charge_power_w": 3000}
         config_file.write_text(
@@ -326,6 +404,6 @@ class TestDeviceMigration:
 
         migrated = json.loads(config_file.read_text(encoding="utf-8"))
         house = migrated["devices"]["batteries"]["house"]
-        assert house["max_charge_power_limit_w"] == 3000
-        assert house["nominal_capacity_wh"] == 12000
+        assert house["profile_adjustment"] == {"nominal_capacity_wh": 12000, "max_charge_power_w": 3000}
         assert "max_charge_power_w" not in house
+        assert "capacity_wh" not in house

@@ -2,8 +2,9 @@
   "schema_version": "1.0",
   "battery_model": "Generic LFP home battery",
   "chemistry": "LFP",
-  "nominal_capacity_kwh": null,
   "nominal_voltage_v": null,
+  "technical_min_soc_percent": 0.0,
+  "technical_max_soc_percent": 100.0,
   "units": {
     "temperature": "degC",
     "soc": "percent",
@@ -82,6 +83,6 @@
     "charge_allowed_above_degC": 60.0,
     "discharge_allowed_below_degC": -10.0,
     "discharge_allowed_above_degC": 60.0,
-    "note": "Charge is inhibited strictly below 0 degC and strictly above 60 degC. At exactly 0 degC and exactly 60 degC the charge map returns 0.0, so charging is effectively disabled there too. Discharge is inhibited strictly below -10 degC and strictly above 60 degC; the discharge map already reaches 0.0 at both ends, so the hard cutoff only governs whether the accessor returns None or 0.0."
+    "description": "Charge is inhibited strictly below 0 degC and strictly above 60 degC. At exactly 0 degC and exactly 60 degC the charge map returns 0.0, so charging is effectively disabled there too. Discharge is inhibited strictly below -10 degC and strictly above 60 degC; the discharge map already reaches 0.0 at both ends, so the hard cutoff only governs whether the accessor returns None or 0.0."
   }
 }

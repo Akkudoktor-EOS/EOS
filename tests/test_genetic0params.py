@@ -159,7 +159,7 @@ class TestGenetic0MeasuredSOC:
                     "max_inverters": 1,
                     "max_home_appliances": 0,
                     "batteries": {
-                        "storage": {"nominal_capacity_wh": 2000, "max_charge_power_limit_w": 1000}
+                        "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
                     "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
                 },
@@ -206,7 +206,7 @@ class TestGenetic0MeasuredSOC:
                     "max_inverters": 1,
                     "max_home_appliances": 0,
                     "batteries": {
-                        "storage": {"nominal_capacity_wh": 2000, "max_charge_power_limit_w": 1000}
+                        "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
                     "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
                 },
@@ -252,7 +252,7 @@ class TestGenetic0MeasuredSOC:
                     "max_inverters": 1,
                     "max_home_appliances": 0,
                     "batteries": {
-                        "storage": {"nominal_capacity_wh": 2000, "max_charge_power_limit_w": 1000}
+                        "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
                     "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
                 },
@@ -322,10 +322,13 @@ class TestGenetic0DemoData:
             parameters = await Genetic0OptimizationParameters.prepare()
 
         assert parameters is not None
-        # The demo capacities must reach the settings (``nominal_capacity_wh``);
-        # the legacy key ``capacity_wh`` would be ignored and fall back to 8000 Wh.
-        assert config_eos.devices.batteries["battery1"].nominal_capacity_wh == 8000
-        assert config_eos.devices.electric_vehicles["ev1"].nominal_capacity_wh == 50000
+        # The demo capacities must reach the profile adjustment of the settings;
+        # the generic default profile provides no capacity of its own.
+        assert config_eos.devices.batteries["battery1"].profile_adjustment.nominal_capacity_wh == 8000
+        assert (
+            config_eos.devices.electric_vehicles["ev1"].profile_adjustment.nominal_capacity_wh
+            == 50000
+        )
         assert parameters.pv_battery is not None
         assert parameters.pv_battery.capacity_wh == 8000
         assert parameters.ev is not None

@@ -76,10 +76,10 @@ def test_device_maps_feed_algorithm_specific_converters(algorithm):
     settings = DevicesCommonSettings.model_validate(
         {
             "batteries": {
-                "storage": {"nominal_capacity_wh": 12000, "max_charge_power_limit_w": 3200}
+                "storage": {"profile_adjustment": {"nominal_capacity_wh": 12000, "max_charge_power_w": 3200}}
             },
             "electric_vehicles": {
-                "car": {"nominal_capacity_wh": 60000, "max_charge_power_limit_w": 7000}
+                "car": {"profile_adjustment": {"nominal_capacity_wh": 60000, "max_charge_power_w": 7000}}
             },
             "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 5000}},
             "home_appliances": {

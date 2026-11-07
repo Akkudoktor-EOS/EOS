@@ -580,7 +580,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.batteries = {
                         "battery1": {
                             "device_id": "battery1",
-                            "nominal_capacity_wh": 8000,
+                            "profile_adjustment": {"nominal_capacity_wh": 8000},
                         },
                     }
                 try:
@@ -598,7 +598,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.batteries = {
                         "battery1": {
                             "device_id": "battery1",
-                            "nominal_capacity_wh": 8000,
+                            "profile_adjustment": {"nominal_capacity_wh": 8000},
                         },
                     }
                     # Retry
@@ -648,7 +648,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.electric_vehicles = {
                         "ev1": {
                             "device_id": "ev1",
-                            "nominal_capacity_wh": 50000,
+                            "profile_adjustment": {"nominal_capacity_wh": 50000},
                             "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
                         },
@@ -669,7 +669,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.electric_vehicles = {
                         "ev1": {
                             "device_id": "ev1",
-                            "nominal_capacity_wh": 50000,
+                            "profile_adjustment": {"nominal_capacity_wh": 50000},
                             "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
                         },

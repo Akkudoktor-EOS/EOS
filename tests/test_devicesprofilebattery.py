@@ -31,6 +31,20 @@ from akkudoktoreos.devices.profile.profilestore import get_profile_store
 
 # --- helpers -------------------------------------------------------------
 
+# Values of the required fields that the tests do not vary.
+TEST_AXES = {
+    "temperature_degC": [-10, -5, 0, 5, 10, 15, 25, 35, 45, 50],
+    "soc_percent": [0, 5, 10, 20, 40, 60, 80, 90, 95, 100],
+}
+TEST_CUTOFFS = {
+    "charge_allowed_below_degC": -10.0,
+    "charge_allowed_above_degC": 55.0,
+    "discharge_allowed_below_degC": -15.0,
+    "discharge_allowed_above_degC": 60.0,
+}
+TEST_UNITS = {"temperature": "degC", "soc": "percent", "limit": "C-rate"}
+TEST_CURVE = {"c_rate": [0.1, 0.5, 1.0], "efficiency": [0.90, 0.96, 0.92]}
+
 
 def make_grid(rows: int = 10, cols: int = 10, value: float = 0.5) -> list[list[float]]:
     """Return a constant rows x cols grid filled with value."""
@@ -48,14 +62,21 @@ def make_limits(
         charge_values: Optional charge grid; defaults to a constant 0.5 grid.
         discharge_values: Optional discharge grid; defaults to a constant 0.5
             grid.
-        **overrides: Further keyword arguments forwarded to the model. A
-            battery_model is injected unless the caller provides one.
+        **overrides: Further keyword arguments forwarded to the model. The
+            required fields get test values unless the caller provides them.
 
     Returns:
         A validated BatteryProfileSettings instance.
     """
     payload: dict[str, Any] = dict(
         battery_model="Test Battery",
+        technical_min_soc_percent=0.0,
+        technical_max_soc_percent=100.0,
+        charge_efficiency=EfficiencyCurve.model_validate(TEST_CURVE),
+        discharge_efficiency=EfficiencyCurve.model_validate(TEST_CURVE),
+        units=Units.model_validate(TEST_UNITS),
+        axes=Axes.model_validate(TEST_AXES),
+        hard_cutoffs=HardCutoffs.model_validate(TEST_CUTOFFS),
         charge_limit_crate=CargeDischargeLimitMap(values=charge_values or make_grid()),
         discharge_limit_crate=CargeDischargeLimitMap(values=discharge_values or make_grid()),
     )
@@ -94,7 +115,11 @@ def make_document(charge_values=None, discharge_values=None, **overrides) -> dic
         "battery_model": "Test Battery",
         "chemistry": "LFP",
         "nominal_voltage_v": 102.4,
-        "units": {"temperature": "degC", "soc": "percent", "limit": "C-rate"},
+        "technical_min_soc_percent": 0.0,
+        "technical_max_soc_percent": 100.0,
+        "charge_efficiency": dict(TEST_CURVE),
+        "discharge_efficiency": dict(TEST_CURVE),
+        "units": dict(TEST_UNITS),
         "interpolation": "bilinear",
         "out_of_range_behavior": "clamp_to_nearest",
         "axes": {
@@ -126,11 +151,12 @@ def make_document(charge_values=None, discharge_values=None, **overrides) -> dic
 class TestUnits:
     """Tests for the Units defaults and schema metadata."""
 
-    def test_defaults(self):
-        u = Units()
+    def test_axis_units_default_but_limit_unit_is_required(self):
+        u = Units(limit="C-rate")
         assert u.temperature == "degC"
         assert u.soc == "percent"
-        assert u.limit == "C-rate"
+        with pytest.raises(ValidationError, match="limit"):
+            Units.model_validate({})
 
     def test_json_schema_contains_descriptions(self):
         schema = Units.model_json_schema()
@@ -326,12 +352,10 @@ class TestBatteryProfileEfficiency:
         assert profile.charge_efficiency_at(-0.3) == pytest.approx(0.85)
         assert profile.discharge_efficiency_at(-0.3) == pytest.approx(0.8)
 
-    def test_missing_efficiency_curve_returns_none(self):
-        profile = make_limits().to_limits()
-        assert profile.charge_efficiency is None
-        assert profile.discharge_efficiency is None
-        assert profile.charge_efficiency_at(0.3) is None
-        assert profile.discharge_efficiency_at(0.3) is None
+    @pytest.mark.parametrize("field", ["charge_efficiency", "discharge_efficiency"])
+    def test_efficiency_curves_are_required(self, field):
+        with pytest.raises(ValidationError, match=field):
+            make_limits(**{field: None})
 
     def test_profile_carries_new_model_characteristics(self):
         profile = make_limits(
@@ -353,10 +377,11 @@ class TestBatteryProfileEfficiency:
 class TestAxes:
     """Tests for axis validation."""
 
-    def test_defaults_are_strictly_increasing(self):
-        a = Axes()
-        assert a.temperature_degC == sorted(a.temperature_degC)
-        assert a.soc_percent == sorted(a.soc_percent)
+    def test_axes_are_required(self):
+        with pytest.raises(ValidationError, match="temperature_degC"):
+            Axes.model_validate({"soc_percent": [0, 100]})
+        with pytest.raises(ValidationError, match="soc_percent"):
+            Axes.model_validate({"temperature_degC": [0, 10]})
 
     def test_temperature_must_be_strictly_increasing(self):
         with pytest.raises(ValidationError, match="strictly increasing"):
@@ -406,20 +431,30 @@ class TestCargeDischargeLimitMap:
 class TestHardCutoffs:
     """Tests for cutoff ordering validation."""
 
-    def test_defaults_are_ordered(self):
-        c = HardCutoffs()
-        assert c.charge_allowed_below_degC < c.charge_allowed_above_degC
-        assert c.discharge_allowed_below_degC < c.discharge_allowed_above_degC
+    def test_all_cutoffs_are_required(self):
+        for field in TEST_CUTOFFS:
+            values = {k: v for k, v in TEST_CUTOFFS.items() if k != field}
+            with pytest.raises(ValidationError, match=field):
+                HardCutoffs.model_validate(values)
 
     def test_charge_bounds_must_be_ordered(self):
         with pytest.raises(ValidationError, match="charge cutoff"):
-            HardCutoffs(charge_allowed_below_degC=60.0, charge_allowed_above_degC=50.0)
+            HardCutoffs.model_validate(
+                {
+                    **TEST_CUTOFFS,
+                    "charge_allowed_below_degC": 60.0,
+                    "charge_allowed_above_degC": 50.0,
+                }
+            )
 
     def test_discharge_bounds_must_be_ordered(self):
         with pytest.raises(ValidationError, match="discharge cutoff"):
-            HardCutoffs(
-                discharge_allowed_below_degC=60.0,
-                discharge_allowed_above_degC=50.0,
+            HardCutoffs.model_validate(
+                {
+                    **TEST_CUTOFFS,
+                    "discharge_allowed_below_degC": 60.0,
+                    "discharge_allowed_above_degC": 50.0,
+                }
             )
 
 
@@ -1283,3 +1318,75 @@ class TestRoundTrip:
         restored = BatteryProfileSettings.model_validate_json(dumped)
         assert restored.model_dump() == original.model_dump()
         assert restored.max_charge_crate(25.0, 50.0) == pytest.approx(0.25)
+
+
+# --- Strict profile documents --------------------------------------------
+
+
+class TestStrictProfile:
+    """A profile contains every value the computation uses, and nothing unknown."""
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "technical_min_soc_percent",
+            "technical_max_soc_percent",
+            "charge_efficiency",
+            "discharge_efficiency",
+            "units",
+            "axes",
+            "hard_cutoffs",
+            "charge_limit_crate",
+            "discharge_limit_crate",
+        ],
+    )
+    def test_required_fields(self, field):
+        document = make_document()
+        del document[field]
+        with pytest.raises(ValidationError, match=field):
+            BatteryProfileSettings.model_validate(document)
+
+    @pytest.mark.parametrize(
+        "field",
+        ["nominal_capacity_wh", "max_charge_power_w", "max_discharge_power_w", "chemistry"],
+    )
+    def test_optional_fields(self, field):
+        document = make_document()
+        document.pop(field, None)
+        assert getattr(BatteryProfileSettings.model_validate(document), field) is None
+
+    def test_unknown_top_level_key_is_rejected(self):
+        # A typo of nominal_capacity_wh must not be ignored silently.
+        document = make_document(nominal_capacity_kwh=10.0)
+        with pytest.raises(ValidationError, match="nominal_capacity_kwh"):
+            BatteryProfileSettings.model_validate(document)
+
+    @pytest.mark.parametrize("section", ["units", "axes", "hard_cutoffs", "charge_efficiency"])
+    def test_unknown_nested_key_is_rejected(self, section):
+        document = make_document()
+        document[section] = {**document[section], "unknown_key": 1}
+        with pytest.raises(ValidationError, match="unknown_key"):
+            BatteryProfileSettings.model_validate(document)
+
+    @pytest.mark.parametrize("section", ["charge_efficiency", "hard_cutoffs"])
+    def test_sections_take_a_description(self, section):
+        document = make_document()
+        document[section] = {**document[section], "description": "Data sheet values"}
+        profile = BatteryProfileSettings.model_validate(document)
+        assert getattr(profile, section).description == "Data sheet values"
+
+    def test_technical_soc_bounds_must_be_ordered(self):
+        document = make_document(technical_min_soc_percent=90.0, technical_max_soc_percent=10.0)
+        with pytest.raises(ValidationError, match="technical_min_soc_percent"):
+            BatteryProfileSettings.model_validate(document)
+
+    def test_bundled_generic_profile_is_valid_and_generic(self, config_eos):
+        path = (
+            config_eos.package_root_path / "data" / "profile" / "battery" / "generic-lfp.json"
+        )
+        profile = BatteryProfileSettings.model_validate(json.loads(path.read_text()))
+        # Generic: C-rate limits, no capacity of its own.
+        assert profile.nominal_capacity_wh is None
+        assert profile.units.limit == "C-rate"
+        assert profile.technical_min_soc_percent == 0.0
+        assert profile.technical_max_soc_percent == 100.0

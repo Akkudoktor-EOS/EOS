@@ -87,33 +87,100 @@ _BATTERY_FIELDS_NOW_COMPUTED = (
     "discharging_efficiency",
 )
 
-# Former configuration fields that are kept under a new name:
-# (legacy name, new name). An already present new field wins.
-_BATTERY_FIELDS_RENAMED = (
+# Former battery fields that describe how the unit differs from its battery
+# profile and move into ``profile_adjustment``: (legacy name, adjustment field).
+# The first two are fields of the settings before battery profiles, the others
+# of the interim settings with battery profiles but without profile adjustment.
+_BATTERY_FIELDS_TO_ADJUSTMENT = (
     ("capacity_wh", "nominal_capacity_wh"),
     # max_charge_power_w was the configured charge power limit of the installation.
-    # Its name is now taken by the computed effective limit.
-    ("max_charge_power_w", "max_charge_power_limit_w"),
+    ("max_charge_power_w", "max_charge_power_w"),
+    ("nominal_capacity_wh", "nominal_capacity_wh"),
+    ("max_charge_power_limit_w", "max_charge_power_w"),
+    ("max_discharge_power_limit_w", "max_discharge_power_w"),
+)
+
+# Keys that only battery settings with battery profiles have.
+_BATTERY_PROFILE_KEYS = (
+    "battery_profile",
+    "profile_adjustment",
+    "nominal_capacity_wh",
+    "max_charge_power_limit_w",
+    "max_discharge_power_limit_w",
+)
+
+# Defaults of the battery settings before battery profiles. Configuration files
+# leave out default values, so a battery that relied on them gets them written
+# into its profile adjustment and keeps its capacity and charge power limit.
+_BATTERY_PRE_PROFILE_DEFAULTS = (
+    ("nominal_capacity_wh", 8000),
+    ("max_charge_power_w", 5000.0),
 )
 
 
 def _migrate_battery_item(item: Dict[str, Any]) -> None:
     """Migrate one battery or electric vehicle settings dict in place.
 
-    - ``capacity_wh`` becomes ``nominal_capacity_wh``.
-    - ``max_charge_power_w`` becomes ``max_charge_power_limit_w``, so a configured
-      charge power limit of the installation still applies.
-    - An already present new field wins over the legacy one.
+    - The capacity and the charge / discharge power limits of the installation
+      move into ``profile_adjustment``: ``capacity_wh`` and ``nominal_capacity_wh``
+      become ``nominal_capacity_wh``, ``max_charge_power_w`` and
+      ``max_charge_power_limit_w`` become ``max_charge_power_w``,
+      ``max_discharge_power_limit_w`` becomes ``max_discharge_power_w``.
+    - A value already present in ``profile_adjustment`` wins over a legacy one.
+    - A battery without any battery profile key is from before battery
+      profiles; it gets the former defaults (8000 Wh, 5000 W) for the values it
+      left out.
     - Fields that are computed from the battery profile now are dropped.
 
-    Configuration files are written without computed fields, so ``capacity_wh``
-    and ``max_charge_power_w`` in a file are always legacy configuration values.
+    Configuration files are written without computed fields, so
+    ``max_charge_power_w`` at the top level of a battery in a file is always the
+    legacy configuration value.
     """
-    for legacy_name, new_name in _BATTERY_FIELDS_RENAMED:
+    before_profiles = not any(key in item for key in _BATTERY_PROFILE_KEYS)
+    raw_adjustment = item.get("profile_adjustment")
+    adjustment = dict(raw_adjustment) if isinstance(raw_adjustment, dict) else {}
+    for legacy_name, new_name in _BATTERY_FIELDS_TO_ADJUSTMENT:
         if legacy_name in item:
-            item.setdefault(new_name, item.pop(legacy_name))
+            value = item.pop(legacy_name)
+            if value is not None:
+                adjustment.setdefault(new_name, value)
+    if before_profiles:
+        for name, default in _BATTERY_PRE_PROFILE_DEFAULTS:
+            adjustment.setdefault(name, default)
     for name in _BATTERY_FIELDS_NOW_COMPUTED:
         item.pop(name, None)
+    if adjustment:
+        item["profile_adjustment"] = adjustment
+
+
+def _migrate_config_entity_ids(value: Any) -> Any:
+    """Rewrite Home Assistant config paths of battery fields moved into the profile adjustment.
+
+    E.g. ``devices/batteries/bat0/capacity_wh`` becomes
+    ``devices/batteries/bat0/profile_adjustment/nominal_capacity_wh``. Paths of
+    fields that are computed now are dropped, because they cannot be set.
+    """
+    if not isinstance(value, dict):
+        return value
+    moved = dict(_BATTERY_FIELDS_TO_ADJUSTMENT)
+    result: Dict[str, Any] = {}
+    for path, entity_id in value.items():
+        parts = path.strip("/").split("/") if isinstance(path, str) else []
+        if (
+            len(parts) == 4
+            and parts[0] == "devices"
+            and parts[1] in ("batteries", "electric_vehicles")
+        ):
+            if parts[3] in moved:
+                path = "/".join([*parts[:3], "profile_adjustment", moved[parts[3]]])
+            elif parts[3] in _BATTERY_FIELDS_NOW_COMPUTED:
+                logger.warning(
+                    f"Dropping Home Assistant config entity '{entity_id}' for '{path}': "
+                    "the value is computed from the battery profile now."
+                )
+                continue
+        result[path] = entity_id
+    return result
 
 
 # -----------------------------
@@ -141,6 +208,10 @@ MIGRATION_MAP: Dict[
         "adapter/homeassistant/solution_entity_ids",
         lambda v: v if isinstance(v, list) else None,
     ),
+    "adapter/homeassistant/config_entity_ids": (
+        "adapter/homeassistant/config_entity_ids",
+        _migrate_config_entity_ids,
+    ),
     # - NodeRed
     # devices
     # =======
@@ -148,7 +219,7 @@ MIGRATION_MAP: Dict[
     # These must come *before* any sub-path entries that reference the old list indices,
     # so the whole collection is moved first; the sub-path None-drops clean up leftovers.
     # - batteries
-    #   capacity_wh -> nominal_capacity_wh, max_charge_power_w -> max_charge_power_limit_w,
+    #   capacity and installation power limits -> profile_adjustment,
     #   fields that are computed now are dropped
     "devices/batteries": (
         "devices/batteries",
