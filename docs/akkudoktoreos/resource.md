@@ -134,9 +134,9 @@ The resolved values are shown as read-only fields of the device configuration
 :::{admonition} Note
 :class: note
 Configurations of earlier versions are migrated automatically: `capacity_wh` becomes
-`nominal_capacity_wh`. The former fields `charging_efficiency`, `discharging_efficiency` and
-`max_charge_power_w` are computed from the profile now and are dropped. Set
-`max_charge_power_limit_w` if your installation limits the charge power.
+`nominal_capacity_wh` and `max_charge_power_w` becomes the installation limit
+`max_charge_power_limit_w`. The former fields `charging_efficiency` and `discharging_efficiency`
+are computed from the profile now and are dropped.
 :::
 
 #### Battery Profiles

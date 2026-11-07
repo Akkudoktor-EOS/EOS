@@ -82,26 +82,36 @@ def _list_to_device_dict(
 
 # Fields of BatteriesCommonSettings that used to be configuration fields and are
 # computed from the battery profile and the measurements now. Old values are dropped.
-# (max_charge_power_w is now the effective limit; the installation limit is the new
-# field max_charge_power_limit_w.)
 _BATTERY_FIELDS_NOW_COMPUTED = (
     "charging_efficiency",
     "discharging_efficiency",
-    "max_charge_power_w",
+)
+
+# Former configuration fields that are kept under a new name:
+# (legacy name, new name). An already present new field wins.
+_BATTERY_FIELDS_RENAMED = (
+    ("capacity_wh", "nominal_capacity_wh"),
+    # max_charge_power_w was the configured charge power limit of the installation.
+    # Its name is now taken by the computed effective limit.
+    ("max_charge_power_w", "max_charge_power_limit_w"),
 )
 
 
 def _migrate_battery_item(item: Dict[str, Any]) -> None:
     """Migrate one battery or electric vehicle settings dict in place.
 
-    - ``capacity_wh`` (the former configuration field) becomes
-      ``nominal_capacity_wh``. An already present ``nominal_capacity_wh`` wins.
-      The computed field is named ``resolved_nominal_capacity_wh``, so ``capacity_wh``
-      in a file is always a legacy value.
+    - ``capacity_wh`` becomes ``nominal_capacity_wh``.
+    - ``max_charge_power_w`` becomes ``max_charge_power_limit_w``, so a configured
+      charge power limit of the installation still applies.
+    - An already present new field wins over the legacy one.
     - Fields that are computed from the battery profile now are dropped.
+
+    Configuration files are written without computed fields, so ``capacity_wh``
+    and ``max_charge_power_w`` in a file are always legacy configuration values.
     """
-    if "capacity_wh" in item:
-        item.setdefault("nominal_capacity_wh", item.pop("capacity_wh"))
+    for legacy_name, new_name in _BATTERY_FIELDS_RENAMED:
+        if legacy_name in item:
+            item.setdefault(new_name, item.pop(legacy_name))
     for name in _BATTERY_FIELDS_NOW_COMPUTED:
         item.pop(name, None)
 
@@ -138,7 +148,8 @@ MIGRATION_MAP: Dict[
     # These must come *before* any sub-path entries that reference the old list indices,
     # so the whole collection is moved first; the sub-path None-drops clean up leftovers.
     # - batteries
-    #   capacity_wh -> nominal_capacity_wh, fields that are computed now are dropped
+    #   capacity_wh -> nominal_capacity_wh, max_charge_power_w -> max_charge_power_limit_w,
+    #   fields that are computed now are dropped
     "devices/batteries": (
         "devices/batteries",
         _list_to_device_dict("bat", _migrate_battery_item),

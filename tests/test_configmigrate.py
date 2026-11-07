@@ -267,7 +267,7 @@ class TestDeviceMigration:
 
     @pytest.mark.parametrize("devices_key", ["batteries", "electric_vehicles"])
     @pytest.mark.parametrize("as_list", [False, True])
-    def test_migration_renames_capacity_and_drops_computed_fields(self, devices_key, as_list):
+    def test_migration_of_legacy_battery_fields(self, devices_key, as_list):
         """Legacy battery fields migrate to the profile based settings."""
         battery = {
             "device_id": "house",
@@ -282,16 +282,50 @@ class TestDeviceMigration:
         assert devices is not None
         settings = devices["house"]
         assert settings.nominal_capacity_wh == 12000
-        # Computed now: taken from the battery profile, not from the legacy config value.
-        assert settings.max_charge_power_limit_w is None
+        # The configured charge power limit of the installation still applies.
+        assert settings.max_charge_power_limit_w == 3000
+        assert settings.max_charge_power_w <= 3000
         dumped = settings.model_dump(exclude_computed_fields=True)
         for legacy in ("capacity_wh", "charging_efficiency", "discharging_efficiency",
                        "max_charge_power_w"):
             assert legacy not in dumped
 
-    def test_migration_keeps_present_nominal_capacity(self):
-        """An already present nominal_capacity_wh wins over a legacy capacity_wh."""
-        battery = {"device_id": "house", "capacity_wh": 12000, "nominal_capacity_wh": 10000}
+    @pytest.mark.parametrize(
+        "legacy_name, new_name",
+        [
+            ("capacity_wh", "nominal_capacity_wh"),
+            ("max_charge_power_w", "max_charge_power_limit_w"),
+        ],
+    )
+    def test_migration_keeps_present_new_field(self, legacy_name, new_name):
+        """An already present new field wins over its legacy field."""
+        battery = {"device_id": "house", legacy_name: 12000, new_name: 10000}
         migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
         assert migrated.devices.batteries is not None
-        assert migrated.devices.batteries["house"].nominal_capacity_wh == 10000
+        assert getattr(migrated.devices.batteries["house"], new_name) == 10000
+
+    def test_migrate_config_file_keeps_charge_power_limit(self, tmp_path: Path):
+        """The legacy charge power limit survives the file migration.
+
+        The file migration strips computed fields before migrating; the legacy
+        max_charge_power_w shares its name with a computed field now.
+        """
+        config_file = tmp_path / "EOS.config.json"
+        battery = {"device_id": "house", "capacity_wh": 12000, "max_charge_power_w": 3000}
+        config_file.write_text(
+            json.dumps(
+                {
+                    "general": {"version": "0.0.0-old"},
+                    "devices": {"batteries": {"house": battery}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert configmigrate.migrate_config_file(config_file, tmp_path / "EOS.config.bak")
+
+        migrated = json.loads(config_file.read_text(encoding="utf-8"))
+        house = migrated["devices"]["batteries"]["house"]
+        assert house["max_charge_power_limit_w"] == 3000
+        assert house["nominal_capacity_wh"] == 12000
+        assert "max_charge_power_w" not in house
