@@ -893,3 +893,40 @@ class TestDocumentationMode:
         assert settings.keys == ["a", "b"]
         monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", True)
         assert settings.keys == []
+
+
+class TestConfigProviderValidation:
+    """Provider ids are validated while the configuration is created."""
+
+    def test_config_with_providers_is_created_before_the_prediction(
+        self, config_eos, monkeypatch
+    ):
+        """No prediction instance exists yet while the configuration is created."""
+        from akkudoktoreos.core import coreabc
+        from akkudoktoreos.core.version import __version__
+
+        providers = {
+            "weather": {"provider": "OpenMeteo"},
+            "load": {"provider": "LoadAkkudoktorAdjusted"},
+            "pvforecast": {"provider": "PVForecastPVLib"},
+            "elecprice": {"provider": "ElecPriceEnergyCharts"},
+            "feedintariff": {"provider": "FeedInTariffFixed"},
+            "elecfee": {"provider": "ElecFeeFixed"},
+        }
+        # A current version: the file is validated as is, without migration.
+        config_eos.general.config_file_path.write_text(
+            json.dumps({"general": {"version": __version__}, **providers})
+        )
+        monkeypatch.setattr(coreabc, "_config_eos", None)
+        monkeypatch.setattr(coreabc, "_prediction_eos", None)
+        # Outside of documentation mode get_prediction() does not create the
+        # prediction instance on access.
+        monkeypatch.setattr(ConfigEOS, "documentation_mode", classmethod(lambda cls: False))
+        monkeypatch.setattr(ConfigEOS, "_init_config_eos", {"with_file_settings": True})
+        ConfigEOS.reset_instance()
+        try:
+            config = coreabc.get_config(init=True)
+            for section, value in providers.items():
+                assert getattr(config, section).provider == value["provider"]
+        finally:
+            ConfigEOS.reset_instance()

@@ -14,11 +14,11 @@ def elecfee_provider_ids() -> list[str]:
     try:
         prediction_eos = get_prediction()
     except Exception:
-        # Prediction may not be initialized. Return static built-in provider ids.
-        return [
-            "ElecFeeFixed",
-            "ElecFeeImport",
-        ]
+        # Prediction may not be initialized yet, e.g. while the configuration
+        # is created: take the ids from the provider classes.
+        from akkudoktoreos.prediction.prediction import prediction_provider_ids
+
+        return prediction_provider_ids(ElecFeeProvider)
 
     return [
         provider.provider_id()
