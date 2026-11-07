@@ -5,7 +5,6 @@ from typing import Optional
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.loadimport import LoadImportCommonSettings
@@ -14,18 +13,11 @@ from akkudoktoreos.prediction.loadvrm import LoadVrmCommonSettings
 
 def load_providers() -> list[str]:
     """Valid load provider ids."""
-    try:
-        prediction_eos = get_prediction()
-    except Exception:
-        # Prediction may not be initialized
-        # Return at least provider used in example
-        return ["LoadAkkudoktor", "LoadVrm", "LoadImport"]
+    # From the provider classes: valid also while the configuration is created,
+    # before the prediction instance exists.
+    from akkudoktoreos.prediction.prediction import prediction_provider_ids
 
-    return [
-        provider.provider_id()
-        for provider in prediction_eos.providers
-        if isinstance(provider, LoadProvider)
-    ]
+    return prediction_provider_ids(LoadProvider)
 
 
 class LoadCommonSettings(SettingsBaseModel):

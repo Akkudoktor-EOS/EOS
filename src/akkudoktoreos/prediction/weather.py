@@ -5,25 +5,17 @@ from typing import Optional
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.weatherabc import WeatherProvider
 from akkudoktoreos.prediction.weatherimport import WeatherImportCommonSettings
 
 
 def weather_provider_ids() -> list[str]:
     """Valid weather provider ids."""
-    try:
-        prediction_eos = get_prediction()
-    except Exception:
-        # Prediction may not be initialized
-        # Return at least provider used in example
-        return ["WeatherImport"]
+    # From the provider classes: valid also while the configuration is created,
+    # before the prediction instance exists.
+    from akkudoktoreos.prediction.prediction import prediction_provider_ids
 
-    return [
-        provider.provider_id()
-        for provider in prediction_eos.providers
-        if isinstance(provider, WeatherProvider)
-    ]
+    return prediction_provider_ids(WeatherProvider)
 
 
 class WeatherCommonSettings(SettingsBaseModel):
