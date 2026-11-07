@@ -164,13 +164,16 @@ class ConfigOptimizationRequest(
                 )
             return deadline
 
+        # A battery configuration error does not cancel the run: the battery gets
+        # default values for what cannot be resolved, and an error is logged.
         battery = None
         if groups["batteries"]:
             device = groups["batteries"][0]
-            operating_parameters = await device.resolve_current_operating_parameters(
-                observation_time
-            )
-            battery = device.to_genetic_pv_bat_param(operating_parameters)
+            (
+                operating_parameters,
+                use_profile_tables,
+            ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
+            battery = device.to_genetic_pv_bat_param(operating_parameters, use_profile_tables)
             battery.initial_soc_percentage = await state(device)
             deadline = await full_charge(device)
             horizon_end = start.add(seconds=settings.horizon * settings.interval_sec)
@@ -201,10 +204,11 @@ class ConfigOptimizationRequest(
         ev = None
         if groups["electric_vehicles"]:
             device = groups["electric_vehicles"][0]
-            operating_parameters = await device.resolve_current_operating_parameters(
-                observation_time
-            )
-            ev = device.to_genetic_ev_bat_param(operating_parameters)
+            (
+                operating_parameters,
+                use_profile_tables,
+            ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
+            ev = device.to_genetic_ev_bat_param(operating_parameters, use_profile_tables)
             ev.initial_soc_percentage = await state(device)
         inverter = None
         if groups["inverters"]:

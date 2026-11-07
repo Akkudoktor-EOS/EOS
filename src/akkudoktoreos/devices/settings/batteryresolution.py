@@ -15,6 +15,11 @@ temperature, SoC and the current charge / discharge power. There are no built-in
 fallback values: if the parameters cannot be resolved, a
 ``BatteryResolutionError`` names the battery and the reason.
 
+The one exception is the parameter preparation of the optimizations, which
+always succeeds for a configuration error: it fills the values that cannot be
+resolved with the former defaults (``BATTERY_FALLBACK_*``) and reports them,
+see ``BatteriesCommonSettings.resolve_operating_parameters_or_defaults``.
+
 The functions here are pure: they neither load profiles nor read measurements.
 Loading the profile is done by the profile store, reading the operating point by
 ``batterymeasurement``.
@@ -36,12 +41,34 @@ if TYPE_CHECKING:
 BATTERY_DEFAULT_SOC_FACTOR: float = 0.5
 BATTERY_DEFAULT_TEMPERATURE_DEGC: float = 25.0
 
+# Defaults of the battery settings before battery profiles. Used only by the
+# parameter preparation of the optimizations, for values the configuration
+# does not allow to resolve.
+BATTERY_FALLBACK_CAPACITY_WH: int = 8000
+BATTERY_FALLBACK_MAX_CHARGE_POWER_W: float = 5000.0
+BATTERY_FALLBACK_MAX_DISCHARGE_POWER_W: float = 5000.0
+BATTERY_FALLBACK_CHARGING_EFFICIENCY: float = 0.88
+BATTERY_FALLBACK_DISCHARGING_EFFICIENCY: float = 0.88
+
 
 class BatteryResolutionError(ValueError):
     """The effective parameters of a battery cannot be resolved.
 
     The message names the battery device and the reason, e.g. a generic profile
-    without a capacity in the profile adjustment.
+    without a capacity in the profile adjustment. Unless it is a
+    ``BatteryOperatingPointError``, the cause is the configuration (settings or
+    battery profile).
+    """
+
+
+class BatterySocRangeError(BatteryResolutionError):
+    """The configured SoC range lies outside the technical SoC bounds of the profile."""
+
+
+class BatteryOperatingPointError(BatteryResolutionError):
+    """The profile allows no charging at the operating point, e.g. it is too cold.
+
+    This is a state of the battery, not a configuration error.
     """
 
 
@@ -105,9 +132,13 @@ class BatteryOperatingParameters:
 # ---------------------------------------------------------------------------
 
 
-def _resolution_error(settings: "BatteriesCommonSettings", reason: str) -> BatteryResolutionError:
+def _resolution_error(
+    settings: "BatteriesCommonSettings",
+    reason: str,
+    error_type: type[BatteryResolutionError] = BatteryResolutionError,
+) -> BatteryResolutionError:
     """Return a resolution error naming the battery device."""
-    return BatteryResolutionError(f"Battery '{settings.device_id}': {reason}")
+    return error_type(f"Battery '{settings.device_id}': {reason}")
 
 
 def profile_limit_to_power_w(limit: float, profile: "BatteryProfile", capacity_wh: int) -> float:
@@ -232,10 +263,12 @@ def resolve_battery_parameters(
         The effective parameters.
 
     Raises:
-        BatteryResolutionError: If the profile inhibits charging at the
-            operating point, yields a non-positive charge power, its limits
-            cannot be converted to power, or the technical SOC bounds leave an
-            empty SOC range.
+        BatteryOperatingPointError: If the profile inhibits charging at the
+            operating point or yields a non-positive charge power there.
+        BatterySocRangeError: If the technical SOC bounds leave an empty SOC
+            range.
+        BatteryResolutionError: If the profile limits cannot be converted to
+            power.
     """
     temperature_degC = operating_point.temperature_degC
     soc_factor = operating_point.soc_factor
@@ -249,6 +282,7 @@ def resolve_battery_parameters(
             settings,
             f"battery profile '{settings.battery_profile}' inhibits charging at "
             f"{temperature_degC} degC / {soc_percent} % SoC.",
+            BatteryOperatingPointError,
         )
     try:
         max_charge_power_w = _limited_power_w(
@@ -265,6 +299,7 @@ def resolve_battery_parameters(
             settings,
             f"battery profile '{settings.battery_profile}' allows no charge power at "
             f"{temperature_degC} degC / {soc_percent} % SoC.",
+            BatteryOperatingPointError,
         )
 
     # --- maximum discharge power (0 if inhibited, nothing requires it) --
@@ -302,6 +337,7 @@ def resolve_battery_parameters(
             settings,
             f"SOC range [{min_soc}, {max_soc}] is empty after applying the technical "
             f"SOC bounds of battery profile '{settings.battery_profile}'.",
+            BatterySocRangeError,
         )
 
     return BatteryOperatingParameters(
@@ -314,6 +350,56 @@ def resolve_battery_parameters(
         max_discharge_power_w=max_discharge_power_w,
         min_soc_percentage=min_soc,
         max_soc_percentage=max_soc,
+    )
+
+
+def resolve_battery_parameters_without_profile(
+    settings: "BatteriesCommonSettings", operating_point: BatteryOperatingPoint
+) -> tuple[BatteryOperatingParameters, list[str]]:
+    """Resolve the parameters from the profile adjustment and the former defaults.
+
+    For the parameter preparation of the optimizations if the battery profile
+    cannot be used. The values of the profile adjustment apply where set; the
+    former defaults (``BATTERY_FALLBACK_*``) fill the others.
+
+    Args:
+        settings: Battery device settings.
+        operating_point: Operating point the parameters belong to.
+
+    Returns:
+        The parameters and a description of each default value used, e.g.
+        ``"nominal capacity 8000 Wh"``.
+    """
+    adjustment = settings.profile_adjustment
+    defaults: list[str] = []
+    capacity_wh = adjustment.nominal_capacity_wh
+    if capacity_wh is None:
+        capacity_wh = BATTERY_FALLBACK_CAPACITY_WH
+        defaults.append(f"nominal capacity {capacity_wh} Wh")
+    max_charge_power_w = adjustment.max_charge_power_w
+    if max_charge_power_w is None:
+        max_charge_power_w = BATTERY_FALLBACK_MAX_CHARGE_POWER_W
+        defaults.append(f"maximum charge power {max_charge_power_w} W")
+    max_discharge_power_w = adjustment.max_discharge_power_w
+    if max_discharge_power_w is None:
+        max_discharge_power_w = BATTERY_FALLBACK_MAX_DISCHARGE_POWER_W
+        defaults.append(f"maximum discharge power {max_discharge_power_w} W")
+    defaults.append(f"charging efficiency {BATTERY_FALLBACK_CHARGING_EFFICIENCY}")
+    defaults.append(f"discharging efficiency {BATTERY_FALLBACK_DISCHARGING_EFFICIENCY}")
+    defaults.append("no SoC dependent power limits")
+    return (
+        BatteryOperatingParameters(
+            temperature_degC=operating_point.temperature_degC,
+            soc_factor=operating_point.soc_factor,
+            capacity_wh=capacity_wh,
+            charging_efficiency=BATTERY_FALLBACK_CHARGING_EFFICIENCY,
+            discharging_efficiency=BATTERY_FALLBACK_DISCHARGING_EFFICIENCY,
+            max_charge_power_w=max_charge_power_w,
+            max_discharge_power_w=max_discharge_power_w,
+            min_soc_percentage=settings.min_soc_percentage,
+            max_soc_percentage=settings.max_soc_percentage,
+        ),
+        defaults,
     )
 
 

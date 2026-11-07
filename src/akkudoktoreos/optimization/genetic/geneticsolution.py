@@ -621,16 +621,18 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         parameters = getattr(self, "parameters", None)
         # Without parameters, convert the battery settings: they hold no
         # capacity / efficiency / power fields, these come from the battery profile.
-        bat_list = (
-            [parameters.pv_battery]
-            if parameters is not None and parameters.pv_battery is not None
-            else [
-                settings.to_genetic_pv_bat_param()
-                for settings in list((self.config.devices.batteries or {}).values())[:1]
-            ]
-            if parameters is None
-            else []
-        )
+        # A configuration error gives the defaults of the parameter preparation;
+        # the configuration check already reported it.
+        bat_list = []
+        if parameters is not None:
+            if parameters.pv_battery is not None:
+                bat_list = [parameters.pv_battery]
+        else:
+            for settings in list((self.config.devices.batteries or {}).values())[:1]:
+                snapshot, use_tables = settings.resolve_operating_parameters_or_defaults(
+                    report=False
+                )
+                bat_list.append(settings.to_genetic_pv_bat_param(snapshot, use_tables))
         if not bat_list:
             return ac_charge, dc_charge, discharge_allowed, battery_grid_export_allowed
 

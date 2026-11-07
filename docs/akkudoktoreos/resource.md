@@ -155,9 +155,21 @@ The resolved values are shown as read-only fields of the device configuration
 
 If a battery cannot be resolved, e.g. its profile does not exist or a generic profile lacks the
 capacity in the adjustment, its read-only fields are empty (`null`) and EOS logs an error naming
-the battery whenever the configuration is set up or changed. An optimization that includes the
-battery fails with that error instead of simulating made-up values. A power limit in the
-adjustment above the profile limit has no effect and is logged as a warning.
+the battery whenever the configuration is set up or changed. A power limit in the adjustment above
+the profile limit has no effect and is logged as a warning.
+
+The parameter preparation of the GENETIC and GENETIC0 optimizations always succeeds for such a
+configuration error. It resolves whatever the configuration allows and fills only the rest with
+the defaults of earlier versions, and it logs an error that names the battery, the problem and the
+default values used:
+
+- **Profile not usable** (missing, invalid): the profile adjustment where set, else 8000 Wh,
+  5000 W charge and discharge power and efficiencies of 0.88, without SoC dependent power limits.
+- **Generic profile without capacity in the adjustment**: the profile with a capacity of 8000 Wh.
+- **SoC range outside the technical SoC bounds of the profile**: the technical SoC range.
+
+A profile that inhibits charging at the measured battery temperature is not a configuration
+error; the optimization reports it as error.
 
 :::{admonition} Note
 :class: note

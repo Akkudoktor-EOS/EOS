@@ -33,6 +33,7 @@ from akkudoktoreos.devices.profile.batteryprofile import (
 )
 from akkudoktoreos.devices.profile.profilestore import get_profile_store
 from akkudoktoreos.devices.settings import batterymeasurement
+from akkudoktoreos.devices.settings.batteryresolution import BatteryOperatingPointError
 from akkudoktoreos.devices.settings.batterysettings import (
     BATTERY_DEFAULT_PROFILE,
     BATTERY_DEFAULT_SOC_FACTOR,
@@ -1599,3 +1600,104 @@ class TestProfileCheck:
     def test_power_limit_below_profile_is_no_warning(self):
         settings = make_settings(capacity_wh=10000, charge_limit_w=2000.0)
         assert settings.check_profile() == ([], [])
+
+
+# --- Defaults for the optimization ------------------------------------------------
+
+
+@pytest.fixture
+def logged_errors():
+    """Collect the messages logged at ERROR level."""
+    from loguru import logger
+
+    messages: list[str] = []
+    sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+    yield messages
+    logger.remove(sink_id)
+
+
+class TestOptimizationDefaults:
+    """resolve_operating_parameters_or_defaults never fails for a configuration error."""
+
+    def test_resolvable_battery_matches_strict_resolution(self, logged_errors):
+        settings = make_settings(capacity_wh=10000)
+        parameters, use_tables = settings.resolve_operating_parameters_or_defaults()
+        assert parameters == settings.resolve_operating_parameters()
+        assert use_tables is True
+        assert logged_errors == []
+
+    def test_missing_profile_uses_adjustment_and_former_defaults(
+        self, broken_profile_loader, logged_errors
+    ):
+        settings = make_settings(battery_profile="does-not-exist", charge_limit_w=3000.0)
+        parameters, use_tables = settings.resolve_operating_parameters_or_defaults()
+        assert use_tables is False
+        assert parameters.capacity_wh == 8000
+        # The adjustment applies where set.
+        assert parameters.max_charge_power_w == pytest.approx(3000.0)
+        assert parameters.max_discharge_power_w == pytest.approx(5000.0)
+        assert parameters.charging_efficiency == pytest.approx(0.88)
+        assert parameters.discharging_efficiency == pytest.approx(0.88)
+        assert len(logged_errors) == 1
+        message = logged_errors[0]
+        assert "Battery 'battery1'" in message and "does-not-exist" in message
+        assert "nominal capacity 8000 Wh" in message
+        assert "maximum discharge power 5000.0 W" in message
+        # Not a default: the configured charge limit.
+        assert "maximum charge power" not in message
+
+    def test_generic_profile_without_capacity_uses_default_capacity_only(
+        self, make_profiled_settings, logged_errors
+    ):
+        settings = make_profiled_settings(make_profile(nominal_capacity_wh=None))
+        parameters, use_tables = settings.resolve_operating_parameters_or_defaults()
+        assert use_tables is True
+        assert parameters.capacity_wh == 8000
+        # The profile still applies: 0.5 C of the default capacity.
+        assert parameters.max_charge_power_w == pytest.approx(4000.0)
+        assert len(logged_errors) == 1
+        assert "profile_adjustment.nominal_capacity_wh" in logged_errors[0]
+        assert logged_errors[0].endswith("Using defaults for the optimization: nominal capacity 8000 Wh.")
+
+    def test_soc_range_outside_technical_bounds_uses_technical_range(
+        self, make_profiled_settings, logged_errors
+    ):
+        profile = make_profile(technical_min_soc_percent=5.0, technical_max_soc_percent=90.0)
+        settings = make_profiled_settings(
+            profile, capacity_wh=10000, min_soc_percentage=95, max_soc_percentage=100
+        )
+        parameters, use_tables = settings.resolve_operating_parameters_or_defaults()
+        assert use_tables is True
+        assert (parameters.min_soc_percentage, parameters.max_soc_percentage) == (5, 90)
+        assert len(logged_errors) == 1
+        assert "SoC range 5 ... 90 %" in logged_errors[0]
+
+    def test_inhibited_charging_is_no_configuration_error(self, make_profiled_settings):
+        profile = make_profile(hard_cutoffs=charge_inhibited_below_30())
+        settings = make_profiled_settings(profile, capacity_wh=10000)
+        with pytest.raises(BatteryOperatingPointError):
+            settings.resolve_operating_parameters_or_defaults()
+
+    def test_report_false_logs_nothing(self, broken_profile_loader, logged_errors):
+        make_settings().resolve_operating_parameters_or_defaults(report=False)
+        assert logged_errors == []
+
+    @pytest.mark.parametrize("method", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
+    def test_conversion_without_profile_tables(self, broken_profile_loader, method):
+        settings = make_settings(battery_profile="does-not-exist")
+        parameters, use_tables = settings.resolve_operating_parameters_or_defaults(report=False)
+        converted = getattr(settings, method)(parameters, use_tables)
+        assert converted.capacity_wh == 8000
+        assert converted.max_charge_power_w == pytest.approx(5000.0)
+        assert converted.charge_power_limit_w_by_soc is None
+        assert converted.charging_efficiency_curve is None
+
+    @pytest.mark.asyncio
+    async def test_current_operating_point_variant(self, broken_profile_loader, measurements):
+        measurements["battery1-temperature-degc"] = 10.0
+        settings = make_settings()
+        parameters, use_tables = await settings.resolve_current_operating_parameters_or_defaults(
+            report=False
+        )
+        assert use_tables is False
+        assert parameters.temperature_degC == pytest.approx(10.0)

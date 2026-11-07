@@ -333,3 +333,56 @@ class TestGenetic0DemoData:
         assert parameters.pv_battery.capacity_wh == 8000
         assert parameters.ev is not None
         assert parameters.ev.capacity_wh == 50000
+
+    @pytest.mark.asyncio
+    async def test_battery_configuration_error_uses_defaults_not_demo_data(self, config_eos):
+        """A misconfigured battery keeps its configuration, with defaults for the rest."""
+        from loguru import logger
+
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {"hours": 48},
+                "optimization": {"genetic0": {"horizon_hours": 24}},
+                "elecfee": {"provider": None},
+                "devices": {
+                    "max_batteries": 1,
+                    "max_electric_vehicles": 0,
+                    "max_inverters": 0,
+                    "max_home_appliances": 0,
+                    # generic-lfp provides no capacity and the adjustment none either.
+                    "batteries": {"storage": {"min_soc_percentage": 20}},
+                    "electric_vehicles": None,
+                },
+            }
+        )
+        get_ems().set_start_datetime(to_datetime("2026-08-01T14:00:00+00:00"))
+        tariff = pd.Series(
+            0.00008, index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min")
+        )
+
+        async def read_array(**kwargs):
+            return np.full(48, 0.0003)
+
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(side_effect=read_array),
+            key_to_raw_series=AsyncMock(return_value=tariff),
+        )
+        messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: messages.append(message.record["message"]), level="ERROR"
+        )
+        try:
+            with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
+                parameters = await Genetic0OptimizationParameters.prepare()
+        finally:
+            logger.remove(sink_id)
+        assert parameters is not None
+        assert parameters.pv_battery is not None
+        # The configured battery, not the demo battery: its own SoC minimum.
+        assert parameters.pv_battery.device_id == "storage"
+        assert parameters.pv_battery.min_soc_percentage == 20
+        assert parameters.pv_battery.capacity_wh == 8000
+        assert any(
+            "Battery 'storage'" in m and "nominal capacity 8000 Wh" in m for m in messages
+        )

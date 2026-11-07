@@ -539,7 +539,13 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
             bat = parameters.pv_battery
         else:
             bat_dict = self.config.devices.batteries or {}
-            bat = list(bat_dict.values())[0].to_genetic0_pv_bat_param() if bat_dict else None
+            bat = None
+            if bat_dict:
+                # A configuration error gives the defaults of the parameter
+                # preparation; the configuration check already reported it.
+                settings = list(bat_dict.values())[0]
+                snapshot, _ = settings.resolve_operating_parameters_or_defaults(report=False)
+                bat = settings.to_genetic0_pv_bat_param(snapshot)
         if bat is None:
             return ac_charge, dc_charge, discharge_allowed
 

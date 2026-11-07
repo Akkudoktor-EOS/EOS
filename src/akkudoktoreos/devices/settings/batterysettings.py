@@ -88,12 +88,16 @@ from akkudoktoreos.devices.settings.batteryresolution import (
     BATTERY_DEFAULT_TEMPERATURE_DEGC as BATTERY_DEFAULT_TEMPERATURE_DEGC,
 )
 from akkudoktoreos.devices.settings.batteryresolution import (
+    BATTERY_FALLBACK_CAPACITY_WH,
     BatteryOperatingParameters,
     BatteryOperatingPoint,
+    BatteryOperatingPointError,
     BatteryPowerCurves,
     BatteryResolutionError,
+    BatterySocRangeError,
     profile_peak_power_w,
     resolve_battery_parameters,
+    resolve_battery_parameters_without_profile,
     resolve_battery_power_curves,
     resolve_nominal_capacity_wh,
 )
@@ -346,13 +350,20 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             raise BatteryResolutionError(f"Battery '{self.device_id}': {exc}") from exc
 
     def _genetic_snapshot(
-        self, operating_parameters: Optional[BatteryOperatingParameters]
-    ) -> tuple[BatteryOperatingParameters, "BatteryProfile"]:
+        self, operating_parameters: Optional[BatteryOperatingParameters], use_profile_tables: bool
+    ) -> tuple[BatteryOperatingParameters, Optional["BatteryProfile"]]:
         """Return the snapshot to convert and the profile, loading the profile once.
+
+        Without profile tables, the given snapshot is converted as is and no
+        profile is loaded.
 
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
+        if not use_profile_tables:
+            if operating_parameters is None:
+                raise ValueError("Converting without profile tables requires a resolved snapshot.")
+            return operating_parameters, None
         profile = self._load_battery_profile()
         if operating_parameters is not None:
             return operating_parameters, profile
@@ -363,16 +374,16 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         )
 
     def _genetic_power_parameters(
-        self, p: BatteryOperatingParameters, profile: "BatteryProfile"
+        self, p: BatteryOperatingParameters, profile: Optional["BatteryProfile"]
     ) -> dict[str, Any]:
         """Return the power and efficiency fields of the GENETIC battery parameters.
 
         With power curves from the profile, the rated powers are the highest
         powers over SoC; the per-SoC tables limit them in the simulation.
-        Without (the profile allows no charging at this temperature), the
-        powers resolved at the operating point apply.
+        Without (no profile, or the profile allows no charging at this
+        temperature), the powers resolved at the operating point apply.
         """
-        curves = self._power_curves(p, profile)
+        curves = self._power_curves(p, profile) if profile is not None else None
         if curves is None:
             return {
                 "max_charge_power_w": p.max_charge_power_w,
@@ -474,6 +485,102 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         """
         operating_point = await self.measure_operating_point(target_datetime)
         return self.resolve_operating_parameters(operating_point)
+
+    def resolve_operating_parameters_or_defaults(
+        self, operating_point: Optional[BatteryOperatingPoint] = None, report: bool = True
+    ) -> tuple[BatteryOperatingParameters, bool]:
+        """Resolve the parameters for the optimization, with defaults for configuration errors.
+
+        The parameter preparation of the optimizations always succeeds for a
+        configuration error. Whatever the configuration allows is resolved from
+        the battery profile and the profile adjustment; only the values that
+        cannot be resolved are filled with the former defaults:
+
+        - The profile cannot be used (missing, invalid, limits not convertible
+          to power): the profile adjustment where set, else 8000 Wh, 5000 W
+          charge and discharge power, efficiencies 0.88, no SoC dependent power
+          limits.
+        - A generic profile without capacity in the profile adjustment: the
+          capacity 8000 Wh.
+        - A configured SoC range outside the technical SoC bounds of the profile:
+          the technical SoC range of the profile.
+
+        Args:
+            operating_point: Operating point to evaluate the profile at, the
+                reference operating point if None.
+            report: Whether to log an error that names the battery, the problem
+                and the default values used.
+
+        Returns:
+            ``(parameters, use_profile_tables)``. ``use_profile_tables`` is
+            False if the parameters were resolved without profile; pass it to
+            the GENETIC conversions.
+
+        Raises:
+            BatteryOperatingPointError: If the profile inhibits charging at the
+                operating point. This is a state of the battery, not a
+                configuration error.
+        """
+        if operating_point is None:
+            operating_point = BatteryOperatingPoint()
+        problems: list[str] = []
+        defaults: list[str] = []
+        parameters: Optional[BatteryOperatingParameters] = None
+        use_profile_tables = True
+        try:
+            profile = self._load_battery_profile()
+            try:
+                capacity_wh = resolve_nominal_capacity_wh(self, profile)
+            except BatteryResolutionError as exc:
+                problems.append(str(exc))
+                capacity_wh = BATTERY_FALLBACK_CAPACITY_WH
+                defaults.append(f"nominal capacity {capacity_wh} Wh")
+            try:
+                parameters = resolve_battery_parameters(self, profile, capacity_wh, operating_point)
+            except BatterySocRangeError as exc:
+                problems.append(str(exc))
+                full_range = self.model_copy(
+                    update={"min_soc_percentage": 0, "max_soc_percentage": 100}
+                )
+                parameters = resolve_battery_parameters(
+                    full_range, profile, capacity_wh, operating_point
+                )
+                defaults.append(
+                    f"SoC range {parameters.min_soc_percentage} ... "
+                    f"{parameters.max_soc_percentage} % (technical bounds of the profile)"
+                )
+        except BatteryOperatingPointError:
+            raise
+        except BatteryResolutionError as exc:
+            problems.append(str(exc))
+            parameters, defaults = resolve_battery_parameters_without_profile(self, operating_point)
+            use_profile_tables = False
+        if problems and report:
+            logger.error(
+                "{} Using defaults for the optimization: {}.",
+                " ".join(problems),
+                ", ".join(defaults),
+            )
+        return parameters, use_profile_tables
+
+    async def resolve_current_operating_parameters_or_defaults(
+        self, target_datetime: Optional[DateTime] = None, report: bool = True
+    ) -> tuple[BatteryOperatingParameters, bool]:
+        """Resolve like ``resolve_operating_parameters_or_defaults`` at the measured operating point.
+
+        Args:
+            target_datetime: Datetime the measurements are looked up for, now if None.
+            report: Whether to log the configuration error and the defaults used.
+
+        Returns:
+            ``(parameters, use_profile_tables)``.
+
+        Raises:
+            BatteryOperatingPointError: If the profile inhibits charging at the
+                measured operating point.
+        """
+        operating_point = await self.measure_operating_point(target_datetime)
+        return self.resolve_operating_parameters_or_defaults(operating_point, report)
 
     def check_profile(self) -> tuple[list[str], list[str]]:
         """Check that the battery can be resolved from its profile and adjustment.
@@ -732,7 +839,9 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     )
 
     def to_genetic_pv_bat_param(
-        self, operating_parameters: Optional[BatteryOperatingParameters] = None
+        self,
+        operating_parameters: Optional[BatteryOperatingParameters] = None,
+        use_profile_tables: bool = True,
     ) -> "SolarPanelBatteryParameters":
         """Return SolarPanelBatteryParameters for the GENETIC optimizer.
 
@@ -740,13 +849,18 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             operating_parameters: Resolved snapshot to convert, e.g. from
                 ``resolve_current_operating_parameters``. None resolves at the
                 reference operating point.
+            use_profile_tables: Whether to add the SoC dependent power limits
+                and efficiency curves of the profile. False for a snapshot
+                resolved without profile (see
+                ``resolve_operating_parameters_or_defaults``); requires
+                ``operating_parameters``.
 
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
         from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
 
-        p, profile = self._genetic_snapshot(operating_parameters)
+        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
         return SolarPanelBatteryParameters(
             device_id=self.device_id,
             capacity_wh=p.capacity_wh,
@@ -761,7 +875,9 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         )
 
     def to_genetic_ev_bat_param(
-        self, operating_parameters: Optional[BatteryOperatingParameters] = None
+        self,
+        operating_parameters: Optional[BatteryOperatingParameters] = None,
+        use_profile_tables: bool = True,
     ) -> "ElectricVehicleParameters":
         """Return ElectricVehicleParameters for the GENETIC optimizer.
 
@@ -769,13 +885,18 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             operating_parameters: Resolved snapshot to convert, e.g. from
                 ``resolve_current_operating_parameters``. None resolves at the
                 reference operating point.
+            use_profile_tables: Whether to add the SoC dependent power limits
+                and efficiency curves of the profile. False for a snapshot
+                resolved without profile (see
+                ``resolve_operating_parameters_or_defaults``); requires
+                ``operating_parameters``.
 
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
         from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
 
-        p, profile = self._genetic_snapshot(operating_parameters)
+        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
         return ElectricVehicleParameters(
             device_id=self.device_id,
             capacity_wh=p.capacity_wh,

@@ -730,3 +730,30 @@ async def test_missing_newest_soc_value_falls_back_to_older_fresh_sample(
     parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 42
+
+
+@pytest.mark.asyncio
+async def test_battery_configuration_error_uses_defaults_and_logs_error(configured_request):
+    """A battery that cannot be resolved does not cancel the parameter preparation."""
+    from loguru import logger
+
+    config, _, _, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"batteries": {"storage": {"battery_profile": "does-not-exist"}}}}
+    )
+    messages: list[str] = []
+    sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+    try:
+        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    finally:
+        logger.remove(sink_id)
+    assert parameters.pv_battery is not None
+    # The adjustment applies, the former defaults fill the rest.
+    assert parameters.pv_battery.capacity_wh == 2000
+    assert parameters.pv_battery.max_charge_power_w == pytest.approx(1000.0)
+    assert parameters.pv_battery.charging_efficiency == pytest.approx(0.88)
+    assert parameters.pv_battery.charge_power_limit_w_by_soc is None
+    assert any(
+        "Battery 'storage'" in m and "Using defaults for the optimization" in m
+        for m in messages
+    )

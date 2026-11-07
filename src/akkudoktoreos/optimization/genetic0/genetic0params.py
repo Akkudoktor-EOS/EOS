@@ -586,9 +586,12 @@ class Genetic0OptimizationParameters(
                 try:
                     # Take first battery
                     battery_config = list(cls.config.devices.batteries.values())[0]
-                    battery_params = battery_config.to_genetic0_pv_bat_param(
-                        await battery_config.resolve_current_operating_parameters()
-                    )
+                    # A configuration error gives default values, reported as error.
+                    (
+                        battery_parameters,
+                        _,
+                    ) = await battery_config.resolve_current_operating_parameters_or_defaults()
+                    battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
                 except Exception as e:
                     logger.info(
                         "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
@@ -656,8 +659,13 @@ class Genetic0OptimizationParameters(
                 try:
                     # Take first electric_vehicle
                     electric_vehicle_config = list(cls.config.devices.electric_vehicles.values())[0]
+                    # A configuration error gives default values, reported as error.
+                    (
+                        ev_parameters,
+                        _,
+                    ) = await electric_vehicle_config.resolve_current_operating_parameters_or_defaults()
                     electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(
-                        await electric_vehicle_config.resolve_current_operating_parameters()
+                        ev_parameters
                     )
                 except Exception as e:
                     logger.info(
