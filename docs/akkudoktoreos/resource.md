@@ -103,6 +103,71 @@ Intermediate values scale the fill level proportionally.
 
 ### Battery Configuration
 
+Most technical data of a battery or electric vehicle comes from a **battery profile**. The
+configuration of the device (`devices/batteries/<device_id>` or
+`devices/electric_vehicles/<device_id>`) selects the profile and describes the installation:
+
+| **Field**                     | **Description**                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `battery_profile`             | Name of the battery profile (without `.json`). Default `generic-lfp`.           |
+| `nominal_capacity_wh`         | Nominal capacity of the installed battery [Wh]. Overrides the profile capacity. |
+| `max_charge_power_limit_w`    | Charge power limit of the installation (inverter, device) [W]. Optional.        |
+| `max_discharge_power_limit_w` | Discharge power limit of the installation [W]. Optional.                        |
+| `min_soc_percentage`          | Minimum SoC [%], raised to the technical minimum SoC of the profile.            |
+| `max_soc_percentage`          | Maximum SoC [%], lowered to the technical maximum SoC of the profile.           |
+
+EOS resolves the effective parameters from the configuration, the profile and the operating point
+(battery temperature and SoC):
+
+- **Capacity**: `nominal_capacity_wh`, else the nominal capacity of the profile, else 8000 Wh.
+- **Power limits**: the profile limit maps give the maximum charge and discharge rate per
+  temperature and SoC. The installation limits can only lower them. At temperatures outside the
+  hard cutoffs of the profile charging or discharging is inhibited.
+- **Efficiencies**: the profile efficiency curves at the charge and discharge power.
+
+The resolved values are shown as read-only fields of the device configuration
+(`resolved_nominal_capacity_wh`, `max_charge_power_w`, `max_discharge_power_w`,
+`charging_efficiency`, `discharging_efficiency`, `effective_min_soc_percentage`,
+`effective_max_soc_percentage`). These fields are evaluated at the reference operating point of
+25 °C and 50 % SoC.
+
+:::{admonition} Note
+:class: note
+Configurations of earlier versions are migrated automatically: `capacity_wh` becomes
+`nominal_capacity_wh`. The former fields `charging_efficiency`, `discharging_efficiency` and
+`max_charge_power_w` are computed from the profile now and are dropped. Set
+`max_charge_power_limit_w` if your installation limits the charge power.
+:::
+
+#### Battery Profiles
+
+A battery profile is a JSON document with:
+
+- charge and discharge limit maps over temperature and SoC (as C-rate, W or A),
+- optional charge and discharge efficiency curves over the C-rate,
+- optional nominal capacity and voltage, model power limits and technical SoC bounds,
+- hard temperature cutoffs for charging and discharging.
+
+EOS ships the profile `generic-lfp` for a generic LFP home battery. Profiles are looked up by name
+first in the user data directory `<general/data_folder_path>/profile/battery/` and then in the
+packaged profiles. Saving a profile always writes to the user data directory; a user profile with
+the name of a packaged profile replaces it until the user profile is deleted. Changed profiles are
+used on their next access, without a restart of EOS.
+
+Profiles can be managed with the REST API:
+
+| **Endpoint**                           | **Description**                                                  |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| **GET** `/v1/profile`                  | List the profile kinds (e.g. `battery`).                         |
+| **GET** `/v1/profile/{kind}`           | List the user and packaged profiles of a kind.                   |
+| **GET** `/v1/profile/{kind}/schema`    | JSON schema of the profile documents of a kind.                  |
+| **GET** `/v1/profile/{kind}/{name}`    | Get a profile document.                                          |
+| **PUT** `/v1/profile/{kind}/{name}`    | Validate a profile document and save it as user profile.         |
+| **DELETE** `/v1/profile/{kind}/{name}` | Delete a user profile. Returns the profile that applies instead. |
+
+The **Profiles** page of EOSdash edits battery profiles as JSON and plots the limit maps and
+efficiency curves as EOS evaluates them. Edits can be previewed before they are saved.
+
 ### Battery Stati
 
 To keep the battery simulation in synchonization with the actual stati of the battery the following
