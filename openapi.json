@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611080980801183"
+    "version": "v0.3.0.dev2611080906903266"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -6512,6 +6512,23 @@
             "description": "Maximum charging power in watts.",
             "default": 5000
           },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
+          },
           "initial_soc_percentage": {
             "type": "integer",
             "maximum": 100.0,
@@ -6692,6 +6709,18 @@
             "type": "integer",
             "title": "Max Charge Power W",
             "description": "Maximum charging power in watts."
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts."
           },
           "soc_wh": {
             "type": "number",
@@ -17537,6 +17566,23 @@
             "title": "Max Charge Power W",
             "description": "Maximum charging power in watts.",
             "default": 5000
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
           },
           "initial_soc_percentage": {
             "type": "integer",

@@ -54,6 +54,17 @@ class BaseBatteryParameters(DeviceParameters):
     )
     discharging_efficiency: float = discharging_efficiency_field(0.88)
     max_charge_power_w: Optional[float] = max_charging_power_field()
+    max_discharge_power_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "Maximum discharging power in watts. 0 means discharging is inhibited. "
+                "None uses max_charge_power_w."
+            ),
+            "examples": [None, 4000],
+        },
+    )
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
     )
@@ -251,6 +262,10 @@ class Battery:
             self.max_charge_power_w = self.parameters.max_charge_power_w
         else:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
+        if self.parameters.max_discharge_power_w is not None:
+            self.max_discharge_power_w = self.parameters.max_discharge_power_w
+        else:
+            self.max_discharge_power_w = self.max_charge_power_w
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
         # Discharged energy per slot, a plain list: it is read and written one
@@ -311,6 +326,7 @@ class Battery:
             "charging_efficiency": self.charging_efficiency,
             "discharging_efficiency": self.discharging_efficiency,
             "max_charge_power_w": self.max_charge_power_w,
+            "max_discharge_power_w": self.max_discharge_power_w,
         }
 
     def reset(self) -> None:
@@ -344,11 +360,11 @@ class Battery:
         exports at most half the battery's rated discharge power, independent of
         how much of the slot budget self-consumption already used.
         """
-        return self.max_charge_power_w * self.slot_duration_h * self.discharging_efficiency
+        return self.max_discharge_power_w * self.slot_duration_h * self.discharging_efficiency
 
     def remaining_discharge_energy_wh(self, hour: int) -> float:
         """Return DC energy still deliverable within one optimization slot."""
-        raw_power_budget_wh = self.max_charge_power_w * self.slot_duration_h
+        raw_power_budget_wh = self.max_discharge_power_w * self.slot_duration_h
         raw_power_remaining_wh = max(
             raw_power_budget_wh - self._discharged_raw_wh_per_slot[hour], 0.0
         )
@@ -413,12 +429,13 @@ class Battery:
             return 0.0, 0.0
 
         # Maximum raw discharge due to power limit, scaled to the slot duration.
-        # max_charge_power_w is a power [W]; energy movable in one slot is
+        # max_discharge_power_w is a power [W]; energy movable in one slot is
         # power x slot_duration_h.
         max_raw_wh = max(
-            self.max_charge_power_w * self.slot_duration_h - self._discharged_raw_wh_per_slot[hour],
+            self.max_discharge_power_w * self.slot_duration_h
+            - self._discharged_raw_wh_per_slot[hour],
             0.0,
-        )  # TODO rename to max_discharge_power_w
+        )
 
         # Actual raw withdrawal (internal)
         raw_withdrawal_wh = min(raw_available_wh, max_raw_wh)

@@ -74,6 +74,10 @@ class ElectricVehicleResult(DeviceOptimizeResult):
     max_charge_power_w: int = Field(
         json_schema_extra={"description": "Maximum charging power in watts."}
     )
+    max_discharge_power_w: Optional[float] = Field(
+        default=None,
+        json_schema_extra={"description": "Maximum discharging power in watts."},
+    )
     soc_wh: float = Field(
         json_schema_extra={
             "description": "State of charge of the battery in watt-hours at the start of the simulation."

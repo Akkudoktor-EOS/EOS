@@ -308,7 +308,7 @@ class Inverter:
             # Match Battery.discharge_energy(): preserve a SoC below the reserve.
             return 0.0, 0.0
         max_raw_wh = max(
-            battery.max_charge_power_w * battery.slot_duration_h - discharged_raw_wh[hour], 0.0
+            battery.max_discharge_power_w * battery.slot_duration_h - discharged_raw_wh[hour], 0.0
         )
         max_deliverable_wh = min(raw_available_wh, max_raw_wh) * discharging_efficiency
         battery_discharge_dc = min(dc_request, max_deliverable_wh)

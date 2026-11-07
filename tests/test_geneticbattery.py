@@ -525,3 +525,67 @@ class TestEVMinimumCurrent(unittest.TestCase):
                 self.assertAlmostEqual(value.soc_wh, value.max_soc_wh)
                 self.assertAlmostEqual(losses, missing / 0.95 - missing)
                 self.assertEqual(value.charge_array[0], factor)
+
+
+class TestMaxDischargePower:
+    """The discharge power limit is separate from the charge power limit."""
+
+    @staticmethod
+    def _battery(max_discharge_power_w=None, slot_duration_h=1.0):
+        params = SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=10_000,
+            initial_soc_percentage=100,
+            min_soc_percentage=0,
+            max_charge_power_w=8_000,
+            max_discharge_power_w=max_discharge_power_w,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+        )
+        battery = Battery(params, prediction_hours=4, slot_duration_h=slot_duration_h)
+        battery.set_discharge_per_hour(np.ones(4))
+        return battery
+
+    def test_defaults_to_max_charge_power(self):
+        battery = self._battery()
+        assert battery.max_discharge_power_w == 8_000
+        delivered, _ = battery.discharge_energy(9_000.0, 0)
+        assert delivered == pytest.approx(8_000.0)
+
+    def test_limits_discharge_not_charge(self):
+        battery = self._battery(max_discharge_power_w=4_000)
+        delivered, _ = battery.discharge_energy(9_000.0, 0)
+        assert delivered == pytest.approx(4_000.0)
+        assert battery.remaining_discharge_energy_wh(0) == pytest.approx(0.0)
+        assert battery.rated_discharge_energy_wh() == pytest.approx(4_000.0)
+
+        empty = self._battery(max_discharge_power_w=4_000)
+        empty.soc_wh = 0.0
+        empty.set_charge_per_hour(np.ones(4))
+        stored, _ = empty.charge_energy(9_000.0, 0)
+        assert stored == pytest.approx(8_000.0)
+
+    def test_quarter_hour_budget(self):
+        battery = self._battery(max_discharge_power_w=4_000, slot_duration_h=0.25)
+        assert battery.remaining_discharge_energy_wh(0) == pytest.approx(1_000.0)
+        delivered, _ = battery.discharge_energy(2_000.0, 0)
+        assert delivered == pytest.approx(1_000.0)
+
+    def test_zero_inhibits_discharge(self):
+        battery = self._battery(max_discharge_power_w=0)
+        assert battery.discharge_energy(1_000.0, 0) == (0.0, 0.0)
+        assert battery.rated_discharge_energy_wh() == 0.0
+
+    def test_negative_is_rejected(self):
+        with pytest.raises(ValidationError):
+            SolarPanelBatteryParameters(
+                device_id="battery1", capacity_wh=10_000, max_discharge_power_w=-1
+            )
+
+    @pytest.mark.parametrize("converter", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
+    def test_converter_passes_profile_discharge_limit(self, converter):
+        """generic-lfp allows 1C charge but only 0.5C continuous discharge."""
+        settings = BatteriesCommonSettings(device_id="battery1", nominal_capacity_wh=8_000)
+        parameters = getattr(settings, converter)()
+        assert parameters.max_charge_power_w == pytest.approx(8_000.0)
+        assert parameters.max_discharge_power_w == pytest.approx(4_000.0)
