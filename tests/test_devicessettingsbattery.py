@@ -1370,3 +1370,133 @@ class TestMeasurementAccess:
         await get_measurement().update_value(now, {"battery1-temperature-degc": 0.0})
         resolved = await settings.resolve_current_operating_parameters(now)
         assert resolved.max_charge_power_w == pytest.approx(1000.0)
+
+
+class TestGeneticPowerCurves:
+    """The GENETIC parameters carry the profile as SoC tables and efficiency curves."""
+
+    # SoC axis [0, 5, 10, 20, 40, 60, 80, 90, 95, 100]: full 1.0 C up to 80 %,
+    # then tapering to 0.5 C at 100 %.
+    TAPER = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.8, 0.6, 0.5]
+    # Temperature axis [-10, -5, 0, 5, 10, 15, 25, 35, 45, 50]: 0.2 C at 10 degC,
+    # 0.5 C at 25 degC.
+    BY_TEMPERATURE = [0.1, 0.1, 0.1, 0.15, 0.2, 0.3, 0.5, 0.5, 0.5, 0.5]
+
+    @staticmethod
+    def snapshot(temperature_degC: float = 25.0) -> BatteryOperatingParameters:
+        """Return a resolved snapshot that does not depend on a profile."""
+        return BatteryOperatingParameters(
+            temperature_degC=temperature_degC,
+            soc_factor=0.5,
+            capacity_wh=10000,
+            charging_efficiency=0.9,
+            discharging_efficiency=0.9,
+            max_charge_power_w=3000.0,
+            max_discharge_power_w=2000.0,
+            min_soc_percentage=0,
+            max_soc_percentage=100,
+        )
+
+    @pytest.mark.parametrize("converter", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
+    def test_tables_follow_soc(self, make_profiled_settings, converter):
+        profile = make_profile(charge=[list(self.TAPER) for _ in range(10)], discharge=0.4)
+        settings = make_profiled_settings(profile, nominal_capacity_wh=10000)
+        parameters = getattr(settings, converter)()
+
+        charge = parameters.charge_power_limit_w_by_soc
+        discharge = parameters.discharge_power_limit_w_by_soc
+        assert charge is not None and len(charge) == 101
+        assert discharge is not None and len(discharge) == 101
+        assert charge[50] == pytest.approx(10000.0)
+        assert charge[80] == pytest.approx(10000.0)
+        assert charge[90] == pytest.approx(8000.0)
+        assert charge[100] == pytest.approx(5000.0)
+        assert all(a >= b for a, b in zip(charge[80:], charge[81:]))
+        assert discharge == pytest.approx([4000.0] * 101)
+        assert parameters.max_charge_power_w == pytest.approx(10000.0)
+        assert parameters.max_discharge_power_w == pytest.approx(4000.0)
+
+    @pytest.mark.asyncio
+    async def test_rated_power_is_the_peak_over_soc(self, make_profiled_settings, measurements):
+        """At a high measured SoC the snapshot is tapered, the rated power is not."""
+        profile = make_profile(charge=[list(self.TAPER) for _ in range(10)], discharge=0.4)
+        settings = make_profiled_settings(profile, nominal_capacity_wh=10000)
+        measurements["battery1-soc-factor"] = 1.0
+        snapshot = await current(settings)
+        assert snapshot.max_charge_power_w == pytest.approx(5000.0)
+
+        parameters = settings.to_genetic_pv_bat_param(snapshot)
+        assert parameters.max_charge_power_w == pytest.approx(10000.0)
+        assert parameters.charge_power_limit_w_by_soc[100] == pytest.approx(5000.0)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "temperature, expected_w",
+        [(10.0, 2000.0), (None, 5000.0)],  # None: no measurement, 25 degC assumed
+    )
+    async def test_tables_at_measured_temperature(
+        self, make_profiled_settings, measurements, temperature, expected_w
+    ):
+        grid = [[value] * 10 for value in self.BY_TEMPERATURE]
+        settings = make_profiled_settings(
+            make_profile(charge=grid, discharge=grid), nominal_capacity_wh=10000
+        )
+        if temperature is not None:
+            measurements["battery1-temperature-degc"] = temperature
+
+        parameters = settings.to_genetic_pv_bat_param(await current(settings))
+        assert parameters.charge_power_limit_w_by_soc == pytest.approx([expected_w] * 101)
+        assert parameters.discharge_power_limit_w_by_soc == pytest.approx([expected_w] * 101)
+
+    def test_installation_limits_cap_tables(self, make_profiled_settings):
+        profile = make_profile(charge=[list(self.TAPER) for _ in range(10)], discharge=0.4)
+        settings = make_profiled_settings(
+            profile,
+            nominal_capacity_wh=10000,
+            max_charge_power_limit_w=6000,
+            max_discharge_power_limit_w=1000,
+        )
+        parameters = settings.to_genetic_pv_bat_param()
+        assert max(parameters.charge_power_limit_w_by_soc) == pytest.approx(6000.0)
+        assert parameters.charge_power_limit_w_by_soc[100] == pytest.approx(5000.0)
+        assert parameters.discharge_power_limit_w_by_soc == pytest.approx([1000.0] * 101)
+        assert parameters.max_charge_power_w == pytest.approx(6000.0)
+        assert parameters.max_discharge_power_w == pytest.approx(1000.0)
+
+    def test_efficiency_curves_over_power_fraction(self, make_profiled_settings, full_profile):
+        settings = make_profiled_settings(full_profile, nominal_capacity_wh=10000)
+        parameters = settings.to_genetic_pv_bat_param()
+
+        charging = parameters.charging_efficiency_curve
+        discharging = parameters.discharging_efficiency_curve
+        assert charging is not None and discharging is not None
+        assert [point[0] for point in charging] == pytest.approx([i / 20 for i in range(21)])
+        # Rated charge power 0.5 C: fraction 1.0 is 0.5 C, fraction 0.2 is 0.1 C.
+        assert charging[-1][1] == pytest.approx(0.96)
+        assert charging[4][1] == pytest.approx(0.90)
+        # Rated discharge power 0.4 C: between 0.90 at 0.1 C and 0.95 at 0.5 C.
+        assert discharging[-1][1] == pytest.approx(0.9375)
+
+    def test_no_efficiency_curves_without_profile_curves(self):
+        parameters = make_settings(nominal_capacity_wh=10000).to_genetic_pv_bat_param()
+        assert parameters.charge_power_limit_w_by_soc is not None
+        assert parameters.charging_efficiency_curve is None
+        assert parameters.discharging_efficiency_curve is None
+
+    def test_no_tables_if_charging_is_inhibited_at_every_soc(self, make_profiled_settings):
+        profile = make_profile(hard_cutoffs=charge_inhibited_below_30())
+        settings = make_profiled_settings(profile, nominal_capacity_wh=10000)
+        snapshot = self.snapshot(temperature_degC=20.0)
+        assert settings.resolve_power_curves(snapshot) is None
+
+        parameters = settings.to_genetic_pv_bat_param(snapshot)
+        assert parameters.charge_power_limit_w_by_soc is None
+        assert parameters.max_charge_power_w == pytest.approx(snapshot.max_charge_power_w)
+
+    def test_no_tables_without_profile(self, broken_profile_loader):
+        snapshot = self.snapshot()
+        settings = make_settings(battery_profile="does-not-exist")
+        parameters = settings.to_genetic_pv_bat_param(snapshot)
+        assert parameters.charge_power_limit_w_by_soc is None
+        assert parameters.max_charge_power_w == pytest.approx(3000.0)
+        assert parameters.max_discharge_power_w == pytest.approx(2000.0)

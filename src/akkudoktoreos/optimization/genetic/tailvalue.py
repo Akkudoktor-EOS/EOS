@@ -50,6 +50,9 @@ def _simulate_action(
     bat.soc_wh = float(energy_wh)
     bat._charged_raw_wh_per_slot[:] = [0.0] * len(bat._charged_raw_wh_per_slot)
     bat._discharged_raw_wh_per_slot[:] = [0.0] * len(bat._discharged_raw_wh_per_slot)
+    if bat.has_power_curves:
+        bat._charged_stored_wh_per_slot[:] = [0.0] * len(bat._charged_stored_wh_per_slot)
+        bat._discharged_dc_wh_per_slot[:] = [0.0] * len(bat._discharged_dc_wh_per_slot)
     bat._charge_limit_raw_wh_per_slot[:] = [float("inf")] * len(bat._charge_limit_raw_wh_per_slot)
     ac_enabled = inv.ac_to_dc_efficiency > 0 and (
         inv.max_ac_charge_power_w is None or inv.max_ac_charge_power_w > 0
@@ -84,7 +87,7 @@ def _simulate_action(
         "reward_euro": reward,
         "grid_export_wh": sold,
         "grid_import_wh": bought,
-        "battery_charge_wh": (bat._charged_raw_wh_per_slot[0] * bat.charging_efficiency),
+        "battery_charge_wh": bat.charged_energy_wh(0),
         "battery_discharge_wh": discharged_wh,
         "losses_wh": losses,
         "ac_grid_charge_wh": ac_grid_charge_wh,

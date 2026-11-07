@@ -270,8 +270,9 @@ class Inverter:
         battery = self.battery
         if not battery or requested_ac_wh <= 0.0:
             return 0.0, 0.0
-        if type(battery) is not Battery:
-            # Another battery implementation: ask it, step by step.
+        if type(battery) is not Battery or battery.has_power_curves:
+            # Another battery implementation, or SoC / power dependent limits
+            # and efficiencies: ask the battery, step by step.
             if not battery.discharge_released(hour):
                 return 0.0, 0.0
             dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)

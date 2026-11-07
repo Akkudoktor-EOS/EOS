@@ -125,6 +125,11 @@ EOS resolves the effective parameters from the configuration, the profile and th
   hard cutoffs of the profile charging or discharging is inhibited.
 - **Efficiencies**: the profile efficiency curves at the charge and discharge power.
 
+The GENETIC optimization evaluates the profile at the measured battery temperature, or at 25 °C if
+no temperature is measured. Its battery simulation then limits the charge and discharge power
+by the SoC at the start of each charge or discharge step, and takes the charge and discharge
+efficiency at the power of the slot.
+
 The resolved values are shown as read-only fields of the device configuration
 (`resolved_nominal_capacity_wh`, `max_charge_power_w`, `max_discharge_power_w`,
 `charging_efficiency`, `discharging_efficiency`, `effective_min_soc_percentage`,

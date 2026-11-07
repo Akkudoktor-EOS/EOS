@@ -349,3 +349,147 @@ def resolve_battery_parameters_lenient(
     except ValueError as exc:
         logger.debug(f"Battery profile not applicable, using defaults: {exc}")
         return _resolve_without_profile(settings, capacity_wh, operating_point)
+
+
+# ---------------------------------------------------------------------------
+# Power curves for simulations
+# ---------------------------------------------------------------------------
+
+# Number of points of a power limit table: one per SoC percent, 0 % ... 100 %.
+BATTERY_SOC_TABLE_POINTS: int = 101
+
+# Power fractions an efficiency curve is sampled at: 0.0, 0.05, ..., 1.0.
+BATTERY_EFFICIENCY_CURVE_FRACTIONS: tuple[float, ...] = tuple(i / 20 for i in range(21))
+
+
+@dataclass(frozen=True)
+class BatteryPowerCurves:
+    """Power limits and efficiencies of a battery profile at one temperature.
+
+    Prepared for simulations that evaluate the battery many times, e.g. the
+    GENETIC optimizer: plain lists instead of profile lookups.
+
+    Attributes:
+        temperature_degC: Battery temperature the profile was evaluated at.
+        charge_power_limit_w_by_soc: Maximum charging power [W] per SoC
+            percent; index i is SoC i %. 0 where charging is inhibited.
+        discharge_power_limit_w_by_soc: Maximum discharging power [W] per SoC
+            percent; 0 where discharging is inhibited.
+        max_charge_power_w: Highest charging power of the table [W].
+        max_discharge_power_w: Highest discharging power of the table [W].
+        charging_efficiency_curve: ``(power_fraction, efficiency)`` points; the
+            power fraction is relative to ``max_charge_power_w``. None if the
+            profile has no charge efficiency curve.
+        discharging_efficiency_curve: ``(power_fraction, efficiency)`` points;
+            the power fraction is relative to ``max_discharge_power_w``. None if
+            the profile has no discharge efficiency curve or discharging is
+            inhibited.
+    """
+
+    temperature_degC: float
+    charge_power_limit_w_by_soc: list[float]
+    discharge_power_limit_w_by_soc: list[float]
+    max_charge_power_w: float
+    max_discharge_power_w: float
+    charging_efficiency_curve: Optional[list[tuple[float, float]]]
+    discharging_efficiency_curve: Optional[list[tuple[float, float]]]
+
+
+def _power_limit_table_w(
+    crate_at: Callable[[float, float], Optional[float]],
+    temperature_degC: float,
+    profile: "BatteryProfile",
+    capacity_wh: int,
+    profile_cap_w: Optional[float],
+    installation_cap_w: Optional[float],
+) -> list[float]:
+    """Return the power limit [W] per SoC percent at one temperature."""
+    table: list[float] = []
+    for soc_percent in range(BATTERY_SOC_TABLE_POINTS):
+        limit = crate_at(temperature_degC, float(soc_percent))
+        if limit is None:
+            table.append(0.0)
+            continue
+        power_w = _limited_power_w(limit, profile, capacity_wh, profile_cap_w, installation_cap_w)
+        table.append(max(power_w, 0.0))
+    return table
+
+
+def _efficiency_curve(
+    lookup: Callable[[float], Optional[float]],
+    max_power_w: float,
+    capacity_wh: int,
+) -> Optional[list[tuple[float, float]]]:
+    """Sample an efficiency curve over the power fraction of ``max_power_w``."""
+    if max_power_w <= 0:
+        return None
+    curve: list[tuple[float, float]] = []
+    for fraction in BATTERY_EFFICIENCY_CURVE_FRACTIONS:
+        efficiency = lookup(fraction * max_power_w / capacity_wh)
+        if efficiency is None:
+            return None
+        curve.append((fraction, efficiency))
+    return curve
+
+
+def resolve_battery_power_curves(
+    settings: "BatteriesCommonSettings",
+    profile: Optional["BatteryProfile"],
+    capacity_wh: int,
+    temperature_degC: float,
+) -> Optional[BatteryPowerCurves]:
+    """Evaluate the profile over the whole SoC range at one temperature.
+
+    The power limits are capped by the model power limits of the profile and
+    by the installation limits of the settings, like the parameters resolved by
+    ``resolve_battery_parameters``.
+
+    Args:
+        settings: Battery device settings.
+        profile: Compiled battery profile, None if it could not be loaded.
+        capacity_wh: Effective nominal capacity [Wh].
+        temperature_degC: Battery temperature to evaluate the profile at.
+
+    Returns:
+        The power curves, or None if there is no profile or the profile allows
+        no charging at any SoC at this temperature.
+
+    Raises:
+        ValueError: If the profile limits cannot be converted to power (see
+            ``profile_limit_to_power_w``).
+    """
+    if profile is None:
+        return None
+    charge_table = _power_limit_table_w(
+        profile.max_charge_crate,
+        temperature_degC,
+        profile,
+        capacity_wh,
+        profile.max_charge_power_w,
+        settings.max_charge_power_limit_w,
+    )
+    max_charge_power_w = max(charge_table)
+    if max_charge_power_w <= 0:
+        return None
+    discharge_table = _power_limit_table_w(
+        profile.max_discharge_crate,
+        temperature_degC,
+        profile,
+        capacity_wh,
+        profile.max_discharge_power_w,
+        settings.max_discharge_power_limit_w,
+    )
+    max_discharge_power_w = max(discharge_table)
+    return BatteryPowerCurves(
+        temperature_degC=temperature_degC,
+        charge_power_limit_w_by_soc=charge_table,
+        discharge_power_limit_w_by_soc=discharge_table,
+        max_charge_power_w=max_charge_power_w,
+        max_discharge_power_w=max_discharge_power_w,
+        charging_efficiency_curve=_efficiency_curve(
+            profile.charge_efficiency_at, max_charge_power_w, capacity_wh
+        ),
+        discharging_efficiency_curve=_efficiency_curve(
+            profile.discharge_efficiency_at, max_discharge_power_w, capacity_wh
+        ),
+    )

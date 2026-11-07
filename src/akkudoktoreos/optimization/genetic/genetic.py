@@ -743,7 +743,11 @@ class GeneticSimulation(PydanticBaseModel):
             ev_fast and type(ev_fast).current_soc_percentage is Battery.current_soc_percentage
         )
         battery_lcos_direct = False
-        if battery_fast is not None and type(battery_fast) is Battery:
+        if (
+            battery_fast is not None
+            and type(battery_fast) is Battery
+            and not battery_fast.has_power_curves
+        ):
             battery_lcos_direct = True
             battery_discharged_raw_fast = battery_fast._discharged_raw_wh_per_slot
             battery_discharging_efficiency_fast = battery_fast.discharging_efficiency

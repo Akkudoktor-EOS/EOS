@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611080906903266"
+    "version": "v0.3.0.dev2611080916720172"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -6609,6 +6609,122 @@
                 1.0
               ],
               null
+            ]
+          },
+          "charge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Power Limit W By Soc",
+            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "discharge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Power Limit W By Soc",
+            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "charging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charging Efficiency Curve",
+            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  0.5,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.94
+                ]
+              ]
+            ]
+          },
+          "discharging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharging Efficiency Curve",
+            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
             ]
           },
           "min_soc_deadline_datetime": {
@@ -17664,6 +17780,122 @@
                 1.0
               ],
               null
+            ]
+          },
+          "charge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Power Limit W By Soc",
+            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "discharge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Power Limit W By Soc",
+            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "charging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charging Efficiency Curve",
+            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  0.5,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.94
+                ]
+              ]
+            ]
+          },
+          "discharging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharging Efficiency Curve",
+            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
             ]
           },
           "levelized_cost_of_storage_kwh": {

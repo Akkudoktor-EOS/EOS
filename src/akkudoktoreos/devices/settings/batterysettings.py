@@ -99,8 +99,10 @@ from akkudoktoreos.devices.settings.batteryresolution import (
 from akkudoktoreos.devices.settings.batteryresolution import (
     BatteryOperatingParameters,
     BatteryOperatingPoint,
+    BatteryPowerCurves,
     resolve_battery_parameters,
     resolve_battery_parameters_lenient,
+    resolve_battery_power_curves,
     resolve_nominal_capacity_wh,
 )
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
@@ -282,6 +284,82 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         except (FileNotFoundError, ValueError) as exc:
             logger.debug(f"Battery profile '{self.battery_profile}' not usable: {exc}")
             return None
+
+    def resolve_power_curves(
+        self, operating_parameters: BatteryOperatingParameters
+    ) -> Optional[BatteryPowerCurves]:
+        """Evaluate the battery profile over the whole SoC range, leniently.
+
+        The profile is evaluated at the temperature of the operating parameters,
+        i.e. the measured battery temperature or the default temperature if
+        there is no measurement.
+
+        Args:
+            operating_parameters: Resolved snapshot providing temperature and
+                capacity.
+
+        Returns:
+            The power curves, or None if the profile cannot be loaded or applied.
+        """
+        return self._power_curves(operating_parameters, self._get_battery_profile_lenient())
+
+    def _power_curves(
+        self, operating_parameters: BatteryOperatingParameters, profile: Optional["BatteryProfile"]
+    ) -> Optional[BatteryPowerCurves]:
+        """Evaluate a loaded profile like ``resolve_power_curves``, never raise."""
+        try:
+            return resolve_battery_power_curves(
+                self,
+                profile,
+                operating_parameters.capacity_wh,
+                operating_parameters.temperature_degC,
+            )
+        except ValueError as exc:
+            logger.debug(f"Battery profile '{self.battery_profile}' power curves not usable: {exc}")
+            return None
+
+    def _genetic_snapshot(
+        self, operating_parameters: Optional[BatteryOperatingParameters]
+    ) -> tuple[BatteryOperatingParameters, Optional["BatteryProfile"]]:
+        """Return the snapshot to convert and the profile, loading the profile once.
+
+        Raises:
+            FileNotFoundError: If the snapshot is resolved here and the battery
+                profile does not exist.
+            ValueError: See ``resolve_operating_parameters``.
+        """
+        if operating_parameters is not None:
+            return operating_parameters, self._get_battery_profile_lenient()
+        profile = self.get_battery_profile()
+        capacity_wh = resolve_nominal_capacity_wh(self, profile)
+        return (
+            resolve_battery_parameters(self, profile, capacity_wh, BatteryOperatingPoint()),
+            profile,
+        )
+
+    def _genetic_power_parameters(
+        self, p: BatteryOperatingParameters, profile: Optional["BatteryProfile"]
+    ) -> dict[str, Any]:
+        """Return the power and efficiency fields of the GENETIC battery parameters.
+
+        With power curves from the profile, the rated powers are the highest
+        powers over SoC; the per-SoC tables limit them in the simulation.
+        Without, the powers resolved at the operating point apply.
+        """
+        curves = self._power_curves(p, profile)
+        if curves is None:
+            return {
+                "max_charge_power_w": p.max_charge_power_w,
+                "max_discharge_power_w": p.max_discharge_power_w,
+            }
+        return {
+            "max_charge_power_w": curves.max_charge_power_w,
+            "max_discharge_power_w": curves.max_discharge_power_w,
+            "charge_power_limit_w_by_soc": curves.charge_power_limit_w_by_soc,
+            "discharge_power_limit_w_by_soc": curves.discharge_power_limit_w_by_soc,
+            "charging_efficiency_curve": curves.charging_efficiency_curve,
+            "discharging_efficiency_curve": curves.discharging_efficiency_curve,
+        }
 
     # ------------------------------------------------------------------
     # Measurement access (see batterymeasurement)
@@ -597,22 +675,17 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         """
         from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
 
-        p = (
-            operating_parameters
-            if operating_parameters is not None
-            else self.resolve_operating_parameters()
-        )
+        p, profile = self._genetic_snapshot(operating_parameters)
         return SolarPanelBatteryParameters(
             device_id=self.device_id,
             capacity_wh=p.capacity_wh,
             charging_efficiency=p.charging_efficiency,
             discharging_efficiency=p.discharging_efficiency,
-            max_charge_power_w=p.max_charge_power_w,
-            max_discharge_power_w=p.max_discharge_power_w,
             min_soc_percentage=p.min_soc_percentage,
             max_soc_percentage=p.max_soc_percentage,
             charge_rates=self.charge_rates,
             grid_export_rates=self.grid_export_rates,
+            **self._genetic_power_parameters(p, profile),
             levelized_cost_of_storage_kwh=self.levelized_cost_of_storage_amt_kwh,
         )
 
@@ -633,23 +706,18 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         """
         from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
 
-        p = (
-            operating_parameters
-            if operating_parameters is not None
-            else self.resolve_operating_parameters()
-        )
+        p, profile = self._genetic_snapshot(operating_parameters)
         return ElectricVehicleParameters(
             device_id=self.device_id,
             capacity_wh=p.capacity_wh,
             charging_efficiency=p.charging_efficiency,
             discharging_efficiency=p.discharging_efficiency,
             charge_rates=self.charge_rates,
-            max_charge_power_w=p.max_charge_power_w,
-            max_discharge_power_w=p.max_discharge_power_w,
             min_soc_percentage=p.min_soc_percentage,
             max_soc_percentage=p.max_soc_percentage,
             min_soc_deadline_datetime=self.min_soc_deadline_datetime,
             min_soc_max_duration_h=self.min_soc_max_duration_h,
+            **self._genetic_power_parameters(p, profile),
         )
 
     # ------------------------------------------------------------------
