@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611011668106370"
+    "version": "v0.3.0.dev2611080980801183"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -313,6 +313,317 @@
                     }
                   },
                   "title": "Response Get Household V1 Measurement Household Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile Kinds",
+        "description": "Return the registered profile kinds.",
+        "operationId": "get_profile_kinds_v1_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Get Profile Kinds V1 Profile Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile/{kind}": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profiles",
+        "description": "Return the profiles of a kind, from the user and the packaged data directory.",
+        "operationId": "get_profiles_v1_profile__kind__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileEntry"
+                  },
+                  "title": "Response Get Profiles V1 Profile  Kind  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile/{kind}/schema": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile Schema",
+        "description": "Return the JSON schema of the profile documents of a kind.",
+        "operationId": "get_profile_schema_v1_profile__kind__schema_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Profile Schema V1 Profile  Kind  Schema Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile/{kind}/{name}": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile",
+        "description": "Return the document of a profile (user profile first, then packaged).",
+        "operationId": "get_profile_v1_profile__kind___name__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile name without the '.json' suffix, e.g. 'generic-lfp'.",
+              "title": "Name"
+            },
+            "description": "Profile name without the '.json' suffix, e.g. 'generic-lfp'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Profile V1 Profile  Kind   Name  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Put Profile",
+        "description": "Validate a profile document and save it to the user data directory.\n\nReturns the saved (validated, defaults filled in) document.",
+        "operationId": "put_profile_v1_profile__kind___name__put",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile name without the '.json' suffix, e.g. 'generic-lfp'.",
+              "title": "Name"
+            },
+            "description": "Profile name without the '.json' suffix, e.g. 'generic-lfp'."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "The profile document.",
+                "title": "Document"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Put Profile V1 Profile  Kind   Name  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Delete Profile",
+        "description": "Delete a user profile.\n\nReturns the profile that applies now (the packaged one of the same name),\nor null if there is none.",
+        "operationId": "delete_profile_v1_profile__kind___name__delete",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile name without the '.json' suffix, e.g. 'generic-lfp'.",
+              "title": "Name"
+            },
+            "description": "Profile name without the '.json' suffix, e.g. 'generic-lfp'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProfileEntry"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Delete Profile V1 Profile  Kind   Name  Delete"
                 }
               }
             }
@@ -3473,50 +3784,36 @@
                 "type": "null"
               }
             ],
-            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
+            "description": "Last explicitly stored capacity estimate; does not override nominal_capacity_wh."
           },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "Capacity [Wh].",
-            "default": 8000,
+          "battery_profile": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Battery Profile",
+            "description": "Name of the battery profile (without '.json') providing power limits, efficiency curves and technical SOC bounds.",
+            "default": "generic-lfp",
             "examples": [
+              "generic-lfp"
+            ]
+          },
+          "nominal_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nominal Capacity Wh",
+            "description": "Nominal capacity of the installed battery [Wh]. Overrides the capacity of the battery profile. None uses the profile capacity, or 8000 Wh if the profile provides none. The resolved value is available as 'resolved_nominal_capacity_wh'.",
+            "examples": [
+              null,
               8000
             ]
           },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "Charging efficiency [0.01 ... 1.00].",
-            "default": 0.88,
-            "examples": [
-              0.88
-            ]
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "Discharge efficiency [0.01 ... 1.00].",
-            "default": 0.88,
-            "examples": [
-              0.88
-            ]
-          },
-          "levelized_cost_of_storage_amt_kwh": {
-            "type": "number",
-            "title": "Levelized Cost Of Storage Amt Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
-            "default": 0.0,
-            "examples": [
-              0.12
-            ]
-          },
-          "max_charge_power_w": {
+          "max_charge_power_limit_w": {
             "anyOf": [
               {
                 "type": "number",
@@ -3526,11 +3823,37 @@
                 "type": "null"
               }
             ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power [W].",
-            "default": 5000,
+            "title": "Max Charge Power Limit W",
+            "description": "Maximum charging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_charge_power_w'.",
             "examples": [
+              null,
               5000
+            ]
+          },
+          "max_discharge_power_limit_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power Limit W",
+            "description": "Maximum discharging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_discharge_power_w'.",
+            "examples": [
+              null,
+              5000
+            ]
+          },
+          "levelized_cost_of_storage_amt_kwh": {
+            "type": "number",
+            "title": "Levelized Cost Of Storage Amt Kwh",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
             ]
           },
           "min_charge_power_w": {
@@ -3593,7 +3916,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging.",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging. Raised to the technical minimum SOC of the battery profile if that is higher.",
             "default": 0,
             "examples": [
               10
@@ -3604,7 +3927,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%]. Lowered to the technical maximum SOC of the battery profile if that is lower.",
             "default": 100,
             "examples": [
               100
@@ -3806,50 +4129,36 @@
                 "type": "null"
               }
             ],
-            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
+            "description": "Last explicitly stored capacity estimate; does not override nominal_capacity_wh."
           },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "Capacity [Wh].",
-            "default": 8000,
+          "battery_profile": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Battery Profile",
+            "description": "Name of the battery profile (without '.json') providing power limits, efficiency curves and technical SOC bounds.",
+            "default": "generic-lfp",
             "examples": [
+              "generic-lfp"
+            ]
+          },
+          "nominal_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nominal Capacity Wh",
+            "description": "Nominal capacity of the installed battery [Wh]. Overrides the capacity of the battery profile. None uses the profile capacity, or 8000 Wh if the profile provides none. The resolved value is available as 'resolved_nominal_capacity_wh'.",
+            "examples": [
+              null,
               8000
             ]
           },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "Charging efficiency [0.01 ... 1.00].",
-            "default": 0.88,
-            "examples": [
-              0.88
-            ]
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "Discharge efficiency [0.01 ... 1.00].",
-            "default": 0.88,
-            "examples": [
-              0.88
-            ]
-          },
-          "levelized_cost_of_storage_amt_kwh": {
-            "type": "number",
-            "title": "Levelized Cost Of Storage Amt Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
-            "default": 0.0,
-            "examples": [
-              0.12
-            ]
-          },
-          "max_charge_power_w": {
+          "max_charge_power_limit_w": {
             "anyOf": [
               {
                 "type": "number",
@@ -3859,11 +4168,37 @@
                 "type": "null"
               }
             ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power [W].",
-            "default": 5000,
+            "title": "Max Charge Power Limit W",
+            "description": "Maximum charging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_charge_power_w'.",
             "examples": [
+              null,
               5000
+            ]
+          },
+          "max_discharge_power_limit_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power Limit W",
+            "description": "Maximum discharging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_discharge_power_w'.",
+            "examples": [
+              null,
+              5000
+            ]
+          },
+          "levelized_cost_of_storage_amt_kwh": {
+            "type": "number",
+            "title": "Levelized Cost Of Storage Amt Kwh",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
             ]
           },
           "min_charge_power_w": {
@@ -3926,7 +4261,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging.",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging. Raised to the technical minimum SOC of the battery profile if that is higher.",
             "default": 0,
             "examples": [
               10
@@ -3937,7 +4272,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%]. Lowered to the technical maximum SOC of the battery profile if that is lower.",
             "default": 100,
             "examples": [
               100
@@ -4102,10 +4437,70 @@
               "GENETIC"
             ]
           },
+          "resolved_nominal_capacity_wh": {
+            "type": "integer",
+            "title": "Resolved Nominal Capacity Wh",
+            "description": "Effective nominal capacity [Wh]: nominal_capacity_wh, else profile, else default.",
+            "readOnly": true
+          },
+          "max_charge_power_w": {
+            "type": "number",
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power [W] at the reference operating point.",
+            "readOnly": true
+          },
+          "max_discharge_power_w": {
+            "type": "number",
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power [W] at the reference operating point.",
+            "readOnly": true
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "title": "Charging Efficiency",
+            "description": "Charging efficiency [0.01 ... 1.00] at the maximum charge power.",
+            "readOnly": true
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "title": "Discharging Efficiency",
+            "description": "Discharging efficiency [0.01 ... 1.00] at the maximum discharge power.",
+            "readOnly": true
+          },
+          "effective_min_soc_percentage": {
+            "type": "integer",
+            "title": "Effective Min Soc Percentage",
+            "description": "Effective minimum SoC [%], within the technical bounds of the profile.",
+            "readOnly": true
+          },
+          "effective_max_soc_percentage": {
+            "type": "integer",
+            "title": "Effective Max Soc Percentage",
+            "description": "Effective maximum SoC [%], within the technical bounds of the profile.",
+            "readOnly": true
+          },
           "measurement_key_soc_factor": {
             "type": "string",
             "title": "Measurement Key Soc Factor",
             "description": "Measurement key for SoC as factor of total capacity [0.0 ... 1.0].",
+            "readOnly": true
+          },
+          "measurement_key_temperature_degc": {
+            "type": "string",
+            "title": "Measurement Key Temperature Degc",
+            "description": "Measurement key for the battery temperature [degC].",
+            "readOnly": true
+          },
+          "measurement_key_charge_power_w": {
+            "type": "string",
+            "title": "Measurement Key Charge Power W",
+            "description": "Measurement key for the charge power [W], used to compute the charging efficiency.",
+            "readOnly": true
+          },
+          "measurement_key_discharge_power_w": {
+            "type": "string",
+            "title": "Measurement Key Discharge Power W",
+            "description": "Measurement key for the discharge power [W], used for the discharging efficiency.",
             "readOnly": true
           },
           "measurement_key_power_l1_w": {
@@ -4144,7 +4539,17 @@
         },
         "type": "object",
         "required": [
+          "resolved_nominal_capacity_wh",
+          "max_charge_power_w",
+          "max_discharge_power_w",
+          "charging_efficiency",
+          "discharging_efficiency",
+          "effective_min_soc_percentage",
+          "effective_max_soc_percentage",
           "measurement_key_soc_factor",
+          "measurement_key_temperature_degc",
+          "measurement_key_charge_power_w",
+          "measurement_key_discharge_power_w",
           "measurement_key_power_l1_w",
           "measurement_key_power_l2_w",
           "measurement_key_power_l3_w",
@@ -4961,8 +5366,8 @@
             "examples": [
               {
                 "bat0": {
-                  "capacity_wh": 8000,
                   "device_id": "bat0",
+                  "nominal_capacity_wh": 8000,
                   "ports": []
                 }
               }
@@ -5009,8 +5414,8 @@
             "examples": [
               {
                 "ev0": {
-                  "capacity_wh": 60000,
                   "device_id": "ev0",
+                  "nominal_capacity_wh": 60000,
                   "ports": []
                 }
               }
@@ -5154,8 +5559,8 @@
             "examples": [
               {
                 "bat0": {
-                  "capacity_wh": 8000,
                   "device_id": "bat0",
+                  "nominal_capacity_wh": 8000,
                   "ports": []
                 }
               }
@@ -5202,8 +5607,8 @@
             "examples": [
               {
                 "ev0": {
-                  "capacity_wh": 60000,
                   "device_id": "ev0",
+                  "nominal_capacity_wh": 60000,
                   "ports": []
                 }
               }
@@ -11398,10 +11803,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/capacity_wh",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/nominal_capacity_wh",
             "examples": [
               {
-                "devices/batteries/0/capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/0/nominal_capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },
@@ -11574,10 +11979,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/capacity_wh",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/nominal_capacity_wh",
             "examples": [
               {
-                "devices/batteries/0/capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/0/nominal_capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },
@@ -14722,6 +15127,105 @@
               1.5
             ]
           },
+          "snow_enabled": {
+            "type": "boolean",
+            "title": "Snow Enabled",
+            "description": "Model snow lying on the modules. Requests snowfall and snow depth from Open-Meteo and runs the NREL snow coverage model (pvlib.snow) per plane, which covers the modules on heavy snowfall and lets the snow slide off with warmth and sunshine. Without this, the forecast after a snowfall assumes clean modules.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ]
+          },
+          "snow_lookback_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 1.0,
+            "title": "Snow Lookback Days",
+            "description": "Days of past weather (and PV measurements) replayed on every update to rebuild the current snow coverage. No state is stored between runs, so this must reach back before the last relevant snowfall.",
+            "default": 7,
+            "examples": [
+              7,
+              14
+            ]
+          },
+          "snow_threshold_snowfall_cm_per_hour": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Threshold Snowfall Cm Per Hour",
+            "description": "Snowfall rate that fully covers the modules (pvlib `threshold_snowfall`). pvlib's default of 1.0 cm/h was tuned on US station data; Open-Meteo's hourly model snowfall is smoother, so a lower rate fits better.",
+            "default": 0.5,
+            "examples": [
+              0.5,
+              1.0
+            ]
+          },
+          "snow_threshold_depth_cm": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Snow Threshold Depth Cm",
+            "description": "Ground snow depth below which the modules are assumed clear (pvlib `threshold_depth`).",
+            "default": 1.0,
+            "examples": [
+              1.0
+            ]
+          },
+          "snow_feedback_enabled": {
+            "type": "boolean",
+            "title": "Snow Feedback Enabled",
+            "description": "Correct the modelled snow coverage with measured PV production from `measurement.pv_production_emr_keys`. Production well above the snow model clears the coverage at once; production far below the clear-module model raises it, but only while snow is plausible (snow on the ground or already modelled on the modules). Needs cumulative meter readings.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "snow_feedback_gain": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Feedback Gain",
+            "description": "How far one measured interval pulls the coverage towards the observed value (1.0 = adopt the observation).",
+            "default": 0.8,
+            "examples": [
+              0.8,
+              1.0
+            ]
+          },
+          "snow_feedback_min_fraction": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Feedback Min Fraction",
+            "description": "A measured interval is only used when the clear-module model expects at least this fraction of the installed AC capacity. Dawn, dusk and dark overcast carry no usable evidence about snow.",
+            "default": 0.05,
+            "examples": [
+              0.05,
+              0.1
+            ]
+          },
+          "snow_feedback_memory_hours": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Feedback Memory Hours",
+            "description": "When measured production shows more snow than modelled, the snow is assumed to slide off slower than the NREL model says. This damping fades back to the model's rate with this time constant after the last measurement.",
+            "default": 12.0,
+            "examples": [
+              12.0,
+              24.0
+            ]
+          },
+          "snow_detection_ratio": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Snow Detection Ratio",
+            "description": "Measured/clear-model production ratio below which an interval counts as evidence of snow the weather model missed.",
+            "default": 0.5,
+            "examples": [
+              0.5,
+              0.3
+            ]
+          },
           "regional_weather_model": {
             "anyOf": [
               {
@@ -16348,6 +16852,46 @@
         "type": "object",
         "title": "PredictionCommonSettings",
         "description": "General Prediction Configuration."
+      },
+      "ProfileEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Profile name, without the '.json' suffix.",
+            "examples": [
+              "generic-lfp"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "package"
+            ],
+            "title": "Source",
+            "description": "Where the document in effect comes from: 'user' (user data directory, editable) or 'package' (shipped with EOS, read only).",
+            "examples": [
+              "package"
+            ]
+          },
+          "packaged": {
+            "type": "boolean",
+            "title": "Packaged",
+            "description": "Whether a packaged profile of this name exists. Deleting a user profile that overrides it makes the packaged profile apply again.",
+            "examples": [
+              true
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "packaged"
+        ],
+        "title": "ProfileEntry",
+        "description": "A profile available in the store."
       },
       "PydanticDateTimeData": {
         "additionalProperties": {
