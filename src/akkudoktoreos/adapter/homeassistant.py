@@ -10,7 +10,7 @@ from pydantic import Field, PrivateAttr, computed_field, field_validator
 
 from akkudoktoreos.adapter.adapterabc import AdapterProvider
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import get_adapter
+from akkudoktoreos.core.coreabc import documentation_mode, get_adapter
 from akkudoktoreos.core.emplan import (
     DDBCInstruction,
     FRBCInstruction,
@@ -147,6 +147,9 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     @property
     def homeassistant_entity_ids(self) -> list[str]:
         """Entity IDs available at Home Assistant."""
+        if documentation_mode():
+            # Documentation shows no runtime state.
+            return []
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")
@@ -164,6 +167,9 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     @property
     def eos_solution_entity_ids(self) -> list[str]:
         """Entity IDs for optimization solution available at EOS."""
+        if documentation_mode():
+            # Documentation shows no runtime state.
+            return []
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")
@@ -181,6 +187,9 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     @property
     def eos_device_instruction_entity_ids(self) -> list[str]:
         """Entity IDs for energy management instructions available at EOS."""
+        if documentation_mode():
+            # Documentation shows no runtime state.
+            return []
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")

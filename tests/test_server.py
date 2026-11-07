@@ -2,6 +2,9 @@ import asyncio
 import json
 import os
 import re
+import socket
+import subprocess
+import sys
 import time
 from http import HTTPStatus
 from pathlib import Path
@@ -393,6 +396,114 @@ class TestServerWithEnv:
         assert config_json["server"]["eosdash_port"] == int(
             self.eos_env["EOS_SERVER__EOSDASH_PORT"]
         )
+
+
+class TestServerReload:
+    """EOS with uvicorn's auto-reload (``server.reload``, used by ``make run-dev``)."""
+
+    STARTUP_TIMEOUT_S = 90
+
+    @staticmethod
+    def free_port() -> int:
+        """Return a free TCP port on the default host that EOS accepts (1024..49151).
+
+        Starts above the ports of the other server tests (8503, 8504, 8555).
+        """
+        for port in range(8513, 8600):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                try:
+                    sock.bind((get_default_host(), port))
+                except OSError:
+                    continue
+                return port
+        pytest.fail("No free port for the EOS reload test in 8513..8599")
+
+    @staticmethod
+    def stop_process_tree(process: subprocess.Popen) -> None:
+        """Stop a process and all of its descendants (reloader, worker)."""
+        try:
+            parent = psutil.Process(process.pid)
+            processes = [*parent.children(recursive=True), parent]
+        except psutil.NoSuchProcess:
+            return
+        for proc in processes:
+            try:
+                proc.terminate()
+            except psutil.NoSuchProcess:
+                pass
+        _, alive = psutil.wait_procs(processes, timeout=15)
+        for proc in alive:
+            try:
+                proc.kill()
+            except psutil.NoSuchProcess:
+                pass
+        process.wait(timeout=15)
+
+    def test_server_starts_with_reload(self, tmp_path: Path) -> None:
+        """The reload worker initializes the singletons that run_eos() set up in the parent.
+
+        The worker process imports the app afresh. Without initialization in the
+        app's lifespan, the startup fails with 'access before init'.
+        """
+        eos_dir = tmp_path / "eos"
+        eos_dir.mkdir()
+        # An empty config file, so EOS does not fall back to the user's config file.
+        (eos_dir / "EOS.config.json").write_text("{}", encoding="utf-8")
+        host = get_default_host()
+        port = self.free_port()
+        env = os.environ.copy()
+        env.update(
+            {
+                "EOS_DIR": str(eos_dir),
+                "EOS_CONFIG_DIR": str(eos_dir),
+                "PYTHONIOENCODING": "utf-8",
+            }
+        )
+        log_path = tmp_path / "eos.log"
+        with log_path.open("w", encoding="utf-8") as log_file:
+            # cwd: the reloader watches the working directory, not the repository.
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "akkudoktoreos.server.eos",
+                    "--host",
+                    host,
+                    "--port",
+                    str(port),
+                    "--reload",
+                    "true",
+                    "--startup_eosdash",
+                    "false",
+                ],
+                cwd=tmp_path,
+                env=env,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+            )
+            try:
+                health: dict = {}
+                deadline = time.monotonic() + self.STARTUP_TIMEOUT_S
+                while time.monotonic() < deadline and process.poll() is None:
+                    try:
+                        response = requests.get(f"http://{host}:{port}/v1/health", timeout=2)
+                        if response.status_code == HTTPStatus.OK:
+                            health = response.json()
+                            break
+                    except requests.RequestException:
+                        pass
+                    time.sleep(1)
+                worker_pids = {
+                    child.pid for child in psutil.Process(process.pid).children(recursive=True)
+                } if process.poll() is None else set()
+            finally:
+                self.stop_process_tree(process)
+
+        log = log_path.read_text(encoding="utf-8", errors="replace")
+        assert health.get("status") == "alive", f"EOS with --reload did not start:\n{log}"
+        assert "before init" not in log, log
+        # The app runs in the reload worker, a child of the started process.
+        assert health.get("pid") in worker_pids
 
 
 class TestEosdashRedirect:

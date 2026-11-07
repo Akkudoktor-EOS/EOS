@@ -106,6 +106,31 @@ class AdapterMixin:
         return get_adapter()
 
 
+def documentation_mode() -> bool:
+    """Return whether EOS runs in documentation mode.
+
+    Shortcut for ``ConfigEOS.documentation_mode()`` for modules that cannot
+    import ``ConfigEOS`` at module level. Documentation shows no runtime state,
+    e.g. entity IDs of a Home Assistant instance or keys of an optimization
+    solution.
+
+    Returns:
+        True if the documentation is being generated.
+    """
+    from akkudoktoreos.config.config import ConfigEOS
+
+    return ConfigEOS.documentation_mode()
+
+
+def config_initialized() -> bool:
+    """Return whether the configuration singleton exists, without creating it.
+
+    Returns:
+        True if ``get_config(init=...)`` already created the configuration.
+    """
+    return _config_eos is not None
+
+
 def get_config(init: Union[bool, dict[str, bool]] = False) -> ConfigEOS:
     """Retrieve the singleton EOS configuration instance.
 

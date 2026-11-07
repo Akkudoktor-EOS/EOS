@@ -29,6 +29,7 @@ from loguru import logger
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS
 from akkudoktoreos.core.cache import CacheFileStore, cache_clear, cache_load, cache_save
 from akkudoktoreos.core.coreabc import (
+    config_initialized,
     get_config,
     get_ems,
     get_measurement,
@@ -189,6 +190,13 @@ def config_eos_ready() -> bool:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
+    if not config_initialized():
+        # The worker process of uvicorn's auto-reload (server.reload) imports the
+        # app afresh; run_eos() did not run in this process.
+        setup_eos_config(get_config(init=True))
+    # Create the singletons that do not exist yet; a no-op after run_eos().
+    singletons_init()
+
     await load_eos_state()
 
     # Prepare the Manager and all task that are handled by the manager
@@ -2498,19 +2506,18 @@ def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectRespons
     return RedirectResponse(url="/docs", status_code=303)
 
 
-def run_eos() -> None:
-    """Run the EOS server with the specified configurations.
+def setup_eos_config(config_eos: ConfigEOS) -> None:
+    """Set up logging and the server address defaults from the configuration.
 
-    Starts the EOS server using the Uvicorn ASGI server. Logs an error and exits if
-    binding to the host and port fails.
+    Called once per process that serves the app: by ``run_eos()``, and by the
+    app's lifespan in the worker process of uvicorn's auto-reload.
 
-    Returns:
-        None
+    Args:
+        config_eos: The EOS configuration of this process.
+
+    Raises:
+        RuntimeError: If no server port is set after applying the defaults.
     """
-    # get_config(init=True) creates the configuration, includes also ARGV args.
-    # This should not be done before nor later
-    config_eos = get_config(init=True)
-
     # Set logging to what is in config
     logger.remove()
     logging_track_config(config_eos, "logging", None, None)
@@ -2531,6 +2538,23 @@ def run_eos() -> None:
         config_eos.set_nested_value("server/eosdash_host", config_eos.server.host)
     if config_eos.server.eosdash_port is None:
         config_eos.set_nested_value("server/eosdash_port", config_eos.server.port + 1)
+
+
+def run_eos() -> None:
+    """Run the EOS server with the specified configurations.
+
+    Starts the EOS server using the Uvicorn ASGI server. Logs an error and exits if
+    binding to the host and port fails.
+
+    Returns:
+        None
+    """
+    # get_config(init=True) creates the configuration, includes also ARGV args.
+    # This should not be done before nor later
+    config_eos = get_config(init=True)
+    setup_eos_config(config_eos)
+    if config_eos.server.port is None:  # make mypy happy
+        raise RuntimeError("server.port is None despite default setup")
 
     # Switch data directories ownership to user
     fix_data_directories_permissions(run_as_user=config_eos.server.run_as_user)

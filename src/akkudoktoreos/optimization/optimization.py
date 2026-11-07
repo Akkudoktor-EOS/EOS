@@ -4,7 +4,7 @@ from typing import Any, Optional
 from pydantic import Field, computed_field, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import get_ems
+from akkudoktoreos.core.coreabc import documentation_mode, get_ems
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
@@ -92,6 +92,9 @@ class OptimizationCommonSettings(SettingsBaseModel):
     @property
     def keys(self) -> list[str]:
         """The keys of the solution."""
+        if documentation_mode():
+            # Documentation shows no runtime state, e.g. of a previous run.
+            return []
         try:
             ems_eos = get_ems()
         except Exception:
