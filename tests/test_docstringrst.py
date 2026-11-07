@@ -142,7 +142,18 @@ sphinx_conf = importlib.util.module_from_spec(spec)
 sys.modules["sphinx_conf"] = sphinx_conf
 if spec.loader is None:
     raise AssertionError(f"Can not import sphinx_conf from {conf_path}")
-spec.loader.exec_module(sphinx_conf)
+# conf.py marks the process as a Sphinx build, which enables documentation mode
+# of akkudoktoreos. Only its settings are read here: keep the other tests of this
+# process out of documentation mode.
+_called_from_sphinx = getattr(sys, "_called_from_sphinx", None)
+try:
+    spec.loader.exec_module(sphinx_conf)
+finally:
+    if _called_from_sphinx is None:
+        if hasattr(sys, "_called_from_sphinx"):
+            del sys._called_from_sphinx
+    else:
+        sys._called_from_sphinx = _called_from_sphinx  # type: ignore[attr-defined]
 
 # Build NapoleonConfig with all options
 napoleon_config = NapoleonConfig(

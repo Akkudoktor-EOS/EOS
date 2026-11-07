@@ -92,6 +92,11 @@ class OptimizationCommonSettings(SettingsBaseModel):
     @property
     def keys(self) -> list[str]:
         """The keys of the solution."""
+        from akkudoktoreos.config.config import ConfigEOS
+
+        if ConfigEOS.documentation_mode():
+            # Documentation shows no runtime state, e.g. of a previous run.
+            return []
         try:
             ems_eos = get_ems()
         except Exception:
