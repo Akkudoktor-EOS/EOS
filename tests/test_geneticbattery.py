@@ -617,6 +617,30 @@ class TestPowerCurves:
         battery = self._battery()
         assert not battery.has_power_curves
 
+    @pytest.mark.parametrize("with_curves", [False, True])
+    def test_instances_stay_below_the_attribute_threshold(self, with_curves):
+        """CPython reads attributes of instances with 30 or more of them slower.
+
+        The simulation reads battery attributes for every slot of every
+        candidate plan, so a battery must stay below that threshold.
+        """
+        curves = (
+            dict(
+                charge_power_limit_w_by_soc=[1_000.0] * 101,
+                discharge_power_limit_w_by_soc=[1_000.0] * 101,
+                charging_efficiency_curve=[(0.0, 0.9), (1.0, 0.9)],
+                discharging_efficiency_curve=[(0.0, 0.9), (1.0, 0.9)],
+            )
+            if with_curves
+            else {}
+        )
+        battery = self._battery(**curves)
+        battery.reset()
+        battery._charge_rates_descending()
+        battery.charge_energy(None, 0, charge_factor=0.5)
+        battery.discharge_energy(100.0, 1)
+        assert len(vars(battery)) < 30
+
     @pytest.mark.parametrize("soc, expected_wh", [(10, 3_000.0), (30, 1_000.0)])
     def test_charge_limit_at_current_soc(self, soc, expected_wh):
         table = [3_000.0] * 21 + [1_000.0] * 80

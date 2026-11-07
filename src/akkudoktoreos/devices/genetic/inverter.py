@@ -270,9 +270,8 @@ class Inverter:
         battery = self.battery
         if not battery or requested_ac_wh <= 0.0:
             return 0.0, 0.0
-        if type(battery) is not Battery or battery.has_power_curves:
-            # Another battery implementation, or SoC / power dependent limits
-            # and efficiencies: ask the battery, step by step.
+        if type(battery) is not Battery:
+            # Another battery implementation: ask it, step by step.
             if not battery.discharge_released(hour):
                 return 0.0, 0.0
             dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
@@ -285,10 +284,10 @@ class Inverter:
             return battery_discharge_ac, discharge_losses + inverter_discharge_losses
 
         # This runs for every slot of every candidate plan in which the battery
-        # could serve load or export. For the plain Battery the release check,
-        # the efficiency and Battery.discharge_energy() are computed in one go,
-        # without the nested calls. The arithmetic is that of
-        # Battery.discharge_energy(); keep both in step.
+        # could serve load or export. For the Battery the release check and the
+        # efficiency are computed in one go, without the nested calls. Without
+        # battery profile data, Battery.discharge_energy() is inlined as well;
+        # keep both in step.
         if battery.discharge_array[hour] == 0:
             # Not released in this slot: the battery delivers nothing.
             return 0.0, 0.0
@@ -300,24 +299,29 @@ class Inverter:
             dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
         dc_request = requested_ac_wh / dc_to_ac_efficiency
 
-        soc_wh = battery.soc_wh
-        min_soc_wh = battery.min_soc_wh
-        discharged_raw_wh = battery._discharged_raw_wh_per_slot
-        discharging_efficiency = battery.discharging_efficiency
-        raw_available_wh = max(soc_wh - min_soc_wh, 0.0)
-        if raw_available_wh == 0.0:
-            # Match Battery.discharge_energy(): preserve a SoC below the reserve.
-            return 0.0, 0.0
-        max_raw_wh = max(
-            battery.max_discharge_power_w * battery.slot_duration_h - discharged_raw_wh[hour], 0.0
-        )
-        max_deliverable_wh = min(raw_available_wh, max_raw_wh) * discharging_efficiency
-        battery_discharge_dc = min(dc_request, max_deliverable_wh)
-        raw_used_wh = battery_discharge_dc / discharging_efficiency
-        soc_wh -= raw_used_wh
-        battery.soc_wh = max(soc_wh, min_soc_wh)
-        discharged_raw_wh[hour] += raw_used_wh
-        discharge_losses = raw_used_wh - battery_discharge_dc
+        if battery._curves is not None:
+            # SoC / power dependent limits and efficiencies: one call.
+            battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
+        else:
+            soc_wh = battery.soc_wh
+            min_soc_wh = battery.min_soc_wh
+            discharged_raw_wh = battery._discharged_raw_wh_per_slot
+            discharging_efficiency = battery.discharging_efficiency
+            raw_available_wh = max(soc_wh - min_soc_wh, 0.0)
+            if raw_available_wh == 0.0:
+                # Match Battery.discharge_energy(): preserve a SoC below the reserve.
+                return 0.0, 0.0
+            max_raw_wh = max(
+                battery.max_discharge_power_w * battery.slot_duration_h - discharged_raw_wh[hour],
+                0.0,
+            )
+            max_deliverable_wh = min(raw_available_wh, max_raw_wh) * discharging_efficiency
+            battery_discharge_dc = min(dc_request, max_deliverable_wh)
+            raw_used_wh = battery_discharge_dc / discharging_efficiency
+            soc_wh -= raw_used_wh
+            battery.soc_wh = max(soc_wh, min_soc_wh)
+            discharged_raw_wh[hour] += raw_used_wh
+            discharge_losses = raw_used_wh - battery_discharge_dc
 
         # Same rule as _delivered_ac_wh(), without the call: a limited discharge
         # is converted with the efficiency at the AC energy actually delivered.
