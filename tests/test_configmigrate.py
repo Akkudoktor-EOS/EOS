@@ -264,3 +264,34 @@ class TestDeviceMigration:
         assert migrated.devices.batteries is not None
         assert migrated.devices.batteries["house"].levelized_cost_of_storage_amt_kwh == 0.123
         assert raw == original
+
+    @pytest.mark.parametrize("devices_key", ["batteries", "electric_vehicles"])
+    @pytest.mark.parametrize("as_list", [False, True])
+    def test_migration_renames_capacity_and_drops_computed_fields(self, devices_key, as_list):
+        """Legacy battery fields migrate to the profile based settings."""
+        battery = {
+            "device_id": "house",
+            "capacity_wh": 12000,
+            "charging_efficiency": 0.9,
+            "discharging_efficiency": 0.9,
+            "max_charge_power_w": 3000,
+        }
+        raw = {"devices": {devices_key: [battery] if as_list else {"house": battery}}}
+        migrated = migrate_config_data(raw)
+        devices = getattr(migrated.devices, devices_key)
+        assert devices is not None
+        settings = devices["house"]
+        assert settings.nominal_capacity_wh == 12000
+        # Computed now: taken from the battery profile, not from the legacy config value.
+        assert settings.max_charge_power_limit_w is None
+        dumped = settings.model_dump(exclude_computed_fields=True)
+        for legacy in ("capacity_wh", "charging_efficiency", "discharging_efficiency",
+                       "max_charge_power_w"):
+            assert legacy not in dumped
+
+    def test_migration_keeps_present_nominal_capacity(self):
+        """An already present nominal_capacity_wh wins over a legacy capacity_wh."""
+        battery = {"device_id": "house", "capacity_wh": 12000, "nominal_capacity_wh": 10000}
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        assert migrated.devices.batteries["house"].nominal_capacity_wh == 10000
