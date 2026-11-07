@@ -224,8 +224,15 @@ class ConfigOptimizationRequest(
             ("prices", prices),
             ("feed-in tariff", tariffs),
         ):
-            if not all(math.isfinite(value) for value in values[first:last]):
-                raise ValueError(f"Missing or invalid {key} within the control horizon.")
+            missing = [index for index in range(first, last) if not math.isfinite(values[index])]
+            if missing:
+                left = origin.add(seconds=missing[0] * settings.interval_sec)
+                right = left.add(seconds=settings.interval_sec)
+                raise ValueError(
+                    f"Missing or invalid {key} within the control horizon. "
+                    f"First invalid interval: [{left.isoformat()}, {right.isoformat()}); "
+                    f"{len(missing)} invalid interval(s)."
+                )
         if any(value < 0 for values in (pv, load) for value in values[first:last]):
             raise ValueError("PV and load energy must be nonnegative.")
         previous = ems.genetic_solution()
