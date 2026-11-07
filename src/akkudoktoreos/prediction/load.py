@@ -17,9 +17,11 @@ def load_providers() -> list[str]:
     try:
         prediction_eos = get_prediction()
     except Exception:
-        # Prediction may not be initialized
-        # Return at least provider used in example
-        return ["LoadAkkudoktor", "LoadVrm", "LoadImport"]
+        # Prediction may not be initialized yet, e.g. while the configuration
+        # is created: take the ids from the provider classes.
+        from akkudoktoreos.prediction.prediction import prediction_provider_ids
+
+        return prediction_provider_ids(LoadProvider)
 
     return [
         provider.provider_id()

@@ -26,7 +26,7 @@ Attributes:
     weather_clearoutside (WeatherClearOutside): Weather forecast provider using ClearOutside.
 """
 
-from typing import Optional, Union
+from typing import Optional, Union, get_args
 
 from pydantic import Field
 
@@ -157,6 +157,26 @@ PredictionProviderType = Union[
     WeatherImport,
     WeatherOpenMeteo,
 ]
+
+
+def prediction_provider_ids(provider_type: type) -> list[str]:
+    """Return the ids of all prediction providers of a kind.
+
+    Derived from the provider classes, so it does not need the prediction
+    instance. The configuration validates its provider ids with it while it is
+    created, before the prediction instance exists.
+
+    Args:
+        provider_type: Provider base class of the kind, e.g. ``WeatherProvider``.
+
+    Returns:
+        The provider ids of all provider classes derived from ``provider_type``.
+    """
+    return [
+        provider_class.provider_id()
+        for provider_class in get_args(PredictionProviderType)
+        if issubclass(provider_class, provider_type)
+    ]
 
 
 def prediction_providers() -> list[PredictionProviderType]:
