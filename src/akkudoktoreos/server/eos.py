@@ -190,6 +190,9 @@ def config_eos_ready() -> bool:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
+    # With reload, uvicorn runs the app in a new process that only imports this
+    # module; run_eos() and its singletons_init() ran in the parent process.
+    singletons_init()
     await load_eos_state()
 
     # Prepare the Manager and all task that are handled by the manager

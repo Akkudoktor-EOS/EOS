@@ -104,6 +104,31 @@ class TestServerSettingsValidation:
 
 class TestServerStartStop:
     @pytest.mark.asyncio
+    async def test_lifespan_initializes_singletons(self, config_eos, monkeypatch):
+        """With reload, the app runs in a process where run_eos() did not init the singletons."""
+        from akkudoktoreos.core import coreabc
+        from akkudoktoreos.server import eos
+
+        for singleton in ("_measurement_eos", "_prediction_eos", "_ems_eos"):
+            monkeypatch.setattr(coreabc, singleton, None)
+
+        class StartupDone(Exception):
+            pass
+
+        async def load_eos_state() -> None:
+            # Loading the state needs the singletons, stop before the managers start.
+            coreabc.get_measurement()
+            coreabc.get_prediction()
+            coreabc.get_ems()
+            raise StartupDone
+
+        monkeypatch.setattr(eos, "load_eos_state", load_eos_state)
+
+        with pytest.raises(StartupDone):
+            async with eos.lifespan(eos.app):
+                pass
+
+    @pytest.mark.asyncio
     async def test_forward_stream_truncates_very_long_line(self, monkeypatch, tmp_path):
         """Test logging from EOSdash can also handle very long lines."""
 
