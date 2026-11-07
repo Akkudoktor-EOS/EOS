@@ -103,26 +103,43 @@ Intermediate values scale the fill level proportionally.
 
 ### Battery Configuration
 
-Most technical data of a battery or electric vehicle comes from a **battery profile**. The
+The technical data of a battery or electric vehicle comes from a **battery profile**. The
 configuration of the device (`devices/batteries/<device_id>` or
-`devices/electric_vehicles/<device_id>`) selects the profile and describes the installation:
+`devices/electric_vehicles/<device_id>`) selects the profile, adjusts it to the installed unit and
+sets how the battery is operated:
 
-| **Field**                     | **Description**                                                                 |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| `battery_profile`             | Name of the battery profile (without `.json`). Default `generic-lfp`.           |
-| `nominal_capacity_wh`         | Nominal capacity of the installed battery [Wh]. Overrides the profile capacity. |
-| `max_charge_power_limit_w`    | Charge power limit of the installation (inverter, device) [W]. Optional.        |
-| `max_discharge_power_limit_w` | Discharge power limit of the installation [W]. Optional.                        |
-| `min_soc_percentage`          | Minimum SoC [%], raised to the technical minimum SoC of the profile.            |
-| `max_soc_percentage`          | Maximum SoC [%], lowered to the technical maximum SoC of the profile.           |
+| **Field**                                  | **Description**                                                       |
+| ------------------------------------------ | --------------------------------------------------------------------- |
+| `battery_profile`                          | Name of the battery profile (without `.json`). Default `generic-lfp`. |
+| `profile_adjustment/nominal_capacity_wh`   | Capacity of the installed unit [Wh]. Replaces the profile capacity.   |
+| `profile_adjustment/max_charge_power_w`    | Charge power limit of the installation [W]. Only lowers the profile.  |
+| `profile_adjustment/max_discharge_power_w` | Discharge power limit of the installation [W]. Only lowers it, too.   |
+| `min_soc_percentage`                       | Minimum SoC [%], raised to the technical minimum SoC of the profile.  |
+| `max_soc_percentage`                       | Maximum SoC [%], lowered to the technical maximum SoC of the profile. |
 
-EOS resolves the effective parameters from the configuration, the profile and the operating point
-(battery temperature and SoC):
+```json
+"house": {
+  "battery_profile": "generic-lfp",
+  "profile_adjustment": {
+    "nominal_capacity_wh": 10240,
+    "max_charge_power_w": 5000,
+    "max_discharge_power_w": 5000
+  },
+  "min_soc_percentage": 10,
+  "max_soc_percentage": 95
+}
+```
 
-- **Capacity**: `nominal_capacity_wh`, else the nominal capacity of the profile, else 8000 Wh.
+EOS resolves every effective parameter from exactly two sources, the profile and the profile
+adjustment, evaluated at the operating point (battery temperature and SoC). There are no built-in
+fallback values:
+
+- **Capacity**: `profile_adjustment/nominal_capacity_wh`, else the nominal capacity of the
+  profile. A generic profile such as `generic-lfp` describes its limits as C-rates and has no
+  capacity of its own, so the adjustment has to provide it.
 - **Power limits**: the profile limit maps give the maximum charge and discharge rate per
-  temperature and SoC. The installation limits can only lower them. At temperatures outside the
-  hard cutoffs of the profile charging or discharging is inhibited.
+  temperature and SoC. The power limits of the adjustment can only lower them. At temperatures
+  outside the hard cutoffs of the profile charging or discharging is inhibited.
 - **Efficiencies**: the profile efficiency curves at the charge and discharge power.
 
 The GENETIC optimization evaluates the profile at the measured battery temperature, or at 25 °C if
@@ -131,27 +148,41 @@ by the SoC at the start of each charge or discharge step, and takes the charge a
 efficiency at the power of the slot.
 
 The resolved values are shown as read-only fields of the device configuration
-(`resolved_nominal_capacity_wh`, `max_charge_power_w`, `max_discharge_power_w`,
-`charging_efficiency`, `discharging_efficiency`, `effective_min_soc_percentage`,
+(`effective_nominal_capacity_wh`, `effective_max_charge_power_w`, `effective_max_discharge_power_w`,
+`effective_charging_efficiency`, `effective_discharging_efficiency`, `effective_min_soc_percentage`,
 `effective_max_soc_percentage`). These fields are evaluated at the reference operating point of
 25 °C and 50 % SoC.
 
+If a battery cannot be resolved, e.g. its profile does not exist or a generic profile lacks the
+capacity in the adjustment, its read-only fields are empty (`null`) and EOS logs an error naming
+the battery whenever the configuration is set up or changed. An optimization that includes the
+battery fails with that error instead of simulating made-up values. A power limit in the
+adjustment above the profile limit has no effect and is logged as a warning.
+
 :::{admonition} Note
 :class: note
-Configurations of earlier versions are migrated automatically: `capacity_wh` becomes
-`nominal_capacity_wh` and `max_charge_power_w` becomes the installation limit
-`max_charge_power_limit_w`. The former fields `charging_efficiency` and `discharging_efficiency`
-are computed from the profile now and are dropped.
+Configurations of earlier versions are migrated automatically. `capacity_wh` becomes
+`profile_adjustment/nominal_capacity_wh` and `max_charge_power_w` becomes the installation limit
+`profile_adjustment/max_charge_power_w`. A battery that relied on the former defaults gets them
+written into its profile adjustment (8000 Wh, 5000 W), so its capacity and charge limit do not
+change. The former fields `charging_efficiency` and `discharging_efficiency` are computed from the
+profile now and are dropped. Home Assistant `config_entity_ids` that point at moved fields are
+rewritten to the new paths.
 :::
 
 #### Battery Profiles
 
 A battery profile is a JSON document with:
 
-- charge and discharge limit maps over temperature and SoC (as C-rate, W or A),
-- optional charge and discharge efficiency curves over the C-rate,
-- optional nominal capacity and voltage, model power limits and technical SoC bounds,
-- hard temperature cutoffs for charging and discharging.
+- charge and discharge limit maps over temperature and SoC (as C-rate, W or A), with their axes
+  and units,
+- charge and discharge efficiency curves over the C-rate,
+- technical SoC bounds and hard temperature cutoffs for charging and discharging,
+- the nominal capacity, except for a generic profile,
+- optionally the nominal voltage and model power limits.
+
+All of these are required, except the optional ones. Unknown keys are rejected, so a misspelled
+key fails validation instead of being ignored.
 
 EOS ships the profile `generic-lfp` for a generic LFP home battery. Profiles are looked up by name
 first in the user data directory `<general/data_folder_path>/profile/battery/` and then in the

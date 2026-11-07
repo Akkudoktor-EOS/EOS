@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611080916720172"
+    "version": "v0.3.0.dev2611080924616446"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -3784,67 +3784,26 @@
                 "type": "null"
               }
             ],
-            "description": "Last explicitly stored capacity estimate; does not override nominal_capacity_wh."
+            "description": "Last explicitly stored capacity estimate; does not override the effective nominal capacity."
           },
           "battery_profile": {
             "type": "string",
             "minLength": 1,
             "title": "Battery Profile",
-            "description": "Name of the battery profile (without '.json') providing power limits, efficiency curves and technical SOC bounds.",
+            "description": "Name of the battery profile (without '.json') providing the nominal capacity, power limits, efficiency curves and technical SOC bounds. Differences of this unit go into 'profile_adjustment'.",
             "default": "generic-lfp",
             "examples": [
               "generic-lfp"
             ]
           },
-          "nominal_capacity_wh": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nominal Capacity Wh",
-            "description": "Nominal capacity of the installed battery [Wh]. Overrides the capacity of the battery profile. None uses the profile capacity, or 8000 Wh if the profile provides none. The resolved value is available as 'resolved_nominal_capacity_wh'.",
+          "profile_adjustment": {
+            "$ref": "#/components/schemas/BatteryProfileAdjustment",
+            "description": "How this battery unit differs from its battery profile: nominal capacity and installation power limits.",
             "examples": [
-              null,
-              8000
-            ]
-          },
-          "max_charge_power_limit_w": {
-            "anyOf": [
               {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
+                "max_charge_power_w": 5000,
+                "nominal_capacity_wh": 8000
               }
-            ],
-            "title": "Max Charge Power Limit W",
-            "description": "Maximum charging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_charge_power_w'.",
-            "examples": [
-              null,
-              5000
-            ]
-          },
-          "max_discharge_power_limit_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Discharge Power Limit W",
-            "description": "Maximum discharging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_discharge_power_w'.",
-            "examples": [
-              null,
-              5000
             ]
           },
           "levelized_cost_of_storage_amt_kwh": {
@@ -4129,67 +4088,26 @@
                 "type": "null"
               }
             ],
-            "description": "Last explicitly stored capacity estimate; does not override nominal_capacity_wh."
+            "description": "Last explicitly stored capacity estimate; does not override the effective nominal capacity."
           },
           "battery_profile": {
             "type": "string",
             "minLength": 1,
             "title": "Battery Profile",
-            "description": "Name of the battery profile (without '.json') providing power limits, efficiency curves and technical SOC bounds.",
+            "description": "Name of the battery profile (without '.json') providing the nominal capacity, power limits, efficiency curves and technical SOC bounds. Differences of this unit go into 'profile_adjustment'.",
             "default": "generic-lfp",
             "examples": [
               "generic-lfp"
             ]
           },
-          "nominal_capacity_wh": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Nominal Capacity Wh",
-            "description": "Nominal capacity of the installed battery [Wh]. Overrides the capacity of the battery profile. None uses the profile capacity, or 8000 Wh if the profile provides none. The resolved value is available as 'resolved_nominal_capacity_wh'.",
+          "profile_adjustment": {
+            "$ref": "#/components/schemas/BatteryProfileAdjustment",
+            "description": "How this battery unit differs from its battery profile: nominal capacity and installation power limits.",
             "examples": [
-              null,
-              8000
-            ]
-          },
-          "max_charge_power_limit_w": {
-            "anyOf": [
               {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
+                "max_charge_power_w": 5000,
+                "nominal_capacity_wh": 8000
               }
-            ],
-            "title": "Max Charge Power Limit W",
-            "description": "Maximum charging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_charge_power_w'.",
-            "examples": [
-              null,
-              5000
-            ]
-          },
-          "max_discharge_power_limit_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Discharge Power Limit W",
-            "description": "Maximum discharging power of the installation (inverter/device limit) [W]. Can only lower the limit given by the battery profile. None means no installation limit. The effective value is available as 'max_discharge_power_w'.",
-            "examples": [
-              null,
-              5000
             ]
           },
           "levelized_cost_of_storage_amt_kwh": {
@@ -4437,44 +4355,93 @@
               "GENETIC"
             ]
           },
-          "resolved_nominal_capacity_wh": {
-            "type": "integer",
-            "title": "Resolved Nominal Capacity Wh",
-            "description": "Effective nominal capacity [Wh]: nominal_capacity_wh, else profile, else default.",
+          "effective_nominal_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Nominal Capacity Wh",
+            "description": "Effective nominal capacity [Wh]: profile adjustment, else profile.\n\nNone if the battery cannot be resolved.",
             "readOnly": true
           },
-          "max_charge_power_w": {
-            "type": "number",
-            "title": "Max Charge Power W",
+          "effective_max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Max Charge Power W",
             "description": "Maximum charging power [W] at the reference operating point.",
             "readOnly": true
           },
-          "max_discharge_power_w": {
-            "type": "number",
-            "title": "Max Discharge Power W",
+          "effective_max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Max Discharge Power W",
             "description": "Maximum discharging power [W] at the reference operating point.",
             "readOnly": true
           },
-          "charging_efficiency": {
-            "type": "number",
-            "title": "Charging Efficiency",
+          "effective_charging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Charging Efficiency",
             "description": "Charging efficiency [0.01 ... 1.00] at the maximum charge power.",
             "readOnly": true
           },
-          "discharging_efficiency": {
-            "type": "number",
-            "title": "Discharging Efficiency",
+          "effective_discharging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Discharging Efficiency",
             "description": "Discharging efficiency [0.01 ... 1.00] at the maximum discharge power.",
             "readOnly": true
           },
           "effective_min_soc_percentage": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Effective Min Soc Percentage",
             "description": "Effective minimum SoC [%], within the technical bounds of the profile.",
             "readOnly": true
           },
           "effective_max_soc_percentage": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Effective Max Soc Percentage",
             "description": "Effective maximum SoC [%], within the technical bounds of the profile.",
             "readOnly": true
@@ -4539,11 +4506,11 @@
         },
         "type": "object",
         "required": [
-          "resolved_nominal_capacity_wh",
-          "max_charge_power_w",
-          "max_discharge_power_w",
-          "charging_efficiency",
-          "discharging_efficiency",
+          "effective_nominal_capacity_wh",
+          "effective_max_charge_power_w",
+          "effective_max_discharge_power_w",
+          "effective_charging_efficiency",
+          "effective_discharging_efficiency",
           "effective_min_soc_percentage",
           "effective_max_soc_percentage",
           "measurement_key_soc_factor",
@@ -4777,6 +4744,64 @@
         ],
         "title": "BatteryCapacityRequest",
         "description": "Caller attests both anchors are independent of the capacity being fitted.\n\nEnd is the first confirmed full point when using the default end SoC.\nVoltage/current anchors must be independently established for the chemistry."
+      },
+      "BatteryProfileAdjustment": {
+        "properties": {
+          "nominal_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nominal Capacity Wh",
+            "description": "Nominal capacity of the installed battery [Wh]. Replaces the capacity of the battery profile. Required if the profile is generic and provides no capacity. The effective value is available as 'effective_nominal_capacity_wh'.",
+            "examples": [
+              null,
+              8000
+            ]
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power of the installation, e.g. the inverter limit [W]. Can only lower the limits of the battery profile. The effective value is available as 'effective_max_charge_power_w'.",
+            "examples": [
+              null,
+              5000
+            ]
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power of the installation, e.g. the inverter limit [W]. Can only lower the limits of the battery profile. The effective value is available as 'effective_max_discharge_power_w'.",
+            "examples": [
+              null,
+              5000
+            ]
+          }
+        },
+        "type": "object",
+        "title": "BatteryProfileAdjustment",
+        "description": "How a battery unit differs from its battery profile.\n\nEach field is named after the profile field it adjusts. None keeps the\nprofile value."
       },
       "CacheCommonSettings": {
         "properties": {
@@ -5367,8 +5392,10 @@
               {
                 "bat0": {
                   "device_id": "bat0",
-                  "nominal_capacity_wh": 8000,
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 8000
+                  }
                 }
               }
             ],
@@ -5415,8 +5442,10 @@
               {
                 "ev0": {
                   "device_id": "ev0",
-                  "nominal_capacity_wh": 60000,
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 60000
+                  }
                 }
               }
             ],
@@ -5560,8 +5589,10 @@
               {
                 "bat0": {
                   "device_id": "bat0",
-                  "nominal_capacity_wh": 8000,
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 8000
+                  }
                 }
               }
             ],
@@ -5608,8 +5639,10 @@
               {
                 "ev0": {
                   "device_id": "ev0",
-                  "nominal_capacity_wh": 60000,
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 60000
+                  }
                 }
               }
             ],
@@ -11948,10 +11981,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/nominal_capacity_wh",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/bat0/profile_adjustment/nominal_capacity_wh",
             "examples": [
               {
-                "devices/batteries/0/nominal_capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/bat0/profile_adjustment/nominal_capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },
@@ -12124,10 +12157,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/nominal_capacity_wh",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/bat0/profile_adjustment/nominal_capacity_wh",
             "examples": [
               {
-                "devices/batteries/0/nominal_capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/bat0/profile_adjustment/nominal_capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },

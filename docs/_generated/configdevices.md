@@ -38,9 +38,11 @@ config path from ``self.device_id`` without needing an external index.
                    "capacity_estimation": null,
                    "capacity_estimate": null,
                    "battery_profile": "generic-lfp",
-                   "nominal_capacity_wh": 8000,
-                   "max_charge_power_limit_w": null,
-                   "max_discharge_power_limit_w": null,
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 8000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -80,9 +82,11 @@ config path from ``self.device_id`` without needing an external index.
                    "capacity_estimation": null,
                    "capacity_estimate": null,
                    "battery_profile": "generic-lfp",
-                   "nominal_capacity_wh": 60000,
-                   "max_charge_power_limit_w": null,
-                   "max_discharge_power_limit_w": null,
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 60000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -156,9 +160,11 @@ config path from ``self.device_id`` without needing an external index.
                    "capacity_estimation": null,
                    "capacity_estimate": null,
                    "battery_profile": "generic-lfp",
-                   "nominal_capacity_wh": 8000,
-                   "max_charge_power_limit_w": null,
-                   "max_discharge_power_limit_w": null,
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 8000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -189,11 +195,11 @@ config path from ``self.device_id`` without needing an external index.
                    "full_charge_soc_percentage": 100,
                    "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false,
-                   "resolved_nominal_capacity_wh": 8000,
-                   "max_charge_power_w": 8000.0,
-                   "max_discharge_power_w": 4000.0,
-                   "charging_efficiency": 0.94,
-                   "discharging_efficiency": 0.96,
+                   "effective_nominal_capacity_wh": 8000,
+                   "effective_max_charge_power_w": 8000.0,
+                   "effective_max_discharge_power_w": 4000.0,
+                   "effective_charging_efficiency": 0.94,
+                   "effective_discharging_efficiency": 0.96,
                    "effective_min_soc_percentage": 0,
                    "effective_max_soc_percentage": 100,
                    "measurement_key_soc_factor": "bat0-soc-factor",
@@ -223,9 +229,11 @@ config path from ``self.device_id`` without needing an external index.
                    "capacity_estimation": null,
                    "capacity_estimate": null,
                    "battery_profile": "generic-lfp",
-                   "nominal_capacity_wh": 60000,
-                   "max_charge_power_limit_w": null,
-                   "max_discharge_power_limit_w": null,
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 60000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -256,11 +264,11 @@ config path from ``self.device_id`` without needing an external index.
                    "full_charge_soc_percentage": 100,
                    "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false,
-                   "resolved_nominal_capacity_wh": 60000,
-                   "max_charge_power_w": 60000.0,
-                   "max_discharge_power_w": 30000.0,
-                   "charging_efficiency": 0.94,
-                   "discharging_efficiency": 0.96,
+                   "effective_nominal_capacity_wh": 60000,
+                   "effective_max_charge_power_w": 60000.0,
+                   "effective_max_discharge_power_w": 30000.0,
+                   "effective_charging_efficiency": 0.94,
+                   "effective_discharging_efficiency": 0.96,
                    "effective_min_soc_percentage": 0,
                    "effective_max_soc_percentage": 100,
                    "measurement_key_soc_factor": "ev0-soc-factor",

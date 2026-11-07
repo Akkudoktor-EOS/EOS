@@ -42,9 +42,11 @@
                    "capacity_estimation": null,
                    "capacity_estimate": null,
                    "battery_profile": "generic-lfp",
-                   "nominal_capacity_wh": 8000,
-                   "max_charge_power_limit_w": null,
-                   "max_discharge_power_limit_w": null,
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 8000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -84,9 +86,11 @@
                    "capacity_estimation": null,
                    "capacity_estimate": null,
                    "battery_profile": "generic-lfp",
-                   "nominal_capacity_wh": 60000,
-                   "max_charge_power_limit_w": null,
-                   "max_discharge_power_limit_w": null,
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 60000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
                    "charge_rates": [
