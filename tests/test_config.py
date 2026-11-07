@@ -930,3 +930,69 @@ class TestConfigProviderValidation:
                 assert getattr(config, section).provider == value["provider"]
         finally:
             ConfigEOS.reset_instance()
+
+
+class TestConfigSetup:
+    """The configuration can be created when its computed fields need it.
+
+    A battery's computed fields resolve the battery profile, and the profile
+    store reads its directories from the configuration. Rendering the
+    configuration while ``ConfigEOS()`` is still being created must not fail.
+    """
+
+    @pytest.fixture
+    def uncreated_config_with_battery(self, config_eos, monkeypatch):
+        """Write a config file with a battery and drop the created configuration."""
+        from akkudoktoreos.core import coreabc
+
+        config_eos.general.config_file_path.write_text(
+            json.dumps({"devices": {"batteries": {"battery1": {"device_id": "battery1"}}}})
+        )
+        monkeypatch.setattr(coreabc, "_config_eos", None)
+        # Read the config file, as the server does
+        monkeypatch.setattr(ConfigEOS, "_init_config_eos", {"with_file_settings": True})
+        ConfigEOS.reset_instance()
+        yield
+        ConfigEOS.reset_instance()
+
+    def test_config_with_battery_is_created(self, uncreated_config_with_battery):
+        from akkudoktoreos.core.coreabc import get_config
+
+        config = get_config(init=True)
+
+        assert config.devices.batteries is not None
+        assert config.devices.batteries["battery1"].resolved_nominal_capacity_wh > 0
+
+    def test_config_with_battery_is_created_with_trace_logging(
+        self, uncreated_config_with_battery
+    ):
+        """With trace logging the configuration is rendered during its creation."""
+        from loguru import logger
+
+        from akkudoktoreos.core.coreabc import get_config
+
+        messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: messages.append(message.record["message"]), level="TRACE"
+        )
+        try:
+            config = get_config(init=True)
+        finally:
+            logger.remove(sink_id)
+
+        assert config.devices.batteries is not None
+        assert "battery1" in config.devices.batteries
+        setup_messages = [m for m in messages if m.startswith("Config setup:")]
+        assert len(setup_messages) == 1
+        assert "resolved_nominal_capacity_wh" in setup_messages[0]
+
+    def test_access_before_settings_are_loaded_raises(self, monkeypatch):
+        """During creation the configuration is usable only once its settings are loaded."""
+        from akkudoktoreos.core import coreabc
+
+        monkeypatch.setattr(coreabc, "_config_eos", None)
+        monkeypatch.setattr(coreabc, "_config_eos_setup_running", True)
+        ConfigEOS.reset_instance()
+
+        with pytest.raises(RuntimeError, match="before its settings are loaded"):
+            coreabc.get_config(init=True)

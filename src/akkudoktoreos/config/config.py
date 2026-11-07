@@ -806,7 +806,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
 
         self._initialized = True
-        logger.trace(f"Config setup:\n{self}")
+        # Lazy: rendering the configuration evaluates all computed fields, e.g.
+        # the battery profile lookups. Only do it if trace logging is enabled.
+        logger.opt(lazy=True).trace("Config setup:\n{config}", config=lambda: str(self))
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
