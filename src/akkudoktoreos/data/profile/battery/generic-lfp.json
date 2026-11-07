@@ -20,7 +20,7 @@
     "soc_percent": [0, 40, 80, 100]
   },
   "charge_limit_crate": {
-    "description": "Max charge C-rate; rows = temperature, cols = SOC. Rows below 0 degC are zero because the datasheet curve ends at 0 degC with C-rate 0 and the charge hard cutoff is at 0 degC. The two nearly coincident SOC columns at 79.9999 and 80.0001 reproduce the datasheet's step at SOC 80 under bilinear interpolation.",
+    "description": "Max charge C-rate; rows = temperature, cols = SOC. Rows below 0 degC are zero because the datasheet curve ends at 0 degC with C-rate 0 and the charge hard cutoff is at 0 degC. Above 80 % SOC the limit tapers linearly to the value of the 100 % SOC column.",
     "values": [
       [0.0, 0.0, 0.0, 0.0],
       [0.0, 0.0, 0.0, 0.0],
