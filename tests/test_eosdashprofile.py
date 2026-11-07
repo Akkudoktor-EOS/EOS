@@ -16,6 +16,7 @@ from fasthtml.common import to_xml
 from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
 from akkudoktoreos.devices.profile.profilestore import ProfileStore, get_profile_store
 from akkudoktoreos.server.dash import profile as page
+from akkudoktoreos.server.rest.error import register_problem_handlers
 from akkudoktoreos.server.rest.profile import router
 
 
@@ -46,6 +47,7 @@ class RestShim:
 def rest(config_eos, monkeypatch) -> Iterator[RestShim]:
     ProfileStore.reset_instance()
     app = FastAPI()
+    register_problem_handlers(app)
     app.include_router(router)
     with TestClient(app) as client:
         shim = RestShim(client)

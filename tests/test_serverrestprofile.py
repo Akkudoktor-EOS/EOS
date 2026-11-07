@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
 from akkudoktoreos.devices.profile.profilestore import ProfileStore, get_profile_store
+from akkudoktoreos.server.rest.error import register_problem_handlers
 from akkudoktoreos.server.rest.profile import router
 
 
@@ -18,6 +19,7 @@ def client(config_eos) -> Iterator[TestClient]:
     """Client of an app with only the profile router, on a fresh store."""
     ProfileStore.reset_instance()
     app = FastAPI()
+    register_problem_handlers(app)
     app.include_router(router)
     with TestClient(app) as test_client:
         yield test_client
@@ -57,6 +59,17 @@ class TestRead:
         assert response.status_code == 200
         assert response.json()["chemistry"] == "LFP"
         BatteryProfileSettings.model_validate(response.json())
+
+    def test_errors_are_problem_details(self, client):
+        response = client.get("/v1/profile/nope")
+        assert response.headers["content-type"] == "application/problem+json"
+        assert response.json() == {
+            "type": "about:blank",
+            "title": "Unknown profile kind",
+            "status": 404,
+            "detail": "Unknown profile kind 'nope'.",
+            "instance": "/v1/profile/nope",
+        }
 
     def test_unknown_kind_is_404(self, client):
         assert client.get("/v1/profile/nope").status_code == 404

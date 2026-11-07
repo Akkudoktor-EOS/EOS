@@ -24,7 +24,7 @@ their next access.
 import asyncio
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body
 from fastapi import Path as FastapiPath
 
 # Import the profile types so that they are registered with the store.
@@ -36,6 +36,7 @@ from akkudoktoreos.devices.profile.profilestore import (
     profile_kinds,
     profile_type,
 )
+from akkudoktoreos.server.rest.error import EOSProblem
 
 router = APIRouter(prefix="/v1/profile", tags=["profile"])
 
@@ -51,7 +52,9 @@ def _document_type(kind: str) -> type[ProfileDocument[Any]]:
     try:
         return profile_type(kind)
     except KeyError as exc:
-        raise HTTPException(404, f"Unknown profile kind '{kind}'.") from exc
+        raise EOSProblem(
+            status=404, title="Unknown profile kind", detail=f"Unknown profile kind '{kind}'."
+        ) from exc
 
 
 @router.get("", response_model=list[str])
@@ -80,9 +83,9 @@ async def get_profile(kind: KindPath, name: NamePath) -> dict[str, Any]:
     try:
         document = await asyncio.to_thread(get_profile_store().load, document_type, name)
     except FileNotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
+        raise EOSProblem(status=404, title="Profile not found", detail=str(exc)) from exc
     except ValueError as exc:  # invalid name or invalid document on disk
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(status=422, title="Profile retrieval failed", detail=str(exc)) from exc
     return document.model_dump(mode="json")
 
 
@@ -101,9 +104,14 @@ async def put_profile(
         validated = document_type.model_validate(document)
         await asyncio.to_thread(get_profile_store().save, name, validated)
     except ValueError as exc:  # pydantic ValidationError is a ValueError
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(status=422, title="Profile save failed", detail=str(exc)) from exc
     except OSError as exc:
-        raise HTTPException(500, f"Cannot save {kind} profile '{name}': {exc}") from exc
+        raise EOSProblem(
+            status=500,
+            title="Profile save failed",
+            detail=f"Cannot save {kind} profile '{name}': {exc}",
+            cause=exc,
+        ) from exc
     return validated.model_dump(mode="json")
 
 
@@ -119,10 +127,10 @@ async def delete_profile(kind: KindPath, name: NamePath) -> ProfileEntry | None:
     try:
         await asyncio.to_thread(store.delete, document_type, name)
     except PermissionError as exc:
-        raise HTTPException(409, str(exc)) from exc
+        raise EOSProblem(status=409, title="Profile delete refused", detail=str(exc)) from exc
     except FileNotFoundError as exc:
-        raise HTTPException(404, str(exc)) from exc
+        raise EOSProblem(status=404, title="Profile not found", detail=str(exc)) from exc
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(status=422, title="Profile delete failed", detail=str(exc)) from exc
     entries = await asyncio.to_thread(store.list_profiles, document_type)
     return next((entry for entry in entries if entry.name == name), None)
