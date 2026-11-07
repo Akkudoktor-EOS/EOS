@@ -7,6 +7,7 @@ BatteryProfileSettings configuration model.
 """
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -27,7 +28,6 @@ from akkudoktoreos.devices.profile.batteryprofile import (
     Units,
 )
 from akkudoktoreos.devices.profile.profilestore import get_profile_store
-
 
 # --- helpers -------------------------------------------------------------
 
@@ -54,7 +54,7 @@ def make_limits(
     Returns:
         A validated BatteryProfileSettings instance.
     """
-    payload = dict(
+    payload: dict[str, Any] = dict(
         battery_model="Test Battery",
         charge_limit_crate=CargeDischargeLimitMap(values=charge_values or make_grid()),
         discharge_limit_crate=CargeDischargeLimitMap(values=discharge_values or make_grid()),
@@ -69,7 +69,7 @@ def make_efficiency_curve(
     **overrides,
 ) -> EfficiencyCurve:
     """Build a validated efficiency curve with useful defaults."""
-    payload = {
+    payload: dict[str, Any] = {
         "c_rate": c_rate or [0.1, 0.5, 1.0],
         "efficiency": efficiency or [0.90, 0.96, 0.92],
     }
@@ -279,7 +279,7 @@ class TestPrecomputedEfficiencyCurve:
     def test_runtime_data_is_immutable(self):
         precomputed = PrecomputedEfficiencyCurve.from_curve(make_efficiency_curve())
         with pytest.raises((AttributeError, TypeError)):
-            precomputed.c_rate = (0.0, 1.0)
+            precomputed.c_rate = (0.0, 1.0)  # type: ignore[misc]
 
 
 class TestBatteryProfileEfficiency:
@@ -1069,8 +1069,8 @@ class TestFromBatteryModel:
     def test_generic_lfp_efficiency_falls_with_c_rate(self):
         # DC pack efficiency: resistive losses grow with current.
         limits = BatteryProfileSettings.from_battery_model("generic-lfp")
-        charge = [limits.charge_efficiency_at(c) for c in (0.05, 0.25, 0.5, 1.0)]
-        discharge = [limits.discharge_efficiency_at(c) for c in (0.05, 0.25, 0.5)]
+        charge = [limits.charge_efficiency_at(c) or 0.0 for c in (0.05, 0.25, 0.5, 1.0)]
+        discharge = [limits.discharge_efficiency_at(c) or 0.0 for c in (0.05, 0.25, 0.5)]
         assert charge == sorted(charge, reverse=True)
         assert discharge == sorted(discharge, reverse=True)
         assert all(0.9 < e <= 1.0 for e in charge + discharge)

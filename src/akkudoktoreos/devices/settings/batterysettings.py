@@ -77,11 +77,6 @@ from akkudoktoreos.devices.settings.batterymeasurement import (
 )
 from akkudoktoreos.devices.settings.batteryresolution import (
     BATTERY_DEFAULT_CAPACITY_WH,
-    BatteryOperatingParameters,
-    BatteryOperatingPoint,
-    resolve_battery_parameters,
-    resolve_battery_parameters_lenient,
-    resolve_nominal_capacity_wh,
 )
 from akkudoktoreos.devices.settings.batteryresolution import (
     BATTERY_DEFAULT_CHARGING_EFFICIENCY as BATTERY_DEFAULT_CHARGING_EFFICIENCY,
@@ -100,6 +95,13 @@ from akkudoktoreos.devices.settings.batteryresolution import (
 )
 from akkudoktoreos.devices.settings.batteryresolution import (
     BATTERY_DEFAULT_TEMPERATURE_DEGC as BATTERY_DEFAULT_TEMPERATURE_DEGC,
+)
+from akkudoktoreos.devices.settings.batteryresolution import (
+    BatteryOperatingParameters,
+    BatteryOperatingPoint,
+    resolve_battery_parameters,
+    resolve_battery_parameters_lenient,
+    resolve_nominal_capacity_wh,
 )
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.measurement.batterycapacity import (

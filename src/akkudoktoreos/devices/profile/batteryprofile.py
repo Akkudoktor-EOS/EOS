@@ -60,7 +60,10 @@ from akkudoktoreos.devices.profile.batteryprofileruntime import (
     reference_max_charge_crate,
     reference_max_discharge_crate,
 )
-from akkudoktoreos.devices.profile.profilestore import ProfileDocument, get_profile_store
+from akkudoktoreos.devices.profile.profilestore import (
+    ProfileDocument,
+    get_profile_store,
+)
 
 
 class Units(SettingsBaseModel):

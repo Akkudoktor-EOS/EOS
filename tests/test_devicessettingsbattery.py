@@ -15,6 +15,7 @@ efficiency curves) and no measurement is available. TestMeasurementAccess uses
 the real measurement store.
 """
 
+import dataclasses
 from typing import Any, Optional
 
 import pytest
@@ -1151,22 +1152,25 @@ class TestResolveOperatingParameters:
     def test_snapshot_contains_all_values(self, make_profiled_settings, full_profile):
         settings = make_profiled_settings(full_profile, nominal_capacity_wh=10000)
         resolved = settings.resolve_operating_parameters()
-        assert resolved == BatteryOperatingParameters(
-            temperature_degC=25.0,
-            soc_factor=0.5,
-            capacity_wh=10000,
-            charging_efficiency=pytest.approx(0.96),
-            discharging_efficiency=pytest.approx(0.9375),
-            max_charge_power_w=pytest.approx(5000.0),
-            max_discharge_power_w=pytest.approx(4000.0),
-            min_soc_percentage=5,
-            max_soc_percentage=95,
+        assert isinstance(resolved, BatteryOperatingParameters)
+        assert dataclasses.asdict(resolved) == pytest.approx(
+            {
+                "temperature_degC": 25.0,
+                "soc_factor": 0.5,
+                "capacity_wh": 10000,
+                "charging_efficiency": 0.96,
+                "discharging_efficiency": 0.9375,
+                "max_charge_power_w": 5000.0,
+                "max_discharge_power_w": 4000.0,
+                "min_soc_percentage": 5,
+                "max_soc_percentage": 95,
+            }
         )
 
     def test_snapshot_is_immutable(self):
         resolved = make_settings().resolve_operating_parameters()
         with pytest.raises((AttributeError, TypeError)):
-            resolved.resolved_nominal_capacity_wh = 1
+            resolved.capacity_wh = 1  # type: ignore[misc]
 
     def test_snapshot_is_not_affected_by_later_measurement_changes(
         self, make_profiled_settings, full_profile, measurements

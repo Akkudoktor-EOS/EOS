@@ -38,11 +38,12 @@ from urllib.parse import quote
 
 import numpy as np
 import requests
-from bokeh.models import ColumnDataSource, HoverTool, LinearColorMapper
+from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.models import Image as ImageGlyph
+from bokeh.models import LinearColorMapper
 from bokeh.models.annotations import ColorBar
-from bokeh.palettes import Viridis256
 from bokeh.models.renderers import DataRenderer
+from bokeh.palettes import Viridis256
 from fasthtml.common import Option, Select
 from loguru import logger
 from monsterui.franken import (
@@ -73,7 +74,11 @@ from akkudoktoreos.devices.profile.batteryprofile import (
     EfficiencyInterpolation,
     OutOfRangeBehavior,
 )
-from akkudoktoreos.server.dash.bokeh import Bokeh, bokey_apply_theme_to_plot, create_figure
+from akkudoktoreos.server.dash.bokeh import (
+    Bokeh,
+    bokey_apply_theme_to_plot,
+    create_figure,
+)
 from akkudoktoreos.server.dash.components import ConfigButton, Error, Success
 from akkudoktoreos.server.dash.context import request_url_for
 
