@@ -1,0 +1,395 @@
+% SPDX-License-Identifier: Apache-2.0
+(ai-page)=
+
+# AI-Assisted Development
+
+EOS can be developed together with an AI coding agent such as
+[Claude Code](https://docs.anthropic.com/en/docs/claude-code),
+[OpenCode](https://opencode.ai/) or [Qwen Code](https://github.com/QwenLM/qwen-code).
+The agent reads and edits the code, runs the tests and checks, and writes commits. You stay in
+charge: you choose the task, review every change and decide what is pushed and proposed upstream.
+
+This page describes the workflow and how to run it in the AI development sandbox that ships with
+the repository in the `ai/` directory.
+
+(ai-coding-workflow)=
+
+## The AI coding workflow
+
+### Overview
+
+```text
+ host                                    sandbox container (ai/run.sh)
+ ─────────────────────────────────       ─────────────────────────────────────────
+ 1. create a feature branch
+ 2. start the sandbox          ───────▶  3. start an agent (claude, opencode, qwen)
+                                         4. describe the task, agree on a plan
+ 5. watch the changes in your  ◀───────  6. agent edits code, adds tests,
+    IDE, answer questions                   runs pytest, ruff, mypy, linters
+ 7. review the diff            ◀───────  8. agent commits (Conventional Commits)
+ 9. push, open a pull request
+```
+
+The repository on your machine is mounted into the container. Every change the agent makes is
+visible on the host immediately, and every change you make on the host is visible to the agent.
+There is no copy to synchronize.
+
+### Project rules for agents
+
+Agents get their project knowledge from two places in the repository:
+
+- `AGENTS.md` in the repository root is the entry point. It gives a short project summary, the
+  rules for every change, the index of the skills and the completion checklist. Claude Code and
+  OpenCode read it automatically when they start in the repository. If an agent does not, ask it
+  to read `AGENTS.md` first.
+- `ai/skills/<skill>/SKILL.md` holds the detailed rules, one skill per topic. The agent loads a
+  skill when the task needs it, as listed in `AGENTS.md`:
+
+| Skill | Content |
+|---|---|
+| `python-environment` | How the agent runs `uv`, `make`, pytest, mypy and ruff without breaking your `.venv` |
+| `python-quality` | Ruff, mypy, typing and docstring rules |
+| `testing` | Where and how to add tests |
+| `filename-conventions` | File name rules enforced by `scripts/lint_filenames.py` |
+| `application-configuration` | Configuration models, defaults and migration |
+| `energy-domain` | Optimization, adapters, units and sign conventions |
+| `rest-api` | REST endpoints and error responses |
+| `commit-messages` | Conventional Commits as checked by `commitizen` |
+
+The skills are not registered as agent-specific skills (e.g. in `.claude/skills/`). The agent reads
+them because `AGENTS.md` tells it to, which works the same for every agent.
+
+When you notice that an agent repeatedly gets something wrong, add or sharpen the rule in the
+matching skill instead of correcting the agent again in every session. Changes to the skills are
+reviewed and committed like code. `ai/skills` is read-only in the sandbox. To let the agent edit
+the skills, start the sandbox with `AI_SANDBOX_SKILLS_RW=1`.
+
+### Working with the agent
+
+1. **Start from a clean branch.** Create a branch for the task on the host, e.g.
+   `git switch -c feat/my-feature eos/main`. Commit or stash unrelated work first, so the agent's
+   changes are easy to tell apart.
+2. **Describe the task precisely.** Name the goal, the affected component and the constraints,
+   and point the agent to relevant files, issues or error messages. Paste tracebacks in full.
+3. **Plan before larger changes.** For anything beyond a small fix, ask the agent for a short
+   design note or plan first and agree on it before code is written. Claude Code has a plan mode
+   (`Shift+Tab`) for this.
+4. **Let the agent verify its work.** The skills require the agent to add tests and to run
+   pytest, ruff, mypy and the filename linter. Ask for the results if they are not reported.
+5. **Watch and review.** Open the repository in your IDE on the host. You can follow the edits
+   live, answer the agent's questions with full knowledge of the code, run the result yourself and
+   change things by hand. Review the complete diff before you open or update a pull request, as
+   described in [](#ai-review-checklist). You are the author of what goes upstream.
+6. **Commit in small steps.** Let the agent commit each logical step with a Conventional Commits
+   message (see the `commit-messages` skill), or commit yourself. Check the messages with
+   `make gitlint`.
+7. **Push and open the pull request from the host.** Then the sandbox needs no GitHub
+   credentials at all. See [](#ai-sandbox-github) if you want the agent to push.
+
+## The AI development sandbox
+
+An AI agent runs commands on your behalf, and it can be misled, for example by instructions hidden
+in a downloaded file or web page. The sandbox limits what such a command can reach. It is a Docker
+container that sees only the repository and its own home volume.
+
+:::{warning}
+The sandbox does not protect your repository from harmful changes by the agent. The repository is
+mounted read-write, so the agent can write any change into it, and such a change takes effect when
+you run tests, `make`, pre-commit or EOS on the host, or when it is pushed. **Check every change
+the agent made before you run it on the host, open a pull request or update one.** See
+[](#ai-review-checklist).
+:::
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) with Docker Compose v2 (`docker compose version`).
+  On Linux, your user must be allowed to use the Docker daemon (member of the `docker` group).
+- A normal clone of the repository. Git worktree checkouts are not supported: their `.git` is a
+  file that points outside the repository, so git does not work in the sandbox.
+- On Windows: a checkout with LF line endings. The repository's `.gitattributes` checks out all
+  text files with LF (only `*.bat` and `*.cmd` with CRLF), whatever `core.autocrlf` says, so the
+  shell scripts run in the container and git in the container sees the same changes as git on
+  the host. A clone made before this setting still has CRLF files; commit or stash your work and
+  check out all files again: `git rm -r -q --cached .` and then `git reset -q --hard`.
+- An account for at least one agent: an Anthropic subscription or API key for Claude Code, an
+  account with any provider supported by OpenCode (including local models), or a Qwen account.
+
+### Start the sandbox
+
+Run the launcher from the repository root:
+
+| Host | Command |
+|---|---|
+| Linux, macOS | `./ai/run.sh` (once before: `chmod +x ai/run.sh`) |
+| Windows PowerShell | `.\ai\run.ps1` |
+| Windows CMD | `ai\run.bat` |
+
+The launcher
+
+1. checks that Docker and Docker Compose are available,
+2. sanity-checks that `ai/compose.yaml` contains the main sandbox controls and refuses to start
+   otherwise,
+3. writes `ai/.env` (from `ai/.env.example`) with your user and group id, so files the agent
+   creates belong to you,
+4. starts a new container and opens a `bash` shell in `/workspace`, the repository.
+
+The first start builds the image. Later starts reuse it. Rebuild the image to get new versions of
+the agent CLIs or after changing `ai/Dockerfile`:
+
+```bash
+AI_SANDBOX_REBUILD=1 ./ai/run.sh
+```
+
+To run a single command instead of a shell, put it after `--`:
+
+```bash
+./ai/run.sh -- claude
+./ai/run.sh -- bash -lc 'git status'
+```
+
+PowerShell consumes an unquoted `--` itself, so there it is optional: `.\ai\run.ps1 claude`.
+The launchers forward all arguments as the command; they do not take Docker Compose options such
+as `--build` (use the variables described here instead).
+
+On Windows, prefer PowerShell 7 (`pwsh`): it passes quotes and the characters `|`, `&`, `!` and
+`%` to the container unchanged. Windows PowerShell 5.1 does not pass embedded double quotes on to
+native commands, so put double quotes outside and single quotes inside:
+`.\ai\run.ps1 bash -lc "pytest -k 'a and b'"`. `ai\run.bat` passes each argument with its own
+quotes, so `|`, `&`, `<` and `>` inside a quoted argument reach the container, but `!` and `%`
+cannot be passed through `run.bat` at all; use `run.ps1` for commands that contain them.
+
+To let the agent edit the skills in `ai/skills`, which are read-only in the sandbox by default,
+start it with `AI_SANDBOX_SKILLS_RW=1`. The rest of `ai/` stays read-only.
+
+Every call starts a fresh container that is removed on exit, so you can run several sandboxes in
+parallel, e.g. one agent per terminal. Note that they all work on the same repository and branch.
+To reach servers in the sandbox from the host, start it with `AI_SANDBOX_PORTS=1` (see
+[](#ai-sandbox-servers)).
+
+To give commits made in the sandbox your identity, export it before starting the sandbox:
+
+```bash
+export GIT_USER_NAME="Your Name"
+export GIT_USER_EMAIL="you@example.com"
+./ai/run.sh
+```
+
+### Log in to the agents
+
+The image contains Claude Code (`claude`), OpenCode (`opencode`), Qwen Code (`qwen`) and the GitHub
+CLI (`gh`). Log in once, the login is kept in the sandbox home volume (see
+[](#ai-sandbox-persistence)).
+
+**Claude Code**: start `claude`. On the first start a setup assistant asks for the color theme and
+the login method. With a Claude subscription choose "Claude account with subscription", with an
+Anthropic API key choose "Anthropic Console account". Claude Code shows a login link. Press `c` to
+copy it, open it in a browser on the host, log in, and paste the code the browser shows back into
+the terminal. When the login has expired, run `/login` in a Claude Code session.
+
+**OpenCode**: start `opencode` and run `/connect` in it, or run `opencode auth login` in the shell.
+Choose the provider, e.g. OpenAI, Anthropic with an API key, or a local model.
+
+**Qwen Code**: start `qwen` and follow its login prompt.
+
+### Start the agent
+
+Start the agent in `/workspace`, the repository root, so it finds `AGENTS.md`:
+
+```bash
+claude      # or: opencode, qwen
+```
+
+Then work with it as described in [](#ai-coding-workflow).
+
+### Commands in the sandbox
+
+The sandbox contains Python 3.13, `uv`, Node.js, `git`, `gh` and `make`. Run the project's commands
+as you would on the host, with one difference: **use a virtual environment outside the
+repository**.
+
+The repository's `.venv` belongs to the host. It is bound to the Python interpreter of your
+machine, which does not exist in the container. If `uv` used it, it would delete and recreate
+`.venv` for the container's interpreter and break your environment on the host. The sandbox
+therefore sets `UV_PROJECT_ENVIRONMENT=/home/dev/.cache/eos-venv` for every shell and every agent
+tool call. Create the environment once:
+
+```bash
+uv sync --frozen --extra dev
+```
+
+The first sync downloads and installs all packages; on Docker Desktop (Windows, macOS) it can take
+many minutes. Later syncs take a moment. `/home/dev` is the persistent home volume, so the
+environment survives restarts. Do not change the variable to a path on `/tmp`: `/tmp` is small and
+does not allow running programs.
+
+The usual commands work:
+
+| Task | Command |
+|---|---|
+| Run all tests | `uv run --frozen pytest` |
+| Run the tests of one module | `uv run --frozen pytest tests/test_config.py` |
+| Run the tests as CI does | `make test-ci` |
+| Check types | `make mypy` |
+| Pre-commit hooks on committed changes | `uv run --frozen pre-commit run --from-ref main --to-ref HEAD` |
+| Pre-commit hooks on changed files | `uv run --frozen pre-commit run --files <file> ...` |
+| Check file names | `uv run --frozen python scripts/lint_filenames.py` |
+| Check commit messages since `main` | `make gitlint` |
+| Generate the documentation | `make gen-docs` |
+| Start the EOS server for development | `make run-dev` (see [](#ai-sandbox-servers)) |
+| Start EOSdash for development | `make run-dash-dev` (see [](#ai-sandbox-servers)) |
+
+Do not run `pre-commit run --all-files` in the sandbox: some hooks open every file for writing,
+which fails on the read-only `ai/` directory. Run it on the host. For the same reason
+`--from-ref`/`--files` fail with `Errno 30` when the changes include files in `ai/` outside
+`ai/skills`, or in `ai/skills` without `AI_SANDBOX_SKILLS_RW=1`; check those changes on the host
+too. Do not run `make clean` in the sandbox either. It deletes the host's `.venv`.
+
+(ai-sandbox-servers)=
+
+### Run EOS and EOSdash in the sandbox
+
+A server started in the sandbox can always be tested from within the same container, e.g. let the
+agent start it in the background and query it with `curl http://localhost:8503/v1/health`. A second
+`./ai/run.sh` starts a separate container, which cannot reach it.
+
+To open EOS and EOSdash in the browser on the host:
+
+1. Start the sandbox with published ports:
+
+   ```bash
+   AI_SANDBOX_PORTS=1 ./ai/run.sh
+   ```
+
+   On Windows, set the variable first: `$env:AI_SANDBOX_PORTS = "1"` in PowerShell or
+   `set AI_SANDBOX_PORTS=1` in CMD. The ports 8503 (EOS) and 8504 (EOSdash) are published on the
+   host's loopback interface only, so they are not reachable from the network. Only one sandbox at a
+   time can publish them. That's why publishing is off by default.
+
+2. Start the servers so that they listen on all interfaces of the container. `make run-dev` and
+   `make run-dash-dev` listen on `localhost` only, which is not reachable through the published
+   ports:
+
+   ```bash
+   uv run --frozen python -m akkudoktoreos.server.eos \
+       --host 0.0.0.0 --port 8503 --log_level DEBUG \
+       --startup_eosdash false --reload true &
+   uv run --frozen python -m akkudoktoreos.server.eosdash \
+       --host 0.0.0.0 --port 8504 --eos-host localhost --eos-port 8503 \
+       --log_level DEBUG --reload true
+   ```
+
+3. Open <http://localhost:8504> (EOSdash) or <http://localhost:8503/docs> (EOS REST API) in the
+   browser on the host.
+
+(ai-sandbox-github)=
+
+### GitHub access
+
+The recommended way is to push and open pull requests from the host, after your review. The
+sandbox then needs no GitHub credentials.
+
+If the agent shall push or create pull requests itself, log in to GitHub in the sandbox:
+
+```bash
+gh auth login
+gh auth setup-git
+```
+
+`gh auth setup-git` lets `git push` use the `gh` login. Later sandbox starts set this up
+automatically. Prefer a
+[fine-grained personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+restricted to your fork over a full login.
+
+(ai-sandbox-persistence)=
+
+### Persistent data
+
+Everything in the sandbox is temporary, except
+
+- `/workspace`: the repository on your machine,
+- `/home/dev`: the Docker volume `akkudoktor-ai-home`. It holds the logins of the agents and of
+  `gh`, the agents' settings, memory and session transcripts, the `uv` cache and the virtual
+  environment. The shell startup files (`~/.bashrc`, `~/.profile`) are reset on every start, so
+  changes to them do not persist.
+
+To log out of everything and start over, remove the volume while no sandbox is running:
+
+```bash
+docker volume rm akkudoktor-ai-home
+```
+
+### Security model
+
+The sandbox reduces what a misled agent can do on your machine. It does not make the agent's output
+trustworthy, and it does not protect the repository: the agent can write any change into it. Your
+review of every change is the main control.
+
+The container
+
+- sees only the repository and its own home volume, no other host directories and no Docker
+  socket,
+- mounts `ai/` (the sandbox definition and the launchers) read-only, so the agent cannot change
+  the next sandbox start,
+- runs as your user id, not as root, with all Linux capabilities dropped, `no-new-privileges` and
+  no `sudo`, so the agent cannot gain privileges,
+- has a read-only root file system. `/tmp`, `/run` and `/var/tmp` are in-memory and do not allow
+  running programs,
+- is limited to 2 CPUs, 4 GB of memory and 512 processes,
+- has network access to the internet, which the agents and `uv` need,
+- publishes no ports, unless started with `AI_SANDBOX_PORTS=1`, and then only on the host's
+  loopback interface.
+
+The launchers check `ai/compose.yaml` for the main controls before they start the sandbox. This is
+a sanity check against accidental edits, not a complete validation. Review changes to `ai/` like
+any other change.
+
+Keep in mind what the agent can still reach:
+
+- **The repository, read and write.** Everything outside `ai/`. Many files in it are run on the
+  host: `Makefile`, `.pre-commit-config.yaml` (local hooks run on your next commit),
+  `pyproject.toml`, tests and `conftest.py`, scripts, the CI workflows.
+- **`.git`, read and write.** The agent commits through it, and can create commits that change
+  `ai/`. It can also plant git configuration that runs commands on the host, e.g. a
+  `core.fsmonitor` that runs on the next `git status`, or hooks that run on the next commit. It
+  does not need to touch `.git/config` or `.git/hooks` for that: git also reads configuration and
+  hooks from the directory named in `.git/commondir`. Read-only mounts of single files in `.git`
+  cannot prevent this, so the sandbox does not pretend to. Check `.git` before you run any git
+  command on the host (see [](#ai-review-checklist)).
+- **The home volume.** It persists between sessions, so a misled session can leave state behind
+  that takes effect later: agent settings and hooks in `~/.claude`, `~/.gitconfig`, the virtual
+  environment in `~/.cache`. If a session may have been misled, remove the volume
+  (`docker volume rm akkudoktor-ai-home`) and log in again.
+- **The internet.** The agent can download code and send data. Do not put secrets into the
+  repository directory.
+- **The logins in the home volume.** A GitHub login in the sandbox lets the agent push to every
+  repository the login can write to. That's why pushing from the host is recommended.
+- **The skills, if enabled.** With `AI_SANDBOX_SKILLS_RW=1` the agent can change the rules that
+  later sessions follow.
+
+(ai-review-checklist)=
+
+### Check the changes before you push
+
+Do this on the host, before you run the agent's changes there and before you open or update a pull
+request. Start with `.git`, before you run any git command, because a planted configuration
+runs on the first one, even on `git status` or `git diff`:
+
+- Look at `.git` with plain file tools: `ls -la .git`. There must be no `commondir` file and no
+  unexpected files or directories (a normal `.git` holds `HEAD`, `config`, `description`, `index`,
+  `hooks/`, `info/`, `logs/`, `objects/`, `refs/` and some `*_HEAD`, `COMMIT_EDITMSG`,
+  `packed-refs`, `modules/` or `worktrees/`). Read `.git/config` with a text viewer and look for
+  `core.hooksPath`, `core.fsmonitor`, `core.sshCommand`, `filter.*` and `include*` entries you did
+  not add. List the active hooks: `ls .git/hooks` (anything not ending in `.sample`). If anything
+  looks wrong, do not run git; remove the planted files first.
+- Review the full diff against the target branch, including every commit:
+  `git diff main...HEAD` and `git log -p main..HEAD`. The agent may have committed changes that
+  are no longer visible in the working tree.
+- Check `git status` for unexpected modified and untracked files, and `git status --ignored` for
+  unexpected ignored ones.
+- Look closely at changes to files the host runs: `Makefile`, `.pre-commit-config.yaml`,
+  `pyproject.toml`, `conftest.py` and tests, `scripts/`, `.github/`, `ai/` and `ai/skills/`.
+- Cross-check the effective local git configuration: `git config --local --list --show-origin`.
+  Every entry must come from `.git/config`.
+- If you suspect that a session was misled, discard its changes and reset the home volume.
+
+See `ai/README.md` for the files of the sandbox.
