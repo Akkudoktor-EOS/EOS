@@ -854,3 +854,34 @@ class TestDeviceSettings:
     def test_device_map_rejects_conflicting_identity(self):
         with pytest.raises(ValidationError, match="device_id"):
             DevicesCommonSettings.model_validate({"batteries": {"house": {"device_id": "other"}}})
+
+
+class TestConfigProviderValidation:
+    """Provider ids are validated while the configuration is created."""
+
+    def test_config_with_providers_is_created_before_the_prediction(
+        self, uncreated_config, monkeypatch
+    ):
+        """No prediction instance exists yet while the configuration is created."""
+        from akkudoktoreos.core import coreabc
+        from akkudoktoreos.core.version import __version__
+
+        providers = {
+            "weather": {"provider": "OpenMeteo"},
+            "load": {"provider": "LoadAkkudoktorAdjusted"},
+            "pvforecast": {"provider": "PVForecastPVLib"},
+            "elecprice": {"provider": "ElecPriceEnergyCharts"},
+            "feedintariff": {"provider": "FeedInTariffFixed"},
+            "elecfee": {"provider": "ElecFeeFixed"},
+        }
+        # A current version: the file is validated as is, without migration.
+        uncreated_config.write_text(json.dumps({"general": {"version": __version__}, **providers}))
+        monkeypatch.setattr(coreabc, "_prediction_eos", None)
+        # Outside of documentation mode get_prediction() does not create the
+        # prediction instance on access.
+        monkeypatch.setattr(ConfigEOS, "documentation_mode", classmethod(lambda cls: False))
+
+        config = coreabc.get_config(init=True)
+
+        for section, value in providers.items():
+            assert getattr(config, section).provider == value["provider"]

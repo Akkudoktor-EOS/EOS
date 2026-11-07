@@ -3,7 +3,6 @@ from typing import Optional
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.elecfeeabc import ElecFeeProvider
 from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixedCommonSettings
 from akkudoktoreos.prediction.elecfeeimport import ElecFeeImportCommonSettings
@@ -11,20 +10,11 @@ from akkudoktoreos.prediction.elecfeeimport import ElecFeeImportCommonSettings
 
 def elecfee_provider_ids() -> list[str]:
     """Valid elecfee provider ids."""
-    try:
-        prediction_eos = get_prediction()
-    except Exception:
-        # Prediction may not be initialized. Return static built-in provider ids.
-        return [
-            "ElecFeeFixed",
-            "ElecFeeImport",
-        ]
+    # From the provider classes: valid also while the configuration is created,
+    # before the prediction instance exists.
+    from akkudoktoreos.prediction.prediction import prediction_provider_ids
 
-    return [
-        provider.provider_id()
-        for provider in prediction_eos.providers
-        if isinstance(provider, ElecFeeProvider)
-    ]
+    return prediction_provider_ids(ElecFeeProvider)
 
 
 class ElecFeeCommonSettings(SettingsBaseModel):

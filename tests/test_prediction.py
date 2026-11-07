@@ -209,3 +209,34 @@ async def test_empty_providers(prediction, forecast_providers):
 
     # Cleanup after Test
     prediction.providers = providers_bkup
+
+
+@pytest.mark.parametrize(
+    "provider_type",
+    [
+        "WeatherProvider",
+        "PVForecastProvider",
+        "LoadProvider",
+        "ElecPriceProvider",
+        "FeedInTariffProvider",
+        "ElecFeeProvider",
+    ],
+)
+def test_provider_ids_without_prediction_instance(prediction, provider_type):
+    """The ids from the provider classes match the providers of the prediction."""
+    import importlib
+
+    from akkudoktoreos.prediction.prediction import prediction_provider_ids
+
+    module_name = {
+        "WeatherProvider": "weatherabc",
+        "PVForecastProvider": "pvforecastabc",
+        "LoadProvider": "loadabc",
+        "ElecPriceProvider": "elecpriceabc",
+        "FeedInTariffProvider": "feedintariffabc",
+        "ElecFeeProvider": "elecfeeabc",
+    }[provider_type]
+    base = getattr(importlib.import_module(f"akkudoktoreos.prediction.{module_name}"), provider_type)
+    expected = {p.provider_id() for p in prediction.providers if isinstance(p, base)}
+    assert expected
+    assert set(prediction_provider_ids(base)) == expected

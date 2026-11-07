@@ -462,6 +462,31 @@ def config_eos(config_eos_factory) -> ConfigEOS:
     return config_eos
 
 
+@pytest.fixture
+def uncreated_config(config_eos: ConfigEOS, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Drop the created configuration, so get_config(init=True) creates a new one from the file.
+
+    Write the configuration to the returned config file path, then call
+    ``get_config(init=True)``. The new configuration reads the config file, as
+    the server does. monkeypatch puts the fixture's configuration back into
+    both ``coreabc._config_eos`` and the ``ConfigEOS`` singleton registry, so
+    the two stay in sync after the test.
+
+    Returns:
+        Path of the config file the new configuration reads.
+    """
+    from akkudoktoreos.core import coreabc
+
+    config_file_path = config_eos.general.config_file_path
+    if config_file_path is None:
+        raise RuntimeError("The test configuration has no config file path.")
+    singleton_instances: dict[type, object] = ConfigEOS._instances
+    monkeypatch.setattr(coreabc, "_config_eos", None)
+    monkeypatch.setattr(ConfigEOS, "_init_config_eos", {"with_file_settings": True})
+    monkeypatch.delitem(singleton_instances, ConfigEOS, raising=False)
+    return config_file_path
+
+
 # ------------------------------------
 # Provide pytest EOS server management
 # ------------------------------------

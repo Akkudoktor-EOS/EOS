@@ -5,7 +5,6 @@ from typing import Any, List, Optional, Self
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktorCommonSettings,
 )
@@ -29,28 +28,11 @@ from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings
 
 def pvforecast_provider_ids() -> list[str]:
     """Valid PV forecast providers."""
-    try:
-        prediction_eos = get_prediction()
-    except Exception:
-        # Prediction may not be initialized
-        # Return at least provider used in example
-        return [
-            "PVForecastAdaptiveAkkudoktor",
-            "PVForecastAkkudoktor",
-            "PVForecastForecastSolar",
-            "PVForecastHomeAssistant",
-            "PVForecastImport",
-            "PVForecastPVLib",
-            "PVForecastPVNode",
-            "PVForecastSolcast",
-            "PVForecastVrm",
-        ]
+    # From the provider classes: valid also while the configuration is created,
+    # before the prediction instance exists.
+    from akkudoktoreos.prediction.prediction import prediction_provider_ids
 
-    return [
-        provider.provider_id()
-        for provider in prediction_eos.providers
-        if isinstance(provider, PVForecastProvider)
-    ]
+    return prediction_provider_ids(PVForecastProvider)
 
 
 class PVForecastPlaneSetting(SettingsBaseModel):

@@ -3,7 +3,6 @@ from typing import Optional
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
 from akkudoktoreos.prediction.feedintariffdvhubonline import (
     FeedInTariffDvhubOnlineCommonSettings,
@@ -18,25 +17,11 @@ from akkudoktoreos.prediction.feedintariffsmard import FeedInTariffSMARDCommonSe
 
 def feedintariff_provider_ids() -> list[str]:
     """Valid feedintariff provider ids."""
-    try:
-        prediction_eos = get_prediction()
-    except Exception:
-        # Prediction may not be initialized. Return static built-in provider ids.
-        return [
-            "FeedInTariffAkkudoktor",
-            "FeedInTariffDvhubOnline",
-            "FeedInTariffEnergyCharts",
-            "FeedInTariffFixed",
-            "FeedInTariffImport",
-            "FeedInTariffSMARD",
-            "FeedInTariffTibber",
-        ]
+    # From the provider classes: valid also while the configuration is created,
+    # before the prediction instance exists.
+    from akkudoktoreos.prediction.prediction import prediction_provider_ids
 
-    return [
-        provider.provider_id()
-        for provider in prediction_eos.providers
-        if isinstance(provider, FeedInTariffProvider)
-    ]
+    return prediction_provider_ids(FeedInTariffProvider)
 
 
 class FeedInTariffCommonSettings(SettingsBaseModel):
