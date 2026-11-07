@@ -641,6 +641,7 @@ class Battery:
         """Discharge energy from the battery.
 
         Discharge is limited by:
+
         * Requested delivered energy
         * Remaining energy above minimum SoC
         * Maximum discharge power, and the power limit at the current SoC if
