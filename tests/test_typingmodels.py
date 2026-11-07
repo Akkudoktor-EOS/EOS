@@ -117,6 +117,27 @@ def test_homeassistant_settings_preserve_entity_lookup_and_unavailability(
     assert getattr(settings, property_name) == []
 
 
+@pytest.mark.parametrize(
+    "property_name",
+    ["homeassistant_entity_ids", "eos_solution_entity_ids", "eos_device_instruction_entity_ids"],
+)
+def test_homeassistant_settings_leave_runtime_entities_out_of_documentation(
+    monkeypatch: pytest.MonkeyPatch, property_name: str
+) -> None:
+    """Entity IDs of a running system do not reach the documentation."""
+    provider = HomeAssistantAdapter()
+    lookup = MagicMock(return_value=["sensor.eos_example"])
+    monkeypatch.setattr(HomeAssistantAdapter, f"get_{property_name}", lookup)
+    adapter = MagicMock()
+    adapter.provider_by_id.return_value = provider
+    monkeypatch.setattr(homeassistant, "get_adapter", lambda: adapter)
+    monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", True)
+
+    settings = HomeAssistantAdapterCommonSettings()
+    assert getattr(settings, property_name) == []
+    lookup.assert_not_called()
+
+
 @pytest.mark.parametrize("operation", ["revert_settings", "list_backups"])
 def test_backup_operations_report_an_uninitialized_path_as_an_invariant_failure(
     config_eos: ConfigEOS, monkeypatch: pytest.MonkeyPatch, operation: str
