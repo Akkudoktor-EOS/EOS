@@ -854,3 +854,42 @@ class TestDeviceSettings:
     def test_device_map_rejects_conflicting_identity(self):
         with pytest.raises(ValidationError, match="device_id"):
             DevicesCommonSettings.model_validate({"batteries": {"house": {"device_id": "other"}}})
+
+
+class TestDocumentationMode:
+    """Documentation mode is enabled explicitly, never by an imported Sphinx."""
+
+    def test_imported_sphinx_does_not_enable_it(self, monkeypatch):
+        import sphinx  # noqa: F401  # the module is in sys.modules now
+
+        monkeypatch.delattr("sys._called_from_sphinx", raising=False)
+        monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", False)
+        assert not ConfigEOS.documentation_mode()
+
+    def test_sphinx_configuration_enables_it(self, monkeypatch):
+        monkeypatch.setattr("sys._called_from_sphinx", True, raising=False)
+        monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", False)
+        assert ConfigEOS.documentation_mode()
+
+    def test_documentation_generators_enable_it(self, monkeypatch):
+        monkeypatch.delattr("sys._called_from_sphinx", raising=False)
+        monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", True)
+        assert ConfigEOS.documentation_mode()
+
+    def test_optimization_solution_keys_are_left_out(self, monkeypatch):
+        """Keys of a solution of a previous run do not reach the documentation."""
+        from akkudoktoreos.optimization import optimization
+        from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
+
+        solution = Mock()
+        solution.solution.to_dataframe.return_value.columns.tolist.return_value = ["b", "a"]
+        ems = Mock()
+        ems.optimization_solution.return_value = solution
+        monkeypatch.setattr(optimization, "get_ems", lambda: ems)
+        monkeypatch.delattr("sys._called_from_sphinx", raising=False)
+        settings = OptimizationCommonSettings()
+
+        monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", False)
+        assert settings.keys == ["a", "b"]
+        monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", True)
+        assert settings.keys == []

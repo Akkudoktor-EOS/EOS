@@ -30,6 +30,17 @@ HEADERS = {
 HOMEASSISTANT_ENTITY_ID_PREFIX = "sensor.eos_"
 
 
+def _documentation_mode() -> bool:
+    """Whether the configuration is rendered for documentation.
+
+    Documentation shows no runtime state: no entity IDs of a Home Assistant
+    instance, of an optimization solution or of an energy management plan.
+    """
+    from akkudoktoreos.config.config import ConfigEOS
+
+    return ConfigEOS.documentation_mode()
+
+
 class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     """Common settings for the home assistant adapter."""
 
@@ -147,6 +158,8 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     @property
     def homeassistant_entity_ids(self) -> list[str]:
         """Entity IDs available at Home Assistant."""
+        if _documentation_mode():
+            return []
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")
@@ -164,6 +177,8 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     @property
     def eos_solution_entity_ids(self) -> list[str]:
         """Entity IDs for optimization solution available at EOS."""
+        if _documentation_mode():
+            return []
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")
@@ -181,6 +196,8 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     @property
     def eos_device_instruction_entity_ids(self) -> list[str]:
         """Entity IDs for energy management instructions available at EOS."""
+        if _documentation_mode():
+            return []
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")

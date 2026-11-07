@@ -12,6 +12,10 @@ PROJECT_ROOT = Path(__file__).parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+# Tell akkudoktoreos that it is imported for the documentation build
+# (see ConfigEOS.documentation_mode()).
+sys._called_from_sphinx = True  # type: ignore[attr-defined]
+
 from akkudoktoreos.core.version import __version__
 
 # -- Project information -----------------------------------------------------
