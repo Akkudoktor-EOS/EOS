@@ -1,0 +1,10 @@
+# Text files use LF line endings in every working tree, also on Windows with
+# core.autocrlf=true. Shell scripts run in the Linux container of the AI
+# sandbox, and git in the container (no autocrlf) must agree with git on the
+# host about which files changed.
+* text=auto eol=lf
+
+# Windows batch files need CRLF line endings: cmd.exe handles labels and
+# `goto` unreliably in batch files with LF line endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
