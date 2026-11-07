@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from akkudoktoreos.config.config import ConfigEOS
+
 DIR_PROJECT_ROOT = Path(__file__).parent.parent
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
@@ -205,10 +207,10 @@ def test_config_md_current(config_eos, set_other_timezone):
 
         # Create test files
         try:
-            config_eos._force_documentation_mode = True
+            ConfigEOS._force_documentation_mode = True
             config_md = generate_config_md.generate_config_md(tested[0], config_eos)
         finally:
-            config_eos._force_documentation_mode = False
+            ConfigEOS._force_documentation_mode = False
 
     # Check test files are the same as the expected files
     for i, expected_path in enumerate(expected):

@@ -466,7 +466,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     _config_autosave: ClassVar[str] = ""
     # Settings provided at runtime, e.g. by the REST interface. Highest priority after CLI.
     _runtime_settings: ClassVar[dict[str, Any]] = {}
-    _force_documentation_mode = False
+    # A ClassVar: without the annotation pydantic makes it a private attribute,
+    # and the class attribute would be a (truthy) descriptor object.
+    _force_documentation_mode: ClassVar[bool] = False
 
     def __hash__(self) -> int:
         # ConfigEOS is a singleton
@@ -767,11 +769,16 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     def documentation_mode(cls) -> bool:
         """Are we running in documentation mode.
 
-        Some checks may be relaxed to allow for proper documentation execution.
+        Some checks may be relaxed to allow for proper documentation execution,
+        and runtime state is left out of the documentation.
+
+        Documentation mode is set explicitly: by the documentation generators
+        (``_force_documentation_mode``) or by the Sphinx configuration
+        (``sys._called_from_sphinx``). Merely having Sphinx imported, e.g. by a
+        test in the same process, does not enable it.
         """
-        # Detect if Sphinx is importing this module
-        is_sphinx = "sphinx" in sys.modules or getattr(sys, "_called_from_sphinx", False)
-        return cls._force_documentation_mode or is_sphinx
+        is_sphinx = getattr(sys, "_called_from_sphinx", False)
+        return bool(cls._force_documentation_mode or is_sphinx)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initializes the singleton ConfigEOS instance.
