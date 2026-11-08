@@ -81,7 +81,7 @@ def test_device_maps_feed_algorithm_specific_converters(algorithm):
             "electric_vehicles": {
                 "car": {"profile_adjustment": {"nominal_capacity_wh": 60000, "max_charge_power_w": 7000}}
             },
-            "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 5000}},
+            "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 5000}}},
             "home_appliances": {
                 "washer": {
                     "consumption_wh": 1800,

@@ -29,7 +29,9 @@
         "inverters": {
             "inverter1": {
                 "device_id": "inverter1",
-                "max_power_w": 10000.0,
+                "profile_adjustment": {
+                    "nominal_power_w": 10000.0
+                },
                 "battery_id": "battery1"
             }
         },

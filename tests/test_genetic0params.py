@@ -161,7 +161,7 @@ class TestGenetic0MeasuredSOC:
                     "batteries": {
                         "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
-                    "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
+                    "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 1000}}},
                 },
             }
         )
@@ -208,7 +208,7 @@ class TestGenetic0MeasuredSOC:
                     "batteries": {
                         "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
-                    "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
+                    "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 1000}}},
                 },
             }
         )
@@ -254,7 +254,7 @@ class TestGenetic0MeasuredSOC:
                     "batteries": {
                         "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
-                    "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
+                    "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 1000}}},
                 },
             }
         )

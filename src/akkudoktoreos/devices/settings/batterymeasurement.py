@@ -2,7 +2,7 @@
 
 Measurement access is asynchronous (``DataSequence.key_to_value``), so it is
 kept out of the battery settings model and out of the parameter resolution.
-``get_measured_value`` is the only place that talks to the measurement
+``get_measured_value`` (from ``devicemeasurement``) talks to the measurement
 subsystem; ``measure_operating_point`` turns the measured values of one battery
 into a ``BatteryOperatingPoint``.
 """
@@ -10,46 +10,25 @@ into a ``BatteryOperatingPoint``.
 import math
 from typing import TYPE_CHECKING, Optional
 
-from loguru import logger
-
 from akkudoktoreos.devices.settings.batteryresolution import (
     BATTERY_DEFAULT_SOC_FACTOR,
     BATTERY_DEFAULT_TEMPERATURE_DEGC,
     BatteryOperatingPoint,
 )
-from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
+from akkudoktoreos.devices.settings.devicemeasurement import (
+    DEVICE_MEASUREMENT_MAX_AGE,
+)
+from akkudoktoreos.devices.settings.devicemeasurement import (
+    get_measured_value as get_measured_value,
+)
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
 
 
 # Maximum age of a measurement that is still taken as "current".
-BATTERY_MEASUREMENT_MAX_AGE: str = "1 hour"
-
-
-async def get_measured_value(key: str, target_datetime: DateTime) -> Optional[float]:
-    """Return the measured value for a measurement key nearest to a datetime.
-
-    Args:
-        key: Measurement key.
-        target_datetime: Datetime the value is looked up for.
-
-    Returns:
-        The value nearest to target_datetime within BATTERY_MEASUREMENT_MAX_AGE,
-        or None if there is no such value or the measurement cannot be queried.
-    """
-    try:
-        from akkudoktoreos.core.coreabc import get_measurement
-
-        value = await get_measurement().key_to_value(
-            key=key,
-            target_datetime=target_datetime,
-            time_window=to_duration(BATTERY_MEASUREMENT_MAX_AGE),
-        )
-        return None if value is None else float(value)
-    except Exception as exc:  # a missing measurement falls back to the defaults
-        logger.warning(f"Battery measurement '{key}' not available: {exc}")
-        return None
+BATTERY_MEASUREMENT_MAX_AGE: str = DEVICE_MEASUREMENT_MAX_AGE
 
 
 def _soc_factor_or_default(value: Optional[float]) -> float:

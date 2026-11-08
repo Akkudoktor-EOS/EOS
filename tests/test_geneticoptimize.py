@@ -172,3 +172,28 @@ async def test_optimize(
 
     reader = PdfReader(BytesIO(pdf))
     assert len(reader.pages) >= 6
+
+
+def test_solution_inverter_parameters_come_from_the_run_or_the_profile(config_eos: ConfigEOS):
+    """Inverter settings hold no efficiencies; the solution never reads them directly."""
+    config_eos.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_inverters": 1,
+                "inverters": {
+                    "inverter1": {
+                        "device_id": "inverter1",
+                        "profile_adjustment": {"nominal_power_w": 8000},
+                    }
+                },
+            }
+        }
+    )
+    with (DIR_TESTDATA / "optimize_result_1.json").open("r") as f_in:
+        solution = GeneticSolution.model_validate(json.load(f_in))
+    stored = solution._inverter_parameters_list(solution.parameters)
+    assert stored == ([solution.parameters.inverter] if solution.parameters.inverter else [])
+    resolved = solution._inverter_parameters_list(None)
+    assert len(resolved) == 1
+    assert resolved[0].max_power_wh == pytest.approx(8000)
+    assert 0.0 < resolved[0].ac_to_dc_efficiency < 1.0

@@ -26,6 +26,7 @@ from akkudoktoreos.devices.devicesabc import (
     BatteryOperationMode,
 )
 from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
+from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
 from akkudoktoreos.optimization.genetic0.genetic0devices import (
     Genetic0ParametersBaseModel,
 )
@@ -507,6 +508,26 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
         # Fallback → safe idle
         return BatteryOperationMode.IDLE, 1.0
 
+    def _inverter_parameters(
+        self, parameters: Optional[Genetic0OptimizationParameters]
+    ) -> Optional[Genetic0InverterParameters]:
+        """Return the inverter parameters the solution was computed with.
+
+        Without stored parameters, the first configured inverter is resolved from
+        its inverter profile. An inverter that cannot be resolved is treated as
+        no inverter; the configuration check already reported it.
+        """
+        if parameters is not None:
+            return parameters.inverter
+        inverters = self.config.devices.inverters or {}
+        if not inverters:
+            return None
+        try:
+            return list(inverters.values())[0].to_genetic0_param()
+        except ValueError as exc:
+            logger.debug(f"Inverter not resolvable for the solution: {exc}")
+            return None
+
     def _soc_clamped_operation_factors(
         self,
         ac_charge: float,
@@ -565,8 +586,7 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
             if headroom_wh <= 0.0:
                 effective_ac = 0.0
             else:
-                inv_dict = self.config.devices.inverters
-                inv = list(inv_dict.values())[0] if inv_dict else None
+                inv = self._inverter_parameters(parameters)
                 ac_to_dc_eff = float(inv.ac_to_dc_efficiency) if inv else 1.0
                 max_ac_cp_w = (
                     float(inv.max_ac_charge_power_w)

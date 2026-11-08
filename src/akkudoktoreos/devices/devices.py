@@ -170,18 +170,20 @@ class DevicesCommonSettings(SettingsBaseModel):
                 keys.extend(device.measurement_keys or [])
         return keys
 
-    def check_battery_profiles(self) -> tuple[list[str], list[str]]:
-        """Check that every battery and electric vehicle can be resolved from its profile.
+    def check_device_profiles(self) -> tuple[list[str], list[str]]:
+        """Check that every device with a profile can be resolved from it.
 
-        See ``BatteriesCommonSettings.check_profile``.
+        Covers batteries, electric vehicles and inverters, see
+        ``BatteriesCommonSettings.check_profile`` and
+        ``InverterCommonSettings.check_profile``.
 
         Returns:
-            ``(errors, warnings)`` of all batteries and electric vehicles, each
-            message naming its device.
+            ``(errors, warnings)`` of all these devices, each message naming its
+            device.
         """
         errors: list[str] = []
         warnings: list[str] = []
-        for device_dict in (self.batteries, self.electric_vehicles):
+        for device_dict in (self.batteries, self.electric_vehicles, self.inverters):
             for device in (device_dict or {}).values():
                 device_errors, device_warnings = device.check_profile()
                 errors.extend(device_errors)

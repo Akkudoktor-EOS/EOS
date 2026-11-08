@@ -20,7 +20,10 @@ from akkudoktoreos.devices.devicesabc import (
 )
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
+from akkudoktoreos.devices.settings.invertersettings import (
+    InverterCommonSettings,
+    InverterProfileAdjustment,
+)
 from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
@@ -112,10 +115,6 @@ class TestCurveValidation:
         with pytest.raises(ValidationError):
             InverterParameters(
                 device_id="inverter1", max_power_wh=1000, dc_to_ac_efficiency_curve=curve
-            )
-        with pytest.raises(ValidationError):
-            InverterCommonSettings(
-                device_id="inverter1", max_power_w=1000, dc_to_ac_efficiency_curve=curve
             )
 
     @pytest.mark.parametrize("fraction", [-0.1, 1.1])
@@ -416,61 +415,35 @@ def test_low_load_curve_increases_losses(config_eos):
 
 
 class TestSettings:
-    def test_settings_pass_curve_to_genetic_parameters(self):
-        settings = InverterCommonSettings.model_validate(
-            {
-                "device_id": "inverter1",
-                "max_power_w": 5000,
-                "dc_to_ac_efficiency_curve": [[0.02, 0.8], [0.07, 0.93], [1.0, 0.95]],
-                "dc_to_ac_efficiency_reference_load_fraction": 0.1,
-            }
-        )
-        params = settings.to_genetic_param()
-        assert params.dc_to_ac_efficiency_curve == [(0.02, 0.8), (0.07, 0.93), (1.0, 0.95)]
-        assert params.dc_to_ac_efficiency_reference_load_fraction == 0.1
+    """The DC→AC curve of the GENETIC parameters comes from the inverter profile."""
 
-    def test_defaults_keep_constant_efficiency(self):
-        params = InverterCommonSettings(device_id="inverter1", max_power_w=5000).to_genetic_param()
-        assert params.dc_to_ac_efficiency_curve is None
-        assert params.dc_to_ac_efficiency_reference_load_fraction == pytest.approx(0.06)
-
-    def test_genetic0_is_unaffected(self):
+    def test_settings_pass_profile_curve_to_genetic_parameters(self, config_eos):
         settings = InverterCommonSettings(
             device_id="inverter1",
-            max_power_w=5000,
-            dc_to_ac_efficiency_curve=[(0.0, 0.8), (1.0, 0.95)],
+            profile_adjustment=InverterProfileAdjustment(nominal_power_w=5000),
+            dc_to_ac_efficiency_reference_load_fraction=0.1,
+        )
+        profile = settings.get_inverter_profile()
+        params = settings.to_genetic_param()
+        assert params.dc_to_ac_efficiency_curve is not None
+        # Not derated at 45 degC: the curve is the profile curve over [0, 1].
+        expected = list(zip(profile.dc_to_ac_efficiency.x, profile.dc_to_ac_efficiency.y))
+        assert [x for x, _ in params.dc_to_ac_efficiency_curve] == pytest.approx(
+            [x for x, _ in expected]
+        )
+        assert [y for _, y in params.dc_to_ac_efficiency_curve] == pytest.approx(
+            [y for _, y in expected]
+        )
+        assert params.dc_to_ac_efficiency_reference_load_fraction == 0.1
+        assert params.dc_to_ac_efficiency == pytest.approx(profile.dc_to_ac_efficiency_at(0.1))
+
+    def test_genetic0_has_no_curve(self, config_eos):
+        settings = InverterCommonSettings(
+            device_id="inverter1",
+            profile_adjustment=InverterProfileAdjustment(nominal_power_w=5000),
         )
         params = settings.to_genetic0_param()
         assert not hasattr(params, "dc_to_ac_efficiency_curve")
-
-    def test_config_accepts_curve(self, config_eos):
-        config_eos.merge_settings_from_dict(
-            {
-                "devices": {
-                    "inverters": {
-                        "inverter1": {
-                            "max_power_w": 5000,
-                            "dc_to_ac_efficiency_curve": [[0.02, 0.8], [0.07, 0.93], [1.0, 0.95]],
-                        }
-                    }
-                }
-            }
-        )
-        inverters = config_eos.devices.inverters
-        assert inverters is not None
-        assert inverters["inverter1"].dc_to_ac_efficiency_curve == [
-            (0.02, 0.8),
-            (0.07, 0.93),
-            (1.0, 0.95),
-        ]
-        config_eos.set_nested_value(
-            "devices/inverters/inverter1/dc_to_ac_efficiency_curve", [[0.0, 0.85], [1.0, 0.95]]
-        )
-        assert inverters["inverter1"].dc_to_ac_efficiency_curve == [(0.0, 0.85), (1.0, 0.95)]
-        with pytest.raises(ValueError, match="at least two points"):
-            config_eos.set_nested_value(
-                "devices/inverters/inverter1/dc_to_ac_efficiency_curve", [[0.5, 0.9]]
-            )
 
 
 # ---------------------------------------------------------------------------

@@ -718,7 +718,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.inverters = {
                         "inverter1": {
                             "device_id": "inverter1",
-                            "max_power_w": 10000,
+                            "profile_adjustment": {"nominal_power_w": 10000},
                             "battery_id": battery_config.device_id,
                         },
                     }
@@ -735,7 +735,7 @@ class Genetic0OptimizationParameters(
                     cls.config.devices.inverters = {
                         "inverter1": {
                             "device_id": "inverter1",
-                            "max_power_w": 10000,
+                            "profile_adjustment": {"nominal_power_w": 10000},
                             "battery_id": battery_config.device_id,
                         },
                     }

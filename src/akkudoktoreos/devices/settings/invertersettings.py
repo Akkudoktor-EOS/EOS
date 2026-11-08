@@ -1,20 +1,102 @@
-"""Inverter device settings."""
+"""Inverter device settings.
+
+The technical inverter data (nominal power, efficiency curves, AC charge power
+limit of the model, power derating) comes from an inverter profile (see
+``InverterProfileSettings``). The user selects the profile by name via
+``inverter_profile`` (default ``generic-hybrid``) and describes how the
+installed unit differs from it in ``profile_adjustment``.
+
+``InverterCommonSettings`` holds the configuration fields, their validation and
+the measurement keys. The other concerns live in their own modules:
+
+- ``profilestore``: loading (and caching) the compiled inverter profile.
+- ``invertermeasurement``: reading the ambient temperature from the
+  measurements.
+- ``inverterresolution``: resolving the effective parameters from profile,
+  profile adjustment and operating point (pure functions).
+
+The computed ``effective_*`` fields are evaluated at the reference operating
+point (``InverterOperatingPoint()``: 45 degC ambient temperature). They never
+raise; they are None if the inverter cannot be resolved.
+"""
 
 from typing import TYPE_CHECKING, Optional
 
-from pydantic import Field, computed_field, field_validator, model_validator
+from loguru import logger
+from pydantic import Field, computed_field, model_validator
 
-from akkudoktoreos.config.configabc import ConfigScope
-from akkudoktoreos.devices.devicesabc import validate_efficiency_curve
+from akkudoktoreos.config.configabc import ConfigScope, SettingsBaseModel
+from akkudoktoreos.devices.settings import invertermeasurement
 from akkudoktoreos.devices.settings.devicebasesettings import (
     DevicesBaseSettings,
 )
+from akkudoktoreos.devices.settings.inverterresolution import (
+    InverterOperatingParameters,
+    InverterOperatingPoint,
+    InverterResolutionError,
+    check_inverter_adjustment,
+    resolve_inverter_parameters,
+)
+from akkudoktoreos.utils.datetimeutil import DateTime
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.genetic0.genetic0inverter import (
         Genetic0InverterParameters,
     )
     from akkudoktoreos.devices.genetic.inverter import InverterParameters
+    from akkudoktoreos.devices.profile.inverterprofile import InverterProfile
+
+
+# Name of the inverter profile used when the user selects none.
+INVERTER_DEFAULT_PROFILE: str = "generic-hybrid"
+
+
+class InverterProfileAdjustment(SettingsBaseModel):
+    """How an inverter unit differs from its inverter profile.
+
+    None keeps the profile value.
+    """
+
+    nominal_power_w: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Nominal AC power of the installed inverter [W]. Replaces the nominal "
+                "power of the inverter profile. Required if the profile is generic and "
+                "provides no nominal power. The effective value is available as "
+                "'effective_nominal_power_w'."
+            ),
+            "examples": [None, 10000],
+        },
+    )
+    max_power_w: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Maximum AC power of the installation [W], e.g. a configured output "
+                "limit. Can only lower the (derated) nominal power. The effective value "
+                "is available as 'effective_max_power_w'."
+            ),
+            "examples": [None, 8000],
+        },
+    )
+    max_ac_charge_power_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "AC charge power limit of the installation [W]. Can only lower the limit "
+                "of the inverter profile. 0 disables AC charging. The effective value is "
+                "available as 'effective_max_ac_charge_power_w'."
+            ),
+            "examples": [None, 0, 5000],
+        },
+    )
 
 
 class InverterCommonSettings(DevicesBaseSettings):
@@ -29,54 +111,28 @@ class InverterCommonSettings(DevicesBaseSettings):
     # Shared fields (GENETIC + GENETIC0)
     # ------------------------------------------------------------------
 
-    max_power_w: Optional[float] = Field(
-        default=None,
-        gt=0,
+    inverter_profile: str = Field(
+        default=INVERTER_DEFAULT_PROFILE,
+        min_length=1,
         json_schema_extra={
-            "description": "Maximum AC output power [W].",
-            "examples": [10000],
+            "description": (
+                "Name of the inverter profile (without '.json') providing the nominal "
+                "power, efficiency curves, AC charge power limit and power derating. "
+                "Differences of this unit go into 'profile_adjustment'."
+            ),
+            "examples": [INVERTER_DEFAULT_PROFILE],
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
-    ac_to_dc_efficiency: float = Field(
-        default=1.0,
-        ge=0,
-        le=1,
+    profile_adjustment: InverterProfileAdjustment = Field(
+        default_factory=InverterProfileAdjustment,
         json_schema_extra={
             "description": (
-                "Efficiency of AC→DC conversion for grid-to-battery charging (0–1). "
-                "Set to 0 to disable AC charging. Default 1.0."
+                "How this inverter unit differs from its inverter profile: nominal power "
+                "and installation limits."
             ),
-            "examples": [0.95, 1.0, 0.0],
+            "examples": [{"nominal_power_w": 10000}],
             "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
-        },
-    )
-    dc_to_ac_efficiency: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Efficiency of DC→AC conversion for battery discharging (0–1). Default 1.0."
-            ),
-            "examples": [0.95, 1.0],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
-        },
-    )
-    dc_to_ac_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Load-dependent efficiency of DC→AC conversion for battery discharging as "
-                "a list of [load_fraction, efficiency] points. The load fraction is the AC "
-                "power relative to max_power_w (0–1); points must be strictly increasing in "
-                "load fraction, efficiencies in (0, 1]. Values are interpolated linearly and "
-                "clamped to the first/last point. When set, the curve replaces "
-                "dc_to_ac_efficiency. null keeps the constant dc_to_ac_efficiency. "
-                "Default null."
-            ),
-            "examples": [None, [[0.02, 0.8], [0.07, 0.93], [0.3, 0.96], [1.0, 0.95]]],
-            "x-scope": [str(ConfigScope.GENETIC)],
         },
     )
     dc_to_ac_efficiency_reference_load_fraction: float = Field(
@@ -85,40 +141,13 @@ class InverterCommonSettings(DevicesBaseSettings):
         le=1,
         json_schema_extra={
             "description": (
-                "Load fraction of max_power_w (0–1) at which dc_to_ac_efficiency_curve is "
-                "evaluated to value stored battery energy without a specific conversion "
-                "(remaining energy at the end of the horizon, AC charge break-even). Should "
-                "represent the typical load served by the battery, e.g. the night-time base "
-                "load. Only used with dc_to_ac_efficiency_curve. Default 0.06."
+                "Load fraction of the effective maximum power (0–1) at which the DC→AC "
+                "efficiency curve is evaluated to value stored battery energy without a "
+                "specific conversion (remaining energy at the end of the horizon, AC "
+                "charge break-even). Should represent the typical load served by the "
+                "battery, e.g. the night-time base load. Default 0.06."
             ),
             "examples": [0.06, 0.1],
-            "x-scope": [str(ConfigScope.GENETIC)],
-        },
-    )
-    max_ac_charge_power_w: Optional[float] = Field(
-        default=None,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Maximum AC charging power [W]. "
-                "null means no additional limit. 0 disables AC charging."
-            ),
-            "examples": [None, 0, 5000],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
-        },
-    )
-    ac_charge_limits_total_charge: bool = Field(
-        default=False,
-        json_schema_extra={
-            "description": (
-                "True if the AC charge setpoint caps the battery's total charge power, "
-                "PV included. Some hybrid inverters (e.g. Deye in time-of-use grid "
-                "charging) limit the whole charge current to the grid charge current; "
-                "PV surplus above it is exported, not stored. False keeps the default "
-                "model: PV surplus charges first and the grid adds "
-                "ac_charge x max_charge_power_w on top."
-            ),
-            "examples": [False, True],
             "x-scope": [str(ConfigScope.GENETIC)],
         },
     )
@@ -384,13 +413,6 @@ class InverterCommonSettings(DevicesBaseSettings):
     # Validators
     # ------------------------------------------------------------------
 
-    @field_validator("dc_to_ac_efficiency_curve")
-    @classmethod
-    def _validate_dc_to_ac_efficiency_curve(
-        cls, value: Optional[list[tuple[float, float]]]
-    ) -> Optional[list[tuple[float, float]]]:
-        return validate_efficiency_curve(value)
-
     @model_validator(mode="after")
     def _validate_soc_factors(self) -> "InverterCommonSettings":
         if self.battery_min_soc_factor >= self.battery_max_soc_factor:
@@ -400,58 +422,221 @@ class InverterCommonSettings(DevicesBaseSettings):
         return self
 
     # ------------------------------------------------------------------
+    # Inverter profile loading (see profilestore)
+    # ------------------------------------------------------------------
+
+    def get_inverter_profile(self) -> "InverterProfile":
+        """Return the compiled inverter profile for ``inverter_profile``.
+
+        Raises:
+            FileNotFoundError: If the configured inverter profile does not exist.
+            ValueError: If the profile document fails validation.
+        """
+        from akkudoktoreos.devices.profile.inverterprofile import (
+            InverterProfileSettings,
+        )
+        from akkudoktoreos.devices.profile.profilestore import get_profile_store
+
+        return get_profile_store().get(InverterProfileSettings, self.inverter_profile)
+
+    def _load_inverter_profile(self) -> "InverterProfile":
+        """Return the compiled inverter profile, or raise an error naming the inverter.
+
+        Raises:
+            InverterResolutionError: If the profile does not exist or fails
+                validation.
+        """
+        try:
+            return self.get_inverter_profile()
+        except InverterResolutionError:
+            raise
+        except (FileNotFoundError, ValueError) as exc:
+            raise InverterResolutionError(
+                f"Inverter '{self.device_id}': inverter profile '{self.inverter_profile}' "
+                f"is not usable: {exc}"
+            ) from exc
+
+    # ------------------------------------------------------------------
+    # Measurement access (see invertermeasurement)
+    # ------------------------------------------------------------------
+
+    async def measure_operating_point(
+        self, target_datetime: Optional[DateTime] = None
+    ) -> InverterOperatingPoint:
+        """Read the ambient temperature from the measurements, 45 degC if unavailable."""
+        return await invertermeasurement.measure_operating_point(self, target_datetime)
+
+    # ------------------------------------------------------------------
+    # Parameter resolution (see inverterresolution)
+    # ------------------------------------------------------------------
+
+    def resolve_operating_parameters(
+        self, operating_point: Optional[InverterOperatingPoint] = None
+    ) -> InverterOperatingParameters:
+        """Resolve the effective parameters at an operating point.
+
+        Args:
+            operating_point: Conditions to evaluate the profile at, the reference
+                operating point (45 degC) if None.
+
+        Raises:
+            InverterResolutionError: If the profile is not usable or the
+                parameters cannot be resolved.
+        """
+        return resolve_inverter_parameters(
+            self, self._load_inverter_profile(), operating_point or InverterOperatingPoint()
+        )
+
+    async def resolve_current_operating_parameters(
+        self, target_datetime: Optional[DateTime] = None
+    ) -> InverterOperatingParameters:
+        """Resolve the effective parameters at the measured ambient temperature.
+
+        Raises:
+            InverterResolutionError: See ``resolve_operating_parameters``.
+        """
+        operating_point = await self.measure_operating_point(target_datetime)
+        return self.resolve_operating_parameters(operating_point)
+
+    def check_profile(self) -> tuple[list[str], list[str]]:
+        """Check that the inverter can be resolved from its profile.
+
+        Returns:
+            ``(errors, warnings)``: an error if the inverter cannot be resolved,
+            warnings for installation limits without effect.
+        """
+        try:
+            parameters = self.resolve_operating_parameters()
+        except InverterResolutionError as exc:
+            return [str(exc)], []
+        return [], check_inverter_adjustment(self, parameters)
+
+    def _effective_parameters(self) -> Optional[InverterOperatingParameters]:
+        """Resolve at the reference operating point, None if that is not possible."""
+        try:
+            return self.resolve_operating_parameters()
+        except ValueError as exc:
+            logger.debug(f"Inverter '{self.device_id}' not resolvable: {exc}")
+            return None
+
+    # ------------------------------------------------------------------
+    # Computed fields, evaluated on every access at the reference operating point
+    # ------------------------------------------------------------------
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_nominal_power_w(self) -> Optional[float]:
+        """Effective nominal AC power [W]: profile adjustment, else profile."""
+        p = self._effective_parameters()
+        return p.nominal_power_w if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_max_power_w(self) -> Optional[float]:
+        """Maximum AC power [W] at the reference temperature, derated and capped."""
+        p = self._effective_parameters()
+        return p.max_power_w if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_max_ac_charge_power_w(self) -> Optional[float]:
+        """AC charge power limit [W] at the reference temperature; 0 disables AC charging."""
+        p = self._effective_parameters()
+        return p.max_ac_charge_power_w if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_dc_to_ac_efficiency(self) -> Optional[float]:
+        """DC→AC efficiency at the reference load fraction."""
+        p = self._effective_parameters()
+        return p.dc_to_ac_efficiency if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_ac_to_dc_efficiency(self) -> Optional[float]:
+        """AC→DC efficiency at the AC charge power limit."""
+        p = self._effective_parameters()
+        return p.ac_to_dc_efficiency if p is not None else None
+
+    # ------------------------------------------------------------------
     # GENETIC domain conversion
     # ------------------------------------------------------------------
 
-    def to_genetic_param(self) -> "InverterParameters":
-        """Return InverterParameters for the GENETIC optimizer."""
+    def to_genetic_param(
+        self, operating_parameters: Optional[InverterOperatingParameters] = None
+    ) -> "InverterParameters":
+        """Return InverterParameters for the GENETIC optimizer.
+
+        Args:
+            operating_parameters: Resolved snapshot to convert, e.g. from
+                ``resolve_current_operating_parameters``. None resolves at the
+                reference operating point.
+
+        Raises:
+            InverterResolutionError: If the snapshot is resolved here and the
+                inverter cannot be resolved.
+        """
         from akkudoktoreos.devices.genetic.inverter import InverterParameters
 
-        if self.max_power_w is None:
-            raise ValueError("Inverter max_power_w is required for optimization")
+        p = operating_parameters or self.resolve_operating_parameters()
         return InverterParameters(
             device_id=self.device_id,
-            max_power_wh=self.max_power_w,
+            max_power_wh=p.max_power_w,
             battery_id=self.battery_id,
-            ac_to_dc_efficiency=self.ac_to_dc_efficiency,
-            dc_to_ac_efficiency=self.dc_to_ac_efficiency,
-            dc_to_ac_efficiency_curve=self.dc_to_ac_efficiency_curve,
+            ac_to_dc_efficiency=p.ac_to_dc_efficiency,
+            dc_to_ac_efficiency=p.dc_to_ac_efficiency,
+            dc_to_ac_efficiency_curve=list(p.dc_to_ac_efficiency_curve),
             dc_to_ac_efficiency_reference_load_fraction=(
                 self.dc_to_ac_efficiency_reference_load_fraction
             ),
-            max_ac_charge_power_w=self.max_ac_charge_power_w,
-            ac_charge_limits_total_charge=self.ac_charge_limits_total_charge,
+            max_ac_charge_power_w=p.max_ac_charge_power_w,
+            ac_charge_limits_total_charge=p.ac_charge_limits_total_charge,
         )
 
     # ------------------------------------------------------------------
     # GENETIC0 domain conversion
     # ------------------------------------------------------------------
 
-    def to_genetic0_param(self) -> "Genetic0InverterParameters":
-        """Return Genetic0InverterParameters for the GENETIC0 optimizer."""
+    def to_genetic0_param(
+        self, operating_parameters: Optional[InverterOperatingParameters] = None
+    ) -> "Genetic0InverterParameters":
+        """Return Genetic0InverterParameters for the GENETIC0 optimizer.
+
+        GENETIC0 uses constant efficiencies: the DC→AC efficiency at the
+        reference load fraction and the AC→DC efficiency at the AC charge limit.
+
+        Raises:
+            InverterResolutionError: See ``to_genetic_param``.
+        """
         from akkudoktoreos.devices.genetic0.genetic0inverter import (
             Genetic0InverterParameters,
         )
 
-        if self.max_power_w is None:
-            raise ValueError("Inverter max_power_w is required for optimization")
+        p = operating_parameters or self.resolve_operating_parameters()
         return Genetic0InverterParameters(
             device_id=self.device_id,
-            max_power_wh=self.max_power_w,
+            max_power_wh=p.max_power_w,
             battery_id=self.battery_id,
-            ac_to_dc_efficiency=self.ac_to_dc_efficiency,
-            dc_to_ac_efficiency=self.dc_to_ac_efficiency,
-            max_ac_charge_power_w=self.max_ac_charge_power_w,
+            ac_to_dc_efficiency=p.ac_to_dc_efficiency,
+            dc_to_ac_efficiency=p.dc_to_ac_efficiency,
+            max_ac_charge_power_w=p.max_ac_charge_power_w,
         )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def measurement_key_temperature_degc(self) -> str:
+        """Measurement key for the ambient temperature of the inverter [degC]."""
+        return f"{self.device_id}-temperature-degc"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def measurement_keys(self) -> list[str]:
         """Measurement keys for this inverter.
 
-        Returns the ``battery_initial_soc_factor_key`` if non-empty, so
-        the EMS measurement store knows to watch for this key.
+        The ambient temperature, and the ``battery_initial_soc_factor_key`` if
+        non-empty, so the EMS measurement store knows to watch for them.
         """
+        keys = [self.measurement_key_temperature_degc]
         if self.battery_initial_soc_factor_key:
-            return [self.battery_initial_soc_factor_key]
-        return []
+            keys.append(self.battery_initial_soc_factor_key)
+        return keys

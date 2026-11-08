@@ -318,7 +318,7 @@ async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
                 "max_electric_vehicles": 0,
                 "electric_vehicles": {},
                 "max_inverters": 1,
-                "inverters": {"inv": {"max_power_w": 10000}},
+                "inverters": {"inv": {"profile_adjustment": {"nominal_power_w": 10000}}},
                 "max_home_appliances": 1,
                 "home_appliances": {
                     "washer": profile(
@@ -432,7 +432,7 @@ async def test_meter_only_record_does_not_hide_completed_cycles(
                 "max_electric_vehicles": 0,
                 "electric_vehicles": {},
                 "max_inverters": 1,
-                "inverters": {"inv": {"max_power_w": 10000}},
+                "inverters": {"inv": {"profile_adjustment": {"nominal_power_w": 10000}}},
                 "max_home_appliances": 1,
                 "home_appliances": {
                     "washer": profile(
