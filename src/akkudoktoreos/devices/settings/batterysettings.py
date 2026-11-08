@@ -4,7 +4,7 @@ Note: Used for the GENETIC and GENETIC0 algorithm.
 """
 
 import re
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import numpy as np
 from numpydantic import NDArray, Shape
@@ -212,6 +212,80 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             return None
         return to_datetime(value)
 
+    # ------------------------------------------------------------------
+    # Periodic full charge (stationary batteries, GENETIC only)
+    # ------------------------------------------------------------------
+
+    cell_chemistry: Optional[Literal["LFP", "NMC", "NCA", "LTO"]] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Cell chemistry of the battery. Informational only, it does not "
+                "enable anything. LFP batteries usually need a periodic full charge "
+                "to recalibrate their state of charge, see "
+                "'full_charge_interval_days'."
+            ),
+            "examples": [None, "LFP"],
+        },
+    )
+    full_charge_interval_days: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Maximum number of days between two full charges of a stationary "
+                "battery [d]. The last full charge is taken from the measured state "
+                "of charge. When the next one falls due within the optimization "
+                "horizon, the maximum state of charge is raised to "
+                "'full_charge_soc_percentage'. None disables the periodic full "
+                "charge. Ignored for electric vehicles."
+            ),
+            "examples": [None, 21],
+        },
+    )
+    full_charge_soc_percentage: int = Field(
+        default=100,
+        ge=1,
+        le=100,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "State of charge a periodic full charge has to reach [%]. May be "
+                "above 'max_soc_percentage', which then applies on the other days."
+            ),
+            "examples": [100],
+        },
+    )
+    full_charge_detect_percentage: int = Field(
+        default=99,
+        ge=1,
+        le=100,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Measured state of charge from which the battery counts as fully "
+                "charged [%]. Many battery management systems never report exactly "
+                "100 %."
+            ),
+            "examples": [99],
+        },
+    )
+    full_charge_allow_grid: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Enforce a due full charge, charging from the grid if needed. "
+                "False only raises the maximum state of charge, so that PV surplus "
+                "can fill the battery, without enforcing the target."
+            ),
+            "examples": [False, True],
+        },
+    )
+
     def to_genetic_pv_bat_param(self) -> "SolarPanelBatteryParameters":
         """Return SolarPanelBatteryParameters for the GENETIC optimizer."""
         from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
@@ -317,6 +391,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def _validate_soc_range(self) -> "BatteriesCommonSettings":
         if self.min_soc_percentage > self.max_soc_percentage:
             raise ValueError("min_soc_percentage must be <= max_soc_percentage")
+        if self.full_charge_detect_percentage > self.full_charge_soc_percentage:
+            raise ValueError("full_charge_detect_percentage must be <= full_charge_soc_percentage")
         if (
             self.min_charge_power_w is not None
             and self.max_charge_power_w is not None

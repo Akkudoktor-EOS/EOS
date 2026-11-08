@@ -15,6 +15,10 @@ from akkudoktoreos.core.coreabc import (
 )
 from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
+from akkudoktoreos.optimization.genetic.fullcharge import (
+    enforced_full_charge_deadline,
+    full_charge_deadline,
+)
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
@@ -133,11 +137,64 @@ class ConfigOptimizationRequest(
                 )
                 return 0
 
+        async def full_charge(device: BatteriesCommonSettings) -> Optional[DateTime]:
+            """Deadline of the next periodic full charge, None if disabled or unknown."""
+            interval_days = device.full_charge_interval_days
+            if interval_days is None:
+                return None
+            try:
+                dates, values = await self.measurement.key_to_lists(
+                    key=device.measurement_key_soc_factor,
+                    start_datetime=observation_time.subtract(days=math.ceil(interval_days)),
+                    end_datetime=observation_time.add(seconds=1),
+                    dropna=False,
+                )
+            except KeyError:
+                dates, values = [], []
+            deadline = full_charge_deadline(
+                zip(dates, values),
+                now=observation_time,
+                interval_days=interval_days,
+                detect_percentage=device.full_charge_detect_percentage,
+            )
+            if deadline is None:
+                logger.warning(
+                    "No state of charge history for {}; cannot schedule its periodic full charge.",
+                    device.device_id,
+                )
+            return deadline
+
         battery = None
         if groups["batteries"]:
             device = groups["batteries"][0]
             battery = device.to_genetic_pv_bat_param()
             battery.initial_soc_percentage = await state(device)
+            deadline = await full_charge(device)
+            horizon_end = start.add(seconds=settings.horizon * settings.interval_sec)
+            if deadline is not None and deadline.timestamp() <= horizon_end.timestamp():
+                # Due within the horizon: lift the upper limit so the battery may
+                # reach the target, and enforce the target only if grid charging
+                # is allowed for it.
+                target = device.full_charge_soc_percentage
+                battery.max_soc_percentage = max(battery.max_soc_percentage, target)
+                if device.full_charge_allow_grid:
+                    enforced = enforced_full_charge_deadline(deadline, observation_time)
+                    battery.full_charge_soc_percentage = target
+                    battery.full_charge_deadline_datetime = enforced
+                    logger.info(
+                        "Periodic full charge of {} to {}% due by {}; enforced by {}.",
+                        device.device_id,
+                        target,
+                        deadline,
+                        enforced,
+                    )
+                else:
+                    logger.info(
+                        "Periodic full charge of {} to {}% due by {}; PV surplus only.",
+                        device.device_id,
+                        target,
+                        deadline,
+                    )
         ev = None
         if groups["electric_vehicles"]:
             device = groups["electric_vehicles"][0]

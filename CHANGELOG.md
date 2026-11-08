@@ -46,6 +46,10 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
   (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
   a run by up to ~150 MB on small devices without changing the plan.
+- Optional periodic full charge of a stationary battery for GENETIC, e.g. to recalibrate an LFP
+  battery: `full_charge_interval_days` (unset = off, the default), `full_charge_soc_percentage`,
+  `full_charge_detect_percentage`, `full_charge_allow_grid` and the informational
+  `cell_chemistry`. The last full charge is taken from the measured state of charge.
 - Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
   instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
 - `GET /v1/health` reports `started_at`, the start time of the server process, so a client

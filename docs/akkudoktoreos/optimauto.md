@@ -213,6 +213,11 @@ The behavior of the genetic algorithm can be customized using the following conf
   A value of `1.0` (default) means the penalty equals the actual economic loss in €.
   Use larger values (e.g. `3.0`) to make the optimizer more aggressively avoid unprofitable
   AC charging, or `0.0` to disable this penalty entirely.
+
+- `battery_full_charge_miss`:
+  Applies a penalty per percent the battery stays below its target when a periodic full
+  charge is due and enforced (see [Periodic full charge](#periodic-full-charge)).
+  Default: `10`.
 :::
 
 #### Value Formats
@@ -380,6 +385,57 @@ The inverter supports separate AC↔DC conversion efficiencies:
                 "max_soc_percentage": 95
             }
         ]
+    }
+}
+```
+
+##### Periodic full charge
+
+LFP batteries have an almost flat voltage curve in the middle of their range. The battery
+management system can only recalibrate the state of charge close to full charge, so many
+manufacturers expect a full charge every few weeks, and some batteries start one on their own
+at an arbitrary time. A periodic full charge lets EOS plan it instead, preferably from PV
+surplus or at a cheap price.
+
+The feature is off by default. It is enabled per stationary battery with
+`full_charge_interval_days` (GENETIC only):
+
+- `full_charge_interval_days`: maximum number of days between two full charges. `null` (default)
+  disables the feature. For LFP batteries 21 to 25 days are a reasonable start; check what the
+  manufacturer requires.
+- `full_charge_soc_percentage` (default `100`): the target. It may be above `max_soc_percentage`,
+  which keeps applying on all other days.
+- `full_charge_detect_percentage` (default `99`): the measured state of charge from which the
+  battery counts as full. Many battery management systems never report exactly 100 %.
+- `full_charge_allow_grid` (default `false`): with `false`, EOS only raises the maximum state of
+  charge while the full charge is due, so that PV surplus can fill the battery; the target is not
+  enforced. With `true`, the optimizer has to reach the target and charges from the grid if
+  needed, at the cheapest time before the deadline.
+- `cell_chemistry` (`LFP`, `NMC`, `NCA`, `LTO` or `null`): informational only, it does not
+  enable anything.
+
+The last full charge is taken from the measured state of charge of the battery
+(`<device_id>-soc-factor`), so a full charge from PV or one the battery started itself counts as
+well. Nothing else is stored. Without a full charge in the last interval, the interval counts
+from the oldest measurement, so a new installation is not forced into a full charge on its first
+day. The next full charge is due one interval after the last one. EOS acts once that deadline
+falls within the optimization horizon or has passed, and logs an INFO message for every run in
+which the full charge is due. The optimizer always gets at least 24 hours to finish it, so that
+a close or overdue full charge can still use the cheapest time.
+
+```json
+{
+    "devices": {
+        "batteries": {
+            "battery1": {
+                "device_id": "battery1",
+                "capacity_wh": 10000,
+                "max_soc_percentage": 90,
+                "cell_chemistry": "LFP",
+                "full_charge_interval_days": 21,
+                "full_charge_allow_grid": true
+            }
+        }
     }
 }
 ```
