@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from fasthtml.common import to_xml
 
 from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
+from akkudoktoreos.devices.profile.inverterprofile import InverterProfileSettings
 from akkudoktoreos.devices.profile.profilestore import ProfileStore, get_profile_store
 from akkudoktoreos.server.dash import profile as page
 from akkudoktoreos.server.rest.error import register_problem_handlers
@@ -404,3 +405,92 @@ class TestDarkMode:
     def test_color_bar_keeps_the_light_default_in_light_mode(self, monkeypatch):
         (bar,) = self.color_bars(False, monkeypatch)
         assert bar.background_fill_color == "#ffffff"
+
+
+# ---------------------------------------------------------------------------
+# Inverter profiles
+# ---------------------------------------------------------------------------
+
+
+def generic_hybrid() -> dict[str, Any]:
+    path = get_profile_store().package_dir(InverterProfileSettings) / "generic-hybrid.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+class TestInverterProfiles:
+    def test_kind_selector_on_the_battery_page(self, rest):
+        html = render()
+        assert 'name="kind"' in html
+        assert "Inverter profiles" in html
+        assert "Battery profiles" in html
+
+    def test_inverter_kind_shows_the_generic_profile(self, rest):
+        html = render({"action": "kind", "kind": "inverter"})
+        assert "Inverter profiles" in html
+        assert "generic-hybrid (packaged)" in html
+        assert "Generic hybrid inverter" in html
+        assert ("get", "/v1/profile/inverter") in rest.calls
+        # Inverter views, no battery limit maps.
+        assert "Inverter efficiency versus load fraction" in html
+        assert "Allowed power versus ambient temperature" in html
+        assert "Charge and discharge limits" not in html
+
+    def test_summary_shows_the_power_at_45_degc(self, rest):
+        html = render({"action": "kind", "kind": "inverter"})
+        assert "Power at 45 degC (default temperature)" in html
+        assert "100 %" in html
+
+    def test_unknown_kind_falls_back_to_battery(self, rest):
+        html = render({"kind": "heatpump"})
+        assert "Battery profiles" in html
+        assert "generic-lfp (packaged)" in html
+
+    def test_save_as_stores_an_inverter_profile(self, rest):
+        document = generic_hybrid()
+        document["nominal_power_w"] = 8000.0
+        html = render(
+            {
+                "action": "save_as",
+                "kind": "inverter",
+                "profile_name": "generic-hybrid",
+                "new_name": "my-inverter",
+                "document": json.dumps(document),
+            }
+        )
+        assert "Saved inverter profile" in html
+        assert ("put", "/v1/profile/inverter/my-inverter") in rest.calls
+        stored = get_profile_store().load(InverterProfileSettings, "my-inverter")
+        assert stored.nominal_power_w == 8000.0
+
+    def test_preview_validates_as_inverter_profile(self, rest):
+        document = generic_hybrid()
+        document["dc_to_ac_efficiency"]["efficiency"][0] = 1.5
+        html = render(
+            {
+                "action": "preview",
+                "kind": "inverter",
+                "profile_name": "generic-hybrid",
+                "document": json.dumps(document),
+            }
+        )
+        assert "the document is invalid" in html
+        assert ("put", "/v1/profile/inverter/generic-hybrid") not in rest.calls
+
+    def test_actions_carry_the_kind(self, rest):
+        html = render({"action": "kind", "kind": "inverter"})
+        assert "&quot;kind&quot;: &quot;inverter&quot;" in html or '"kind": "inverter"' in html
+
+    def test_without_derating_the_full_power_is_noted(self):
+        document = generic_hybrid()
+        del document["power_derating"]
+        html = to_xml(page.DeratingPlot(document))
+        assert "No power derating" in html
+
+    def test_invalid_curves_while_editing_are_reported(self):
+        document = generic_hybrid()
+        document["ac_to_dc_efficiency"] = {"load_fraction": [0.5, 0.1], "efficiency": [0.9, 0.9]}
+        document["power_derating"] = {"temperature_degC": [60.0, 40.0], "power_fraction": [1, 1]}
+        assert "Invalid AC→DC (grid charge) efficiency curve" in to_xml(
+            page.InverterEfficiencyPlot(document)
+        )
+        assert "Invalid power derating" in to_xml(page.DeratingPlot(document))

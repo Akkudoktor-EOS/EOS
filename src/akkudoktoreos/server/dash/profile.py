@@ -1,8 +1,9 @@
-"""Battery profile editor for EOSdash.
+"""Device profile editor for EOSdash.
 
-Lists the battery profiles of the EOS profile store and lets the user view,
-edit, save, copy and delete them. All access goes through the REST API of EOS
-(``/v1/profile/battery``); EOS validates every document before it is saved.
+Lists the battery and inverter profiles of the EOS profile store and lets the
+user view, edit, save, copy and delete them. The profile kind is selected at the
+top of the page. All access goes through the REST API of EOS
+(``/v1/profile/<kind>``); EOS validates every document before it is saved.
 
 Packaged profiles (shipped with EOS) are read only. Saving one stores a user
 profile of the same name that overrides it; deleting that user profile reverts
@@ -33,6 +34,11 @@ profile to a Bokeh glyph:
 
 and the out-of-range behavior to the parts left and right of the curve:
 ``clamp_to_nearest`` as dashed lines at the end values, ``reject`` as nothing.
+
+For an inverter profile the page shows the DC→AC and AC→DC efficiency curves
+over the load fraction and the power derating over the ambient temperature,
+with the default temperature of 45 degC marked. These curves are read linearly
+and clamped at their ends, which the dashed parts show.
 """
 
 import json
@@ -44,7 +50,7 @@ import requests
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.models import Image as ImageGlyph
 from bokeh.models import LinearColorMapper
-from bokeh.models.annotations import ColorBar
+from bokeh.models.annotations import ColorBar, Span
 from bokeh.models.renderers import DataRenderer
 from bokeh.palettes import Viridis256
 from fasthtml.common import Option, Select
@@ -77,6 +83,15 @@ from akkudoktoreos.devices.profile.batteryprofile import (
     EfficiencyInterpolation,
     OutOfRangeBehavior,
 )
+from akkudoktoreos.devices.profile.inverterprofile import (
+    InverterEfficiencyCurve,
+    InverterProfileSettings,
+    PowerDeratingCurve,
+)
+from akkudoktoreos.devices.profile.profilestore import ProfileDocument
+from akkudoktoreos.devices.settings.inverterresolution import (
+    INVERTER_DEFAULT_TEMPERATURE_DEGC,
+)
 from akkudoktoreos.server.dash.bokeh import (
     Bokeh,
     bokey_apply_theme_to_plot,
@@ -85,10 +100,15 @@ from akkudoktoreos.server.dash.bokeh import (
 from akkudoktoreos.server.dash.components import ConfigButton, Error, Info, Success
 from akkudoktoreos.server.dash.context import request_url_for
 
-PROFILE_KIND = "battery"
-DEFAULT_PROFILE = "generic-lfp"
 PAGE_PATH = "/eosdash/profile"
-EDITOR_FORM_ID = "battery-profile-editor"
+EDITOR_FORM_ID = "profile-editor"
+
+# Profile kinds of the page: kind -> (label, default profile, document type).
+PROFILE_KINDS: dict[str, tuple[str, str, type[ProfileDocument[Any]]]] = {
+    "battery": ("Battery", "generic-lfp", BatteryProfileSettings),
+    "inverter": ("Inverter", "generic-hybrid", InverterProfileSettings),
+}
+DEFAULT_KIND = "battery"
 REQUEST_TIMEOUT_S = 10
 
 # Efficiency curves of a profile document: (document key, label, color).
@@ -113,6 +133,19 @@ SUMMARY_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("technical_max_soc_percent", "Technical max. SoC", "%"),
     ("full_charge_interval_days", "Full charge interval", "d"),
     ("full_charge_detect_percentage", "Full charge detected from", "%"),
+)
+
+# Fields shown in the summary card of an inverter profile: (document key, label, unit).
+INVERTER_SUMMARY_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("inverter_model", "Model", ""),
+    ("nominal_power_w", "Nominal power", "W"),
+    ("max_ac_charge_power_w", "Max. AC charge power", "W"),
+    ("ac_charge_limits_total_charge", "AC charge limit also limits PV charging", ""),
+)
+# Efficiency curves of an inverter profile document: (document key, label, color).
+INVERTER_EFFICIENCY_CURVES: tuple[tuple[str, str, str], ...] = (
+    ("dc_to_ac_efficiency", "DC→AC (discharge)", "#d7191c"),
+    ("ac_to_dc_efficiency", "AC→DC (grid charge)", "#2b83ba"),
 )
 
 
@@ -146,8 +179,8 @@ def _request(method: str, url: str, **kwargs: Any) -> Any:
     return response.json()
 
 
-def _profile_url(server: str, name: Optional[str] = None) -> str:
-    url = f"{server}/v1/profile/{PROFILE_KIND}"
+def _profile_url(server: str, kind: str, name: Optional[str] = None) -> str:
+    url = f"{server}/v1/profile/{kind}"
     return url if name is None else f"{url}/{quote(name, safe='/')}"
 
 
@@ -544,15 +577,228 @@ def EfficiencyPlot(document: dict[str, Any], dark: bool = False) -> Any:
     )
 
 
-def _hx_vals(action: str) -> str:
-    """Htmx values of a page action, with the dark mode of the browser."""
+def _clamped_segments(
+    xs: list[float], ys: list[float], x_min: float, x_max: float
+) -> list[tuple[list[float], list[float]]]:
+    """Dashed extensions of a clamped curve to the left and right plot edges."""
+    segments: list[tuple[list[float], list[float]]] = []
+    if x_min < xs[0]:
+        segments.append(([x_min, xs[0]], [ys[0], ys[0]]))
+    if x_max > xs[-1]:
+        segments.append(([xs[-1], x_max], [ys[-1], ys[-1]]))
+    return segments
+
+
+def _style_legend(plot: Any, dark: bool) -> None:
+    plot.legend.location = "bottom_left"
+    plot.legend.click_policy = "hide"
+    plot.toolbar.autohide = True
+    bokey_apply_theme_to_plot(plot, dark)
+    if dark:
+        plot.legend.background_fill_color = DARK_BACKGROUND
+        plot.legend.label_text_color = "white"
+
+
+def _derating_fraction(document: dict[str, Any], temperature_degC: float) -> Optional[float]:
+    """Allowed power fraction of an inverter document at a temperature, None if invalid."""
+    raw = document.get("power_derating")
+    if raw is None:
+        return 1.0
+    try:
+        return PowerDeratingCurve.model_validate(raw).to_curve().lookup(temperature_degC)
+    except ValueError:
+        return None
+
+
+def InverterSummary(document: dict[str, Any]) -> Card:
+    """Key data of an inverter profile document."""
+    rows = []
+    for key, label, unit in INVERTER_SUMMARY_FIELDS:
+        value = document.get(key)
+        if isinstance(value, bool):
+            text = "yes" if value else "no"
+        else:
+            text = _format_value(value, unit)
+        rows.append(Tr(Td(label), Td(text)))
+    fraction = _derating_fraction(document, INVERTER_DEFAULT_TEMPERATURE_DEGC)
+    rows.append(
+        Tr(
+            Td(f"Power at {INVERTER_DEFAULT_TEMPERATURE_DEGC:g} degC (default temperature)"),
+            Td("-" if fraction is None else f"{100.0 * fraction:.0f} %"),
+        )
+    )
+    return Card(H4("Summary"), Table(Tbody(*rows)))
+
+
+def InverterEfficiencyPlot(document: dict[str, Any], dark: bool = False) -> Any:
+    """Bokeh plot of the DC→AC and AC→DC efficiency curves of an inverter profile.
+
+    Invalid curves (e.g. while editing) are reported instead of drawn.
+    """
+    curves: list[tuple[str, str, InverterEfficiencyCurve]] = []
+    notes: list[Any] = []
+    for key, label, color in INVERTER_EFFICIENCY_CURVES:
+        raw = document.get(key)
+        if raw is None:
+            notes.append(Error(f"The {label} efficiency curve is missing."))
+            continue
+        try:
+            curves.append((label, color, InverterEfficiencyCurve.model_validate(raw)))
+        except ValueError as exc:
+            notes.append(Error(f"Invalid {label} efficiency curve: {exc}"))
+    if not curves:
+        return Card(H4("Efficiency"), *notes)
+
+    x_max = max(1.0, max(curve.load_fraction[-1] for _, _, curve in curves)) * (
+        1.0 + EFFICIENCY_PLOT_MARGIN
+    )
+    nominal_power_w = document.get("nominal_power_w")
+    tooltips = [
+        ("", "@label"),
+        ("load fraction", "@load_fraction{0.00}"),
+        ("efficiency", "@efficiency_pct{0.0} %"),
+    ]
+    if nominal_power_w:
+        tooltips.insert(2, ("AC power", "@power_w{0} W"))
+    plot = create_figure(
+        title="Inverter efficiency versus load fraction (as evaluated by EOS)",
+        x_axis_label="Load fraction (AC power / nominal power)",
+        y_axis_label="Efficiency [%]",
+        x_range=(0.0, x_max),
+        sizing_mode="stretch_width",
+        height=350,
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+    )
+    point_renderers: list[DataRenderer] = []
+    for label, color, curve in curves:
+        xs = list(curve.load_fraction)
+        ys = [100.0 * y for y in curve.efficiency]
+        plot.line(xs, ys, color=color, line_width=2, legend_label=label)
+        for seg_x, seg_y in _clamped_segments(xs, ys, 0.0, x_max):
+            plot.line(
+                seg_x,
+                seg_y,
+                color=color,
+                line_width=2,
+                line_dash="dashed",
+                line_alpha=0.6,
+                legend_label=label,
+            )
+        source = ColumnDataSource(
+            {
+                "load_fraction": xs,
+                "efficiency_pct": ys,
+                "power_w": [x * nominal_power_w for x in xs]
+                if nominal_power_w
+                else [None] * len(xs),
+                "label": [label] * len(xs),
+            }
+        )
+        point_renderers.append(
+            plot.scatter(
+                "load_fraction",
+                "efficiency_pct",
+                source=source,
+                size=8,
+                color=color,
+                legend_label=label,
+            )
+        )
+    plot.add_tools(HoverTool(renderers=point_renderers, tooltips=tooltips))
+    _style_legend(plot, dark)
+    return Div(
+        Bokeh(plot, header="Efficiency"),
+        P(
+            "Linear between the breakpoints. Dashed: load fractions outside the curve, "
+            "clamped to its end value.",
+            cls="text-sm opacity-70",
+        ),
+        *notes,
+        cls="space-y-2",
+    )
+
+
+def DeratingPlot(document: dict[str, Any], dark: bool = False) -> Any:
+    """Bokeh plot of the power derating of an inverter profile over the temperature."""
+    raw = document.get("power_derating")
+    if raw is None:
+        return Card(
+            H4("Power derating"),
+            P("No power derating: the full nominal power applies at every temperature."),
+        )
+    try:
+        derating = PowerDeratingCurve.model_validate(raw)
+    except ValueError as exc:
+        return Card(H4("Power derating"), Error(f"Invalid power derating: {exc}"))
+
+    xs = list(derating.temperature_degC)
+    ys = [100.0 * y for y in derating.power_fraction]
+    x_min = min(xs[0], INVERTER_DEFAULT_TEMPERATURE_DEGC) - 10.0
+    x_max = max(xs[-1], INVERTER_DEFAULT_TEMPERATURE_DEGC) + 10.0
+    plot = create_figure(
+        title="Allowed power versus ambient temperature (as evaluated by EOS)",
+        x_axis_label="Ambient temperature [degC]",
+        y_axis_label="Allowed power [% of nominal]",
+        x_range=(x_min, x_max),
+        y_range=(0.0, 105.0),
+        sizing_mode="stretch_width",
+        height=300,
+        tools="pan,wheel_zoom,box_zoom,reset,save",
+    )
+    color = "#1a9641"
+    plot.line(xs, ys, color=color, line_width=2, legend_label="Derating")
+    for seg_x, seg_y in _clamped_segments(xs, ys, x_min, x_max):
+        plot.line(
+            seg_x,
+            seg_y,
+            color=color,
+            line_width=2,
+            line_dash="dashed",
+            line_alpha=0.6,
+            legend_label="Derating",
+        )
+    source = ColumnDataSource({"temperature": xs, "power_pct": ys})
+    points = plot.scatter("temperature", "power_pct", source=source, size=8, color=color)
+    plot.add_tools(
+        HoverTool(
+            renderers=[points],
+            tooltips=[("temperature", "@temperature{0.0} degC"), ("power", "@power_pct{0} %")],
+        )
+    )
+    plot.add_layout(
+        Span(
+            location=INVERTER_DEFAULT_TEMPERATURE_DEGC,
+            dimension="height",
+            line_color="gray",
+            line_dash="dotted",
+            line_width=2,
+        )
+    )
+    _style_legend(plot, dark)
+    return Div(
+        Bokeh(plot, header="Power derating"),
+        P(
+            f"Dotted: {INVERTER_DEFAULT_TEMPERATURE_DEGC:g} degC, the temperature EOS assumes "
+            "without a measurement of '<device_id>-temperature-degc'. Dashed: temperatures "
+            "outside the curve, clamped to its end value.",
+            cls="text-sm opacity-70",
+        ),
+        cls="space-y-2",
+    )
+
+
+def _hx_vals(action: str, kind: Optional[str] = None) -> str:
+    """Htmx values of a page action, with the profile kind and the dark mode of the browser."""
+    kind_value = f'"kind": "{kind}", ' if kind is not None else ""
     return (
-        f'js:{{ "action": "{action}", '
+        f'js:{{ "action": "{action}", {kind_value}'
         '"dark": window.matchMedia("(prefers-color-scheme: dark)").matches }'
     )
 
 
-def ProfileEditor(name: str, entry: Optional[dict[str, Any]], document_text: str) -> Card:
+def ProfileEditor(
+    kind: str, name: str, entry: Optional[dict[str, Any]], document_text: str
+) -> Card:
     """JSON editor of a profile with save, save-as and delete actions."""
     is_user = entry is not None and entry["source"] == "user"
     overrides_packaged = entry is not None and entry["packaged"]
@@ -572,7 +818,7 @@ def ProfileEditor(name: str, entry: Optional[dict[str, Any]], document_text: str
             hx_target="#page-content",
             hx_swap="innerHTML",
             hx_include=f"#{EDITOR_FORM_ID}",
-            hx_vals=_hx_vals(action),
+            hx_vals=_hx_vals(action, kind),
             **kwargs,
         )
 
@@ -585,7 +831,7 @@ def ProfileEditor(name: str, entry: Optional[dict[str, Any]], document_text: str
                 hx_confirm=(
                     f"Revert '{name}' to the packaged profile?"
                     if overrides_packaged
-                    else f"Delete the battery profile '{name}'?"
+                    else f"Delete the {PROFILE_KINDS[kind][0].lower()} profile '{name}'?"
                 ),
             )
         )
@@ -623,7 +869,7 @@ def ProfileEditor(name: str, entry: Optional[dict[str, Any]], document_text: str
 
 
 def _apply_action(
-    server: str, data: dict[str, Any]
+    server: str, kind: str, data: dict[str, Any]
 ) -> tuple[Optional[Any], Optional[str], Optional[str]]:
     """Run the requested action against EOS.
 
@@ -636,6 +882,11 @@ def _apply_action(
     action = data.get("action")
     name = str(data.get("profile_name") or "").strip()
     text = str(data.get("document") or "")
+    label, _, document_type = PROFILE_KINDS[kind]
+    label = label.lower()
+
+    if action == "kind":
+        return None, None, None
 
     if action == "select":
         return None, name or None, None
@@ -648,7 +899,7 @@ def _apply_action(
         if not isinstance(document, dict):
             return Error("The document must be a JSON object."), name or None, text
         try:
-            BatteryProfileSettings.model_validate(document)
+            document_type.model_validate(document)
         except ValueError as exc:
             return (
                 Error(f"Preview of unsaved changes to '{name}', the document is invalid: {exc}"),
@@ -670,30 +921,39 @@ def _apply_action(
         except json.JSONDecodeError as exc:
             return Error(f"The document is not valid JSON: {exc}"), name or None, text
         try:
-            _request("put", _profile_url(server, target), json=document)
+            _request("put", _profile_url(server, kind, target), json=document)
         except ProfileApiError as exc:
-            return Error(f"Battery profile '{target}' not saved: {exc}"), name or None, text
-        return Success(f"Saved battery profile '{target}'."), target, None
+            return (
+                Error(f"{label.capitalize()} profile '{target}' not saved: {exc}"),
+                name or None,
+                text,
+            )
+        return Success(f"Saved {label} profile '{target}'."), target, None
 
     if action == "delete":
         try:
-            restored = _request("delete", _profile_url(server, name))
+            restored = _request("delete", _profile_url(server, kind, name))
         except ProfileApiError as exc:
-            return Error(f"Battery profile '{name}' not deleted: {exc}"), name or None, None
+            return (
+                Error(f"{label.capitalize()} profile '{name}' not deleted: {exc}"),
+                name or None,
+                None,
+            )
         if restored:
             return Success(f"Reverted '{name}' to the packaged profile."), name, None
-        return Success(f"Deleted battery profile '{name}'."), None, None
+        return Success(f"Deleted {label} profile '{name}'."), None, None
 
     return None, name or None, None
 
 
 def Profile(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None) -> Div:
-    """Generate the battery profile page.
+    """Generate the device profile page.
 
     Args:
         eos_host: Host name of the EOS server.
         eos_port: Port of the EOS server.
-        data: Action of the page: ``action`` (``select``, ``save``, ``save_as``,
+        data: Action of the page: ``kind`` (``battery``, ``inverter``),
+            ``action`` (``kind``, ``select``, ``preview``, ``save``, ``save_as``,
             ``delete``), ``profile_name``, ``new_name``, ``document`` (JSON) and
             ``dark`` (``"true"`` for the dark theme of the plots).
 
@@ -701,29 +961,51 @@ def Profile(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = Non
         The page content.
     """
     server = f"http://{eos_host}:{eos_port}"
-    dark = str((data or {}).get("dark", "")).lower() == "true"
-    status, selected, document_text = _apply_action(server, data or {})
+    data = data or {}
+    dark = str(data.get("dark", "")).lower() == "true"
+    kind = str(data.get("kind") or DEFAULT_KIND)
+    if kind not in PROFILE_KINDS:
+        kind = DEFAULT_KIND
+    label, default_profile, _ = PROFILE_KINDS[kind]
+    status, selected, document_text = _apply_action(server, kind, data)
+
+    kind_selection = Card(
+        H4("Profile kind"),
+        Select(
+            *(
+                Option(f"{kind_label} profiles", value=key, selected=key == kind)
+                for key, (kind_label, _, _) in PROFILE_KINDS.items()
+            ),
+            name="kind",
+            hx_post=request_url_for(PAGE_PATH),
+            hx_target="#page-content",
+            hx_swap="innerHTML",
+            hx_trigger="change",
+            hx_vals=_hx_vals("kind"),
+            cls="border rounded px-3 py-2",
+        ),
+    )
 
     try:
-        entries: list[dict[str, Any]] = _request("get", _profile_url(server))
+        entries: list[dict[str, Any]] = _request("get", _profile_url(server, kind))
     except ProfileApiError as exc:
-        message = f"Can not retrieve battery profiles from {server}: {exc}"
+        message = f"Can not retrieve {label.lower()} profiles from {server}: {exc}"
         logger.warning(message)
-        return Div(status, Error(message), cls="space-y-4")
+        return Div(kind_selection, status, Error(message), cls="space-y-4")
 
     names = [entry["name"] for entry in entries]
     if selected not in names:
         if document_text is None or not selected:
-            selected = DEFAULT_PROFILE if DEFAULT_PROFILE in names else (names or [None])[0]
+            selected = default_profile if default_profile in names else (names or [None])[0]
     entry = next((e for e in entries if e["name"] == selected), None)
 
     document: dict[str, Any] = {}
     load_error = None
     if selected is not None and entry is not None:
         try:
-            document = _request("get", _profile_url(server, selected))
+            document = _request("get", _profile_url(server, kind, selected))
         except ProfileApiError as exc:
-            load_error = Error(f"Can not load battery profile '{selected}': {exc}")
+            load_error = Error(f"Can not load {label.lower()} profile '{selected}': {exc}")
     if document_text is None:
         document_text = json.dumps(document, indent=2) if document else ""
     else:
@@ -736,7 +1018,7 @@ def Profile(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = Non
             document = edited
 
     selection = Card(
-        H4("Battery profile"),
+        H4(f"{label} profile"),
         Select(
             *(
                 Option(_entry_label(e), value=e["name"], selected=e["name"] == selected)
@@ -747,7 +1029,7 @@ def Profile(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = Non
             hx_target="#page-content",
             hx_swap="innerHTML",
             hx_trigger="change",
-            hx_vals=_hx_vals("select"),
+            hx_vals=_hx_vals("select", kind),
             cls="border rounded px-3 py-2",
         ),
         P(
@@ -757,12 +1039,24 @@ def Profile(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = Non
         ),
     )
 
-    content: list[Any] = [H3("Battery profiles"), status, load_error, selection]
+    content: list[Any] = [
+        H3(f"{label} profiles"),
+        kind_selection,
+        status,
+        load_error,
+        selection,
+    ]
     if selected is None:
-        content.append(P("No battery profiles available."))
+        content.append(P(f"No {label.lower()} profiles available."))
+    elif kind == "inverter":
+        content.append(InverterSummary(document) if document else None)
+        content.append(ProfileEditor(kind, selected, entry, document_text))
+        if document:
+            content.append(InverterEfficiencyPlot(document, dark))
+            content.append(DeratingPlot(document, dark))
     else:
         content.append(ProfileSummary(document) if document else None)
-        content.append(ProfileEditor(selected, entry, document_text))
+        content.append(ProfileEditor(kind, selected, entry, document_text))
         if document:
             content.append(LimitMaps(document, dark))
             content.append(EfficiencyPlot(document, dark))
