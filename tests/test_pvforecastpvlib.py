@@ -1518,6 +1518,119 @@ class TestCalculation:
             weather.index,
         )
 
+    @patch("pvlib.modelchain.ModelChain")
+    def test_shared_inverter_cap_and_loss(
+        self,
+        mock_modelchain,
+        provider,
+        sample_settings_4planes,
+    ):
+        """Planes sharing one inverter shall not exceed its rating; loss shall apply.
+
+        The 4-plane fixture configures inverter_paco 10000/10000/2000/1400
+        with the default loss of 14 %. With 9000 W AC per plane, the two
+        planes sharing the 10000 W inverter must contribute 10000 W together
+        instead of 15480 W, and every plane's output must carry the loss.
+        """
+
+        index = pd.date_range(
+            "2024-06-01",
+            periods=2,
+            freq="15min",
+            tz="Europe/Berlin",
+        )
+
+        weather = pd.DataFrame(
+            {
+                "ghi": [900.0] * 2,
+                "dni": [800.0] * 2,
+                "dhi": [100.0] * 2,
+                "temp_air": [20.0] * 2,
+                "wind_speed": [2.0] * 2,
+                "relative_humidity": [60.0] * 2,
+                "precipitable_water": [1.5] * 2,
+                "cloud_cover": [0.0] * 2,
+            },
+            index=index,
+        )
+
+        mc = MagicMock()
+
+        mc.results.dc = pd.DataFrame(
+            {
+                "p_mp": [10000.0, 10000.0],
+            },
+            index=index,
+        )
+
+        mc.results.ac = pd.Series(
+            [9000.0, 9000.0],
+            index=index,
+        )
+
+        mock_modelchain.return_value = mc
+
+        result = provider._calculate_pvlib_power(weather)
+
+        # Loss factor 0.86: DC 4 x 10000 x 0.86 = 34400.
+        assert result["pv_dc_power"].tolist() == pytest.approx([34400.0, 34400.0])
+        # AC per plane 9000 x 0.86 = 7740; shared 10000 W cap clips
+        # 7740 + 7740 to 10000; single-plane caps clip 7740 to 2000 and 1400.
+        assert result["ac_power"].tolist() == pytest.approx([13400.0, 13400.0])
+
+    @patch("pvlib.modelchain.ModelChain")
+    def test_loss_applies_without_clipping(
+        self,
+        mock_modelchain,
+        provider,
+        sample_settings_1plane,
+    ):
+        """Configured loss shall reduce power even below the inverter rating."""
+
+        index = pd.date_range(
+            "2024-06-01",
+            periods=1,
+            freq="15min",
+            tz="Europe/Berlin",
+        )
+
+        weather = pd.DataFrame(
+            {
+                "ghi": [900.0],
+                "dni": [800.0],
+                "dhi": [100.0],
+                "temp_air": [20.0],
+                "wind_speed": [2.0],
+                "relative_humidity": [60.0],
+                "precipitable_water": [1.5],
+                "cloud_cover": [0.0],
+            },
+            index=index,
+        )
+
+        mc = MagicMock()
+
+        mc.results.dc = pd.DataFrame(
+            {
+                "p_mp": [10000.0],
+            },
+            index=index,
+        )
+
+        mc.results.ac = pd.Series(
+            [9000.0],
+            index=index,
+        )
+
+        mock_modelchain.return_value = mc
+
+        result = provider._calculate_pvlib_power(weather)
+
+        # Single plane, default loss 14 %: 10000 x 0.86 = 8600 DC,
+        # 9000 x 0.86 = 7740 AC, below the 10000 W inverter rating.
+        assert result["pv_dc_power"].tolist() == pytest.approx([8600.0])
+        assert result["ac_power"].tolist() == pytest.approx([7740.0])
+
     def test_get_model_power_none(self, provider):
         """Unknown model parameters return None."""
 
