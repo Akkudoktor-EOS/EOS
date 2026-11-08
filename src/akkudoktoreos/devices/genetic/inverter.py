@@ -6,6 +6,7 @@ from pydantic import Field, field_validator
 
 from akkudoktoreos.devices.devicesabc import (
     interpolate_efficiency_curve,
+    solve_ac_for_charge_dc_energy,
     solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
@@ -81,6 +82,22 @@ class InverterParameters(DeviceParameters):
             "examples": [0.06, 0.1],
         },
     )
+    ac_to_dc_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Load-dependent efficiency of AC to DC conversion (AC/grid charging of the "
+                "battery) as a list of (load_fraction, efficiency) points. The load "
+                "fraction is the AC power drawn relative to max_power_wh [0.0 ... 1.0]; "
+                "same rules as dc_to_ac_efficiency_curve. When set, the curve replaces "
+                "ac_to_dc_efficiency for the energy drawn from the grid; "
+                "ac_to_dc_efficiency still converts the AC charge power limit and should "
+                "be the efficiency at that limit. Default None (constant "
+                "ac_to_dc_efficiency)."
+            ),
+            "examples": [None, [[0.05, 0.86], [0.3, 0.96], [1.0, 0.96]]],
+        },
+    )
     max_ac_charge_power_w: Optional[float] = Field(
         default=None,
         ge=0,
@@ -106,9 +123,9 @@ class InverterParameters(DeviceParameters):
         },
     )
 
-    @field_validator("dc_to_ac_efficiency_curve")
+    @field_validator("dc_to_ac_efficiency_curve", "ac_to_dc_efficiency_curve")
     @classmethod
-    def _validate_dc_to_ac_efficiency_curve(
+    def _validate_efficiency_curves(
         cls, value: Optional[list[tuple[float, float]]]
     ) -> Optional[list[tuple[float, float]]]:
         return validate_efficiency_curve(value)
@@ -138,6 +155,7 @@ class Inverter:
         self.dc_to_ac_efficiency = self.parameters.dc_to_ac_efficiency
         self.ac_to_dc_efficiency = self.parameters.ac_to_dc_efficiency
         self.dc_to_ac_efficiency_curve = self.parameters.dc_to_ac_efficiency_curve
+        self.ac_to_dc_efficiency_curve = self.parameters.ac_to_dc_efficiency_curve
         # DC-to-AC efficiency used to value stored battery energy where no single
         # conversion is known (end-of-horizon value, AC charge break-even). With
         # a curve it is the efficiency at the configured reference load.
@@ -240,8 +258,13 @@ class Inverter:
             stored, battery_losses = self.battery.charge_energy(None, hour, charge_factor=factor)
         # DC energy entering the battery (before battery internal efficiency)
         dc_energy = stored + battery_losses
-        # AC energy consumed from grid (accounts for AC->DC conversion loss)
-        ac_energy = dc_energy / self.ac_to_dc_efficiency
+        # AC energy consumed from grid (accounts for AC->DC conversion loss). With a
+        # curve the efficiency is the one at the AC load actually drawn.
+        curve = self.ac_to_dc_efficiency_curve
+        if curve is not None:
+            ac_energy = solve_ac_for_charge_dc_energy(curve, dc_energy, self.max_power_wh)
+        else:
+            ac_energy = dc_energy / self.ac_to_dc_efficiency
         return ac_energy, battery_losses + (ac_energy - dc_energy)
 
     def _delivered_ac_wh(

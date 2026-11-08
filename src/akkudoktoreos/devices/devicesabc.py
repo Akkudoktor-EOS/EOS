@@ -265,6 +265,72 @@ def solve_ac_for_dc_energy(
     return ac_wh
 
 
+def solve_ac_for_charge_dc_energy(
+    curve: list[tuple[float, float]],
+    dc_wh: float,
+    rated_wh: float,
+) -> float:
+    """Return the AC energy an AC→DC conversion draws to deliver a DC energy.
+
+    The efficiency of a curve depends on the AC load drawn, so the AC energy
+    ``a`` that delivers ``dc_wh`` is the solution of
+    ``a * efficiency(a / rated_wh) = dc_wh``. The curve is piecewise linear and
+    clamped at both ends; on each piece the equation is quadratic and solved
+    exactly.
+
+    Args:
+        curve: Points as validated by ``validate_efficiency_curve``.
+        dc_wh: DC energy delivered by the conversion in one slot.
+        rated_wh: AC energy at rated power in one slot (load fraction 1.0).
+
+    Returns:
+        The smallest consistent AC energy, 0.0 for no DC energy.
+    """
+    if dc_wh <= 0.0:
+        return 0.0
+    if rated_wh <= 0.0:
+        return dc_wh / curve[-1][1]
+    tolerance = 1e-9
+    best = float("inf")
+
+    def consider(ac_wh: float, low: float, high: float) -> None:
+        nonlocal best
+        fraction = ac_wh / rated_wh
+        if low - tolerance <= fraction <= high + tolerance and 0.0 < ac_wh < best:
+            best = ac_wh
+
+    first_fraction, first_efficiency = curve[0]
+    last_fraction, last_efficiency = curve[-1]
+    # Clamped ends: constant efficiency below the first and above the last point.
+    consider(dc_wh / first_efficiency, float("-inf"), first_fraction)
+    consider(dc_wh / last_efficiency, last_fraction, float("inf"))
+    for (x0, e0), (x1, e1) in zip(curve, curve[1:]):
+        slope = (e1 - e0) / (x1 - x0)
+        # a * (c + k * a) = dc with c = e0 - slope * x0 and k = slope / rated.
+        c = e0 - slope * x0
+        k = slope / rated_wh
+        if abs(k) < 1e-15:
+            if c > 0.0:
+                consider(dc_wh / c, x0, x1)
+            continue
+        discriminant = c * c + 4.0 * k * dc_wh
+        if discriminant < 0.0:
+            continue
+        root = math.sqrt(discriminant)
+        consider((-c + root) / (2.0 * k), x0, x1)
+        consider((-c - root) / (2.0 * k), x0, x1)
+    if best < float("inf"):
+        return best
+    # Only possible numerically at a kink: converge on it.
+    ac_wh = dc_wh / interpolate_efficiency_curve(curve, 1.0)
+    for _ in range(50):
+        next_ac_wh = dc_wh / interpolate_efficiency_curve(curve, ac_wh / rated_wh)
+        if abs(next_ac_wh - ac_wh) <= tolerance:
+            break
+        ac_wh = next_ac_wh
+    return ac_wh
+
+
 class ConsumerScheduleMode(StrEnum):
     """Schedule mode of a flexible consumer (home appliance).
 

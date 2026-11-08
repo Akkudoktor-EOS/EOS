@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611081355795091"
+    "version": "v0.3.0.dev2611081346270081"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -13317,6 +13317,48 @@
             "examples": [
               0.06,
               0.1
+            ]
+          },
+          "ac_to_dc_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ac To Dc Efficiency Curve",
+            "description": "Load-dependent efficiency of AC to DC conversion (AC/grid charging of the battery) as a list of (load_fraction, efficiency) points. The load fraction is the AC power drawn relative to max_power_wh [0.0 ... 1.0]; same rules as dc_to_ac_efficiency_curve. When set, the curve replaces ac_to_dc_efficiency for the energy drawn from the grid; ac_to_dc_efficiency still converts the AC charge power limit and should be the efficiency at that limit. Default None (constant ac_to_dc_efficiency).",
+            "examples": [
+              null,
+              [
+                [
+                  0.05,
+                  0.86
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
             ]
           },
           "max_ac_charge_power_w": {

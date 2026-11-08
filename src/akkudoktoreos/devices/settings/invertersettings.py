@@ -498,6 +498,43 @@ class InverterCommonSettings(DevicesBaseSettings):
         operating_point = await self.measure_operating_point(target_datetime)
         return self.resolve_operating_parameters(operating_point)
 
+    async def resolve_current_operating_parameters_or_fallback(
+        self, target_datetime: Optional[DateTime] = None
+    ) -> InverterOperatingParameters:
+        """Resolve at the measured ambient temperature, replacing an unusable profile.
+
+        Used by the parameter preparation of the optimizations: if the configured
+        inverter profile does not exist or is invalid, the packaged
+        ``generic-hybrid`` profile with this unit's profile adjustment applies,
+        and an error naming the inverter is logged.
+
+        Raises:
+            InverterResolutionError: If the parameters cannot be resolved with
+                the profile that applies, e.g. no nominal power.
+        """
+        operating_point = await self.measure_operating_point(target_datetime)
+        try:
+            profile = self._load_inverter_profile()
+        except InverterResolutionError as exc:
+            if self.inverter_profile == INVERTER_DEFAULT_PROFILE:
+                raise
+            from akkudoktoreos.devices.profile.inverterprofile import (
+                InverterProfileSettings,
+            )
+            from akkudoktoreos.devices.profile.profilestore import get_profile_store
+
+            profile = get_profile_store().get(InverterProfileSettings, INVERTER_DEFAULT_PROFILE)
+            logger.error(
+                f"{exc} Using inverter profile '{INVERTER_DEFAULT_PROFILE}' with the profile "
+                "adjustment instead."
+            )
+        parameters = resolve_inverter_parameters(self, profile, operating_point)
+        logger.debug(
+            f"Inverter '{self.device_id}' at {parameters.temperature_degC} degC: "
+            f"maximum power {parameters.max_power_w} W."
+        )
+        return parameters
+
     def check_profile(self) -> tuple[list[str], list[str]]:
         """Check that the inverter can be resolved from its profile.
 
@@ -586,6 +623,7 @@ class InverterCommonSettings(DevicesBaseSettings):
             ac_to_dc_efficiency=p.ac_to_dc_efficiency,
             dc_to_ac_efficiency=p.dc_to_ac_efficiency,
             dc_to_ac_efficiency_curve=list(p.dc_to_ac_efficiency_curve),
+            ac_to_dc_efficiency_curve=list(p.ac_to_dc_efficiency_curve),
             dc_to_ac_efficiency_reference_load_fraction=(
                 self.dc_to_ac_efficiency_reference_load_fraction
             ),
