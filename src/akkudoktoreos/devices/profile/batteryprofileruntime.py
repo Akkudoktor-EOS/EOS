@@ -12,16 +12,26 @@ simulation:
   precomputation is built from. They define the semantics of a profile document.
 
 The module has no pydantic models and does not read files or configuration. The
-interpolation enums live here because the algorithms interpret them; the
-document module re-exports them.
+limit map interpolation enum lives here because the algorithms interpret it; the
+efficiency curves use the shared curve support of ``profilecurve``. The
+document module re-exports the enums.
 """
 
-from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
+
+from akkudoktoreos.devices.profile.profilecurve import (
+    CurveInterpolation,
+    OutOfRangeBehavior,
+    PrecomputedCurve,
+    reference_curve_lookup,
+)
+
+# Name of the curve interpolation in the battery profile documents.
+EfficiencyInterpolation = CurveInterpolation
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.profile.batteryprofile import (
@@ -45,96 +55,35 @@ class Interpolation(str, Enum):
     NONE = "none"
 
 
-class OutOfRangeBehavior(str, Enum):
-    """Behavior when a query lies outside the axis range but inside cutoffs.
-
-    Attributes:
-        CLAMP_TO_NEAREST: Return the value at the nearest edge of the map.
-        REJECT: Return None for the out-of-range query.
-    """
-
-    CLAMP_TO_NEAREST = "clamp_to_nearest"
-    REJECT = "reject"
-
-
-class EfficiencyInterpolation(str, Enum):
-    """Interpolation strategy for one-dimensional efficiency curves."""
-
-    LINEAR = "linear"
-    NEAREST = "nearest"
-    NONE = "none"
-
-
 # ---------------------------------------------------------------------------
 # Precomputed runtime objects
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class PrecomputedEfficiencyCurve:
+class PrecomputedEfficiencyCurve(PrecomputedCurve):
     """Immutable runtime representation of a C-rate efficiency curve.
 
-    Segment slopes/intercepts and nearest-neighbor midpoints are calculated
-    once when the battery profile is created. Runtime lookups therefore avoid
-    repeatedly calculating interpolation coefficients or scanning every
-    breakpoint. The C-rate axis remains independent of installed capacity.
+    A ``PrecomputedCurve`` over the absolute C-rate. The C-rate axis remains
+    independent of installed capacity. ``c_rate`` and ``efficiency`` name the
+    breakpoints and values.
     """
 
-    c_rate: tuple[float, ...]
-    efficiency: tuple[float, ...]
-    interpolation: EfficiencyInterpolation
-    out_of_range_behavior: OutOfRangeBehavior
-    slopes: tuple[float, ...]
-    intercepts: tuple[float, ...]
-    midpoints: tuple[float, ...]
+    @property
+    def c_rate(self) -> tuple[float, ...]:
+        """C-rate breakpoints."""
+        return self.x
+
+    @property
+    def efficiency(self) -> tuple[float, ...]:
+        """Efficiency at each C-rate breakpoint."""
+        return self.y
 
     @classmethod
     def from_curve(cls, curve: "EfficiencyCurve") -> "PrecomputedEfficiencyCurve":
         """Build immutable lookup data from a validated configuration curve."""
-        c_rates = tuple(curve.c_rate)
-        efficiencies = tuple(curve.efficiency)
-        slopes = tuple(
-            (efficiencies[i + 1] - efficiencies[i]) / (c_rates[i + 1] - c_rates[i])
-            for i in range(len(c_rates) - 1)
+        return cls.from_points(
+            curve.c_rate, curve.efficiency, curve.interpolation, curve.out_of_range_behavior
         )
-        intercepts = tuple(efficiencies[i] - slopes[i] * c_rates[i] for i in range(len(slopes)))
-        midpoints = tuple((c_rates[i] + c_rates[i + 1]) / 2.0 for i in range(len(c_rates) - 1))
-        return cls(
-            c_rate=c_rates,
-            efficiency=efficiencies,
-            interpolation=curve.interpolation,
-            out_of_range_behavior=curve.out_of_range_behavior,
-            slopes=slopes,
-            intercepts=intercepts,
-            midpoints=midpoints,
-        )
-
-    def lookup(self, c_rate: float) -> Optional[float]:
-        """Return efficiency at an absolute C-rate using precomputed data."""
-        if c_rate < self.c_rate[0]:
-            if self.out_of_range_behavior == OutOfRangeBehavior.REJECT:
-                return None
-            return self.efficiency[0]
-        if c_rate > self.c_rate[-1]:
-            if self.out_of_range_behavior == OutOfRangeBehavior.REJECT:
-                return None
-            return self.efficiency[-1]
-
-        if self.interpolation == EfficiencyInterpolation.NONE:
-            index = bisect_left(self.c_rate, c_rate)
-            if index < len(self.c_rate) and self.c_rate[index] == c_rate:
-                return self.efficiency[index]
-            return None
-
-        if self.interpolation == EfficiencyInterpolation.NEAREST:
-            # bisect_left preserves the original min() tie-break: lower point.
-            index = bisect_left(self.midpoints, c_rate)
-            return self.efficiency[index]
-
-        if c_rate == self.c_rate[-1]:
-            return self.efficiency[-1]
-        index = bisect_right(self.c_rate, c_rate) - 1
-        return self.slopes[index] * c_rate + self.intercepts[index]
 
 
 @dataclass(frozen=True)
@@ -340,7 +289,8 @@ class BatteryProfile:
 def reference_efficiency_lookup(curve: "EfficiencyCurve", c_rate: float) -> Optional[float]:
     """Return the interpolated efficiency of a curve document at an absolute C-rate.
 
-    Reference semantics for ``PrecomputedEfficiencyCurve.lookup``.
+    Reference semantics for ``PrecomputedEfficiencyCurve.lookup``, see
+    ``profilecurve.reference_curve_lookup``.
 
     Args:
         curve: Validated efficiency curve document.
@@ -351,36 +301,9 @@ def reference_efficiency_lookup(curve: "EfficiencyCurve", c_rate: float) -> Opti
         out-of-range behavior is REJECT, or when interpolation is NONE and the
         query is not an exact breakpoint.
     """
-    if c_rate < curve.c_rate[0] or c_rate > curve.c_rate[-1]:
-        if curve.out_of_range_behavior == OutOfRangeBehavior.REJECT:
-            return None
-        return curve.efficiency[0] if c_rate < curve.c_rate[0] else curve.efficiency[-1]
-
-    if curve.interpolation == EfficiencyInterpolation.NONE:
-        try:
-            return curve.efficiency[curve.c_rate.index(c_rate)]
-        except ValueError:
-            return None
-
-    if curve.interpolation == EfficiencyInterpolation.NEAREST:
-        index = min(
-            range(len(curve.c_rate)),
-            key=lambda i: abs(curve.c_rate[i] - c_rate),
-        )
-        return curve.efficiency[index]
-
-    for index in range(len(curve.c_rate) - 1):
-        lower = curve.c_rate[index]
-        upper = curve.c_rate[index + 1]
-        if lower <= c_rate <= upper:
-            fraction = (c_rate - lower) / (upper - lower)
-            return (
-                curve.efficiency[index]
-                + (curve.efficiency[index + 1] - curve.efficiency[index]) * fraction
-            )
-
-    # The endpoint is covered above; this is defensive for floating-point edge cases.
-    return curve.efficiency[-1]
+    return reference_curve_lookup(
+        curve.c_rate, curve.efficiency, curve.interpolation, curve.out_of_range_behavior, c_rate
+    )
 
 
 def _bracket(axis: List[float], x: float) -> tuple[int, int, float]:
