@@ -313,20 +313,10 @@ class PVForecastPVLib(PredictionMixin, PVForecastProvider):
                     "optimalangles",
                     f"optimalangles is currently not supported by the {self.provider_id()} provider.",
                 )
-            if plane.loss not in (None, 0):
-                self._warn_once(
-                    "loss",
-                    f"loss is currently not supported by the {self.provider_id()} provider.",
-                )
             if plane.trackingtype not in (None, 0):
                 self._warn_once(
                     "trackingtype",
                     f"trackingtype is currently not supported by the {self.provider_id()} provider.",
-                )
-            if plane.inverter_paco is not None:
-                self._warn_once(
-                    "inverter_paco",
-                    f"inverter_paco is currently not supported by the {self.provider_id()} provider.",
                 )
             # - mandatory parameters
             if plane.surface_tilt is None:
@@ -402,10 +392,29 @@ class PVForecastPVLib(PredictionMixin, PVForecastProvider):
             },
             index=df_weather.index,
         )
+        # Planes sharing the same inverter_paco feed one physical inverter:
+        # their combined AC output must not exceed that rating. Planes with
+        # distinct ratings have their own inverter; planes without a rating
+        # are not clipped. `loss` is the PVGIS-style lump of soiling,
+        # mismatch, wiring and ageing (percent), with the same semantics as
+        # PVForecastAkkudoktorLocal.
+        ac_by_inverter: dict[float | None, pd.Series] = {}
         for plane_idx in range(len(self.config.pvforecast.planes)):
+            plane = self.config.pvforecast.planes[plane_idx]
             result = run_single_config(plane_idx)
-            df_pvforecast["pv_dc_power"] += result.dc["p_mp"].fillna(0.0)
-            df_pvforecast["ac_power"] += result.ac.fillna(0.0)
+            loss = plane.loss if plane.loss is not None else 0.0
+            loss_factor = max(0.0, 1.0 - float(loss) / 100.0)
+            df_pvforecast["pv_dc_power"] += result.dc["p_mp"].fillna(0.0) * loss_factor
+            ac = result.ac.fillna(0.0) * loss_factor
+            paco = float(plane.inverter_paco) if plane.inverter_paco is not None else None
+            if paco in ac_by_inverter:
+                ac_by_inverter[paco] = ac_by_inverter[paco] + ac
+            else:
+                ac_by_inverter[paco] = ac
+        for paco, ac_sum in ac_by_inverter.items():
+            if paco is not None:
+                ac_sum = ac_sum.clip(upper=paco)
+            df_pvforecast["ac_power"] += ac_sum
 
         # replace any negative PV values with zero
         df_pvforecast["pv_dc_power"] = df_pvforecast["pv_dc_power"].clip(lower=0.0)
