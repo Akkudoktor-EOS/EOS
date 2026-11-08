@@ -52,8 +52,9 @@ from typing import (
 )
 
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin, get_config
 
 CompiledT = TypeVar("CompiledT")
@@ -79,6 +80,16 @@ def _validated_kind(kind: Any, owner: str) -> str:
             f"Invalid profile kind {kind!r} of {owner}: use lowercase letters and digits."
         )
     return kind
+
+
+class ProfileBaseModel(SettingsBaseModel):
+    """Base of all profile document models.
+
+    Unknown keys are rejected, so a misspelled key (e.g. ``nominal_capacity_kwh``
+    for ``nominal_capacity_wh``) fails validation instead of being ignored.
+    """
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProfileDocument(BaseModel, Generic[CompiledT]):

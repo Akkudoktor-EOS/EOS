@@ -32,9 +32,8 @@ entry point is the store::
 from pathlib import Path
 from typing import Any, ClassVar, List, Optional, Union
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
-from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.devices.profile.batteryprofileruntime import (
     BatteryProfile as BatteryProfile,
 )
@@ -61,19 +60,12 @@ from akkudoktoreos.devices.profile.batteryprofileruntime import (
     reference_max_discharge_crate,
 )
 from akkudoktoreos.devices.profile.profilestore import (
+    ProfileBaseModel as ProfileBaseModel,
+)
+from akkudoktoreos.devices.profile.profilestore import (
     ProfileDocument,
     get_profile_store,
 )
-
-
-class ProfileBaseModel(SettingsBaseModel):
-    """Base of all battery profile document models.
-
-    Unknown keys are rejected, so a misspelled key (e.g. ``nominal_capacity_kwh``
-    for ``nominal_capacity_wh``) fails validation instead of being ignored.
-    """
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class Units(ProfileBaseModel):

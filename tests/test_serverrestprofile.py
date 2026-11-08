@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
+from akkudoktoreos.devices.profile.inverterprofile import InverterProfileSettings
 from akkudoktoreos.devices.profile.profilestore import ProfileStore, get_profile_store
 from akkudoktoreos.server.rest.error import register_problem_handlers
 from akkudoktoreos.server.rest.profile import router
@@ -59,6 +60,16 @@ class TestRead:
         assert response.status_code == 200
         assert response.json()["chemistry"] == "LFP"
         BatteryProfileSettings.model_validate(response.json())
+
+    def test_inverter_profiles(self, client):
+        assert "inverter" in client.get("/v1/profile").json()
+        listed = client.get("/v1/profile/inverter").json()
+        assert {"name": "generic-hybrid", "source": "package", "packaged": True} in listed
+        schema = client.get("/v1/profile/inverter/schema").json()
+        assert "power_derating" in schema["properties"]
+        response = client.get("/v1/profile/inverter/generic-hybrid")
+        assert response.status_code == 200
+        InverterProfileSettings.model_validate(response.json())
 
     def test_errors_are_problem_details(self, client):
         response = client.get("/v1/profile/nope")

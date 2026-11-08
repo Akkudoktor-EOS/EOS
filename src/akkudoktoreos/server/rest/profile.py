@@ -28,7 +28,7 @@ from fastapi import APIRouter, Body
 from fastapi import Path as FastapiPath
 
 # Import the profile types so that they are registered with the store.
-from akkudoktoreos.devices.profile import batteryprofile  # noqa: F401
+from akkudoktoreos.devices.profile import batteryprofile, inverterprofile  # noqa: F401
 from akkudoktoreos.devices.profile.profilestore import (
     ProfileDocument,
     ProfileEntry,
