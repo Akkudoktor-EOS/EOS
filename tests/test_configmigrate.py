@@ -324,6 +324,46 @@ class TestDeviceMigration:
             if name != adjustment_name:
                 assert value is None
 
+    def test_migration_of_full_charge_settings(self):
+        """Full charge interval and threshold move into the adjustment, chemistry is dropped."""
+        battery = {
+            "device_id": "house",
+            "cell_chemistry": "LFP",
+            "full_charge_interval_days": 21,
+            "full_charge_detect_percentage": 98,
+            "full_charge_soc_percentage": 100,
+            "full_charge_allow_grid": True,
+        }
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        settings = migrated.devices.batteries["house"]
+        assert settings.profile_adjustment.full_charge_interval_days == 21
+        assert settings.profile_adjustment.full_charge_detect_percentage == 98
+        assert settings.full_charge_soc_percentage == 100
+        assert settings.full_charge_allow_grid is True
+        dumped = settings.model_dump(exclude_computed_fields=True)
+        for legacy in ("cell_chemistry", "full_charge_interval_days",
+                       "full_charge_detect_percentage"):
+            assert legacy not in dumped
+
+    def test_migration_drops_home_assistant_config_path_of_cell_chemistry(self):
+        raw = {
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/house/cell_chemistry": "sensor.chemistry",
+                        "devices/batteries/house/full_charge_interval_days": "sensor.interval",
+                    }
+                }
+            }
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/house/profile_adjustment/full_charge_interval_days": (
+                "sensor.interval"
+            ),
+        }
+
     def test_migration_keeps_a_migrated_battery(self):
         """A battery in the current layout is not changed, e.g. on a version bump."""
         battery = {

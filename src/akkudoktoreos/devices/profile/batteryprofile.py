@@ -402,6 +402,10 @@ class BatteryProfileSettings(ProfileBaseModel, ProfileDocument[BatteryProfile]):
         max_discharge_power_w: Optional absolute model discharge-power limit.
         technical_min_soc_percent: Manufacturer-defined lower SOC limit.
         technical_max_soc_percent: Manufacturer-defined upper SOC limit.
+        full_charge_interval_days: Maximum number of days between two full
+            charges (SoC recalibration), None if not needed or unknown.
+        full_charge_detect_percentage: Reported SOC from which the battery
+            counts as fully charged.
         charge_efficiency: Charge-efficiency curve versus C-rate.
         discharge_efficiency: Discharge-efficiency curve versus C-rate.
         units: Units of the axes and of the limit values.
@@ -504,6 +508,32 @@ class BatteryProfileSettings(ProfileBaseModel, ProfileDocument[BatteryProfile]):
                 "operational target setting."
             ),
             "examples": [95.0],
+        },
+    )
+    full_charge_interval_days: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Maximum number of days between two full charges, e.g. the interval "
+                "the battery management system needs to recalibrate its state of "
+                "charge (typical for LFP) [d]. None if the battery needs no periodic "
+                "full charge or the interval is unknown."
+            ),
+            "examples": [None, 21.0],
+        },
+    )
+    full_charge_detect_percentage: int = Field(
+        default=99,
+        ge=1,
+        le=100,
+        json_schema_extra={
+            "description": (
+                "Reported state of charge from which the battery management system "
+                "counts as fully charged [%]. Many never report exactly 100 %."
+            ),
+            "examples": [99],
         },
     )
     charge_efficiency: EfficiencyCurve = Field(

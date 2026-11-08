@@ -111,6 +111,8 @@ SUMMARY_FIELDS: tuple[tuple[str, str, str], ...] = (
     ("max_discharge_power_w", "Max. discharge power", "W"),
     ("technical_min_soc_percent", "Technical min. SoC", "%"),
     ("technical_max_soc_percent", "Technical max. SoC", "%"),
+    ("full_charge_interval_days", "Full charge interval", "d"),
+    ("full_charge_detect_percentage", "Full charge detected from", "%"),
 )
 
 

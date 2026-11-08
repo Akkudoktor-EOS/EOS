@@ -50,6 +50,10 @@ BATTERY_FALLBACK_MAX_DISCHARGE_POWER_W: float = 5000.0
 BATTERY_FALLBACK_CHARGING_EFFICIENCY: float = 0.88
 BATTERY_FALLBACK_DISCHARGING_EFFICIENCY: float = 0.88
 
+# Full charge detection threshold if neither the profile adjustment nor a usable
+# profile provides one; the default of the profile document.
+BATTERY_DEFAULT_FULL_CHARGE_DETECT_PERCENTAGE: int = 99
+
 
 class BatteryResolutionError(ValueError):
     """The effective parameters of a battery cannot be resolved.
@@ -125,6 +129,24 @@ class BatteryOperatingParameters:
     max_discharge_power_w: float
     min_soc_percentage: int
     max_soc_percentage: int
+
+
+@dataclass(frozen=True)
+class BatteryFullCharge:
+    """Effective periodic full charge policy of a stationary battery.
+
+    Attributes:
+        interval_days: Maximum number of days between two full charges [d], None
+            if the periodic full charge is disabled.
+        soc_percentage: State of charge a full charge has to reach [%], within
+            the technical maximum SOC of the profile.
+        detect_percentage: Measured state of charge from which the battery
+            counts as fully charged [%], at most ``soc_percentage``.
+    """
+
+    interval_days: Optional[float]
+    soc_percentage: int
+    detect_percentage: int
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +264,44 @@ def resolve_nominal_capacity_wh(
         settings,
         f"battery profile '{settings.battery_profile}' is generic and provides no "
         "nominal capacity; set 'profile_adjustment.nominal_capacity_wh'.",
+    )
+
+
+def resolve_full_charge(
+    settings: "BatteriesCommonSettings", profile: Optional["BatteryProfile"]
+) -> BatteryFullCharge:
+    """Resolve the periodic full charge policy: profile adjustment, else profile.
+
+    The interval and the detection threshold are properties of the battery model
+    and come from the profile unless the profile adjustment sets them. The
+    target SOC and whether to charge from the grid are operating policy of the
+    battery settings.
+
+    Args:
+        settings: Battery device settings.
+        profile: Compiled battery profile, None if it is not usable. Then only
+            the profile adjustment and the defaults apply.
+
+    Returns:
+        The effective full charge policy. The target is capped by the technical
+        maximum SOC of the profile and the detection threshold by the target.
+    """
+    adjustment = settings.profile_adjustment
+    interval_days = adjustment.full_charge_interval_days
+    detect_percentage = adjustment.full_charge_detect_percentage
+    soc_percentage = settings.full_charge_soc_percentage
+    if profile is not None:
+        if interval_days is None:
+            interval_days = profile.full_charge_interval_days
+        if detect_percentage is None:
+            detect_percentage = profile.full_charge_detect_percentage
+        soc_percentage = min(soc_percentage, math.floor(profile.technical_max_soc_percent))
+    if detect_percentage is None:
+        detect_percentage = BATTERY_DEFAULT_FULL_CHARGE_DETECT_PERCENTAGE
+    return BatteryFullCharge(
+        interval_days=interval_days,
+        soc_percentage=soc_percentage,
+        detect_percentage=min(detect_percentage, soc_percentage),
     )
 
 

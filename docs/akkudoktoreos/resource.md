@@ -108,14 +108,16 @@ configuration of the device (`devices/batteries/<device_id>` or
 `devices/electric_vehicles/<device_id>`) selects the profile, adjusts it to the installed unit and
 sets how the battery is operated:
 
-| **Field**                                  | **Description**                                                       |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| `battery_profile`                          | Name of the battery profile (without `.json`). Default `generic-lfp`. |
-| `profile_adjustment/nominal_capacity_wh`   | Capacity of the installed unit [Wh]. Replaces the profile capacity.   |
-| `profile_adjustment/max_charge_power_w`    | Charge power limit of the installation [W]. Only lowers the profile.  |
-| `profile_adjustment/max_discharge_power_w` | Discharge power limit of the installation [W]. Only lowers it, too.   |
-| `min_soc_percentage`                       | Minimum SoC [%], raised to the technical minimum SoC of the profile.  |
-| `max_soc_percentage`                       | Maximum SoC [%], lowered to the technical maximum SoC of the profile. |
+| **Field**                                          | **Description**                                                 |
+| -------------------------------------------------- | --------------------------------------------------------------- |
+| `battery_profile`                                  | Battery profile name (without `.json`), default `generic-lfp`.  |
+| `profile_adjustment/nominal_capacity_wh`           | Capacity of the installed unit [Wh]. Replaces the profile's.    |
+| `profile_adjustment/max_charge_power_w`            | Charge power limit of the installation [W]. Only lowers.        |
+| `profile_adjustment/max_discharge_power_w`         | Discharge power limit of the installation [W]. Only lowers.     |
+| `profile_adjustment/full_charge_interval_days`     | Days between two full charges [d]. Replaces the profile's.      |
+| `profile_adjustment/full_charge_detect_percentage` | SoC that counts as full [%]. Replaces the profile's.            |
+| `min_soc_percentage`                               | Minimum SoC [%], at least the technical minimum of the profile. |
+| `max_soc_percentage`                               | Maximum SoC [%], at most the technical maximum of the profile.  |
 
 ```json
 "house": {
@@ -150,7 +152,8 @@ efficiency at the power of the slot.
 The resolved values are shown as read-only fields of the device configuration
 (`effective_nominal_capacity_wh`, `effective_max_charge_power_w`, `effective_max_discharge_power_w`,
 `effective_charging_efficiency`, `effective_discharging_efficiency`, `effective_min_soc_percentage`,
-`effective_max_soc_percentage`). These fields are evaluated at the reference operating point of
+`effective_max_soc_percentage`, `effective_full_charge_interval_days`,
+`effective_full_charge_detect_percentage`). These fields are evaluated at the reference operating point of
 25 °C and 50 % SoC.
 
 If a battery cannot be resolved, e.g. its profile does not exist or a generic profile lacks the
@@ -178,7 +181,9 @@ Configurations of earlier versions are migrated automatically. `capacity_wh` bec
 `profile_adjustment/max_charge_power_w`. A battery that relied on the former defaults gets them
 written into its profile adjustment (8000 Wh, 5000 W), so its capacity and charge limit do not
 change. The former fields `charging_efficiency` and `discharging_efficiency` are computed from the
-profile now and are dropped. Home Assistant `config_entity_ids` that point at moved fields are
+profile now and are dropped. The periodic full charge settings `full_charge_interval_days` and
+`full_charge_detect_percentage` move into the profile adjustment, `cell_chemistry` is dropped (the
+profile has the `chemistry`). Home Assistant `config_entity_ids` that point at moved fields are
 rewritten to the new paths.
 :::
 
@@ -191,7 +196,11 @@ A battery profile is a JSON document with:
 - charge and discharge efficiency curves over the C-rate,
 - technical SoC bounds and hard temperature cutoffs for charging and discharging,
 - the nominal capacity, except for a generic profile,
-- optionally the nominal voltage and model power limits.
+- optionally the nominal voltage and model power limits,
+- optionally the cell chemistry and the periodic full charge the battery management system needs
+  to recalibrate its SoC: `full_charge_interval_days` (none by default) and
+  `full_charge_detect_percentage` (default 99), see the periodic full charge of the GENETIC
+  optimization.
 
 All of these are required, except the optional ones. Unknown keys are rejected, so a misspelled
 key fails validation instead of being ignored.

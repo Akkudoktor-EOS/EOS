@@ -98,7 +98,14 @@ _BATTERY_FIELDS_TO_ADJUSTMENT = (
     ("nominal_capacity_wh", "nominal_capacity_wh"),
     ("max_charge_power_limit_w", "max_charge_power_w"),
     ("max_discharge_power_limit_w", "max_discharge_power_w"),
+    # Periodic full charge settings before battery profiles.
+    ("full_charge_interval_days", "full_charge_interval_days"),
+    ("full_charge_detect_percentage", "full_charge_detect_percentage"),
 )
+
+# Former battery fields whose value the battery profile provides now.
+# cell_chemistry was informational only; the profile has the chemistry.
+_BATTERY_FIELDS_NOW_IN_PROFILE = ("cell_chemistry",)
 
 # Keys that only battery settings with battery profiles have.
 _BATTERY_PROFILE_KEYS = (
@@ -126,11 +133,14 @@ def _migrate_battery_item(item: Dict[str, Any]) -> None:
       become ``nominal_capacity_wh``, ``max_charge_power_w`` and
       ``max_charge_power_limit_w`` become ``max_charge_power_w``,
       ``max_discharge_power_limit_w`` becomes ``max_discharge_power_w``.
+    - The periodic full charge interval and detection threshold move into
+      ``profile_adjustment`` under their names.
     - A value already present in ``profile_adjustment`` wins over a legacy one.
     - A battery without any battery profile key is from before battery
       profiles; it gets the former defaults (8000 Wh, 5000 W) for the values it
       left out.
-    - Fields that are computed from the battery profile now are dropped.
+    - Fields that are computed from the battery profile now, or that the
+      profile provides (``cell_chemistry``), are dropped.
 
     Configuration files are written without computed fields, so
     ``max_charge_power_w`` at the top level of a battery in a file is always the
@@ -147,7 +157,7 @@ def _migrate_battery_item(item: Dict[str, Any]) -> None:
     if before_profiles:
         for name, default in _BATTERY_PRE_PROFILE_DEFAULTS:
             adjustment.setdefault(name, default)
-    for name in _BATTERY_FIELDS_NOW_COMPUTED:
+    for name in (*_BATTERY_FIELDS_NOW_COMPUTED, *_BATTERY_FIELDS_NOW_IN_PROFILE):
         item.pop(name, None)
     if adjustment:
         item["profile_adjustment"] = adjustment
@@ -177,6 +187,12 @@ def _migrate_config_entity_ids(value: Any) -> Any:
                 logger.warning(
                     f"Dropping Home Assistant config entity '{entity_id}' for '{path}': "
                     "the value is computed from the battery profile now."
+                )
+                continue
+            elif parts[3] in _BATTERY_FIELDS_NOW_IN_PROFILE:
+                logger.warning(
+                    f"Dropping Home Assistant config entity '{entity_id}' for '{path}': "
+                    "the value comes from the battery profile now."
                 )
                 continue
         result[path] = entity_id

@@ -28,11 +28,13 @@ Configuration fields are inputs, in three groups:
   ``profile_adjustment`` holds how this unit differs from it: its nominal
   capacity (replaces the profile capacity; required for a generic profile) and
   the charge / discharge power limits of the installation (can only lower the
-  profile limits).
+  profile limits), and the periodic full charge interval and detection
+  threshold (replace the profile values).
 - Operating policy: ``min_soc_percentage`` / ``max_soc_percentage`` (kept within
   the technical SOC bounds of the profile), ``charge_rates``,
   ``min_charge_power_w``, ``levelized_cost_of_storage_amt_kwh``, the minimum SoC
-  deadline and the grid export rates.
+  deadline, the grid export rates and the periodic full charge target
+  (``full_charge_soc_percentage``, ``full_charge_allow_grid``).
 - Runtime state: ``capacity_estimation`` / ``capacity_estimate``.
 
 Computed fields are outputs, all named ``effective_*``. They are evaluated on
@@ -48,6 +50,8 @@ power):
 - ``effective_charging_efficiency`` / ``effective_discharging_efficiency``: profile
   efficiency curve at the maximum charge / discharge power.
 - ``effective_min_soc_percentage`` / ``effective_max_soc_percentage``.
+- ``effective_full_charge_interval_days`` / ``effective_full_charge_detect_percentage``:
+  profile adjustment, else profile (``resolve_full_charge``).
 
 Because pydantic also evaluates computed fields on every serialization
 (``model_dump``, ``model_dump_json``), they never raise: they are None if the
@@ -69,7 +73,7 @@ Measurements versus resolution
 """
 
 import re
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 from loguru import logger
@@ -89,6 +93,7 @@ from akkudoktoreos.devices.settings.batteryresolution import (
 )
 from akkudoktoreos.devices.settings.batteryresolution import (
     BATTERY_FALLBACK_CAPACITY_WH,
+    BatteryFullCharge,
     BatteryOperatingParameters,
     BatteryOperatingPoint,
     BatteryOperatingPointError,
@@ -99,6 +104,7 @@ from akkudoktoreos.devices.settings.batteryresolution import (
     resolve_battery_parameters,
     resolve_battery_parameters_without_profile,
     resolve_battery_power_curves,
+    resolve_full_charge,
     resolve_nominal_capacity_wh,
 )
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
@@ -174,6 +180,39 @@ class BatteryProfileAdjustment(SettingsBaseModel):
             "examples": [None, 5000],
         },
     )
+    full_charge_interval_days: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Maximum number of days between two full charges of a stationary "
+                "battery [d]. Replaces the interval of the battery profile. When the "
+                "next full charge falls due within the optimization horizon, the "
+                "maximum state of charge is raised to 'full_charge_soc_percentage'. "
+                "The periodic full charge is disabled if neither this nor the profile "
+                "sets an interval. Ignored for electric vehicles. The effective value "
+                "is available as 'effective_full_charge_interval_days'."
+            ),
+            "examples": [None, 21],
+        },
+    )
+    full_charge_detect_percentage: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=100,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Measured state of charge from which the battery counts as fully "
+                "charged [%]. Replaces the threshold of the battery profile. The "
+                "effective value is available as "
+                "'effective_full_charge_detect_percentage'."
+            ),
+            "examples": [None, 98],
+        },
+    )
 
 
 class BatteriesCommonSettings(DevicesBaseSettings):
@@ -210,7 +249,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         json_schema_extra={
             "description": (
                 "How this battery unit differs from its battery profile: nominal "
-                "capacity and installation power limits."
+                "capacity, installation power limits and periodic full charge."
             ),
             "examples": [{"nominal_capacity_wh": 8000, "max_charge_power_w": 5000}],
         },
@@ -767,37 +806,10 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     # ------------------------------------------------------------------
     # Periodic full charge (stationary batteries, GENETIC only)
     # ------------------------------------------------------------------
+    #
+    # The interval and the detection threshold are battery model properties:
+    # they come from the battery profile, see ``resolve_full_charge``.
 
-    cell_chemistry: Optional[Literal["LFP", "NMC", "NCA", "LTO"]] = Field(
-        default=None,
-        json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
-            "description": (
-                "Cell chemistry of the battery. Informational only, it does not "
-                "enable anything. LFP batteries usually need a periodic full charge "
-                "to recalibrate their state of charge, see "
-                "'full_charge_interval_days'."
-            ),
-            "examples": [None, "LFP"],
-        },
-    )
-    full_charge_interval_days: Optional[float] = Field(
-        default=None,
-        gt=0,
-        allow_inf_nan=False,
-        json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
-            "description": (
-                "Maximum number of days between two full charges of a stationary "
-                "battery [d]. The last full charge is taken from the measured state "
-                "of charge. When the next one falls due within the optimization "
-                "horizon, the maximum state of charge is raised to "
-                "'full_charge_soc_percentage'. None disables the periodic full "
-                "charge. Ignored for electric vehicles."
-            ),
-            "examples": [None, 21],
-        },
-    )
     full_charge_soc_percentage: int = Field(
         default=100,
         ge=1,
@@ -806,23 +818,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             "x-scope": [str(ConfigScope.GENETIC)],
             "description": (
                 "State of charge a periodic full charge has to reach [%]. May be "
-                "above 'max_soc_percentage', which then applies on the other days."
+                "above 'max_soc_percentage', which then applies on the other days. "
+                "Capped by the technical maximum SOC of the battery profile. The "
+                "interval comes from the battery profile or "
+                "'profile_adjustment.full_charge_interval_days'."
             ),
             "examples": [100],
-        },
-    )
-    full_charge_detect_percentage: int = Field(
-        default=99,
-        ge=1,
-        le=100,
-        json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
-            "description": (
-                "Measured state of charge from which the battery counts as fully "
-                "charged [%]. Many battery management systems never report exactly "
-                "100 %."
-            ),
-            "examples": [99],
         },
     )
     full_charge_allow_grid: bool = Field(
@@ -837,6 +838,34 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             "examples": [False, True],
         },
     )
+
+    def resolve_full_charge(self) -> BatteryFullCharge:
+        """Return the effective periodic full charge policy of this battery.
+
+        Never raises: if the battery profile is not usable, only the profile
+        adjustment and the defaults apply.
+        """
+        try:
+            profile: Optional["BatteryProfile"] = self._load_battery_profile()
+        except BatteryResolutionError as exc:
+            logger.debug(f"Battery '{self.device_id}': full charge without profile: {exc}")
+            profile = None
+        return resolve_full_charge(self, profile)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_full_charge_interval_days(self) -> Optional[float]:
+        """Maximum days between two full charges [d]: profile adjustment, else profile.
+
+        None if the periodic full charge is disabled.
+        """
+        return self.resolve_full_charge().interval_days
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_full_charge_detect_percentage(self) -> int:
+        """Measured SoC from which the battery counts as fully charged [%]."""
+        return self.resolve_full_charge().detect_percentage
 
     def to_genetic_pv_bat_param(
         self,
@@ -1013,8 +1042,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def _validate_soc_range(self) -> "BatteriesCommonSettings":
         if self.min_soc_percentage > self.max_soc_percentage:
             raise ValueError("min_soc_percentage must be <= max_soc_percentage")
-        if self.full_charge_detect_percentage > self.full_charge_soc_percentage:
-            raise ValueError("full_charge_detect_percentage must be <= full_charge_soc_percentage")
+        detect_percentage = self.profile_adjustment.full_charge_detect_percentage
+        if detect_percentage is not None and detect_percentage > self.full_charge_soc_percentage:
+            raise ValueError(
+                "profile_adjustment.full_charge_detect_percentage must be <= "
+                "full_charge_soc_percentage"
+            )
         max_charge_power_w = self.profile_adjustment.max_charge_power_w
         if (
             self.min_charge_power_w is not None

@@ -41,7 +41,9 @@ config path from ``self.device_id`` without needing an external index.
                    "profile_adjustment": {
                        "nominal_capacity_wh": 8000,
                        "max_charge_power_w": null,
-                       "max_discharge_power_w": null
+                       "max_discharge_power_w": null,
+                       "full_charge_interval_days": null,
+                       "full_charge_detect_percentage": null
                    },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
@@ -68,10 +70,7 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
-                   "cell_chemistry": null,
-                   "full_charge_interval_days": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false
                }
            },
@@ -85,7 +84,9 @@ config path from ``self.device_id`` without needing an external index.
                    "profile_adjustment": {
                        "nominal_capacity_wh": 60000,
                        "max_charge_power_w": null,
-                       "max_discharge_power_w": null
+                       "max_discharge_power_w": null,
+                       "full_charge_interval_days": null,
+                       "full_charge_detect_percentage": null
                    },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
@@ -112,10 +113,7 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
-                   "cell_chemistry": null,
-                   "full_charge_interval_days": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false
                }
            },
@@ -163,7 +161,9 @@ config path from ``self.device_id`` without needing an external index.
                    "profile_adjustment": {
                        "nominal_capacity_wh": 8000,
                        "max_charge_power_w": null,
-                       "max_discharge_power_w": null
+                       "max_discharge_power_w": null,
+                       "full_charge_interval_days": null,
+                       "full_charge_detect_percentage": null
                    },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
@@ -190,10 +190,7 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
-                   "cell_chemistry": null,
-                   "full_charge_interval_days": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false,
                    "effective_nominal_capacity_wh": 8000,
                    "effective_max_charge_power_w": 8000.0,
@@ -202,6 +199,8 @@ config path from ``self.device_id`` without needing an external index.
                    "effective_discharging_efficiency": 0.96,
                    "effective_min_soc_percentage": 0,
                    "effective_max_soc_percentage": 100,
+                   "effective_full_charge_interval_days": null,
+                   "effective_full_charge_detect_percentage": 99,
                    "measurement_key_soc_factor": "bat0-soc-factor",
                    "measurement_key_temperature_degc": "bat0-temperature-degc",
                    "measurement_key_charge_power_w": "bat0-charge-power-w",
@@ -232,7 +231,9 @@ config path from ``self.device_id`` without needing an external index.
                    "profile_adjustment": {
                        "nominal_capacity_wh": 60000,
                        "max_charge_power_w": null,
-                       "max_discharge_power_w": null
+                       "max_discharge_power_w": null,
+                       "full_charge_interval_days": null,
+                       "full_charge_detect_percentage": null
                    },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
                    "min_charge_power_w": 50,
@@ -259,10 +260,7 @@ config path from ``self.device_id`` without needing an external index.
                    ],
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
-                   "cell_chemistry": null,
-                   "full_charge_interval_days": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false,
                    "effective_nominal_capacity_wh": 60000,
                    "effective_max_charge_power_w": 60000.0,
@@ -271,6 +269,8 @@ config path from ``self.device_id`` without needing an external index.
                    "effective_discharging_efficiency": 0.96,
                    "effective_min_soc_percentage": 0,
                    "effective_max_soc_percentage": 100,
+                   "effective_full_charge_interval_days": null,
+                   "effective_full_charge_detect_percentage": 99,
                    "measurement_key_soc_factor": "ev0-soc-factor",
                    "measurement_key_temperature_degc": "ev0-temperature-degc",
                    "measurement_key_charge_power_w": "ev0-charge-power-w",

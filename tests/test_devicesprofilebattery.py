@@ -370,6 +370,33 @@ class TestBatteryProfileEfficiency:
         assert profile.technical_min_soc_percent == pytest.approx(5.0)
         assert profile.technical_max_soc_percent == pytest.approx(95.0)
 
+    def test_profile_carries_full_charge_characteristics(self):
+        profile = make_limits(
+            full_charge_interval_days=21.0, full_charge_detect_percentage=98
+        ).to_limits()
+
+        assert profile.full_charge_interval_days == pytest.approx(21.0)
+        assert profile.full_charge_detect_percentage == 98
+
+    def test_full_charge_characteristics_default_to_no_periodic_full_charge(self):
+        profile = make_limits().to_limits()
+
+        assert profile.full_charge_interval_days is None
+        assert profile.full_charge_detect_percentage == 99
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"full_charge_interval_days": 0.0},
+            {"full_charge_interval_days": float("inf")},
+            {"full_charge_detect_percentage": 0},
+            {"full_charge_detect_percentage": 101},
+        ],
+    )
+    def test_rejects_invalid_full_charge_characteristics(self, overrides):
+        with pytest.raises(ValidationError):
+            make_limits(**overrides)
+
 
 # --- Axes ----------------------------------------------------------------
 

@@ -268,6 +268,10 @@ class BatteryProfile:
         discharge_map: Precomputed discharge limit map.
         nominal_capacity_wh: Nominal capacity of the battery model [Wh], None for
             a generic profile.
+        full_charge_interval_days: Maximum number of days between two full
+            charges (SoC recalibration), None if not needed or unknown.
+        full_charge_detect_percentage: Reported SOC from which the battery
+            counts as fully charged [%].
     """
 
     battery_model: str
@@ -283,6 +287,8 @@ class BatteryProfile:
     charge_map: PrecomputedCargeDischargeLimitMap
     discharge_map: PrecomputedCargeDischargeLimitMap
     nominal_capacity_wh: Optional[float] = None
+    full_charge_interval_days: Optional[float] = None
+    full_charge_detect_percentage: int = 99
 
     def max_charge_crate(self, temperature_degC: float, soc_percent: float) -> Optional[float]:
         """Return the maximum charge limit at the given operating point.
@@ -634,4 +640,6 @@ def compile_battery_profile(
         charge_map=charge_map,
         discharge_map=discharge_map,
         nominal_capacity_wh=document.nominal_capacity_wh,
+        full_charge_interval_days=document.full_charge_interval_days,
+        full_charge_detect_percentage=document.full_charge_detect_percentage,
     )
