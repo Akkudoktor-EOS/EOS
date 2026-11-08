@@ -14,7 +14,16 @@ from contextlib import contextmanager
 from fnmatch import fnmatch
 from http import HTTPStatus
 from pathlib import Path
-from typing import Callable, Generator, Optional, TextIO, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generator,
+    Iterator,
+    Optional,
+    TextIO,
+    Union,
+    cast,
+)
 from unittest.mock import PropertyMock, patch
 
 import pandas as pd
@@ -30,6 +39,9 @@ from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_config, get_prediction, singletons_init
 from akkudoktoreos.core.version import _version_date_hash, version
 from akkudoktoreos.server.server import get_default_host
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Browser
 
 # -----------------------------------------------
 # Adapt pytest logging handling to Loguru logging
@@ -110,6 +122,52 @@ def pytest_addoption(parser):
         default=False,
         help="System test mode. Tests may access real resources, like prediction providers!",
     )
+    parser.addoption(
+        "--browser-test",
+        action="store_true",
+        default=False,
+        help=(
+            "Run the EOSdash browser tests (marker 'browser') in headless Chromium. "
+            "Needs the browser: uv run playwright install chromium"
+        ),
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip the browser tests unless --browser-test is given."""
+    if config.getoption("--browser-test"):
+        return
+    skip_browser = pytest.mark.skip(reason="browser test: enable with --browser-test")
+    for item in items:
+        if item.get_closest_marker("browser") is not None:
+            item.add_marker(skip_browser)
+
+
+@pytest.fixture(scope="class")
+def chromium() -> Iterator["Browser"]:
+    """Headless Chromium for the EOSdash browser tests, shared by a test class.
+
+    Class scope stops Playwright, and its event loop, right after the browser
+    tests, before other (e.g. asyncio) tests of the session run.
+
+    Fails (does not skip) if the browser cannot be started: browser tests only
+    run when requested by --browser-test, so a missing browser is an error.
+    """
+    from playwright.sync_api import Error as PlaywrightError
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        try:
+            browser = playwright.chromium.launch()
+        except PlaywrightError as exc:
+            pytest.fail(
+                f"Headless Chromium cannot be started: {exc}\n"
+                "Install it with: uv run --extra dev playwright install chromium"
+                " (Linux: add --with-deps)",
+                pytrace=False,
+            )
+        yield browser
+        browser.close()
 
 
 @pytest.fixture
@@ -430,6 +488,33 @@ def _test_server_process(pid: int, module: str, config_dir: str) -> Optional[psu
     return None
 
 
+def is_owned_pid(owned: psutil.Process, pid: object) -> bool:
+    """Check whether a reported PID is the owned process (on Windows also a descendant).
+
+    On Windows the virtual environment's ``python.exe`` is a launcher that runs the
+    real interpreter as a child process, so a server reports the child's PID. On
+    other platforms only the owned process itself matches, so a server that
+    reports the PID of a child (e.g. EOSdash started by EOS) is detected.
+
+    Args:
+        owned: Process handle captured by the test that started the process.
+        pid: PID reported by the server, e.g. by its health endpoint.
+
+    Returns:
+        True if ``pid`` is ``owned``, or on Windows one of its descendants.
+    """
+    if type(pid) is not int:
+        return False
+    if pid == owned.pid:
+        return True
+    if os.name != "nt":
+        return False
+    try:
+        return pid in {child.pid for child in owned.children(recursive=True)}
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
+
+
 def cleanup_eos_eosdash(
     host: str,
     port: int,
@@ -585,6 +670,8 @@ def server_base(
         env["EOS_DIR"] = eos_dir
         env["EOS_CONFIG_DIR"] = eos_dir
         env["EOS_GENERAL__DATA_FOLDER_PATH"] = eos_general_data_folder_path
+        # Windows consoles default to a legacy code page that cannot encode the log output.
+        env["PYTHONIOENCODING"] = "utf-8"
         if extra_env:
             env.update(extra_env)
 
@@ -652,9 +739,8 @@ def server_base(
             try:
                 response = requests.get(f"{server}/v1/health", timeout=10)
                 logger.debug(f"[xprocess] Health check: {response.status_code}")
-                if (
-                    response.status_code == 200
-                    and response.json().get("pid") == owned_processes[0].pid
+                if response.status_code == 200 and is_owned_pid(
+                    owned_processes[0], response.json().get("pid")
                 ):
                     return True
                 logger.debug(f"[xprocess] Health check: {response}")

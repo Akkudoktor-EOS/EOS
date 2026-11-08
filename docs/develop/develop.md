@@ -405,6 +405,39 @@ resources:
         make test-system
 ```
 
+If you change EOSdash, also run the browser tests. They start EOS and EOSdash and check the
+pages in a headless Chromium browser, e.g. that every page renders in light and dark mode without
+JavaScript errors. The browser has to be installed once:
+
+```{eval-rst}
+.. tabs::
+
+  .. tab:: Windows
+
+     .. code-block:: powershell
+
+        uv run --extra dev playwright install chromium
+        uv run --extra dev pytest --browser-test -m browser -vs
+
+  .. tab:: Linux
+
+     .. code-block:: bash
+
+        uv run --extra dev playwright install --with-deps chromium
+        uv run --extra dev pytest --browser-test -m browser -vs
+
+  .. tab:: Linux Make
+
+     .. code-block:: bash
+
+        sudo $(which uv) run --extra dev playwright install-deps chromium
+        make test-browser
+```
+
+On Linux the browser needs system libraries. Install them once with `--with-deps` or
+`install-deps` (requires root). On Windows no system libraries are needed. Without
+`--browser-test` the browser tests are skipped.
+
 To do profiling use:
 
 ```{eval-rst}

@@ -9,7 +9,7 @@ from pathlib import Path
 import psutil
 import pytest
 import requests
-from conftest import cleanup_eos_eosdash
+from conftest import cleanup_eos_eosdash, is_owned_pid
 from loguru import logger
 from pydantic import ValidationError
 
@@ -226,7 +226,7 @@ class TestServerStartStop:
             health = resp.json()
             assert health.get("status") == "alive"
             assert health.get("version") == __version__
-            assert health.get("pid") == process.pid
+            assert is_owned_pid(owned_processes[0], health.get("pid"))
 
             # Terminate the process started by this test, then reap it via asyncio.
             process.terminate()

@@ -87,6 +87,9 @@ dev = [
     "pytest-xprocess==1.0.2",
     "coverage==7.16.2",
     "pypdf==6.21.4",
+    # Browser tests of EOSdash (pytest --browser-test). The browser itself is installed
+    # separately: uv run playwright install chromium
+    "playwright==1.64.1",
 ]
 
 [project.urls]
@@ -161,7 +164,8 @@ minversion = "8.3.3"
 pythonpath = [ "src", ]
 testpaths = [ "tests", ]
 markers = [
-    "docker: marks tests that require a local Docker engine"
+    "docker: marks tests that require a local Docker engine",
+    "browser: marks EOSdash tests that run in a headless browser (enable with --browser-test)",
 ]
 filterwarnings = [
     # Treat pandas 4 deprecations in EOS code as errors; upstream callers remain visible.
