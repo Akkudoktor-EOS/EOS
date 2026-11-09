@@ -167,14 +167,14 @@ To install the **Akkudoktor-EOS** add-on in Home Assistant:
 echo "EOS_SESSKEY=$(openssl rand -hex 16)" > .env
 ```
   
-3. ** pull image and start
+3. **pull image and start**:
 
 ```bash
 docker pull akkudoktor/eos:latest
 docker compose up -d
 ```
 
-4. Access EOS:
+4. **Access EOS**:
 
    - API: http://localhost:8503
    - API docs: http://localhost:8503/docs
