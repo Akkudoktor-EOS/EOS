@@ -137,13 +137,54 @@ To install the **Akkudoktor-EOS** add-on in Home Assistant:
 
 ### Docker (Recommended)
 
+1. **create docker compose file**:
+
+   ```yaml
+   services:
+     eos:
+       image: akkudoktor/eos:latest
+       container_name: akkudoktoreos
+       restart: unless-stopped
+       environment:
+         - OPENBLAS_NUM_THREADS=1
+         - OMP_NUM_THREADS=1
+         - MKL_NUM_THREADS=1
+         - EOS_SERVER__HOST=0.0.0.0
+         - EOS_SERVER__PORT=8503
+         - EOS_SERVER__EOSDASH_HOST=0.0.0.0
+         - EOS_SERVER__EOSDASH_PORT=8504
+         # Change this to a random secret, e.g. output of: openssl rand -hex 32
+         - EOS_SERVER__EOSDASH_SESSKEY=change-me
+       ports:
+         - "8503:8503"   # EOS API
+         - "8504:8504"   # EOSdash
+       volumes:
+         - ./data:/data
+   ```
+2. **create a .env file with the secret**:
+
 ```bash
-wget https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/docker-compose.yaml
+echo "EOS_SESSKEY=$(openssl rand -hex 16)" > .env
+```
+  
+3. ** pull image and start
+
+```bash
 docker pull akkudoktor/eos:latest
 docker compose up -d
 ```
 
-Access the API at `http://localhost:8503` (docs at `http://localhost:8503/docs`)
+4. Access EOS:
+
+   - API: http://localhost:8503
+   - API docs: http://localhost:8503/docs
+   - EOSdash: http://localhost:8504
+
+Configuration and data are stored in `./data`.
+
+> **Note:** The `docker-compose.yaml` in the repository root is intended for development
+> (it builds the image locally and relies on the repository's `.env`). Use the file above
+> if you only want to run the published image.
 
 ### From Source
 
