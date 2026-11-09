@@ -96,6 +96,15 @@
                "calibration_prior_kwh": 5.0,
                "calibration_min_factor": 0.5,
                "calibration_max_factor": 1.5,
+               "snow_enabled": false,
+               "snow_lookback_days": 7,
+               "snow_threshold_snowfall_cm_per_hour": 0.5,
+               "snow_threshold_depth_cm": 1.0,
+               "snow_feedback_enabled": true,
+               "snow_feedback_gain": 0.8,
+               "snow_feedback_min_fraction": 0.05,
+               "snow_feedback_memory_hours": 12.0,
+               "snow_detection_ratio": 0.5,
                "regional_weather_model": "icon_d2",
                "regional_horizon_hours": 6,
                "learning_days": 21,
@@ -291,6 +300,15 @@
                "calibration_prior_kwh": 5.0,
                "calibration_min_factor": 0.5,
                "calibration_max_factor": 1.5,
+               "snow_enabled": false,
+               "snow_lookback_days": 7,
+               "snow_threshold_snowfall_cm_per_hour": 0.5,
+               "snow_threshold_depth_cm": 1.0,
+               "snow_feedback_enabled": true,
+               "snow_feedback_gain": 0.8,
+               "snow_feedback_min_fraction": 0.05,
+               "snow_feedback_memory_hours": 12.0,
+               "snow_detection_ratio": 0.5,
                "regional_weather_model": "icon_d2",
                "regional_horizon_hours": 6,
                "learning_days": 21,
@@ -893,6 +911,15 @@
 | regional_weather_model | `Optional[str]` | `rw` | `icon_d2` | None |
 | resolution_minutes | `int` | `rw` | `15` | Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block. |
 | shift_to_interval_start | `bool` | `rw` | `True` | Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not. |
+| snow_detection_ratio | `float` | `rw` | `0.5` | Measured/clear-model production ratio below which an interval counts as evidence of snow the weather model missed. |
+| snow_enabled | `bool` | `rw` | `False` | Model snow lying on the modules. Requests snowfall and snow depth from Open-Meteo and runs the NREL snow coverage model (pvlib.snow) per plane, which covers the modules on heavy snowfall and lets the snow slide off with warmth and sunshine. Without this, the forecast after a snowfall assumes clean modules. |
+| snow_feedback_enabled | `bool` | `rw` | `True` | Correct the modelled snow coverage with measured PV production from `measurement.pv_production_emr_keys`. Production well above the snow model clears the coverage at once; production far below the clear-module model raises it, but only while snow is plausible (snow on the ground or already modelled on the modules). Needs cumulative meter readings. |
+| snow_feedback_gain | `float` | `rw` | `0.8` | How far one measured interval pulls the coverage towards the observed value (1.0 = adopt the observation). |
+| snow_feedback_memory_hours | `float` | `rw` | `12.0` | When measured production shows more snow than modelled, the snow is assumed to slide off slower than the NREL model says. This damping fades back to the model's rate with this time constant after the last measurement. |
+| snow_feedback_min_fraction | `float` | `rw` | `0.05` | A measured interval is only used when the clear-module model expects at least this fraction of the installed AC capacity. Dawn, dusk and dark overcast carry no usable evidence about snow. |
+| snow_lookback_days | `int` | `rw` | `7` | Days of past weather (and PV measurements) replayed on every update to rebuild the current snow coverage. No state is stored between runs, so this must reach back before the last relevant snowfall. |
+| snow_threshold_depth_cm | `float` | `rw` | `1.0` | Ground snow depth below which the modules are assumed clear (pvlib `threshold_depth`). |
+| snow_threshold_snowfall_cm_per_hour | `float` | `rw` | `0.5` | Snowfall rate that fully covers the modules (pvlib `threshold_snowfall`). pvlib's default of 1.0 cm/h was tuned on US station data; Open-Meteo's hourly model snowfall is smoother, so a lower rate fits better. |
 | solar_response_enabled | `bool` | `rw` | `True` | Learn empirical angular response relative to separate, eligible reference arrays; activate only after issued-candidate validation. |
 | temperature_coefficient | `float` | `rw` | `-0.36` | Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses. |
 | total_curtailment_key | `Optional[str]` | `rw` | `None` | None |
@@ -943,6 +970,15 @@
                "calibration_prior_kwh": 5.0,
                "calibration_min_factor": 0.5,
                "calibration_max_factor": 1.5,
+               "snow_enabled": false,
+               "snow_lookback_days": 7,
+               "snow_threshold_snowfall_cm_per_hour": 0.5,
+               "snow_threshold_depth_cm": 1.0,
+               "snow_feedback_enabled": true,
+               "snow_feedback_gain": 0.8,
+               "snow_feedback_min_fraction": 0.05,
+               "snow_feedback_memory_hours": 12.0,
+               "snow_detection_ratio": 0.5,
                "regional_weather_model": "icon_d2",
                "regional_horizon_hours": 6.0,
                "learning_days": 21,
