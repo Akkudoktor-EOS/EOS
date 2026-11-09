@@ -1129,6 +1129,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             factors = updated
         return factors
 
+    @staticmethod
+    def _ceil_to_interval(moment: Any, interval_minutes: int) -> Any:
+        """Round a datetime up to the next slot boundary (UTC epoch grid)."""
+        step = interval_minutes * 60
+        epoch = int(math.ceil(moment.timestamp() / step) * step)
+        return to_datetime(epoch).in_timezone(moment.timezone)
+
     async def _pv_production_total_kwh(
         self, start_datetime: Any, end_datetime: Any, interval: Any
     ) -> np.ndarray:
@@ -1189,6 +1196,10 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         model_start = to_datetime(frame.index[0].to_pydatetime())
         if compare_datetimes(start, model_start).lt:
             start = model_start.start_of("minute").add(minutes=interval_minutes)
+        # Snap the start onto the slot grid. Meter readings arrive at arbitrary stamps
+        # (00:04:50); an unaligned start shifts the whole comparison grid off the
+        # resampled model rows, which then reindex to NaN and nothing is fitted.
+        start = self._ceil_to_interval(start, interval_minutes)
         if compare_datetimes(start, end).ge:
             logger.info(
                 "PVForecastAkkudoktorLocal calibration: measurement window too short - skipping."
