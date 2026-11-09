@@ -63,6 +63,9 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
   process as before) and `optimization.genetic.pin_workers` (workers pinned to the last
   cores, default on). For a fixed seed the plan is identical to a single-process run.
+- EOSdash setup assistant: the new **Setup** page explains the basic settings step by step,
+  gives examples, reports what is still missing and shows the configuration cards of the
+  current step. First steps: location, horizons and energy management, save the configuration.
 
 ### Changed / compatibility
 
