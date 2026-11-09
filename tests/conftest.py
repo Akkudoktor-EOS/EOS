@@ -153,7 +153,8 @@ def cfg_non_existent(request):
     # Before test
     from platformdirs import user_config_dir
 
-    user_dir = user_config_dir(ConfigEOS.APP_NAME)
+    # The same directory as ConfigEOS uses (app author matters on Windows).
+    user_dir = user_config_dir(ConfigEOS.APP_NAME, ConfigEOS.APP_AUTHOR)
     user_config_file = Path(user_dir).joinpath(ConfigEOS.CONFIG_FILE_NAME)
     cwd_config_file = Path.cwd().joinpath(ConfigEOS.CONFIG_FILE_NAME)
     assert not user_config_file.exists(), (

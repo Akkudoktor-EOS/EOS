@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 from typing import Any, Optional, Type, TypeVar, Union, get_args
@@ -524,4 +525,9 @@ def main():
         ConfigEOS._force_documentation_mode = False
 
 if __name__ == "__main__":
-    main()
+    # EOS creates a config file if it finds none. Let it do so in a temporary
+    # directory, not in the working directory (e.g. the repository root).
+    with tempfile.TemporaryDirectory(prefix="eos-docs-") as eos_dir:
+        os.environ["EOS_DIR"] = eos_dir
+        os.environ["EOS_CONFIG_DIR"] = eos_dir
+        main()
