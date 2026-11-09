@@ -89,21 +89,35 @@ class DashPage:
         the previous tab cannot be mistaken for the new tab: htmx does not swap
         error responses, which leaves the content area empty.
 
+        htmx swaps the content in after the response has arrived. For a
+        successful response this waits until the content area is filled again;
+        ``wait_for_load_state()`` would not wait, as the page itself is loaded.
+
         Args:
             path: Path of the tab, as in its ``hx-get`` attribute.
 
         Returns:
             HTTP status of the tab request.
         """
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
         self.page.eval_on_selector(PAGE_CONTENT_SELECTOR, "element => element.replaceChildren()")
         # The tabs add query values (e.g. dark=true): compare the path only.
         with self.page.expect_response(
             lambda response: urlsplit(response.url).path == path
         ) as response_info:
             self.page.click(f"button[hx-get='{path}']")
-        status = response_info.value.status
-        self.page.wait_for_load_state("networkidle")
-        return status
+        response = response_info.value
+        if response.ok:
+            try:
+                self.page.wait_for_function(
+                    "selector => document.querySelector(selector)?.innerHTML.trim() !== ''",
+                    arg=PAGE_CONTENT_SELECTOR,
+                )
+            except PlaywrightTimeoutError:
+                # Nothing was swapped in; the caller's content check reports it.
+                pass
+        return response.status
 
 
 def wait_for_eosdash(base_url: str) -> None:
