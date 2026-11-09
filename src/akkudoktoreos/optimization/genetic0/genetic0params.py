@@ -37,6 +37,7 @@ from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
     Genetic0HomeApplianceParameters,
 )
 from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
+from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
 from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
@@ -44,6 +45,20 @@ from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 # Do not import directly from akkudoktoreos.core.coreabc
 # EnergyManagementSystemMixin - Creates circular dependency with ems.py
 # StartMixin                  - Creates circular dependency with ems.py
+
+
+# Demo devices: used if no device is configured, and for this run only if the
+# configured device cannot be prepared.
+DEMO_BATTERY_SETTINGS: dict = {
+    "device_id": "battery1",
+    "profile_adjustment": {"nominal_capacity_wh": 8000},
+}
+DEMO_ELECTRIC_VEHICLE_SETTINGS: dict = {
+    "device_id": "ev1",
+    "profile_adjustment": {"nominal_capacity_wh": 50000},
+    "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+    "min_soc_percentage": 70,
+}
 
 
 class Genetic0EnergyManagementParameters(Genetic0ParametersBaseModel):
@@ -577,30 +592,30 @@ class Genetic0OptimizationParameters(
             else:
                 if cls.config.devices.batteries is None:
                     logger.info("No battery device data available - defaulting to demo data.")
-                    cls.config.devices.batteries = {
-                        "battery1": {
-                            "device_id": "battery1",
-                            "capacity_wh": 8000,
-                        },
-                    }
+                    cls.config.devices.batteries = {"battery1": dict(DEMO_BATTERY_SETTINGS)}
+                # Take first battery
+                battery_config = list(cls.config.devices.batteries.values())[0]
                 try:
-                    # Take first battery
-                    battery_config = list(cls.config.devices.batteries.values())[0]
-                    battery_params = battery_config.to_genetic0_pv_bat_param()
+                    # A configuration error gives default values, reported as error.
+                    (
+                        battery_parameters,
+                        _,
+                    ) = await battery_config.resolve_current_operating_parameters_or_defaults()
+                    battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
                 except Exception as e:
-                    logger.info(
-                        "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
+                    # Never cancel the run and never change the user's configuration:
+                    # optimize with the demo battery for this run only.
+                    logger.error(
+                        "Battery '{}' cannot be prepared for the optimization: {} "
+                        "Using the demo battery for this run.",
+                        battery_config.device_id,
                         e,
                     )
-                    cls.config.devices.batteries = {
-                        "battery1": {
-                            "device_id": "battery1",
-                            "capacity_wh": 8000,
-                        },
-                    }
-                    # Retry
-                    continue
+                    battery_config = BatteriesCommonSettings(**DEMO_BATTERY_SETTINGS)
+                    battery_parameters, _ = (
+                        battery_config.resolve_operating_parameters_or_defaults()
+                    )
+                    battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
                 # Levelized cost of ownership
                 if battery_config.levelized_cost_of_storage_amt_kwh is None:
                     logger.info(
@@ -644,34 +659,38 @@ class Genetic0OptimizationParameters(
                     )
                     cls.config.devices.max_electric_vehicles = 1
                     cls.config.devices.electric_vehicles = {
-                        "ev1": {
-                            "device_id": "ev1",
-                            "capacity_wh": 50000,
-                            "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                            "min_soc_percentage": 70,
-                        },
+                        "ev1": dict(DEMO_ELECTRIC_VEHICLE_SETTINGS)
                     }
+                # Take first electric_vehicle
+                electric_vehicle_config = list(cls.config.devices.electric_vehicles.values())[0]
                 try:
-                    # Take first electric_vehicle
-                    electric_vehicle_config = list(cls.config.devices.electric_vehicles.values())[0]
-                    electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param()
+                    # A configuration error gives default values, reported as error.
+                    (
+                        ev_parameters,
+                        _,
+                    ) = await electric_vehicle_config.resolve_current_operating_parameters_or_defaults()
+                    electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(
+                        ev_parameters
+                    )
                 except Exception as e:
-                    logger.info(
-                        "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
+                    # Never cancel the run and never change the user's configuration:
+                    # optimize with the demo electric vehicle for this run only.
+                    logger.error(
+                        "Electric vehicle '{}' cannot be prepared for the optimization: {} "
+                        "Using the demo electric vehicle for this run.",
+                        electric_vehicle_config.device_id,
                         e,
                     )
-                    cls.config.devices.max_electric_vehicles = 1
-                    cls.config.devices.electric_vehicles = {
-                        "ev1": {
-                            "device_id": "ev1",
-                            "capacity_wh": 50000,
-                            "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-                            "min_soc_percentage": 70,
-                        },
-                    }
-                    # Retry
-                    continue
+                    electric_vehicle_config = BatteriesCommonSettings(
+                        **DEMO_ELECTRIC_VEHICLE_SETTINGS
+                    )
+                    (
+                        ev_parameters,
+                        _,
+                    ) = electric_vehicle_config.resolve_operating_parameters_or_defaults()
+                    electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(
+                        ev_parameters
+                    )
                 # Initial SOC
                 try:
                     initial_soc_factor = await cls._nearest_soc_factor(

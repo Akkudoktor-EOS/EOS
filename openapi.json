@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611091577972738"
+    "version": "v0.3.0.dev2611111415621708"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -313,6 +313,317 @@
                     }
                   },
                   "title": "Response Get Household V1 Measurement Household Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile Kinds",
+        "description": "Return the registered profile kinds.",
+        "operationId": "get_profile_kinds_v1_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Get Profile Kinds V1 Profile Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile/{kind}": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profiles",
+        "description": "Return the profiles of a kind, from the user and the packaged data directory.",
+        "operationId": "get_profiles_v1_profile__kind__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProfileEntry"
+                  },
+                  "title": "Response Get Profiles V1 Profile  Kind  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile/{kind}/schema": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile Schema",
+        "description": "Return the JSON schema of the profile documents of a kind.",
+        "operationId": "get_profile_schema_v1_profile__kind__schema_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Profile Schema V1 Profile  Kind  Schema Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/profile/{kind}/{name}": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Get Profile",
+        "description": "Return the document of a profile (user profile first, then packaged).",
+        "operationId": "get_profile_v1_profile__kind___name__get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-').",
+              "title": "Name"
+            },
+            "description": "Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-')."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Profile V1 Profile  Kind   Name  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Put Profile",
+        "description": "Validate a profile document and save it to the user data directory.\n\nReturns the saved (validated, defaults filled in) document.",
+        "operationId": "put_profile_v1_profile__kind___name__put",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-').",
+              "title": "Name"
+            },
+            "description": "Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-')."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "The profile document.",
+                "title": "Document"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Put Profile V1 Profile  Kind   Name  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Delete Profile",
+        "description": "Delete a user profile.\n\nReturns the profile that applies now (the packaged one of the same name),\nor null if there is none.",
+        "operationId": "delete_profile_v1_profile__kind___name__delete",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile kind, e.g. 'battery'.",
+              "title": "Kind"
+            },
+            "description": "Profile kind, e.g. 'battery'."
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-').",
+              "title": "Name"
+            },
+            "description": "Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-')."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProfileEntry"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Delete Profile V1 Profile  Kind   Name  Delete"
                 }
               }
             }
@@ -3473,38 +3784,26 @@
                 "type": "null"
               }
             ],
-            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
+            "description": "Last explicitly stored capacity estimate; does not override the effective nominal capacity."
           },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "Capacity [Wh].",
-            "default": 8000,
+          "battery_profile": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Battery Profile",
+            "description": "Name of the battery profile (without '.json') providing the nominal capacity, power limits, efficiency curves and technical SOC bounds. Differences of this unit go into 'profile_adjustment'.",
+            "default": "generic-lfp",
             "examples": [
-              8000
+              "generic-lfp"
             ]
           },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "Charging efficiency [0.01 ... 1.00].",
-            "default": 0.88,
+          "profile_adjustment": {
+            "$ref": "#/components/schemas/BatteryProfileAdjustment",
+            "description": "How this battery unit differs from its battery profile: nominal capacity, installation power limits and periodic full charge.",
             "examples": [
-              0.88
-            ]
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "Discharge efficiency [0.01 ... 1.00].",
-            "default": 0.88,
-            "examples": [
-              0.88
+              {
+                "max_charge_power_w": 5000,
+                "nominal_capacity_wh": 8000
+              }
             ]
           },
           "levelized_cost_of_storage_amt_kwh": {
@@ -3514,23 +3813,6 @@
             "default": 0.0,
             "examples": [
               0.12
-            ]
-          },
-          "max_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power [W].",
-            "default": 5000,
-            "examples": [
-              5000
             ]
           },
           "min_charge_power_w": {
@@ -3593,7 +3875,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging.",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging. Raised to the technical minimum SOC of the battery profile if that is higher.",
             "default": 0,
             "examples": [
               10
@@ -3604,7 +3886,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%]. Lowered to the technical maximum SOC of the battery profile if that is lower.",
             "default": 100,
             "examples": [
               100
@@ -3683,74 +3965,15 @@
               "GENETIC"
             ]
           },
-          "cell_chemistry": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "LFP",
-                  "NMC",
-                  "NCA",
-                  "LTO"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cell Chemistry",
-            "description": "Cell chemistry of the battery. Informational only, it does not enable anything. LFP batteries usually need a periodic full charge to recalibrate their state of charge, see 'full_charge_interval_days'.",
-            "examples": [
-              null,
-              "LFP"
-            ],
-            "x-scope": [
-              "GENETIC"
-            ]
-          },
-          "full_charge_interval_days": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Full Charge Interval Days",
-            "description": "Maximum number of days between two full charges of a stationary battery [d]. The last full charge is taken from the measured state of charge. When the next one falls due within the optimization horizon, the maximum state of charge is raised to 'full_charge_soc_percentage'. None disables the periodic full charge. Ignored for electric vehicles.",
-            "examples": [
-              null,
-              21
-            ],
-            "x-scope": [
-              "GENETIC"
-            ]
-          },
           "full_charge_soc_percentage": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 1.0,
             "title": "Full Charge Soc Percentage",
-            "description": "State of charge a periodic full charge has to reach [%]. May be above 'max_soc_percentage', which then applies on the other days.",
+            "description": "State of charge a periodic full charge has to reach [%]. May be above 'max_soc_percentage', which then applies on the other days. Capped by the technical maximum SOC of the battery profile. The interval comes from the battery profile or 'profile_adjustment.full_charge_interval_days'.",
             "default": 100,
             "examples": [
               100
-            ],
-            "x-scope": [
-              "GENETIC"
-            ]
-          },
-          "full_charge_detect_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
-            "title": "Full Charge Detect Percentage",
-            "description": "Measured state of charge from which the battery counts as fully charged [%]. Many battery management systems never report exactly 100 %.",
-            "default": 99,
-            "examples": [
-              99
             ],
             "x-scope": [
               "GENETIC"
@@ -3806,38 +4029,26 @@
                 "type": "null"
               }
             ],
-            "description": "Last explicitly stored capacity estimate; does not override capacity_wh."
+            "description": "Last explicitly stored capacity estimate; does not override the effective nominal capacity."
           },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "Capacity [Wh].",
-            "default": 8000,
+          "battery_profile": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Battery Profile",
+            "description": "Name of the battery profile (without '.json') providing the nominal capacity, power limits, efficiency curves and technical SOC bounds. Differences of this unit go into 'profile_adjustment'.",
+            "default": "generic-lfp",
             "examples": [
-              8000
+              "generic-lfp"
             ]
           },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "Charging efficiency [0.01 ... 1.00].",
-            "default": 0.88,
+          "profile_adjustment": {
+            "$ref": "#/components/schemas/BatteryProfileAdjustment",
+            "description": "How this battery unit differs from its battery profile: nominal capacity, installation power limits and periodic full charge.",
             "examples": [
-              0.88
-            ]
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "Discharge efficiency [0.01 ... 1.00].",
-            "default": 0.88,
-            "examples": [
-              0.88
+              {
+                "max_charge_power_w": 5000,
+                "nominal_capacity_wh": 8000
+              }
             ]
           },
           "levelized_cost_of_storage_amt_kwh": {
@@ -3847,23 +4058,6 @@
             "default": 0.0,
             "examples": [
               0.12
-            ]
-          },
-          "max_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power [W].",
-            "default": 5000,
-            "examples": [
-              5000
             ]
           },
           "min_charge_power_w": {
@@ -3926,7 +4120,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging.",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging. Raised to the technical minimum SOC of the battery profile if that is higher.",
             "default": 0,
             "examples": [
               10
@@ -3937,7 +4131,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%]. Lowered to the technical maximum SOC of the battery profile if that is lower.",
             "default": 100,
             "examples": [
               100
@@ -4016,74 +4210,15 @@
               "GENETIC"
             ]
           },
-          "cell_chemistry": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "LFP",
-                  "NMC",
-                  "NCA",
-                  "LTO"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cell Chemistry",
-            "description": "Cell chemistry of the battery. Informational only, it does not enable anything. LFP batteries usually need a periodic full charge to recalibrate their state of charge, see 'full_charge_interval_days'.",
-            "examples": [
-              null,
-              "LFP"
-            ],
-            "x-scope": [
-              "GENETIC"
-            ]
-          },
-          "full_charge_interval_days": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Full Charge Interval Days",
-            "description": "Maximum number of days between two full charges of a stationary battery [d]. The last full charge is taken from the measured state of charge. When the next one falls due within the optimization horizon, the maximum state of charge is raised to 'full_charge_soc_percentage'. None disables the periodic full charge. Ignored for electric vehicles.",
-            "examples": [
-              null,
-              21
-            ],
-            "x-scope": [
-              "GENETIC"
-            ]
-          },
           "full_charge_soc_percentage": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 1.0,
             "title": "Full Charge Soc Percentage",
-            "description": "State of charge a periodic full charge has to reach [%]. May be above 'max_soc_percentage', which then applies on the other days.",
+            "description": "State of charge a periodic full charge has to reach [%]. May be above 'max_soc_percentage', which then applies on the other days. Capped by the technical maximum SOC of the battery profile. The interval comes from the battery profile or 'profile_adjustment.full_charge_interval_days'.",
             "default": 100,
             "examples": [
               100
-            ],
-            "x-scope": [
-              "GENETIC"
-            ]
-          },
-          "full_charge_detect_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 1.0,
-            "title": "Full Charge Detect Percentage",
-            "description": "Measured state of charge from which the battery counts as fully charged [%]. Many battery management systems never report exactly 100 %.",
-            "default": 99,
-            "examples": [
-              99
             ],
             "x-scope": [
               "GENETIC"
@@ -4102,10 +4237,138 @@
               "GENETIC"
             ]
           },
+          "effective_nominal_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Nominal Capacity Wh",
+            "description": "Effective nominal capacity [Wh]: profile adjustment, else profile.\n\nNone if the battery cannot be resolved.",
+            "readOnly": true
+          },
+          "effective_max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Max Charge Power W",
+            "description": "Maximum charging power [W] at the reference operating point.",
+            "readOnly": true
+          },
+          "effective_max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Max Discharge Power W",
+            "description": "Maximum discharging power [W] at the reference operating point.",
+            "readOnly": true
+          },
+          "effective_charging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Charging Efficiency",
+            "description": "Charging efficiency [0.01 ... 1.00] at the maximum charge power.",
+            "readOnly": true
+          },
+          "effective_discharging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Discharging Efficiency",
+            "description": "Discharging efficiency [0.01 ... 1.00] at the maximum discharge power.",
+            "readOnly": true
+          },
+          "effective_min_soc_percentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Min Soc Percentage",
+            "description": "Effective minimum SoC [%], within the technical bounds of the profile.",
+            "readOnly": true
+          },
+          "effective_max_soc_percentage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Max Soc Percentage",
+            "description": "Effective maximum SoC [%], within the technical bounds of the profile.",
+            "readOnly": true
+          },
+          "effective_full_charge_interval_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Full Charge Interval Days",
+            "description": "Maximum days between two full charges [d]: profile adjustment, else profile.\n\nNone if the periodic full charge is disabled.",
+            "readOnly": true
+          },
+          "effective_full_charge_detect_percentage": {
+            "type": "integer",
+            "title": "Effective Full Charge Detect Percentage",
+            "description": "Measured SoC from which the battery counts as fully charged [%].",
+            "readOnly": true
+          },
           "measurement_key_soc_factor": {
             "type": "string",
             "title": "Measurement Key Soc Factor",
             "description": "Measurement key for SoC as factor of total capacity [0.0 ... 1.0].",
+            "readOnly": true
+          },
+          "measurement_key_temperature_degc": {
+            "type": "string",
+            "title": "Measurement Key Temperature Degc",
+            "description": "Measurement key for the battery temperature [degC].",
+            "readOnly": true
+          },
+          "measurement_key_charge_power_w": {
+            "type": "string",
+            "title": "Measurement Key Charge Power W",
+            "description": "Measurement key for the charge power [W], used to compute the charging efficiency.",
+            "readOnly": true
+          },
+          "measurement_key_discharge_power_w": {
+            "type": "string",
+            "title": "Measurement Key Discharge Power W",
+            "description": "Measurement key for the discharge power [W], used for the discharging efficiency.",
             "readOnly": true
           },
           "measurement_key_power_l1_w": {
@@ -4144,7 +4407,19 @@
         },
         "type": "object",
         "required": [
+          "effective_nominal_capacity_wh",
+          "effective_max_charge_power_w",
+          "effective_max_discharge_power_w",
+          "effective_charging_efficiency",
+          "effective_discharging_efficiency",
+          "effective_min_soc_percentage",
+          "effective_max_soc_percentage",
+          "effective_full_charge_interval_days",
+          "effective_full_charge_detect_percentage",
           "measurement_key_soc_factor",
+          "measurement_key_temperature_degc",
+          "measurement_key_charge_power_w",
+          "measurement_key_discharge_power_w",
           "measurement_key_power_l1_w",
           "measurement_key_power_l2_w",
           "measurement_key_power_l3_w",
@@ -4372,6 +4647,105 @@
         ],
         "title": "BatteryCapacityRequest",
         "description": "Caller attests both anchors are independent of the capacity being fitted.\n\nEnd is the first confirmed full point when using the default end SoC.\nVoltage/current anchors must be independently established for the chemistry."
+      },
+      "BatteryProfileAdjustment": {
+        "properties": {
+          "nominal_capacity_wh": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nominal Capacity Wh",
+            "description": "Nominal capacity of the installed battery [Wh]. Replaces the capacity of the battery profile. Required if the profile is generic and provides no capacity. The effective value is available as 'effective_nominal_capacity_wh'.",
+            "examples": [
+              null,
+              8000
+            ]
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power of the installation, e.g. the inverter limit [W]. Can only lower the limits of the battery profile. The effective value is available as 'effective_max_charge_power_w'.",
+            "examples": [
+              null,
+              5000
+            ]
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power of the installation, e.g. the inverter limit [W]. Can only lower the limits of the battery profile. The effective value is available as 'effective_max_discharge_power_w'.",
+            "examples": [
+              null,
+              5000
+            ]
+          },
+          "full_charge_interval_days": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Interval Days",
+            "description": "Maximum number of days between two full charges of a stationary battery [d]. Replaces the interval of the battery profile. When the next full charge falls due within the optimization horizon, the maximum state of charge is raised to 'full_charge_soc_percentage'. The periodic full charge is disabled if neither this nor the profile sets an interval. Ignored for electric vehicles. The effective value is available as 'effective_full_charge_interval_days'.",
+            "examples": [
+              null,
+              21
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_detect_percentage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Detect Percentage",
+            "description": "Measured state of charge from which the battery counts as fully charged [%]. Replaces the threshold of the battery profile. The effective value is available as 'effective_full_charge_detect_percentage'.",
+            "examples": [
+              null,
+              98
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "BatteryProfileAdjustment",
+        "description": "How a battery unit differs from its battery profile.\n\nEach field is named after the profile field it adjusts. None keeps the\nprofile value."
       },
       "CacheCommonSettings": {
         "properties": {
@@ -4961,9 +5335,11 @@
             "examples": [
               {
                 "bat0": {
-                  "capacity_wh": 8000,
                   "device_id": "bat0",
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 8000
+                  }
                 }
               }
             ],
@@ -5009,9 +5385,11 @@
             "examples": [
               {
                 "ev0": {
-                  "capacity_wh": 60000,
                   "device_id": "ev0",
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 60000
+                  }
                 }
               }
             ],
@@ -5154,9 +5532,11 @@
             "examples": [
               {
                 "bat0": {
-                  "capacity_wh": 8000,
                   "device_id": "bat0",
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 8000
+                  }
                 }
               }
             ],
@@ -5202,9 +5582,11 @@
             "examples": [
               {
                 "ev0": {
-                  "capacity_wh": 60000,
                   "device_id": "ev0",
-                  "ports": []
+                  "ports": [],
+                  "profile_adjustment": {
+                    "nominal_capacity_wh": 60000
+                  }
                 }
               }
             ],
@@ -6097,7 +6479,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0.0
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -6106,6 +6488,23 @@
             "title": "Max Charge Power W",
             "description": "Maximum charging power in watts.",
             "default": 5000
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
           },
           "initial_soc_percentage": {
             "type": "integer",
@@ -6187,6 +6586,122 @@
                 1.0
               ],
               null
+            ]
+          },
+          "charge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Power Limit W By Soc",
+            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "discharge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Power Limit W By Soc",
+            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "charging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charging Efficiency Curve",
+            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  0.5,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.94
+                ]
+              ]
+            ]
+          },
+          "discharging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharging Efficiency Curve",
+            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
             ]
           },
           "min_soc_deadline_datetime": {
@@ -6287,6 +6802,18 @@
             "type": "integer",
             "title": "Max Charge Power W",
             "description": "Maximum charging power in watts."
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts."
           },
           "soc_wh": {
             "type": "number",
@@ -7726,7 +8253,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0.0
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -7735,6 +8262,23 @@
             "title": "Max Charge Power W",
             "description": "Maximum charging power in watts.",
             "default": 5000
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0: the battery may not discharge. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
           },
           "initial_soc_percentage": {
             "type": "integer",
@@ -8862,7 +9406,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0.0
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -8871,6 +9415,23 @@
             "title": "Max Charge Power W",
             "description": "Maximum charging power in watts.",
             "default": 5000
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0: the battery may not discharge. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
           },
           "initial_soc_percentage": {
             "type": "integer",
@@ -11398,10 +11959,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/battery1/capacity_wh\nDevices are addressed by their device_id. The setting must exist.",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/battery1/profile_adjustment/nominal_capacity_wh\nDevices are addressed by their device_id. The setting must exist.",
             "examples": [
               {
-                "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },
@@ -11574,10 +12135,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/battery1/capacity_wh\nDevices are addressed by their device_id. The setting must exist.",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/battery1/profile_adjustment/nominal_capacity_wh\nDevices are addressed by their device_id. The setting must exist.",
             "examples": [
               {
-                "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },
@@ -16448,6 +17009,46 @@
         "title": "PredictionCommonSettings",
         "description": "General Prediction Configuration."
       },
+      "ProfileEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Profile name, without the '.json' suffix.",
+            "examples": [
+              "generic-lfp"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "user",
+              "package"
+            ],
+            "title": "Source",
+            "description": "Where the document in effect comes from: 'user' (user data directory, editable) or 'package' (shipped with EOS, read only).",
+            "examples": [
+              "package"
+            ]
+          },
+          "packaged": {
+            "type": "boolean",
+            "title": "Packaged",
+            "description": "Whether a packaged profile of this name exists. Deleting a user profile that overrides it makes the packaged profile apply again.",
+            "examples": [
+              true
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "packaged"
+        ],
+        "title": "ProfileEntry",
+        "description": "A profile available in the store."
+      },
       "PydanticDateTimeData": {
         "additionalProperties": {
           "anyOf": [
@@ -17083,7 +17684,7 @@
             "anyOf": [
               {
                 "type": "number",
-                "exclusiveMinimum": 0.0
+                "minimum": 0.0
               },
               {
                 "type": "null"
@@ -17092,6 +17693,23 @@
             "title": "Max Charge Power W",
             "description": "Maximum charging power in watts.",
             "default": 5000
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
           },
           "initial_soc_percentage": {
             "type": "integer",
@@ -17173,6 +17791,122 @@
                 1.0
               ],
               null
+            ]
+          },
+          "charge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Power Limit W By Soc",
+            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "discharge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Power Limit W By Soc",
+            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "charging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charging Efficiency Curve",
+            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  0.5,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.94
+                ]
+              ]
+            ]
+          },
+          "discharging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharging Efficiency Curve",
+            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
             ]
           },
           "levelized_cost_of_storage_kwh": {

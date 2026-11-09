@@ -844,7 +844,7 @@ class TestConfigEOSToConfigFile:
 
 class TestDeviceSettings:
     def test_device_map_supplies_stable_identity(self):
-        raw = {"batteries": {"house": {"capacity_wh": 12000}}}
+        raw = {"batteries": {"house": {"profile_adjustment": {"nominal_capacity_wh": 12000}}}}
         a = DevicesCommonSettings.model_validate(raw)
         b = DevicesCommonSettings.model_validate(raw)
         assert a.batteries is not None and b.batteries is not None
@@ -854,6 +854,43 @@ class TestDeviceSettings:
     def test_device_map_rejects_conflicting_identity(self):
         with pytest.raises(ValidationError, match="device_id"):
             DevicesCommonSettings.model_validate({"batteries": {"house": {"device_id": "other"}}})
+
+    def test_check_battery_profiles_names_unresolvable_devices(self, config_eos):
+        # generic-lfp provides no capacity: the house battery lacks it, the car has it.
+        devices = DevicesCommonSettings.model_validate(
+            {
+                "batteries": {"house": {}},
+                "electric_vehicles": {"car": {"profile_adjustment": {"nominal_capacity_wh": 60000}}},
+            }
+        )
+        errors, warnings = devices.check_battery_profiles()
+        assert len(errors) == 1
+        assert "Battery 'house'" in errors[0]
+        assert warnings == []
+
+    def test_config_logs_battery_profile_problems_once(self, config_eos, monkeypatch):
+        from loguru import logger
+
+        monkeypatch.setattr(ConfigEOS, "_battery_profile_problems", ((), ()))
+        messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: messages.append(message.record["message"]), level="WARNING"
+        )
+        try:
+            config_eos.merge_settings_from_dict({"devices": {"batteries": {"house": {}}}})
+            config_eos.merge_settings_from_dict({"devices": {"max_batteries": 1}})
+            unresolvable = [m for m in messages if "Battery 'house'" in m]
+            # Logged on the change only, not again on the unrelated update.
+            assert len(unresolvable) == 1
+
+            messages.clear()
+            config_eos.set_nested_value(
+                "devices/batteries/house/profile_adjustment/nominal_capacity_wh", 10000
+            )
+            assert not [m for m in messages if "Battery 'house'" in m]
+            assert ConfigEOS._battery_profile_problems == ((), ())
+        finally:
+            logger.remove(sink_id)
 
 
 class TestConfigProviderValidation:
@@ -924,3 +961,70 @@ class TestDocumentationMode:
         assert settings.keys == ["a", "b"]
         monkeypatch.setattr(ConfigEOS, "_force_documentation_mode", True)
         assert settings.keys == []
+
+
+class TestConfigSetup:
+    """The configuration can be created when its computed fields need it.
+
+    A battery's computed fields resolve the battery profile, and the profile
+    store reads its directories from the configuration. Rendering the
+    configuration while ``ConfigEOS()`` is still being created must not fail.
+    """
+
+    @pytest.fixture
+    def uncreated_config_with_battery(self, uncreated_config: Path) -> None:
+        """Write a config file with a battery; get_config(init=True) creates the configuration."""
+        uncreated_config.write_text(
+            json.dumps(
+                {
+                    "devices": {
+                        "batteries": {
+                            "battery1": {
+                                "device_id": "battery1",
+                                "profile_adjustment": {"nominal_capacity_wh": 10240},
+                            }
+                        }
+                    }
+                }
+            )
+        )
+
+    def test_config_with_battery_is_created(self, uncreated_config_with_battery):
+        from akkudoktoreos.core.coreabc import get_config
+
+        config = get_config(init=True)
+
+        assert config.devices.batteries is not None
+        assert config.devices.batteries["battery1"].effective_nominal_capacity_wh == 10240
+
+    def test_config_with_battery_is_created_with_trace_logging(
+        self, uncreated_config_with_battery
+    ):
+        """With trace logging the configuration is rendered during its creation."""
+        from loguru import logger
+
+        from akkudoktoreos.core.coreabc import get_config
+
+        messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: messages.append(message.record["message"]), level="TRACE"
+        )
+        try:
+            config = get_config(init=True)
+        finally:
+            logger.remove(sink_id)
+
+        assert config.devices.batteries is not None
+        assert "battery1" in config.devices.batteries
+        setup_messages = [m for m in messages if m.startswith("Config setup:")]
+        assert len(setup_messages) == 1
+        assert "effective_nominal_capacity_wh=10240" in setup_messages[0]
+
+    def test_access_before_settings_are_loaded_raises(self, uncreated_config, monkeypatch):
+        """During creation the configuration is usable only once its settings are loaded."""
+        from akkudoktoreos.core import coreabc
+
+        monkeypatch.setattr(coreabc, "_config_eos_setup_running", True)
+
+        with pytest.raises(RuntimeError, match="before its settings are loaded"):
+            coreabc.get_config(init=True)

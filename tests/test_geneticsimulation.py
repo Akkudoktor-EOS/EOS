@@ -431,3 +431,118 @@ def test_simulation(genetic_simulation):
     ), "The sum of 'Home_appliance_wh_per_hour' should be 2000."
 
     print("All tests passed successfully.")
+
+
+def _profile_simulation(
+    battery_curves: dict, initial_soc_percentage: int = 50
+) -> tuple[GeneticSimulation, Battery]:
+    """48 slots with a battery that has the given profile curves, if any."""
+    hours = 48
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=8000,
+            initial_soc_percentage=initial_soc_percentage,
+            min_soc_percentage=10,
+            max_charge_power_w=6000,
+            max_discharge_power_w=4000,
+            charging_efficiency=0.95,
+            discharging_efficiency=0.9,
+            levelized_cost_of_storage_kwh=0.05,
+            **battery_curves,
+        ),
+        prediction_hours=hours,
+    )
+    inverter = Inverter(
+        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id="battery1"),
+        battery=battery,
+    )
+    rng = np.random.default_rng(7)
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters.model_validate(
+            dict(
+                pv_prognose_wh=(
+                    np.clip(np.sin(np.linspace(0, 4 * np.pi, hours)), 0, None) * 6000
+                ).tolist(),
+                strompreis_euro_pro_wh=rng.uniform(0.0002, 0.0004, hours).tolist(),
+                einspeiseverguetung_euro_pro_wh=0.00007,
+                preis_euro_pro_wh_akku=0.0001,
+                gesamtlast=rng.uniform(300, 2500, hours).tolist(),
+            )
+        ),
+        optimization_hours=24,
+        prediction_hours=hours,
+        inverter=inverter,
+    )
+    return simulation, battery
+
+
+def _run_plans(simulation: GeneticSimulation, battery: Battery) -> list[dict]:
+    rng = np.random.default_rng(11)
+    hours = battery.prediction_hours
+    results = []
+    for _ in range(5):
+        ac = rng.choice([0.0, 0.5, 1.0], hours)
+        dc = rng.choice([0.0, 1.0], hours)
+        discharge = rng.choice([0, 1], hours)
+        battery.reset()
+        simulation.ac_charge_hours = ac
+        simulation.dc_charge_hours = dc
+        simulation.bat_discharge_hours = discharge
+        battery.set_charge_per_hour(dc)
+        battery.set_discharge_per_hour(discharge)
+        results.append(simulation.simulate(start_hour=0))
+    return results
+
+
+def test_flat_profile_curves_reproduce_plain_simulation(config_eos):
+    """Constant profile tables and curves give exactly the plain battery result.
+
+    The battery with curves takes the generic discharge path of the inverter
+    and its own energy bookkeeping (LCOS); both must match the inlined path.
+    """
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+    )
+    plain = _run_plans(*_profile_simulation({}))
+    flat = _run_plans(
+        *_profile_simulation(
+            dict(
+                charge_power_limit_w_by_soc=[6000.0] * 101,
+                discharge_power_limit_w_by_soc=[4000.0] * 101,
+                charging_efficiency_curve=[(0.0, 0.95), (1.0, 0.95)],
+                discharging_efficiency_curve=[(0.0, 0.9), (1.0, 0.9)],
+            )
+        )
+    )
+    for plain_result, flat_result in zip(plain, flat):
+        for key in ("akku_soc_pro_stunde", "Netzbezug_Wh_pro_Stunde", "Kosten_Euro_pro_Stunde"):
+            assert flat_result[key] == pytest.approx(plain_result[key]), key
+        assert flat_result["Gesamt_Verluste"] == pytest.approx(plain_result["Gesamt_Verluste"])
+        assert flat_result["Gesamtbilanz_Euro"] == pytest.approx(plain_result["Gesamtbilanz_Euro"])
+
+
+def test_soc_taper_slows_charging_near_full(config_eos):
+    """Above 80 % SoC the tapered charge limit applies, below it does not."""
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+    )
+    taper = [6000.0] * 81 + [500.0] * 20
+    results = {}
+    for name, table in (("flat", [6000.0] * 101), ("taper", taper)):
+        simulation, battery = _profile_simulation(
+            dict(charge_power_limit_w_by_soc=table), initial_soc_percentage=82
+        )
+        hours = battery.prediction_hours
+        battery.reset()
+        simulation.ac_charge_hours = np.ones(hours)
+        simulation.dc_charge_hours = np.ones(hours)
+        simulation.bat_discharge_hours = np.zeros(hours)
+        battery.set_charge_per_hour(np.ones(hours))
+        battery.set_discharge_per_hour(np.zeros(hours))
+        results[name] = simulation.simulate(start_hour=0)["akku_soc_pro_stunde"]
+
+    # The tapered battery takes at most 500 W x 1 h (before efficiency) per slot.
+    assert results["taper"][1] < results["flat"][1]
+    assert results["taper"][1] - results["taper"][0] <= 500.0 * 0.95 / 8000 * 100 + 1e-9

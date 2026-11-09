@@ -103,6 +103,139 @@ Intermediate values scale the fill level proportionally.
 
 ### Battery Configuration
 
+The technical data of a battery or electric vehicle comes from a **battery profile**. The
+configuration of the device (`devices/batteries/<device_id>` or
+`devices/electric_vehicles/<device_id>`) selects the profile, adjusts it to the installed unit and
+sets how the battery is operated:
+
+| **Field**                                          | **Description**                                                 |
+| -------------------------------------------------- | --------------------------------------------------------------- |
+| `battery_profile`                                  | Battery profile name (without `.json`), default `generic-lfp`.  |
+| `profile_adjustment/nominal_capacity_wh`           | Capacity of the installed unit [Wh]. Replaces the profile's.    |
+| `profile_adjustment/max_charge_power_w`            | Charge power limit of the installation [W]. Only lowers.        |
+| `profile_adjustment/max_discharge_power_w`         | Discharge power limit of the installation [W]. Only lowers.     |
+| `profile_adjustment/full_charge_interval_days`     | Days between two full charges [d]. Replaces the profile's.      |
+| `profile_adjustment/full_charge_detect_percentage` | SoC that counts as full [%]. Replaces the profile's.            |
+| `min_soc_percentage`                               | Minimum SoC [%], at least the technical minimum of the profile. |
+| `max_soc_percentage`                               | Maximum SoC [%], at most the technical maximum of the profile.  |
+
+```json
+"house": {
+  "battery_profile": "generic-lfp",
+  "profile_adjustment": {
+    "nominal_capacity_wh": 10240,
+    "max_charge_power_w": 5000,
+    "max_discharge_power_w": 5000
+  },
+  "min_soc_percentage": 10,
+  "max_soc_percentage": 95
+}
+```
+
+EOS resolves every effective parameter from exactly two sources, the profile and the profile
+adjustment, evaluated at the operating point (battery temperature and SoC). There are no built-in
+fallback values:
+
+- **Capacity**: `profile_adjustment/nominal_capacity_wh`, else the nominal capacity of the
+  profile. A generic profile such as `generic-lfp` describes its limits as C-rates and has no
+  capacity of its own, so the adjustment has to provide it.
+- **Power limits**: the profile limit maps give the maximum charge and discharge rate per
+  temperature and SoC. The power limits of the adjustment can only lower them. At temperatures
+  outside the hard cutoffs of the profile charging or discharging is inhibited.
+- **Efficiencies**: the profile efficiency curves at the charge and discharge power.
+
+The GENETIC optimization evaluates the profile at the measured battery temperature, or at 25 °C if
+no temperature is measured. Its battery simulation then limits the charge and discharge power
+by the SoC at the start of each charge or discharge step, and takes the charge and discharge
+efficiency at the power of the slot.
+
+The resolved values are shown as read-only fields of the device configuration
+(`effective_nominal_capacity_wh`, `effective_max_charge_power_w`, `effective_max_discharge_power_w`,
+`effective_charging_efficiency`, `effective_discharging_efficiency`, `effective_min_soc_percentage`,
+`effective_max_soc_percentage`, `effective_full_charge_interval_days`,
+`effective_full_charge_detect_percentage`). These fields are evaluated at the reference operating point of
+25 °C and 50 % SoC.
+
+If a battery cannot be resolved, e.g. its profile does not exist or a generic profile lacks the
+capacity in the adjustment, its read-only fields are empty (`null`) and EOS logs an error naming
+the battery whenever the configuration is set up or changed. A power limit in the adjustment above
+the profile limit has no effect and is logged as a warning.
+
+The parameter preparation of the GENETIC and GENETIC0 optimizations always succeeds for such a
+configuration error. It resolves whatever the configuration allows and fills only the rest with
+the defaults of earlier versions, and it logs an error that names the battery, the problem and the
+default values used:
+
+- **Profile not usable** (missing, unreadable, invalid): the packaged generic profile
+  `generic-lfp` with the profile adjustment.
+- **Generic profile not usable either**: the profile adjustment where set, else 8000 Wh, 5000 W
+  charge and discharge power and efficiencies of 0.88, without SoC dependent power limits.
+- **Generic profile without capacity in the adjustment**: the profile with a capacity of 8000 Wh.
+- **SoC range outside the technical SoC bounds of the profile**: the technical SoC range.
+
+A profile that inhibits charging at the measured battery temperature is not a configuration
+error; the optimization reports it as error.
+
+:::{admonition} Note
+:class: note
+Configurations of earlier versions are migrated automatically. `capacity_wh` becomes
+`profile_adjustment/nominal_capacity_wh` and `max_charge_power_w` becomes the installation limit
+`profile_adjustment/max_charge_power_w`. A battery that relied on the former defaults gets them
+written into its profile adjustment (8000 Wh, 5000 W), so its capacity and charge limit do not
+change. The former fields `charging_efficiency` and `discharging_efficiency` are computed from the
+profile now and are dropped. The periodic full charge settings `full_charge_interval_days` and
+`full_charge_detect_percentage` move into the profile adjustment, `cell_chemistry` is dropped (the
+profile has the `chemistry`). Home Assistant `config_entity_ids` that point at moved fields are
+rewritten to the new paths. An entity on the former `max_charge_power_w` sets both
+`profile_adjustment/max_charge_power_w` and `profile_adjustment/max_discharge_power_w`, unless the
+discharge limit has its own entity.
+:::
+
+#### Battery Profiles
+
+A battery profile is a JSON document with:
+
+- charge and discharge limit maps over temperature and SoC (as C-rate, W or A), with their axes
+  and units,
+- charge and discharge efficiency curves over the C-rate,
+- technical SoC bounds and hard temperature cutoffs for charging and discharging,
+- the nominal capacity, except for a generic profile,
+- optionally the nominal voltage and model power limits,
+- optionally the cell chemistry and the periodic full charge the battery management system needs
+  to recalibrate its SoC: `full_charge_interval_days` (none by default) and
+  `full_charge_detect_percentage` (default 99), see the periodic full charge of the GENETIC
+  optimization.
+
+All of these are required, except the optional ones. Unknown keys are rejected, so a misspelled
+key fails validation instead of being ignored.
+
+EOS ships the profile `generic-lfp` for a generic LFP home battery. Profiles are looked up by name
+first in the user data directory `<general/data_folder_path>/profile/battery/` and then in the
+packaged profiles. Saving a profile always writes to the user data directory; a user profile with
+the name of a packaged profile replaces it until the user profile is deleted. Changed profiles are
+used on their next access, without a restart of EOS. A profile name is the file name without
+`.json`: letters, digits, `.`, `_` and `-`, starting with a letter or digit, at most 100
+characters. `schema` is reserved.
+
+Profiles can be managed with the REST API:
+
+| **Endpoint**                           | **Description**                                                  |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| **GET** `/v1/profile`                  | List the profile kinds (e.g. `battery`).                         |
+| **GET** `/v1/profile/{kind}`           | List the user and packaged profiles of a kind.                   |
+| **GET** `/v1/profile/{kind}/schema`    | JSON schema of the profile documents of a kind.                  |
+| **GET** `/v1/profile/{kind}/{name}`    | Get a profile document.                                          |
+| **PUT** `/v1/profile/{kind}/{name}`    | Validate a profile document and save it as user profile.         |
+| **DELETE** `/v1/profile/{kind}/{name}` | Delete a user profile. Returns the profile that applies instead. |
+
+The **Profiles** page of EOSdash edits battery profiles as JSON and plots the limit maps and
+efficiency curves as EOS evaluates them. Edits can be previewed before they are saved.
+
+To share a profile with other users, open it on the **Profiles** page and press **Share on
+GitHub**. It opens a new issue with the battery profile form in your browser, filled in with the
+profile; check it and submit it. EOS sends nothing itself. Reviewed profiles are packaged with
+EOS.
+
 ### Battery Stati
 
 To keep the battery simulation in synchonization with the actual stati of the battery the following

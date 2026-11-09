@@ -264,6 +264,8 @@ tests/testdata/config-new.md
 tests/testdata/*.new
 # Written by test_visualize into the working directory
 example_report.pdf
+# Written by test_geneticvisualize and test_genetic0visualize
+tests/testdata/**/test_example_report_new.pdf
 # Written by test_config into the working directory
 tests/testdata/docs/
 

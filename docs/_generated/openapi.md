@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2611091577972738`
+**Version**: `v0.3.0.dev2611111415621708`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -2064,6 +2064,188 @@ Args:
 - `force_update` (query, optional): No description provided.
 
 - `force_enable` (query, optional): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/profile
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_profile_kinds_v1_profile_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_profile_kinds_v1_profile_get)
+<!-- pyml enable line-length -->
+
+Get Profile Kinds
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the registered profile kinds.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## GET /v1/profile/{kind}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_profiles_v1_profile__kind__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_profiles_v1_profile__kind__get)
+<!-- pyml enable line-length -->
+
+Get Profiles
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the profiles of a kind, from the user and the packaged data directory.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `kind` (path, required): Profile kind, e.g. 'battery'.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/profile/{kind}/schema
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_profile_schema_v1_profile__kind__schema_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_profile_schema_v1_profile__kind__schema_get)
+<!-- pyml enable line-length -->
+
+Get Profile Schema
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the JSON schema of the profile documents of a kind.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `kind` (path, required): Profile kind, e.g. 'battery'.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## DELETE /v1/profile/{kind}/{name}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/delete_profile_v1_profile__kind___name__delete), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/delete_profile_v1_profile__kind___name__delete)
+<!-- pyml enable line-length -->
+
+Delete Profile
+
+<!-- pyml disable line-length -->
+```python
+"""
+Delete a user profile.
+
+Returns the profile that applies now (the packaged one of the same name),
+or null if there is none.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `kind` (path, required): Profile kind, e.g. 'battery'.
+
+- `name` (path, required): Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-').
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/profile/{kind}/{name}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_profile_v1_profile__kind___name__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_profile_v1_profile__kind___name__get)
+<!-- pyml enable line-length -->
+
+Get Profile
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the document of a profile (user profile first, then packaged).
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `kind` (path, required): Profile kind, e.g. 'battery'.
+
+- `name` (path, required): Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-').
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## PUT /v1/profile/{kind}/{name}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/put_profile_v1_profile__kind___name__put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/put_profile_v1_profile__kind___name__put)
+<!-- pyml enable line-length -->
+
+Put Profile
+
+<!-- pyml disable line-length -->
+```python
+"""
+Validate a profile document and save it to the user data directory.
+
+Returns the saved (validated, defaults filled in) document.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `kind` (path, required): Profile kind, e.g. 'battery'.
+
+- `name` (path, required): Profile name without '.json', e.g. 'generic-lfp' (letters, digits, '.', '_', '-').
+
+**Request Body**:
+
+- `application/json`: {
+  "type": "object",
+  "additionalProperties": true,
+  "description": "The profile document.",
+  "title": "Document"
+}
 
 **Responses**:
 

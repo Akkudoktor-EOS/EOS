@@ -498,3 +498,45 @@ class TestInverterSettings:
             getattr(settings, converter)()
         settings.max_power_w = 4200
         assert getattr(settings, converter)().max_power_wh == 4200
+
+
+def test_battery_discharge_limit_caps_load_and_grid_export():
+    """The inverter's inlined discharge uses the battery's discharge power limit."""
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery",
+            capacity_wh=10000,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            max_charge_power_w=7000,
+            max_discharge_power_w=4000,
+            initial_soc_percentage=100,
+        ),
+        prediction_hours=1,
+        slot_duration_h=0.25,
+    )
+    battery.set_discharge_per_hour(np.array([1]))
+    quarter_hour_inverter = Inverter(
+        InverterParameters(
+            device_id="inverter",
+            max_power_wh=10000,
+            battery_id="battery",
+            dc_to_ac_efficiency=1.0,
+            ac_to_dc_efficiency=1.0,
+        ),
+        battery=battery,
+        slot_duration_h=0.25,
+    )
+    initial_soc_wh = battery.soc_wh
+
+    grid_export, grid_import, _, _ = quarter_hour_inverter.process_energy(
+        generation=0.0,
+        consumption=1500.0,
+        hour=0,
+        allow_battery_grid_export=True,
+    )
+
+    # 4000 W for a quarter hour: 1000 Wh, all of it for the load.
+    assert initial_soc_wh - battery.soc_wh == pytest.approx(1000.0)
+    assert grid_import == pytest.approx(500.0)
+    assert grid_export == 0.0

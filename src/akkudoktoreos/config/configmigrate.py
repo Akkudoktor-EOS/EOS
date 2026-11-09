@@ -38,12 +38,17 @@ _KEEP_DEFAULT = object()
 
 def _list_to_device_dict(
     prefix: str,
+    migrate_item: Callable[[Dict[str, Any]], None] | None = None,
 ) -> Callable[[Any], Any]:
     """Return a transform that converts a list of device dicts to a keyed dict.
 
     Each item must be a dict.  The key is taken from the item's own
     ``device_id`` field when present; otherwise a key is synthesised
     from *prefix* + the zero-based index (e.g. ``"bat0"``, ``"bat1"``).
+
+    A dict that is already keyed by device id is accepted as well. If given,
+    *migrate_item* is called with a copy of every item (after the device id was
+    set) and migrates it in place, e.g. to rename or drop device specific fields.
     """
 
     def _transform(value: Any) -> Any:
@@ -67,10 +72,158 @@ def _list_to_device_dict(
                 item.setdefault(
                     "levelized_cost_of_storage_amt_kwh", item.pop("levelized_cost_of_storage_kwh")
                 )
+            if migrate_item is not None:
+                migrate_item(item)
             result[key] = item
         return result
 
     return _transform
+
+
+# Fields of BatteriesCommonSettings that used to be configuration fields and are
+# computed from the battery profile and the measurements now. Old values are
+# dropped with an error log.
+_BATTERY_FIELDS_NOW_COMPUTED = (
+    "charging_efficiency",
+    "discharging_efficiency",
+)
+
+# Former battery fields that describe how the unit differs from its battery
+# profile and move into ``profile_adjustment``: (legacy name, adjustment field).
+# The first two are fields of the settings before battery profiles, the others
+# of the interim settings with battery profiles but without profile adjustment.
+_BATTERY_FIELDS_TO_ADJUSTMENT = (
+    ("capacity_wh", "nominal_capacity_wh"),
+    # max_charge_power_w was the configured charge power limit of the installation.
+    ("max_charge_power_w", "max_charge_power_w"),
+    ("nominal_capacity_wh", "nominal_capacity_wh"),
+    ("max_charge_power_limit_w", "max_charge_power_w"),
+    ("max_discharge_power_limit_w", "max_discharge_power_w"),
+    # Periodic full charge settings before battery profiles.
+    ("full_charge_interval_days", "full_charge_interval_days"),
+    ("full_charge_detect_percentage", "full_charge_detect_percentage"),
+)
+
+# Former battery fields whose value the battery profile provides now.
+# cell_chemistry was informational only; the profile has the chemistry.
+_BATTERY_FIELDS_NOW_IN_PROFILE = ("cell_chemistry",)
+
+# Keys that only battery settings with battery profiles have.
+_BATTERY_PROFILE_KEYS = (
+    "battery_profile",
+    "profile_adjustment",
+    "nominal_capacity_wh",
+    "max_charge_power_limit_w",
+    "max_discharge_power_limit_w",
+)
+
+# Defaults of the battery settings before battery profiles. Configuration files
+# leave out default values, so a battery that relied on them gets them written
+# into its profile adjustment and keeps its capacity and charge power limit.
+_BATTERY_PRE_PROFILE_DEFAULTS = (
+    ("nominal_capacity_wh", 8000),
+    ("max_charge_power_w", 5000.0),
+)
+
+
+def _migrate_battery_item(item: Dict[str, Any]) -> None:
+    """Migrate one battery or electric vehicle settings dict in place.
+
+    - The capacity and the charge / discharge power limits of the installation
+      move into ``profile_adjustment``: ``capacity_wh`` and ``nominal_capacity_wh``
+      become ``nominal_capacity_wh``, ``max_charge_power_w`` and
+      ``max_charge_power_limit_w`` become ``max_charge_power_w``,
+      ``max_discharge_power_limit_w`` becomes ``max_discharge_power_w``.
+    - The periodic full charge interval and detection threshold move into
+      ``profile_adjustment`` under their names.
+    - A value already present in ``profile_adjustment`` wins over a legacy one.
+    - A battery without any battery profile key is from before battery
+      profiles; it gets the former defaults (8000 Wh, 5000 W) for the values it
+      left out. Its charge power limit also limited discharging, so it becomes
+      the discharge power limit too.
+    - Fields that are computed from the battery profile now, or that the
+      profile provides (``cell_chemistry``), are dropped. A dropped efficiency
+      is logged as error, as the profile efficiency applies instead.
+
+    Configuration files are written without computed fields, so
+    ``max_charge_power_w`` at the top level of a battery in a file is always the
+    legacy configuration value.
+    """
+    before_profiles = not any(key in item for key in _BATTERY_PROFILE_KEYS)
+    raw_adjustment = item.get("profile_adjustment")
+    adjustment = dict(raw_adjustment) if isinstance(raw_adjustment, dict) else {}
+    for legacy_name, new_name in _BATTERY_FIELDS_TO_ADJUSTMENT:
+        if legacy_name in item:
+            value = item.pop(legacy_name)
+            if value is not None:
+                adjustment.setdefault(new_name, value)
+    if before_profiles:
+        for name, default in _BATTERY_PRE_PROFILE_DEFAULTS:
+            adjustment.setdefault(name, default)
+        # Before battery profiles the charge power limit also capped discharging.
+        adjustment.setdefault("max_discharge_power_w", adjustment["max_charge_power_w"])
+    for name in _BATTERY_FIELDS_NOW_COMPUTED:
+        value = item.pop(name, None)
+        if value is not None:
+            logger.error(
+                "Battery '{}': '{}' {} is no longer a setting; the efficiency of the "
+                "battery profile applies. Adapt the battery profile if needed.",
+                item.get("device_id"),
+                name,
+                value,
+            )
+    for name in _BATTERY_FIELDS_NOW_IN_PROFILE:
+        item.pop(name, None)
+    if adjustment:
+        item["profile_adjustment"] = adjustment
+
+
+def _migrate_config_entity_ids(value: Any) -> Any:
+    """Rewrite Home Assistant config paths of battery fields moved into the profile adjustment.
+
+    E.g. ``devices/batteries/bat0/capacity_wh`` becomes
+    ``devices/batteries/bat0/profile_adjustment/nominal_capacity_wh``. Paths of
+    fields that are computed now are dropped, because they cannot be set.
+    """
+    if not isinstance(value, dict):
+        return value
+    moved = dict(_BATTERY_FIELDS_TO_ADJUSTMENT)
+    result: Dict[str, Any] = {}
+    for path, entity_id in value.items():
+        parts = path.strip("/").split("/") if isinstance(path, str) else []
+        if (
+            len(parts) == 4
+            and parts[0] == "devices"
+            and parts[1] in ("batteries", "electric_vehicles")
+        ):
+            if parts[3] in moved:
+                path = "/".join([*parts[:3], "profile_adjustment", moved[parts[3]]])
+            elif parts[3] in _BATTERY_FIELDS_NOW_COMPUTED:
+                logger.warning(
+                    f"Dropping Home Assistant config entity '{entity_id}' for '{path}': "
+                    "the value is computed from the battery profile now."
+                )
+                continue
+            elif parts[3] in _BATTERY_FIELDS_NOW_IN_PROFILE:
+                logger.warning(
+                    f"Dropping Home Assistant config entity '{entity_id}' for '{path}': "
+                    "the value comes from the battery profile now."
+                )
+                continue
+        result[path] = entity_id
+    # Before battery profiles the charge power limit also capped discharging,
+    # like the migrated profile adjustment does (see _migrate_battery_item).
+    for path, entity_id in value.items():
+        parts = path.strip("/").split("/") if isinstance(path, str) else []
+        if (
+            len(parts) == 4
+            and parts[0] == "devices"
+            and parts[1] in ("batteries", "electric_vehicles")
+            and parts[3] == "max_charge_power_w"
+        ):
+            discharge_path = "/".join([*parts[:3], "profile_adjustment", "max_discharge_power_w"])
+            result.setdefault(discharge_path, entity_id)
+    return result
 
 
 # -----------------------------
@@ -98,6 +251,10 @@ MIGRATION_MAP: Dict[
         "adapter/homeassistant/solution_entity_ids",
         lambda v: v if isinstance(v, list) else None,
     ),
+    "adapter/homeassistant/config_entity_ids": (
+        "adapter/homeassistant/config_entity_ids",
+        _migrate_config_entity_ids,
+    ),
     # - NodeRed
     # devices
     # =======
@@ -105,15 +262,18 @@ MIGRATION_MAP: Dict[
     # These must come *before* any sub-path entries that reference the old list indices,
     # so the whole collection is moved first; the sub-path None-drops clean up leftovers.
     # - batteries
+    #   capacity and installation power limits -> profile_adjustment,
+    #   fields that are computed now are dropped
     "devices/batteries": (
         "devices/batteries",
-        _list_to_device_dict("bat"),
+        _list_to_device_dict("bat", _migrate_battery_item),
     ),
     "devices/batteries/0/initial_soc_percentage": None,
     # - electric_vehicles
+    #   same item migration as for batteries
     "devices/electric_vehicles": (
         "devices/electric_vehicles",
-        _list_to_device_dict("ev"),
+        _list_to_device_dict("ev", _migrate_battery_item),
     ),
     "devices/electric_vehicles/0/initial_soc_percentage": None,
     # - inverters

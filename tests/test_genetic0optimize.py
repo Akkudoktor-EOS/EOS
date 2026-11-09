@@ -169,3 +169,62 @@ async def test_optimize(
 
     # Everything passed, remove generated files
     TESTDATA_FILE.unlink()
+
+
+class TestGenetic0SocClampedOperationFactors:
+    """The SOC clamping uses the optimizer battery parameters, not the settings.
+
+    Battery settings no longer hold capacity / efficiency / power fields (they
+    come from the battery profile), so reading them from the settings fails.
+    """
+
+    @pytest.fixture
+    def solution(self, config_eos: ConfigEOS) -> Genetic0Solution:
+        # A configured battery whose settings differ from the solution parameters.
+        config_eos.merge_settings_from_dict(
+            {
+                "devices": {
+                    "max_batteries": 1,
+                    "batteries": {
+                        "battery1": {"device_id": "battery1", "profile_adjustment": {"nominal_capacity_wh": 8000}}
+                    },
+                    "max_inverters": 0,
+                    "inverters": None,
+                }
+            }
+        )
+        data = json.loads((DIR_TESTDATA / "optimize_result_1.json").read_text())
+        return Genetic0Solution.model_validate(data)
+
+    def test_uses_solution_battery_parameters(self, solution):
+        bat = solution.parameters.pv_battery
+        assert bat is not None
+        assert bat.capacity_wh == 26400
+        # 1 % headroom of 26400 Wh against one hour at 5000 W and the charging
+        # efficiency of the parameters (no inverter configured).
+        headroom_wh = 0.01 * bat.capacity_wh
+        expected = headroom_wh / (bat.max_charge_power_w * bat.charging_efficiency)
+        ac, dc, dis = solution._soc_clamped_operation_factors(
+            1.0, 1.0, True, float(bat.max_soc_percentage) - 1.0
+        )
+        assert ac == pytest.approx(expected)
+        assert dc == pytest.approx(1.0)
+        assert dis is True
+
+    def test_full_and_empty_battery(self, solution):
+        bat = solution.parameters.pv_battery
+        assert solution._soc_clamped_operation_factors(
+            1.0, 1.0, True, float(bat.max_soc_percentage)
+        ) == (0.0, 0.0, True)
+        assert solution._soc_clamped_operation_factors(
+            0.0, 0.0, True, float(bat.min_soc_percentage)
+        ) == (0.0, 0.0, False)
+
+    def test_without_battery_parameters_factors_are_unchanged(self, solution):
+        solution.parameters.pv_battery = None
+        assert solution._soc_clamped_operation_factors(1.0, 0.5, True, 50.0) == (1.0, 0.5, True)
+
+    @pytest.mark.asyncio
+    async def test_optimization_solution_with_configured_battery(self, solution):
+        optimization_solution = await solution.optimization_solution()
+        assert optimization_solution is not None

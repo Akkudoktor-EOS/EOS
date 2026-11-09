@@ -1,5 +1,6 @@
 """Periodic full charge of a stationary battery (e.g. LFP recalibration)."""
 
+import dataclasses
 from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any, Optional
@@ -13,7 +14,18 @@ from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
-from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
+from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
+from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
+from akkudoktoreos.devices.profile.profilestore import get_profile_store
+from akkudoktoreos.devices.settings.batteryresolution import (
+    BatteryFullCharge,
+    BatteryOperatingPoint,
+    resolve_full_charge,
+)
+from akkudoktoreos.devices.settings.batterysettings import (
+    BatteriesCommonSettings,
+    BatteryProfileAdjustment,
+)
 from akkudoktoreos.optimization.genetic import configrequest
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.fullcharge import (
@@ -103,29 +115,93 @@ def test_fractional_interval():
 # ---------------------------------------------------------------------------
 
 
-def test_settings_defaults_disable_the_feature():
+def test_settings_defaults_disable_the_feature(config_eos):
     settings = BatteriesCommonSettings(device_id="battery1")
-    assert settings.full_charge_interval_days is None
-    assert settings.cell_chemistry is None
+    assert settings.profile_adjustment.full_charge_interval_days is None
+    assert settings.profile_adjustment.full_charge_detect_percentage is None
     assert settings.full_charge_soc_percentage == 100
-    assert settings.full_charge_detect_percentage == 99
     assert settings.full_charge_allow_grid is False
+    # The default profile sets no interval.
+    assert settings.effective_full_charge_interval_days is None
+    assert settings.effective_full_charge_detect_percentage == 99
+
+
+def test_profile_adjustment_sets_the_full_charge(config_eos):
+    settings = BatteriesCommonSettings(
+        device_id="battery1",
+        profile_adjustment=BatteryProfileAdjustment(
+            full_charge_interval_days=21, full_charge_detect_percentage=98
+        ),
+    )
+    assert settings.effective_full_charge_interval_days == 21
+    assert settings.effective_full_charge_detect_percentage == 98
 
 
 @pytest.mark.parametrize(
     "extra",
     [
-        {"full_charge_interval_days": 0},
-        {"full_charge_interval_days": -1},
+        {"profile_adjustment": {"full_charge_interval_days": 0}},
+        {"profile_adjustment": {"full_charge_interval_days": -1}},
+        {"profile_adjustment": {"full_charge_detect_percentage": 0}},
+        {"profile_adjustment": {"full_charge_detect_percentage": 101}},
         {"full_charge_soc_percentage": 0},
         {"full_charge_soc_percentage": 101},
-        {"full_charge_soc_percentage": 95, "full_charge_detect_percentage": 99},
-        {"cell_chemistry": "lithium"},
+        {
+            "full_charge_soc_percentage": 95,
+            "profile_adjustment": {"full_charge_detect_percentage": 99},
+        },
     ],
 )
 def test_invalid_settings_are_rejected(extra):
     with pytest.raises(ValidationError):
         BatteriesCommonSettings(device_id="battery1", **extra)
+
+
+def _profile(**changes: Any) -> BatteryProfile:
+    """The generic LFP profile with changed fields."""
+    return dataclasses.replace(
+        get_profile_store().get(BatteryProfileSettings, "generic-lfp"), **changes
+    )
+
+
+def test_resolve_full_charge_from_profile(config_eos):
+    settings = BatteriesCommonSettings(device_id="battery1")
+    profile = _profile(full_charge_interval_days=14.0, full_charge_detect_percentage=97)
+    assert resolve_full_charge(settings, profile) == BatteryFullCharge(
+        interval_days=14.0, soc_percentage=100, detect_percentage=97
+    )
+
+
+def test_resolve_full_charge_adjustment_wins_over_profile(config_eos):
+    settings = BatteriesCommonSettings(
+        device_id="battery1",
+        profile_adjustment=BatteryProfileAdjustment(
+            full_charge_interval_days=30, full_charge_detect_percentage=98
+        ),
+    )
+    profile = _profile(full_charge_interval_days=14.0, full_charge_detect_percentage=97)
+    assert resolve_full_charge(settings, profile) == BatteryFullCharge(
+        interval_days=30, soc_percentage=100, detect_percentage=98
+    )
+
+
+def test_resolve_full_charge_without_profile_uses_adjustment_and_defaults():
+    settings = BatteriesCommonSettings(
+        device_id="battery1",
+        profile_adjustment=BatteryProfileAdjustment(full_charge_interval_days=21),
+    )
+    assert resolve_full_charge(settings, None) == BatteryFullCharge(
+        interval_days=21, soc_percentage=100, detect_percentage=99
+    )
+
+
+def test_resolve_full_charge_caps_target_and_threshold(config_eos):
+    """The target stays within the technical bounds, the threshold below the target."""
+    settings = BatteriesCommonSettings(device_id="battery1")
+    profile = _profile(full_charge_interval_days=21.0, technical_max_soc_percent=95.5)
+    assert resolve_full_charge(settings, profile) == BatteryFullCharge(
+        interval_days=21.0, soc_percentage=95, detect_percentage=95
+    )
 
 
 def test_parameters_reject_target_above_max_soc():
@@ -181,10 +257,12 @@ def full_charge_request(config_eos, monkeypatch):
                 "max_home_appliances": 0,
                 "batteries": {
                     "storage": {
-                        "capacity_wh": 10000,
-                        "max_charge_power_w": 5000,
                         "max_soc_percentage": 90,
-                        "full_charge_interval_days": 21,
+                        "profile_adjustment": {
+                            "nominal_capacity_wh": 10000,
+                            "max_charge_power_w": 5000,
+                            "full_charge_interval_days": 21,
+                        },
                     }
                 },
                 "electric_vehicles": {},
@@ -212,6 +290,25 @@ def full_charge_request(config_eos, monkeypatch):
     return config_eos, start, measurement, data
 
 
+
+@pytest.mark.asyncio
+async def test_cold_battery_does_not_cancel_the_request(full_charge_request, monkeypatch):
+    """A battery the profile may not charge at its temperature still gets valid parameters."""
+    config, _, _, data = full_charge_request
+    config.devices.batteries["storage"].profile_adjustment.full_charge_interval_days = None
+
+    async def cold(self, target_datetime=None):
+        return BatteryOperatingPoint(temperature_degC=-5.0)
+
+    monkeypatch.setattr(BatteriesCommonSettings, "measure_operating_point", cold)
+
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.max_charge_power_w == 0.0
+    assert parameters.pv_battery.max_discharge_power_w is not None
+    assert parameters.pv_battery.max_discharge_power_w > 0.0
+
 def _history(start: DateTime, full_days_ago: Optional[float]) -> tuple[list[DateTime], list[float]]:
     """Hourly SoC history over 30 days, full once ``full_days_ago`` (if given)."""
     dates = [start.subtract(hours=hour) for hour in range(30 * 24, 0, -1)]
@@ -225,7 +322,7 @@ def _history(start: DateTime, full_days_ago: Optional[float]) -> tuple[list[Date
 @pytest.mark.asyncio
 async def test_feature_disabled_reads_no_history(full_charge_request):
     config, _, measurement, data = full_charge_request
-    config.devices.batteries["storage"].full_charge_interval_days = None
+    config.devices.batteries["storage"].profile_adjustment.full_charge_interval_days = None
     parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 90
@@ -301,6 +398,35 @@ async def test_missing_history_does_not_schedule_a_full_charge(full_charge_reque
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 90
     assert parameters.pv_battery.full_charge_soc_percentage is None
+
+
+@pytest.mark.asyncio
+async def test_profile_interval_schedules_the_full_charge(full_charge_request, monkeypatch):
+    """The interval of the profile applies without a profile adjustment."""
+    config, start, measurement, data = full_charge_request
+    device = config.devices.batteries["storage"]
+    device.profile_adjustment.full_charge_interval_days = None
+    device.full_charge_allow_grid = True
+    profile = _profile(full_charge_interval_days=21.0)
+    monkeypatch.setattr(BatteriesCommonSettings, "get_battery_profile", lambda self: profile)
+    measurement.key_to_lists.return_value = _history(start, full_days_ago=None)
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.max_soc_percentage == 100
+    assert parameters.pv_battery.full_charge_soc_percentage == 100
+
+
+@pytest.mark.asyncio
+async def test_full_charge_target_stays_within_technical_bounds(full_charge_request, monkeypatch):
+    config, start, measurement, data = full_charge_request
+    config.devices.batteries["storage"].full_charge_allow_grid = True
+    profile = _profile(technical_max_soc_percent=95.0)
+    monkeypatch.setattr(BatteriesCommonSettings, "get_battery_profile", lambda self: profile)
+    measurement.key_to_lists.return_value = _history(start, full_days_ago=None)
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.max_soc_percentage == 95
+    assert parameters.pv_battery.full_charge_soc_percentage == 95
 
 
 # ---------------------------------------------------------------------------

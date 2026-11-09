@@ -458,7 +458,7 @@ class TestHomeAssistantConfigEntityIds:
                     "batteries": {
                         "battery1": {
                             "device_id": "battery1",
-                            "capacity_wh": 8000,
+                            "profile_adjustment": {"nominal_capacity_wh": 8000},
                             "min_soc_percentage": 10,
                         }
                     }
@@ -476,10 +476,10 @@ class TestHomeAssistantConfigEntityIds:
     async def test_sets_value_by_device_id(self, config) -> None:
         await self._sync(
             config,
-            {"devices/batteries/battery1/capacity_wh": "sensor.capacity"},
+            {"devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": "sensor.capacity"},
             {"sensor.capacity": "12000"},
         )
-        assert config.devices.batteries["battery1"].capacity_wh == 12000
+        assert config.devices.batteries["battery1"].profile_adjustment.nominal_capacity_wh == 12000
 
     @pytest.mark.asyncio
     async def test_applies_zero(self, config) -> None:
@@ -496,17 +496,17 @@ class TestHomeAssistantConfigEntityIds:
     async def test_keeps_value_of_unavailable_entity(self, config, state) -> None:
         await self._sync(
             config,
-            {"devices/batteries/battery1/capacity_wh": "sensor.capacity"},
+            {"devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": "sensor.capacity"},
             {"sensor.capacity": state},
         )
-        assert config.devices.batteries["battery1"].capacity_wh == 8000
+        assert config.devices.batteries["battery1"].profile_adjustment.nominal_capacity_wh == 8000
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "config_key",
         [
-            "devices/batteries/0/capacity_wh",
-            "devices/batteries/battery2/capacity_wh",
+            "devices/batteries/0/profile_adjustment/nominal_capacity_wh",
+            "devices/batteries/battery2/profile_adjustment/nominal_capacity_wh",
             "devices/batteries/battery1/no_such_setting",
         ],
     )
@@ -518,6 +518,6 @@ class TestHomeAssistantConfigEntityIds:
         await self._sync(config, {config_key: "sensor.capacity"}, {"sensor.capacity": "12000"})
 
         assert list(config.devices.batteries) == ["battery1"]
-        assert config.devices.batteries["battery1"].capacity_wh == 8000
+        assert config.devices.batteries["battery1"].profile_adjustment.nominal_capacity_wh == 8000
         mock_logger.error.assert_called_once()
         assert config_key in mock_logger.error.call_args.args[0]

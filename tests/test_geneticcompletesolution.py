@@ -17,7 +17,7 @@ def test_battery_discharge_allowed_remains_local_load_mode(config_eos):
         discharge_allowed=True,
     )
 
-    assert operation_mode == BatteryOperationMode.PEAK_SHAVING
+    assert operation_mode == BatteryOperationMode.SELF_CONSUMPTION
     assert operation_mode_factor == 1.0
 
 

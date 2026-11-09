@@ -10,7 +10,8 @@ from akkudoktoreos.optimization.genetic0.genetic0devices import Genetic0DevicePa
 def max_charging_power_field(description: Optional[str] = None) -> float:
     if description is None:
         description = "Maximum charging power in watts."
-    return Field(default=5000, gt=0, json_schema_extra={"description": description})
+    # 0: the battery may not charge, e.g. the profile inhibits it at a low temperature.
+    return Field(default=5000, ge=0, json_schema_extra={"description": description})
 
 
 def initial_soc_percentage_field(description: str) -> int:
@@ -53,6 +54,17 @@ class Genetic0BaseBatteryParameters(Genetic0DeviceParameters):
     )
     discharging_efficiency: float = discharging_efficiency_field(0.88)
     max_charge_power_w: Optional[float] = max_charging_power_field()
+    max_discharge_power_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "Maximum discharging power in watts. 0: the battery may not discharge. "
+                "None uses max_charge_power_w."
+            ),
+            "examples": [None, 4000],
+        },
+    )
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
     )
@@ -136,6 +148,11 @@ class Genetic0Battery:
             self.max_charge_power_w = self.parameters.max_charge_power_w
         else:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
+        # The charge power may be 0 (e.g. too cold to charge) while discharging is allowed.
+        if self.parameters.max_discharge_power_w is not None:
+            self.max_discharge_power_w = self.parameters.max_discharge_power_w
+        else:
+            self.max_discharge_power_w = self.max_charge_power_w
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
@@ -232,7 +249,7 @@ class Genetic0Battery:
             return 0.0, 0.0
 
         # Maximum raw discharge due to power limit
-        max_raw_wh = self.max_charge_power_w  # TODO rename to max_discharge_power_w
+        max_raw_wh = self.max_discharge_power_w
 
         # Actual raw withdrawal (internal)
         raw_withdrawal_wh = min(raw_available_wh, max_raw_wh)
