@@ -15,7 +15,10 @@ from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     PVForecastAkkudoktorLocal,
     PVForecastAkkudoktorLocalCommonSettings,
+    _slot_window,
+    _utc_timestamp,
 )
+from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
 
 LATITUDE = 52.52
 LONGITUDE = 13.405
@@ -724,3 +727,187 @@ def test_file_migration_rejects_invalid_local_settings(config_eos, invalid):
                 }
             }
         )
+
+
+@pytest.mark.parametrize(
+    ("interval_minutes", "lookback_start", "last", "earliest", "expected"),
+    [
+        pytest.param(
+            15,
+            "2025-06-01T00:00:00Z",
+            "2025-06-02T00:07:00Z",
+            ["2025-06-01T00:04:50Z"],
+            ("2025-06-01T00:15:00Z", "2025-06-02T00:00:00Z"),
+            id="unaligned-earliest-rounds-up-to-first-covered-slot",
+        ),
+        pytest.param(
+            15,
+            "2025-06-01T00:00:00Z",
+            "2025-06-02T00:00:00Z",
+            ["2025-06-01T00:15:00Z"],
+            ("2025-06-01T00:15:00Z", "2025-06-02T00:00:00Z"),
+            id="on-grid-earliest-is-kept",
+        ),
+        pytest.param(
+            15,
+            "2025-06-01T00:07:00Z",
+            "2025-06-02T00:00:00Z",
+            ["2025-05-01T00:04:50Z", pd.Timestamp("2025-05-31T23:45:00Z")],
+            ("2025-06-01T00:00:00Z", "2025-06-02T00:00:00Z"),
+            id="lookback-limited",
+        ),
+        pytest.param(
+            60,
+            "2025-06-01T06:00:00+05:45",
+            "2025-06-02T06:00:00+05:45",
+            [],
+            ("2025-06-01T00:00:00Z", "2025-06-02T00:00:00Z"),
+            id="quarter-hour-offset-zone-on-utc-grid",
+        ),
+    ],
+)
+def test_slot_window_bounds_share_the_utc_slot_grid(
+    interval_minutes: int,
+    lookback_start: str,
+    last: str,
+    earliest: list[str | pd.Timestamp],
+    expected: tuple[str, str],
+) -> None:
+    window = _slot_window(
+        interval_minutes,
+        to_datetime(lookback_start),
+        to_datetime(last),
+        [value if isinstance(value, pd.Timestamp) else to_datetime(value) for value in earliest],
+    )
+
+    assert window is not None
+    assert window == (pd.Timestamp(expected[0]), pd.Timestamp(expected[1]))
+
+
+def test_slot_window_without_a_whole_slot_is_none() -> None:
+    window = _slot_window(
+        60,
+        to_datetime("2025-06-01T00:00:00Z"),
+        to_datetime("2025-06-01T01:30:00Z"),
+        [to_datetime("2025-06-01T00:10:00Z")],
+    )
+
+    assert window is None
+
+
+async def _feed_unaligned_measurements(
+    instance: PVForecastAkkudoktorLocal,
+    frame: pd.DataFrame,
+    bias: float,
+    key: str,
+    first: DateTime,
+    cadence_minutes: int,
+) -> None:
+    """Write a real-world-like meter: jittered cadence, unaligned stamps.
+
+    Home Assistant style meters report whenever they change, so neither the first
+    reading nor any later reading falls on a slot boundary.
+    """
+    instance.config.measurement.pv_production_emr_keys = [key]
+    measurement = get_measurement()
+    power = frame["ac_power"]
+    row_hours = (frame.index[1] - frame.index[0]).total_seconds() / 3600.0
+    # Cumulative energy at every native slot boundary, interpolated to arbitrary stamps.
+    cumulative = (power * row_hours * bias / 1000.0).cumsum().shift(1, fill_value=0.0)
+    seconds = (cumulative.index - cumulative.index[0]).total_seconds().to_numpy()
+    jitter = [0, 21, 47, 13, 34]
+    timestamp = first
+    step = 0
+    while compare_datetimes(timestamp, START).lt:
+        offset = _utc_timestamp(timestamp) - cumulative.index[0]
+        value = float(np.interp(offset.total_seconds(), seconds, cumulative.to_numpy()))
+        await measurement.update_value(timestamp, key, round(value, 3))
+        timestamp = timestamp.add(minutes=cadence_minutes, seconds=jitter[step % len(jitter)])
+        step += 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("timezone", "first", "cadence_minutes", "interval_minutes", "expected_start"),
+    [
+        pytest.param(
+            "UTC", "2025-06-09T00:04:50Z", 5, 15, "2025-06-09T00:15:00Z", id="meter-start-15min"
+        ),
+        pytest.param(
+            "Asia/Kathmandu",
+            "2025-06-09T00:04:50Z",
+            5,
+            15,
+            "2025-06-09T00:15:00Z",
+            id="meter-start-15min-offset-zone",
+        ),
+        pytest.param(
+            "Asia/Kathmandu",
+            "2025-06-09T00:04:50Z",
+            60,
+            60,
+            "2025-06-09T01:00:00Z",
+            id="meter-start-hourly-offset-zone",
+        ),
+        pytest.param(
+            "UTC", "2025-05-31T20:04:50Z", 5, 15, "2025-05-31T23:45:00Z", id="model-start-15min"
+        ),
+    ],
+)
+async def test_calibration_with_short_unaligned_meter_history(
+    pvforecast_instance,
+    monkeypatch,
+    timezone: str,
+    first: str,
+    cadence_minutes: int,
+    interval_minutes: int,
+    expected_start: str,
+):
+    """A PV meter younger than the lookback window must still be fitted.
+
+    Regression: the window start was taken from the first PV reading (e.g. 00:04:50)
+    without snapping it to the slot grid, so the model grid (00:19:50, 00:34:50, ...)
+    never hit a resampled model row and every interval was discarded as NaN. The
+    window must start at the first slot the readings fully cover and hold whole
+    slots on the UTC grid, also in zones with a quarter-hour offset.
+    """
+    pvforecast_instance.config.merge_settings_from_dict(
+        {"general": {"timezone_override": timezone}}
+    )
+    assert pvforecast_instance.config.general.timezone == timezone
+    pvforecast_instance.config.pvforecast.akkudoktor = PVForecastAkkudoktorLocalCommonSettings(
+        calibration_enabled=True,
+        calibration_days=30,
+        calibration_reference_days=30,
+        calibration_azimuth_bin_degrees=0,
+    )
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    await _feed_unaligned_measurements(
+        pvforecast_instance,
+        frame,
+        bias=0.8,
+        key=f"pv_unaligned_emr_{cadence_minutes}",
+        first=to_datetime(first),
+        cadence_minutes=cadence_minutes,
+    )
+    windows: list[tuple[DateTime, DateTime]] = []
+    production_total_kwh = PVForecastAkkudoktorLocal._pv_production_total_kwh
+
+    async def recording_production_total_kwh(self, start_datetime, end_datetime, interval):
+        windows.append((start_datetime, end_datetime))
+        return await production_total_kwh(self, start_datetime, end_datetime, interval)
+
+    monkeypatch.setattr(
+        PVForecastAkkudoktorLocal, "_pv_production_total_kwh", recording_production_total_kwh
+    )
+
+    calibration = await pvforecast_instance._fit_calibration(frame)
+
+    assert calibration is not None
+    global_factor, _ = calibration
+    assert global_factor == pytest.approx(0.8, abs=0.03)
+    start, end = windows[0]
+    assert compare_datetimes(start, to_datetime(expected_start)).equal
+    slot_seconds = interval_minutes * 60
+    assert start.timestamp() % slot_seconds == 0
+    assert end.timestamp() % slot_seconds == 0
