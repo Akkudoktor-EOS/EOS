@@ -1,0 +1,134 @@
+# ai/compose.yaml
+# Sandbox for the AkkudoktorEOS AI coding agent.
+# The launchers (run.sh, run.ps1, run.bat) sanity-check a few of the controls below.
+# The real protection of this file is the read-only mount of ai/: the agent
+# cannot change the sandbox definition from inside the sandbox.
+
+services:
+  ai-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UID: ${HOST_UID:-1000}
+        GID: ${HOST_GID:-1000}
+    image: akkudoktor-eos-ai:latest
+    # NOTE: no container_name — required for `docker compose run` and parallelism.
+    working_dir: /workspace
+
+    # ------------------------------------------------------------------
+    # Filesystem isolation
+    # ------------------------------------------------------------------
+    read_only: true
+
+    volumes:
+      # Repo, read-write (needed by the agent to edit code).
+      - ..:/workspace:rw
+
+      # Read-only overlays for the sandbox definition the launcher uses.
+      # Without them the agent could rewrite what the next launch runs.
+      # - ai/: compose.yaml, Dockerfile, entrypoint.sh and the launchers.
+      # - ai/skills/: read-only unless the launcher is started with
+      #   AI_SANDBOX_SKILLS_RW=1 (the launcher sets AI_SANDBOX_SKILLS_MODE).
+      # .git stays writable, so the agent can commit. Read-only overlays of
+      # .git/hooks or .git/config would not protect the host anyway: git also
+      # reads config and hooks from the directory named in .git/commondir, and
+      # .git itself can be renamed. Neither can tracked files the host runs
+      # (Makefile, .pre-commit-config.yaml, tests, scripts) be protected this
+      # way: review .git and every change on the host before running git or
+      # anything else there (docs/develop/ai.md, review checklist).
+      - ../ai:/workspace/ai:ro
+      - ../ai/skills:/workspace/ai/skills:${AI_SANDBOX_SKILLS_MODE:-ro}
+
+      # Persistent state for CLI auth, caches and Claude memory/transcripts.
+      # This volume persists between sessions, so a misled session can leave
+      # state behind that takes effect later (e.g. agent settings and hooks in
+      # ~/.claude, ~/.gitconfig, the venv in ~/.cache). The entrypoint resets
+      # the shell startup files on every start; for everything else, remove the
+      # volume (docker volume rm akkudoktor-ai-home) if a session may have been
+      # misled. entrypoint.sh lives in the image (/usr/local/bin), not here.
+      # No `nocopy`: an empty volume is populated from the image's /home/dev,
+      # which also gives it the owner of /home/dev (the dev user). With
+      # `nocopy`, a fresh volume is owned by root and the container cannot start.
+      - type: volume
+        source: ai-home
+        target: /home/dev
+
+    tmpfs:
+      # /tmp is needed by many tools but must never be executable.
+      - /tmp:rw,nosuid,nodev,noexec,size=512m,mode=1777
+      # /run and /var/tmp kept in-memory, noexec.
+      - /run:rw,nosuid,nodev,noexec,size=64m
+      - /var/tmp:rw,nosuid,nodev,noexec,size=256m
+
+    # ------------------------------------------------------------------
+    # Privilege & capability isolation
+    # ------------------------------------------------------------------
+    privileged: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # ------------------------------------------------------------------
+    # Network
+    # ------------------------------------------------------------------
+    networks:
+      - ai-net
+
+    # ------------------------------------------------------------------
+    # Testing ports — loopback-only on the host.
+    # 127.0.0.1:... prevents exposing these services to the LAN/VPN.
+    # Add new ports here only when you have a concrete test need.
+    # ------------------------------------------------------------------
+    ports:
+      - "127.0.0.1:8503:8503"
+      - "127.0.0.1:8504:8504"
+
+    # ------------------------------------------------------------------
+    # Resource limits (defense in depth against runaway agents)
+    # ------------------------------------------------------------------
+    mem_limit: 4g
+    memswap_limit: 4g          # == mem_limit: disables swap for this cgroup
+    pids_limit: 512            # fork-bomb protection
+    cpus: 2.0
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
+
+    # ------------------------------------------------------------------
+    # Environment
+    # ------------------------------------------------------------------
+    environment:
+      - TERM=xterm-256color
+      - CLAUDE_CONFIG_DIR=/home/dev/.claude
+      - HOME=/home/dev
+      # Keep the agent's virtual environment out of the host's .venv in every
+      # shell and tool call (see ai/skills/python-environment/SKILL.md).
+      - UV_PROJECT_ENVIRONMENT=/home/dev/.cache/eos-venv
+      # Disable shell history writing so a hijacked home doesn't retain commands.
+      - HISTFILE=/dev/null
+      - HISTSIZE=0
+      # Trust the repository: Docker Desktop (Windows, macOS) shows the bind
+      # mount as owned by root, and git refuses a repository owned by another
+      # user ("dubious ownership"). Set here, not in ~/.gitconfig, so it does
+      # not depend on the home volume.
+      - GIT_CONFIG_COUNT=1
+      - GIT_CONFIG_KEY_0=safe.directory
+      - GIT_CONFIG_VALUE_0=/workspace
+      # Optional git identity, passed through from the host shell
+      # (export GIT_USER_NAME / GIT_USER_EMAIL before ./ai/run.sh).
+      - GIT_USER_NAME
+      - GIT_USER_EMAIL
+
+    stdin_open: true
+    tty: true
+
+networks:
+  ai-net:
+    driver: bridge
+
+volumes:
+  ai-home:
+    name: akkudoktor-ai-home
