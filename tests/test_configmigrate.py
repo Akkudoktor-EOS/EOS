@@ -264,3 +264,38 @@ class TestDeviceMigration:
         assert migrated.devices.batteries is not None
         assert migrated.devices.batteries["house"].levelized_cost_of_storage_amt_kwh == 0.123
         assert raw == original
+
+
+class TestSlashKeyedDictMigration:
+    """Dict entries whose keys contain '/' must survive migration unchanged."""
+
+    ENTITY_IDS = {
+        "devices/electric_vehicles/ev11/max_soc_percentage": "sensor.ev_max_soc",
+        "devices/electric_vehicles/ev11/min_soc_deadline_datetime": "sensor.ev_departure",
+        "devices/electric_vehicles/ev11/min_soc_percentage": "sensor.ev_target_soc",
+    }
+
+    def test_migrate_config_data_keeps_slash_keys(self):
+        raw = {"adapter": {"homeassistant": {"config_entity_ids": dict(self.ENTITY_IDS)}}}
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == self.ENTITY_IDS
+        assert not any(p.startswith("adapter/homeassistant") for p in configmigrate.skipped_paths)
+
+    def test_migrate_config_file_keeps_slash_keys(self, config_default_dirs):
+        config_default_dir_user, _, _, _ = config_default_dirs
+        config_file = config_default_dir_user.joinpath(ConfigEOS.CONFIG_FILE_NAME)
+        config_file.write_text(
+            json.dumps(
+                {
+                    "general": {"version": "0.0.0-old"},
+                    "adapter": {"homeassistant": {"config_entity_ids": self.ENTITY_IDS}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert configmigrate.migrate_config_file(config_file, config_file.with_suffix(".bak"))
+
+        migrated = json.loads(config_file.read_text(encoding="utf-8"))
+        assert migrated["general"]["version"] == __version__
+        assert migrated["adapter"]["homeassistant"]["config_entity_ids"] == self.ENTITY_IDS
