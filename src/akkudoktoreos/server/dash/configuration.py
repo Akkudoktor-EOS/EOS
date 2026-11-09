@@ -457,6 +457,12 @@ def config_options(
 # -----------------------------------
 
 
+def remember_eos_server(eos_host: str, eos_port: Union[str, int]) -> None:
+    """Remember the address of the EOS server for the lazily loaded options of config values."""
+    global eos_server_address
+    eos_server_address = (eos_host, int(eos_port))
+
+
 def config_update(eos_host: str, eos_port: Union[str, int], data: dict) -> None:
     """Set a configuration value on the EOS server.
 
@@ -586,11 +592,11 @@ def Configuration(
     Returns:
         rows:  Rows of configuration details.
     """
-    global config_visible, eos_server_address
+    global config_visible
     dark = False
 
     # Remember for usage
-    eos_server_address = (eos_host, int(eos_port))
+    remember_eos_server(eos_host, eos_port)
 
     if data and data.get("action", None):
         if data.get("dark", None) == "true":

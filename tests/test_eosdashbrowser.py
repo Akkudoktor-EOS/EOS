@@ -201,3 +201,21 @@ class TestEOSdashInBrowser:
         assert dash.page.locator("#wizard").count() == 1
         assert "Step 2 of" in dash.page_content()
         assert dash.errors == []
+
+    def test_setup_wizard_shows_provider_settings(self, dash: DashPage) -> None:
+        """Selecting a provider in the setup wizard shows its settings, which work in the wizard."""
+        assert dash.open_tab("/eosdash/wizard") == 200
+        dash.page.click("#wizard-step-pv")
+        dash.page.wait_for_selector("#wizard[hx-vals*='\"pv\"']")
+
+        dash.page.click("#wizard summary:has-text('pvforecast.provider')")
+        dash.page.select_option("#pvforecast-provider-value-select", "PVForecastAkkudoktor")
+        dash.page.click("#pvforecast-provider-update-value-form button")
+        planes = "#wizard summary:has-text('pvforecast.planes')"
+        dash.page.wait_for_selector(planes)
+
+        # The card of a list of items sends its updates to the wizard, too
+        dash.page.click(f"{planes} button:has-text('Add item')")
+        dash.page.wait_for_selector(f"{planes} >> text=1 item")
+        assert dash.page.locator("#wizard[hx-vals*='\"pv\"']").count() == 1
+        assert dash.errors == []
