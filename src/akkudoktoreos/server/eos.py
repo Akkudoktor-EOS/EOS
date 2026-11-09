@@ -81,6 +81,7 @@ from akkudoktoreos.server.rest.error import (
     register_problem_handlers,
 )
 from akkudoktoreos.server.rest.measurement import router as measurement_router
+from akkudoktoreos.server.rest.profile import router as profile_router
 from akkudoktoreos.server.rest.pvakkuadaptrest import router as pvadaptive_router
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 from akkudoktoreos.server.retentionmanager import RetentionManager
@@ -271,6 +272,7 @@ The genetic optimization API fields were renamed from German to English. For bac
 # ----------------------
 
 app.include_router(measurement_router)
+app.include_router(profile_router)
 app.include_router(pvadaptive_router)
 
 register_problem_handlers(app)

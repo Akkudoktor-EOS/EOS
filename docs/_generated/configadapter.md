@@ -136,7 +136,7 @@ There are two URLs that are used:
 | ---- | ---- | --------- | ------- | ----------- |
 | config_entity_ids | `Optional[dict[str, str]]` | `rw` | `None` | Mapping of EOS config keys to Home Assistant entity IDs.
 The config key has to be given by a ‘/’-separated path
-e.g. devices/batteries/battery1/capacity_wh
+e.g. devices/batteries/battery1/profile_adjustment/nominal_capacity_wh
 Devices are addressed by their device_id. The setting must exist. |
 | device_instruction_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity IDs for device (resource) instructions to be updated by EOS.
 The device ids (resource ids) have to be prepended by 'sensor.eos_' to build the entity_id.
@@ -165,7 +165,7 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
        "adapter": {
            "homeassistant": {
                "config_entity_ids": {
-                   "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity"
+                   "devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": "sensor.battery1_capacity"
                },
                "load_emr_entity_ids": [
                    "sensor.load_energy_total_kwh"
@@ -205,7 +205,7 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
        "adapter": {
            "homeassistant": {
                "config_entity_ids": {
-                   "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity"
+                   "devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": "sensor.battery1_capacity"
                },
                "load_emr_entity_ids": [
                    "sensor.load_energy_total_kwh"

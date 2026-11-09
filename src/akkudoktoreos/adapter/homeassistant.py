@@ -39,12 +39,12 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
             "description": (
                 "Mapping of EOS config keys to Home Assistant entity IDs.\n"
                 "The config key has to be given by a ‘/’-separated path\n"
-                "e.g. devices/batteries/battery1/capacity_wh\n"
+                "e.g. devices/batteries/battery1/profile_adjustment/nominal_capacity_wh\n"
                 "Devices are addressed by their device_id. The setting must exist."
             ),
             "examples": [
                 {
-                    "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity",
+                    "devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": "sensor.battery1_capacity",
                 }
             ],
         },

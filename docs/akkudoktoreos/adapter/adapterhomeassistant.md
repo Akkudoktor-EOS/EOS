@@ -149,9 +149,9 @@ by Home Assistant integrations, such as:
 These values are typically consumed by EOS **device simulations** during optimisation.
 
 The configuration key is the `/`-separated path of the setting. Devices are addressed by their
-`device_id`, e.g. `devices/batteries/battery1/capacity_wh`. Only existing settings are updated: a
-path that names no setting, e.g. a device that is not configured, is reported as an error in the
-EOS log. An entity that is unavailable or unknown leaves the configured value unchanged.
+`device_id`, e.g. `devices/batteries/battery1/profile_adjustment/nominal_capacity_wh`. Only
+existing settings are updated: a path that names no setting, e.g. a device that is not configured,
+is reported as an error in the EOS log. An entity that is unavailable or unknown leaves the configured value unchanged.
 
 ### 3.2 Device measurement entity IDs
 

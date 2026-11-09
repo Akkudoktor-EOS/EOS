@@ -311,3 +311,36 @@ def test_car_and_pv_battery_discharge_and_max_charge_power(setup_pv_battery, set
     assert car_battery.parameters.max_charge_power_w == 7000, (
         "Car battery max charge power should remain as defined"
     )
+
+
+def _battery_with_limits(max_charge_power_w, max_discharge_power_w=None) -> Genetic0Battery:
+    params = Genetic0SolarPanelBatteryParameters(
+        device_id="battery1",
+        capacity_wh=10000,
+        initial_soc_percentage=50,
+        min_soc_percentage=10,
+        max_soc_percentage=90,
+        max_charge_power_w=max_charge_power_w,
+        max_discharge_power_w=max_discharge_power_w,
+    )
+    battery = Genetic0Battery(params, prediction_hours=24)
+    battery.reset()
+    battery.discharge_array = np.full(battery.prediction_hours, 1)
+    battery.charge_array = np.full(battery.prediction_hours, 1)
+    return battery
+
+
+def test_battery_that_may_not_charge_still_discharges():
+    """A cold battery gets 0 W charge power but may still discharge up to its discharge limit."""
+    battery = _battery_with_limits(max_charge_power_w=0.0, max_discharge_power_w=3000.0)
+    delivered_wh, _ = battery.discharge_energy(5000.0, 0)
+    assert 0.0 < delivered_wh <= 3000.0
+    charged_wh, _ = battery.charge_energy(None, 0, charge_factor=1.0)
+    assert charged_wh == 0.0
+
+
+def test_discharge_limit_defaults_to_the_charge_power():
+    battery = _battery_with_limits(max_charge_power_w=2000.0)
+    assert battery.max_discharge_power_w == 2000.0
+    delivered_wh, _ = battery.discharge_energy(5000.0, 0)
+    assert delivered_wh <= 2000.0

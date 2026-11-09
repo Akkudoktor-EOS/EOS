@@ -109,7 +109,7 @@ where = ["src/"]
 include = ["akkudoktoreos"]
 
 [tool.setuptools.package-data]
-akkudoktoreos = ["*.json", "data/*.npz", ]
+akkudoktoreos = ["*.json", "data/*.npz", "data/profile/*/*.json"]
 
 [tool.pyright]
 # used in Pylance extension for language server

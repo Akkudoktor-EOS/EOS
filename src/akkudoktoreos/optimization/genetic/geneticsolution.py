@@ -74,6 +74,10 @@ class ElectricVehicleResult(DeviceOptimizeResult):
     max_charge_power_w: int = Field(
         json_schema_extra={"description": "Maximum charging power in watts."}
     )
+    max_discharge_power_w: Optional[float] = Field(
+        default=None,
+        json_schema_extra={"description": "Maximum discharging power in watts."},
+    )
     soc_wh: float = Field(
         json_schema_extra={
             "description": "State of charge of the battery in watt-hours at the start of the simulation."
@@ -553,9 +557,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 max(float(battery_grid_export_factor), 0.0), 1.0
             )
 
-        # (0,0,1) -> Discharge for local load only
+        # (0,0,1) -> Discharge for local load only: serve local demand, no grid
+        # charging and no export.
         if ac_charge <= 0.0 and dc_charge <= 0.0 and discharge_allowed:
-            return BatteryOperationMode.PEAK_SHAVING, 1.0
+            return BatteryOperationMode.SELF_CONSUMPTION, 1.0
 
         # (ac>0,0,0) → AC charge only
         if ac_charge > 0.0 and dc_charge <= 0.0 and not discharge_allowed:
@@ -614,13 +619,20 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
           - Battery grid export: blocked when SOC is at or below min SOC.
         """
         parameters = getattr(self, "parameters", None)
-        bat_list = (
-            [parameters.pv_battery]
-            if parameters is not None and parameters.pv_battery is not None
-            else list((self.config.devices.batteries or {}).values())
-            if parameters is None
-            else []
-        )
+        # Without parameters, convert the battery settings: they hold no
+        # capacity / efficiency / power fields, these come from the battery profile.
+        # A configuration error gives the defaults of the parameter preparation;
+        # the configuration check already reported it.
+        bat_list = []
+        if parameters is not None:
+            if parameters.pv_battery is not None:
+                bat_list = [parameters.pv_battery]
+        else:
+            for settings in list((self.config.devices.batteries or {}).values())[:1]:
+                snapshot, use_tables = settings.resolve_operating_parameters_or_defaults(
+                    report=False
+                )
+                bat_list.append(settings.to_genetic_pv_bat_param(snapshot, use_tables))
         if not bat_list:
             return ac_charge, dc_charge, discharge_allowed, battery_grid_export_allowed
 
@@ -679,8 +691,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         - battery_grid_export_allowed: discharge to grid
 
         The following battery modes are supported:
-        - SELF_CONSUMPTION:    dc_charge > 0 and discharge_allowed == 1
-        - PEAK_SHAVING:        ac_charge == 0 and discharge_allowed == 1
+        - SELF_CONSUMPTION:    discharge_allowed == 1 and ac_charge == 0
+          (with or without dc_charge)
         - GRID_SUPPORT_EXPORT: battery_grid_export_allowed == 1
         - GRID_SUPPORT_IMPORT: ac_charge  > 0 and discharge_allowed == 0 or 1
         """

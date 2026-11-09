@@ -1,17 +1,35 @@
+import math
 from typing import Any, Iterator, Optional
 
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
+from akkudoktoreos.devices.devicesabc import validate_efficiency_curve
+from akkudoktoreos.devices.settings.batteryresolution import (
+    BATTERY_SOC_TABLE_POINTS as SOC_TABLE_POINTS,
+)
 from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
 from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+
+# Resolution of the dense efficiency tables: one value per power percent.
+_EFFICIENCY_TABLE_POINTS = 101
+
+
+def _dense_efficiency_table(curve: Optional[list[tuple[float, float]]]) -> Optional[list[float]]:
+    """Interpolate an efficiency curve at every power percent 0 % ... 100 %."""
+    if curve is None:
+        return None
+    fractions, efficiencies = zip(*curve)
+    grid = np.linspace(0.0, 1.0, _EFFICIENCY_TABLE_POINTS)
+    return [float(value) for value in np.interp(grid, fractions, efficiencies)]
 
 
 def max_charging_power_field(description: Optional[str] = None) -> float:
     if description is None:
         description = "Maximum charging power in watts."
-    return Field(default=5000, gt=0, json_schema_extra={"description": description})
+    # 0: the battery may not charge, e.g. the profile inhibits it at a low temperature.
+    return Field(default=5000, ge=0, json_schema_extra={"description": description})
 
 
 def initial_soc_percentage_field(description: str) -> int:
@@ -54,6 +72,17 @@ class BaseBatteryParameters(DeviceParameters):
     )
     discharging_efficiency: float = discharging_efficiency_field(0.88)
     max_charge_power_w: Optional[float] = max_charging_power_field()
+    max_discharge_power_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "Maximum discharging power in watts. 0 means discharging is inhibited. "
+                "None uses max_charge_power_w."
+            ),
+            "examples": [None, 4000],
+        },
+    )
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
     )
@@ -93,6 +122,79 @@ class BaseBatteryParameters(DeviceParameters):
             "examples": [[0.25, 0.5, 0.75, 1.0], [1.0], None],
         },
     )
+    charge_power_limit_w_by_soc: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Maximum charging power [W] per state of charge, e.g. from a battery "
+                f"profile. {SOC_TABLE_POINTS} values, index i is the limit at SoC i %. "
+                "Further limits max_charge_power_w. None means no SoC dependent limit."
+            ),
+            "examples": [None],
+        },
+    )
+    discharge_power_limit_w_by_soc: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Maximum discharging power [W] per state of charge, e.g. from a battery "
+                f"profile. {SOC_TABLE_POINTS} values, index i is the limit at SoC i %. "
+                "Further limits max_discharge_power_w. None means no SoC dependent limit."
+            ),
+            "examples": [None],
+        },
+    )
+    charging_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Power dependent charging efficiency as a list of (power_fraction, "
+                "efficiency) points. The power fraction is the charging power relative "
+                "to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing "
+                "in power fraction, efficiencies in (0, 1]. Values are interpolated "
+                "linearly and clamped to the first/last point. When set, the curve "
+                "replaces charging_efficiency in the simulation. None means constant "
+                "charging_efficiency."
+            ),
+            "examples": [None, [[0.0, 0.975], [0.5, 0.96], [1.0, 0.94]]],
+        },
+    )
+    discharging_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Power dependent discharging efficiency as a list of (power_fraction, "
+                "efficiency) points. The power fraction is the discharging power "
+                "relative to max_discharge_power_w [0.0 ... 1.0]; same rules as "
+                "charging_efficiency_curve. When set, the curve replaces "
+                "discharging_efficiency in the simulation. None means constant "
+                "discharging_efficiency."
+            ),
+            "examples": [None, [[0.0, 0.975], [1.0, 0.96]]],
+        },
+    )
+
+    @field_validator("charge_power_limit_w_by_soc", "discharge_power_limit_w_by_soc")
+    @classmethod
+    def _validate_power_limit_by_soc(cls, value: Optional[list[float]]) -> Optional[list[float]]:
+        if value is None:
+            return None
+        if len(value) != SOC_TABLE_POINTS:
+            raise ValueError(
+                f"A power limit table needs {SOC_TABLE_POINTS} values (SoC 0 % ... 100 %), "
+                f"got {len(value)}."
+            )
+        for power_w in value:
+            if not math.isfinite(power_w) or power_w < 0:
+                raise ValueError(f"Power limits must be finite and >= 0 W, got {power_w}.")
+        return value
+
+    @field_validator("charging_efficiency_curve", "discharging_efficiency_curve")
+    @classmethod
+    def _validate_efficiency_curve(
+        cls, value: Optional[list[tuple[float, float]]]
+    ) -> Optional[list[tuple[float, float]]]:
+        return validate_efficiency_curve(value)
 
 
 class SolarPanelBatteryParameters(BaseBatteryParameters):
@@ -199,8 +301,105 @@ class ElectricVehicleParameters(BaseBatteryParameters):
         return to_datetime(value)
 
 
+class _PowerCurves:
+    """Battery profile data of a simulated battery, prepared for fast access.
+
+    All values are precomputed for the slot duration of the battery, so the
+    simulation only scales and indexes per call. Every table has 101 entries
+    (index 0 ... 100); the hot paths rely on that bound.
+
+    Attributes:
+        charge_limit_wh_by_soc: Raw charge energy of one slot [Wh] per SoC
+            percent, capped at the rated charge power. None without limit table.
+        discharge_limit_wh_by_soc: Raw discharge energy of one slot [Wh] per
+            SoC percent, capped at the rated discharge power. None without table.
+        charging_efficiency_by_power: Charging efficiency per power percent of
+            the rated charge power. None without curve.
+        discharging_efficiency_by_power: Discharging efficiency per power
+            percent of the rated discharge power. None without curve.
+        soc_index_per_wh: Factor from stored energy [Wh] to SoC percent.
+        charge_index_per_wh: Factor from raw charge energy of one slot [Wh] to
+            power percent of the rated charge power.
+        discharge_index_per_wh: Factor from raw discharge energy of one slot
+            [Wh] to power percent of the rated discharge power.
+        discharged_dc_wh_per_slot: Energy delivered by the battery per slot [Wh].
+        charged_stored_wh_per_slot: Energy stored into the battery per slot [Wh].
+    """
+
+    __slots__ = (
+        "charge_limit_wh_by_soc",
+        "discharge_limit_wh_by_soc",
+        "charging_efficiency_by_power",
+        "discharging_efficiency_by_power",
+        "soc_index_per_wh",
+        "charge_index_per_wh",
+        "discharge_index_per_wh",
+        "discharged_dc_wh_per_slot",
+        "charged_stored_wh_per_slot",
+    )
+
+    def __init__(
+        self,
+        parameters: "BaseBatteryParameters",
+        capacity_wh: float,
+        max_charge_power_w: float,
+        max_discharge_power_w: float,
+        slot_duration_h: float,
+        slots: int,
+    ) -> None:
+        rated_charge_wh = max_charge_power_w * slot_duration_h
+        rated_discharge_wh = max_discharge_power_w * slot_duration_h
+        self.charge_limit_wh_by_soc: Optional[list[float]] = (
+            [min(limit_w * slot_duration_h, rated_charge_wh) for limit_w in limits]
+            if (limits := parameters.charge_power_limit_w_by_soc) is not None
+            else None
+        )
+        self.discharge_limit_wh_by_soc: Optional[list[float]] = (
+            [min(limit_w * slot_duration_h, rated_discharge_wh) for limit_w in limits]
+            if (limits := parameters.discharge_power_limit_w_by_soc) is not None
+            else None
+        )
+        self.charging_efficiency_by_power = _dense_efficiency_table(
+            parameters.charging_efficiency_curve
+        )
+        self.discharging_efficiency_by_power = _dense_efficiency_table(
+            parameters.discharging_efficiency_curve
+        )
+        self.soc_index_per_wh = 100.0 / capacity_wh
+        # A rated power of 0 W maps every energy to the 0 % entry.
+        self.charge_index_per_wh = 100.0 / rated_charge_wh if rated_charge_wh > 0 else 0.0
+        self.discharge_index_per_wh = 100.0 / rated_discharge_wh if rated_discharge_wh > 0 else 0.0
+        self.discharged_dc_wh_per_slot = [0.0] * slots
+        self.charged_stored_wh_per_slot = [0.0] * slots
+
+    def reset(self, slots: int) -> None:
+        """Clear the delivered and stored energy of all slots."""
+        self.discharged_dc_wh_per_slot = [0.0] * slots
+        self.charged_stored_wh_per_slot = [0.0] * slots
+
+
+def _table_entry(table: list[float], index: int) -> float:
+    """Return a table entry, with the index clamped to the table."""
+    if index <= 0:
+        return table[0]
+    if index >= len(table):
+        return table[-1]
+    return table[index]
+
+
 class Battery:
     """Represents a battery device with methods to simulate energy charging and discharging."""
+
+    # Battery profile data, set per instance only if the parameters provide it.
+    # A class default keeps plain batteries small: the simulation reads their
+    # attributes for every slot of every candidate plan, and CPython accesses
+    # attributes of instances with 30 or more of them noticeably slower.
+    _curves: Optional[_PowerCurves] = None
+
+    @property
+    def has_power_curves(self) -> bool:
+        """Whether charging or discharging depends on SoC or power (battery profile)."""
+        return self._curves is not None
 
     def __init__(
         self,
@@ -251,6 +450,29 @@ class Battery:
             self.max_charge_power_w = self.parameters.max_charge_power_w
         else:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
+        if self.parameters.max_discharge_power_w is not None:
+            self.max_discharge_power_w = self.parameters.max_discharge_power_w
+        else:
+            self.max_discharge_power_w = self.max_charge_power_w
+
+        # Optional battery profile data: power limits per SoC percent and
+        # efficiencies per power percent.
+        parameters = self.parameters
+        if (
+            parameters.charge_power_limit_w_by_soc is not None
+            or parameters.discharge_power_limit_w_by_soc is not None
+            or parameters.charging_efficiency_curve is not None
+            or parameters.discharging_efficiency_curve is not None
+        ):
+            self._curves = _PowerCurves(
+                parameters,
+                self.capacity_wh,
+                self.max_charge_power_w,
+                self.max_discharge_power_w,
+                self.slot_duration_h,
+                self.prediction_hours,
+            )
+
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
         # Discharged energy per slot, a plain list: it is read and written one
@@ -311,6 +533,7 @@ class Battery:
             "charging_efficiency": self.charging_efficiency,
             "discharging_efficiency": self.discharging_efficiency,
             "max_charge_power_w": self.max_charge_power_w,
+            "max_discharge_power_w": self.max_discharge_power_w,
         }
 
     def reset(self) -> None:
@@ -321,7 +544,29 @@ class Battery:
         self.charge_array = np.zeros(self.prediction_hours, dtype=np.int_)
         self._discharged_raw_wh_per_slot = [0.0] * self.prediction_hours
         self._charged_raw_wh_per_slot = [0.0] * self.prediction_hours
+        if self._curves is not None:
+            self._curves.reset(self.prediction_hours)
         self._charge_limit_raw_wh_per_slot = [float("inf")] * self.prediction_hours
+
+    def _discharge_slot_cap_wh(self) -> float:
+        """Return the raw discharge energy of one slot [Wh] at the current SoC."""
+        curves = self._curves
+        if curves is None or curves.discharge_limit_wh_by_soc is None:
+            return self.max_discharge_power_w * self.slot_duration_h
+        return _table_entry(
+            curves.discharge_limit_wh_by_soc,
+            int(self.soc_wh * curves.soc_index_per_wh + 0.5),
+        )
+
+    def _discharging_efficiency_at(self, slot_raw_wh: float) -> float:
+        """Return the discharging efficiency at the slot power of ``slot_raw_wh``."""
+        curves = self._curves
+        if curves is None or curves.discharging_efficiency_by_power is None:
+            return self.discharging_efficiency
+        return _table_entry(
+            curves.discharging_efficiency_by_power,
+            int(slot_raw_wh * curves.discharge_index_per_wh + 0.5),
+        )
 
     def limit_slot_charge(self, hour: int, raw_wh: float) -> None:
         """Cap the raw energy the battery may take in one slot, from all sources.
@@ -344,16 +589,18 @@ class Battery:
         exports at most half the battery's rated discharge power, independent of
         how much of the slot budget self-consumption already used.
         """
-        return self.max_charge_power_w * self.slot_duration_h * self.discharging_efficiency
+        rated_slot_wh = self.max_discharge_power_w * self.slot_duration_h
+        return rated_slot_wh * self._discharging_efficiency_at(rated_slot_wh)
 
     def remaining_discharge_energy_wh(self, hour: int) -> float:
         """Return DC energy still deliverable within one optimization slot."""
-        raw_power_budget_wh = self.max_charge_power_w * self.slot_duration_h
-        raw_power_remaining_wh = max(
-            raw_power_budget_wh - self._discharged_raw_wh_per_slot[hour], 0.0
-        )
+        discharged_raw_wh = self._discharged_raw_wh_per_slot[hour]
+        raw_power_remaining_wh = max(self._discharge_slot_cap_wh() - discharged_raw_wh, 0.0)
         raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
-        return min(raw_power_remaining_wh, raw_soc_available_wh) * self.discharging_efficiency
+        raw_remaining_wh = min(raw_power_remaining_wh, raw_soc_available_wh)
+        return raw_remaining_wh * self._discharging_efficiency_at(
+            discharged_raw_wh + raw_remaining_wh
+        )
 
     def discharge_released(self, hour: int) -> bool:
         """Whether the plan lets the battery discharge in this slot."""
@@ -361,7 +608,15 @@ class Battery:
 
     def discharged_energy_wh(self, hour: int) -> float:
         """Return DC energy delivered by the battery in one optimization slot."""
+        if self._curves is not None:
+            return self._curves.discharged_dc_wh_per_slot[hour]
         return self._discharged_raw_wh_per_slot[hour] * self.discharging_efficiency
+
+    def charged_energy_wh(self, hour: int) -> float:
+        """Return the energy stored into the battery in one optimization slot."""
+        if self._curves is not None:
+            return self._curves.charged_stored_wh_per_slot[hour]
+        return self._charged_raw_wh_per_slot[hour] * self.charging_efficiency
 
     def set_discharge_per_hour(self, discharge_array: np.ndarray) -> None:
         """Sets the discharge values for each hour."""
@@ -387,10 +642,13 @@ class Battery:
         """Discharge energy from the battery.
 
         Discharge is limited by:
+
         * Requested delivered energy
         * Remaining energy above minimum SoC
-        * Maximum discharge power
-        * Discharge efficiency
+        * Maximum discharge power, and the power limit at the current SoC if
+          ``discharge_power_limit_w_by_soc`` is given
+        * Discharge efficiency, at the slot power if
+          ``discharging_efficiency_curve`` is given
 
         Args:
             wh (float): Requested delivered energy in watt-hours.
@@ -413,29 +671,56 @@ class Battery:
             return 0.0, 0.0
 
         # Maximum raw discharge due to power limit, scaled to the slot duration.
-        # max_charge_power_w is a power [W]; energy movable in one slot is
-        # power x slot_duration_h.
-        max_raw_wh = max(
-            self.max_charge_power_w * self.slot_duration_h - self._discharged_raw_wh_per_slot[hour],
-            0.0,
-        )  # TODO rename to max_discharge_power_w
-
-        # Actual raw withdrawal (internal)
-        raw_withdrawal_wh = min(raw_available_wh, max_raw_wh)
+        # The power limit is a power [W]; energy movable in one slot is
+        # power x slot_duration_h. With a battery profile the limit and the
+        # efficiency are looked up inline (no calls): this runs for every slot
+        # of every candidate plan.
+        discharged_raw_wh = self._discharged_raw_wh_per_slot[hour]
+        discharging_efficiency = self.discharging_efficiency
+        curves = self._curves
+        if curves is None:
+            slot_cap_wh = self.max_discharge_power_w * self.slot_duration_h
+            raw_withdrawal_wh = min(raw_available_wh, max(slot_cap_wh - discharged_raw_wh, 0.0))
+        else:
+            limits = curves.discharge_limit_wh_by_soc
+            if limits is None:
+                slot_cap_wh = self.max_discharge_power_w * self.slot_duration_h
+            else:
+                index = int(self.soc_wh * curves.soc_index_per_wh + 0.5)
+                slot_cap_wh = limits[index] if 0 <= index <= 100 else _table_entry(limits, index)
+            raw_withdrawal_wh = slot_cap_wh - discharged_raw_wh
+            if raw_withdrawal_wh < 0.0:
+                raw_withdrawal_wh = 0.0
+            if raw_available_wh < raw_withdrawal_wh:
+                raw_withdrawal_wh = raw_available_wh
+            efficiencies = curves.discharging_efficiency_by_power
+            if efficiencies is not None:
+                # Efficiency at the slot power: the energy already discharged
+                # in this slot plus this request (estimated with the constant
+                # efficiency), within the possible withdrawal.
+                raw_estimate_wh = wh / discharging_efficiency
+                if raw_estimate_wh > raw_withdrawal_wh:
+                    raw_estimate_wh = raw_withdrawal_wh
+                index = int(
+                    (discharged_raw_wh + raw_estimate_wh) * curves.discharge_index_per_wh + 0.5
+                )
+                discharging_efficiency = efficiencies[index] if index <= 100 else efficiencies[-1]
 
         # Convert raw to delivered
-        max_deliverable_wh = raw_withdrawal_wh * self.discharging_efficiency
+        max_deliverable_wh = raw_withdrawal_wh * discharging_efficiency
 
         # Cap by requested delivered energy
         delivered_wh = min(wh, max_deliverable_wh)
 
         # Effective raw withdrawal based on what is delivered
-        raw_used_wh = delivered_wh / self.discharging_efficiency
+        raw_used_wh = delivered_wh / discharging_efficiency
 
         # Update SoC
         self.soc_wh -= raw_used_wh
         self.soc_wh = max(self.soc_wh, self.min_soc_wh)
-        self._discharged_raw_wh_per_slot[hour] += raw_used_wh
+        self._discharged_raw_wh_per_slot[hour] = discharged_raw_wh + raw_used_wh
+        if curves is not None:
+            curves.discharged_dc_wh_per_slot[hour] += delivered_wh
 
         # Losses
         losses_wh = raw_used_wh - delivered_wh
@@ -474,8 +759,12 @@ class Battery:
 
         - Available SoC headroom (``max_soc_wh − soc_wh``)
         - ``max_charge_power_w``
+        - The power limit at the current SoC, if ``charge_power_limit_w_by_soc``
+          is given. It caps the accepted energy like a battery management system
+          does; it does not scale the charge factor.
         - A slot limit set by ``limit_slot_charge()``, if any
-        - ``charging_efficiency``
+        - ``charging_efficiency``, or the efficiency at the slot power if
+          ``charging_efficiency_curve`` is given
 
         Args:
             wh (float | None):
@@ -512,6 +801,7 @@ class Battery:
 
         # Provide fast (3x..5x) local read access (vs. self.xxx) for repetitive read access
         soc_wh_fast = self.soc_wh
+        charged_raw_wh = self._charged_raw_wh_per_slot[hour]
         # Scale the power cap [W] to a per-slot energy cap [Wh] (W x slot hours).
         # At slot_duration_h=1.0 (hourly) this equals the legacy power value.
         max_charge_per_slot_wh_fast = max(
@@ -519,10 +809,39 @@ class Battery:
                 self.max_charge_power_w * self.slot_duration_h,
                 self._charge_limit_raw_wh_per_slot[hour],
             )
-            - self._charged_raw_wh_per_slot[hour],
+            - charged_raw_wh,
             0.0,
         )
         charging_efficiency_fast = self.charging_efficiency
+        # Power limit at the current SoC (battery profile), as raw energy still
+        # acceptable in this slot. None without SoC dependent limit. Looked up
+        # inline (no calls): this runs for every slot of every candidate plan.
+        soc_limit_raw_wh: Optional[float] = None
+        curves = self._curves
+        if curves is not None:
+            limits = curves.charge_limit_wh_by_soc
+            if limits is not None:
+                index = int(soc_wh_fast * curves.soc_index_per_wh + 0.5)
+                soc_limit_raw_wh = (
+                    limits[index] if 0 <= index <= 100 else _table_entry(limits, index)
+                ) - charged_raw_wh
+                if soc_limit_raw_wh < 0.0:
+                    soc_limit_raw_wh = 0.0
+            efficiencies = curves.charging_efficiency_by_power
+            if efficiencies is not None:
+                # Efficiency at the slot power: the energy already charged in
+                # this slot plus the intended request within the limits.
+                intended_raw_wh = (
+                    wh if wh is not None else max_charge_per_slot_wh_fast * charge_factor
+                )
+                if intended_raw_wh > max_charge_per_slot_wh_fast:
+                    intended_raw_wh = max_charge_per_slot_wh_fast
+                if soc_limit_raw_wh is not None and soc_limit_raw_wh < intended_raw_wh:
+                    intended_raw_wh = soc_limit_raw_wh
+                if intended_raw_wh < 0.0:
+                    intended_raw_wh = 0.0
+                index = int((charged_raw_wh + intended_raw_wh) * curves.charge_index_per_wh + 0.5)
+                charging_efficiency_fast = efficiencies[index] if index <= 100 else efficiencies[-1]
 
         # Decide mode & determine raw_request_wh and raw_charge_wh
         if wh is not None and charge_factor == 0.0:  # mode 1
@@ -562,6 +881,8 @@ class Battery:
 
         # Remaining capacity
         max_raw_wh = min(raw_charge_wh, max_charge_per_slot_wh_fast)
+        if soc_limit_raw_wh is not None and soc_limit_raw_wh < max_raw_wh:
+            max_raw_wh = soc_limit_raw_wh
 
         # Actual raw intake
         raw_input_wh = raw_request_wh if raw_request_wh < max_raw_wh else max_raw_wh
@@ -576,7 +897,9 @@ class Battery:
             )
 
         self.soc_wh = new_soc
-        self._charged_raw_wh_per_slot[hour] += raw_input_wh
+        self._charged_raw_wh_per_slot[hour] = charged_raw_wh + raw_input_wh
+        if curves is not None:
+            curves.charged_stored_wh_per_slot[hour] += stored_wh
         losses_wh = raw_input_wh - stored_wh
 
         return stored_wh, losses_wh

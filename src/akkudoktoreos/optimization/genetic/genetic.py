@@ -745,8 +745,14 @@ class GeneticSimulation(PydanticBaseModel):
         battery_lcos_direct = False
         if battery_fast is not None and type(battery_fast) is Battery:
             battery_lcos_direct = True
-            battery_discharged_raw_fast = battery_fast._discharged_raw_wh_per_slot
-            battery_discharging_efficiency_fast = battery_fast.discharging_efficiency
+            if battery_fast._curves is None:
+                battery_discharged_raw_fast = battery_fast._discharged_raw_wh_per_slot
+                battery_discharging_efficiency_fast = battery_fast.discharging_efficiency
+            else:
+                # With power dependent efficiencies the delivered energy is kept
+                # per slot (see Battery.discharged_energy_wh()).
+                battery_discharged_raw_fast = battery_fast._curves.discharged_dc_wh_per_slot
+                battery_discharging_efficiency_fast = 1.0
 
         for hour in range(start_hour, end_hour):
             hour_idx = hour - start_hour

@@ -10,6 +10,7 @@ from akkudoktoreos.devices.genetic.battery import (
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,
 )
+from akkudoktoreos.devices.settings.batterysettings import BatteryProfileAdjustment
 
 
 @pytest.fixture
@@ -417,6 +418,7 @@ def test_rated_discharge_energy_scales_with_slot_duration(setup_pv_battery):
 def test_pv_converter_preserves_id_lcos_charge_and_export_rates():
     settings = BatteriesCommonSettings(
         device_id="house",
+        profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8000),
         charge_rates=[0.0, 0.5, 1.0],
         grid_export_rates=[1.0, 0.25],
         levelized_cost_of_storage_amt_kwh=0.123,
@@ -434,7 +436,8 @@ def test_pv_converter_preserves_id_lcos_charge_and_export_rates():
 @pytest.mark.parametrize("target", [0, 50, 100])
 def test_equal_soc_limits_are_valid(target):
     settings = BatteriesCommonSettings(device_id="ev", min_soc_percentage=target,
-                                      max_soc_percentage=target)
+                                      max_soc_percentage=target,
+                                      profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8000))
     assert settings.to_genetic_ev_bat_param().min_soc_percentage == target
     assert settings.to_genetic0_ev_bat_param().min_soc_percentage == target
 
@@ -447,9 +450,11 @@ def test_inverted_or_out_of_range_limits_still_fail(minimum, maximum):
 
 
 def test_full_target_charges_to_capacity_without_overcharge():
-    settings = BatteriesCommonSettings(device_id="ev", capacity_wh=1000,
-        min_soc_percentage=100, max_soc_percentage=100, max_charge_power_w=1000,
-        charging_efficiency=1)
+    settings = BatteriesCommonSettings(device_id="ev",
+        profile_adjustment=BatteryProfileAdjustment(
+            nominal_capacity_wh=1000, max_charge_power_w=1000
+        ),
+        min_soc_percentage=100, max_soc_percentage=100)
     params = settings.to_genetic_ev_bat_param()
     params.initial_soc_percentage = 70
     battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
@@ -525,3 +530,233 @@ class TestEVMinimumCurrent(unittest.TestCase):
                 self.assertAlmostEqual(value.soc_wh, value.max_soc_wh)
                 self.assertAlmostEqual(losses, missing / 0.95 - missing)
                 self.assertEqual(value.charge_array[0], factor)
+
+
+class TestMaxDischargePower:
+    """The discharge power limit is separate from the charge power limit."""
+
+    @staticmethod
+    def _battery(max_discharge_power_w=None, slot_duration_h=1.0):
+        params = SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=10_000,
+            initial_soc_percentage=100,
+            min_soc_percentage=0,
+            max_charge_power_w=8_000,
+            max_discharge_power_w=max_discharge_power_w,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+        )
+        battery = Battery(params, prediction_hours=4, slot_duration_h=slot_duration_h)
+        battery.set_discharge_per_hour(np.ones(4))
+        return battery
+
+    def test_defaults_to_max_charge_power(self):
+        battery = self._battery()
+        assert battery.max_discharge_power_w == 8_000
+        delivered, _ = battery.discharge_energy(9_000.0, 0)
+        assert delivered == pytest.approx(8_000.0)
+
+    def test_limits_discharge_not_charge(self):
+        battery = self._battery(max_discharge_power_w=4_000)
+        delivered, _ = battery.discharge_energy(9_000.0, 0)
+        assert delivered == pytest.approx(4_000.0)
+        assert battery.remaining_discharge_energy_wh(0) == pytest.approx(0.0)
+        assert battery.rated_discharge_energy_wh() == pytest.approx(4_000.0)
+
+        empty = self._battery(max_discharge_power_w=4_000)
+        empty.soc_wh = 0.0
+        empty.set_charge_per_hour(np.ones(4))
+        stored, _ = empty.charge_energy(9_000.0, 0)
+        assert stored == pytest.approx(8_000.0)
+
+    def test_quarter_hour_budget(self):
+        battery = self._battery(max_discharge_power_w=4_000, slot_duration_h=0.25)
+        assert battery.remaining_discharge_energy_wh(0) == pytest.approx(1_000.0)
+        delivered, _ = battery.discharge_energy(2_000.0, 0)
+        assert delivered == pytest.approx(1_000.0)
+
+    def test_zero_inhibits_discharge(self):
+        battery = self._battery(max_discharge_power_w=0)
+        assert battery.discharge_energy(1_000.0, 0) == (0.0, 0.0)
+        assert battery.rated_discharge_energy_wh() == 0.0
+
+    def test_negative_is_rejected(self):
+        with pytest.raises(ValidationError):
+            SolarPanelBatteryParameters(
+                device_id="battery1", capacity_wh=10_000, max_discharge_power_w=-1
+            )
+
+    @pytest.mark.parametrize("converter", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
+    def test_converter_passes_profile_discharge_limit(self, converter):
+        """generic-lfp allows only 0.5C continuous discharge.
+
+        Without an installation limit the generic profile is capped at the former
+        default of 5000 W, so 1C charging of 8 kWh gives 5000 W.
+        """
+        settings = BatteriesCommonSettings(
+            device_id="battery1", profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8_000)
+        )
+        parameters = getattr(settings, converter)()
+        assert parameters.max_charge_power_w == pytest.approx(5_000.0)
+        assert parameters.max_discharge_power_w == pytest.approx(4_000.0)
+
+    @pytest.mark.parametrize("converter", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
+    def test_installation_limit_lifts_the_generic_default(self, converter):
+        """An explicit installation limit replaces the 5000 W default; the profile C-rate applies."""
+        settings = BatteriesCommonSettings(
+            device_id="battery1",
+            profile_adjustment=BatteryProfileAdjustment(
+                nominal_capacity_wh=8_000, max_charge_power_w=10_000, max_discharge_power_w=10_000
+            ),
+        )
+        parameters = getattr(settings, converter)()
+        assert parameters.max_charge_power_w == pytest.approx(8_000.0)
+        assert parameters.max_discharge_power_w == pytest.approx(4_000.0)
+
+
+class TestPowerCurves:
+    """SoC dependent power limits and power dependent efficiencies."""
+
+    @staticmethod
+    def _battery(soc_percentage=50, slot_duration_h=1.0, **curves):
+        params = SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=10_000,
+            initial_soc_percentage=soc_percentage,
+            min_soc_percentage=0,
+            max_soc_percentage=100,
+            max_charge_power_w=10_000,
+            max_discharge_power_w=10_000,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            **curves,
+        )
+        battery = Battery(params, prediction_hours=4, slot_duration_h=slot_duration_h)
+        battery.set_charge_per_hour(np.ones(4))
+        battery.set_discharge_per_hour(np.ones(4))
+        return battery
+
+    def test_plain_battery_has_no_power_curves(self):
+        battery = self._battery()
+        assert not battery.has_power_curves
+
+    @pytest.mark.parametrize("with_curves", [False, True])
+    def test_instances_stay_below_the_attribute_threshold(self, with_curves):
+        """CPython reads attributes of instances with 30 or more of them slower.
+
+        The simulation reads battery attributes for every slot of every
+        candidate plan, so a battery must stay below that threshold.
+        """
+        curves = (
+            dict(
+                charge_power_limit_w_by_soc=[1_000.0] * 101,
+                discharge_power_limit_w_by_soc=[1_000.0] * 101,
+                charging_efficiency_curve=[(0.0, 0.9), (1.0, 0.9)],
+                discharging_efficiency_curve=[(0.0, 0.9), (1.0, 0.9)],
+            )
+            if with_curves
+            else {}
+        )
+        battery = self._battery(**curves)
+        battery.reset()
+        battery._charge_rates_descending()
+        battery.charge_energy(None, 0, charge_factor=0.5)
+        battery.discharge_energy(100.0, 1)
+        assert len(vars(battery)) < 30
+
+    @pytest.mark.parametrize("soc, expected_wh", [(10, 3_000.0), (30, 1_000.0)])
+    def test_charge_limit_at_current_soc(self, soc, expected_wh):
+        table = [3_000.0] * 21 + [1_000.0] * 80
+        battery = self._battery(soc_percentage=soc, charge_power_limit_w_by_soc=table)
+        assert battery.has_power_curves
+        stored, _ = battery.charge_energy(None, 0, charge_factor=0.5)
+        assert stored == pytest.approx(expected_wh)
+        # The limit caps the energy; it does not lower the charge factor of the plan.
+        assert battery.charge_array[0] == 1.0
+
+    def test_charge_limit_is_shared_within_a_slot(self):
+        battery = self._battery(
+            slot_duration_h=0.25, charge_power_limit_w_by_soc=[4_000.0] * 101
+        )
+        first, _ = battery.charge_energy(600.0, 0)
+        second, _ = battery.charge_energy(600.0, 0)
+        assert first == pytest.approx(600.0)
+        assert second == pytest.approx(400.0)
+
+    def test_discharge_limit_at_current_soc(self):
+        table = [500.0] * 51 + [3_000.0] * 50
+        high = self._battery(soc_percentage=80, discharge_power_limit_w_by_soc=table)
+        low = self._battery(soc_percentage=30, discharge_power_limit_w_by_soc=table)
+        assert high.discharge_energy(9_000.0, 0)[0] == pytest.approx(3_000.0)
+        assert high.remaining_discharge_energy_wh(0) == pytest.approx(0.0)
+        assert low.remaining_discharge_energy_wh(0) == pytest.approx(500.0)
+        assert low.discharge_energy(9_000.0, 0)[0] == pytest.approx(500.0)
+
+    def test_charging_efficiency_at_slot_power(self):
+        battery = self._battery(
+            soc_percentage=0, charging_efficiency_curve=[(0.0, 1.0), (1.0, 0.5)]
+        )
+        stored, losses = battery.charge_energy(5_000.0, 0)
+        # Half the rated power: efficiency 0.75.
+        assert stored == pytest.approx(3_750.0)
+        assert losses == pytest.approx(1_250.0)
+        assert battery.charged_energy_wh(0) == pytest.approx(3_750.0)
+
+    def test_discharging_efficiency_at_slot_power(self):
+        battery = self._battery(
+            soc_percentage=100, discharging_efficiency_curve=[(0.0, 1.0), (1.0, 0.5)]
+        )
+        delivered, losses = battery.discharge_energy(5_000.0, 0)
+        assert delivered == pytest.approx(5_000.0)
+        assert losses == pytest.approx(5_000.0 / 0.75 - 5_000.0)
+        assert battery.discharged_energy_wh(0) == pytest.approx(5_000.0)
+        assert battery.soc_wh == pytest.approx(10_000.0 - 5_000.0 / 0.75)
+
+    def test_rated_discharge_energy_uses_efficiency_at_rated_power(self):
+        battery = self._battery(discharging_efficiency_curve=[(0.0, 1.0), (1.0, 0.8)])
+        assert battery.rated_discharge_energy_wh() == pytest.approx(8_000.0)
+
+    def test_reset_clears_slot_energies(self):
+        battery = self._battery(charging_efficiency_curve=[(0.0, 0.9), (1.0, 0.9)])
+        battery.charge_energy(1_000.0, 0)
+        battery.discharge_energy(1_000.0, 1)
+        battery.reset()
+        assert battery.charged_energy_wh(0) == 0.0
+        assert battery.discharged_energy_wh(1) == 0.0
+
+    def test_flat_curves_match_plain_battery(self):
+        """Constant tables and curves reproduce the plain battery exactly."""
+        plain = self._battery(soc_percentage=30)
+        flat = self._battery(
+            soc_percentage=30,
+            charge_power_limit_w_by_soc=[10_000.0] * 101,
+            discharge_power_limit_w_by_soc=[10_000.0] * 101,
+            charging_efficiency_curve=[(0.0, 1.0), (1.0, 1.0)],
+            discharging_efficiency_curve=[(0.0, 1.0), (1.0, 1.0)],
+        )
+        for battery in (plain, flat):
+            battery.charge_energy(2_500.0, 0)
+            battery.charge_energy(None, 1, charge_factor=0.5)
+            battery.discharge_energy(4_000.0, 2)
+        assert flat.soc_wh == pytest.approx(plain.soc_wh)
+        for hour in range(3):
+            assert flat.charged_energy_wh(hour) == pytest.approx(plain.charged_energy_wh(hour))
+            assert flat.discharged_energy_wh(hour) == pytest.approx(
+                plain.discharged_energy_wh(hour)
+            )
+
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            ("charge_power_limit_w_by_soc", [1_000.0] * 100),
+            ("discharge_power_limit_w_by_soc", [1_000.0] * 100 + [-1.0]),
+            ("charge_power_limit_w_by_soc", [1_000.0] * 100 + [float("nan")]),
+            ("charging_efficiency_curve", [(0.0, 0.9)]),
+            ("discharging_efficiency_curve", [(0.5, 0.9), (0.2, 0.95)]),
+            ("charging_efficiency_curve", [(0.0, 0.9), (1.0, 1.2)]),
+        ],
+    )
+    def test_invalid_curves_are_rejected(self, field, value):
+        with pytest.raises(ValidationError):
+            SolarPanelBatteryParameters(device_id="battery1", capacity_wh=10_000, **{field: value})

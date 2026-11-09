@@ -346,16 +346,19 @@ The inverter supports separate AC↔DC conversion efficiencies:
 {
     "devices": {
         "max_electric_vehicles": 1,
-        "electric_vehicles": [
-            {
+        "electric_vehicles": {
+            "ev1": {
                 "device_id": "ev1",
-                "capacity_wh": 50000,
-                "max_charge_power_w": 10000,
+                "battery_profile": "generic-lfp",
+                "profile_adjustment": {
+                    "nominal_capacity_wh": 50000,
+                    "max_charge_power_w": 10000
+                },
                 "charge_rates": [0.0, 0.25, 0.5, 0.75, 1.0],
                 "min_soc_percentage": 10,
                 "max_soc_percentage": 80
             }
-        ]
+        }
     },
     "measurement": {
         "electric_vehicle_soc_keys": ["ev1_soc"]
@@ -371,20 +374,21 @@ The inverter supports separate AC↔DC conversion efficiencies:
 {
     "devices": {
         "max_batteries": 1,
-        "batteries": [
-            {
+        "batteries": {
+            "battery1": {
                 "device_id": "battery1",
-                "capacity_wh": 8000,
-                "charging_efficiency": 0.88,
-                "discharging_efficiency": 0.88,
-                "levelized_cost_of_storage_kwh": 0.12,
-                "max_charge_power_w": 8000,
+                "battery_profile": "generic-lfp",
+                "profile_adjustment": {
+                    "nominal_capacity_wh": 8000,
+                    "max_charge_power_w": 8000
+                },
+                "levelized_cost_of_storage_amt_kwh": 0.12,
                 "min_charge_power_w": 50,
                 "charge_rates": null,
                 "min_soc_percentage": 5,
                 "max_soc_percentage": 95
             }
-        ]
+        }
     }
 }
 ```
@@ -397,22 +401,29 @@ manufacturers expect a full charge every few weeks, and some batteries start one
 at an arbitrary time. A periodic full charge lets EOS plan it instead, preferably from PV
 surplus or at a cheap price.
 
-The feature is off by default. It is enabled per stationary battery with
-`full_charge_interval_days` (GENETIC only):
+The feature is off by default (GENETIC only). The interval and the detection threshold are
+properties of the battery model and come from the battery profile; the `profile_adjustment` of a
+stationary battery replaces them for this unit. The target and the use of the grid are battery
+settings:
 
-- `full_charge_interval_days`: maximum number of days between two full charges. `null` (default)
-  disables the feature. For LFP batteries 21 to 25 days are a reasonable start; check what the
-  manufacturer requires.
+- `full_charge_interval_days` (battery profile or `profile_adjustment`): maximum number of days
+  between two full charges. `null` disables the feature; the bundled `generic-lfp` profile sets
+  none. For LFP batteries 21 to 25 days are a reasonable start; check what the manufacturer
+  requires.
+- `full_charge_detect_percentage` (battery profile or `profile_adjustment`, profile default `99`):
+  the measured state of charge from which the battery counts as full. Many battery management
+  systems never report exactly 100 %.
 - `full_charge_soc_percentage` (default `100`): the target. It may be above `max_soc_percentage`,
-  which keeps applying on all other days.
-- `full_charge_detect_percentage` (default `99`): the measured state of charge from which the
-  battery counts as full. Many battery management systems never report exactly 100 %.
+  which keeps applying on all other days, but is capped by the technical maximum SoC of the
+  battery profile.
 - `full_charge_allow_grid` (default `false`): with `false`, EOS only raises the maximum state of
   charge while the full charge is due, so that PV surplus can fill the battery; the target is not
   enforced. With `true`, the optimizer has to reach the target and charges from the grid if
   needed, at the cheapest time before the deadline.
-- `cell_chemistry` (`LFP`, `NMC`, `NCA`, `LTO` or `null`): informational only, it does not
-  enable anything.
+
+The effective values are available as `effective_full_charge_interval_days` and
+`effective_full_charge_detect_percentage`. The cell chemistry is the `chemistry` of the battery
+profile.
 
 The last full charge is taken from the measured state of charge of the battery
 (`<device_id>-soc-factor`), so a full charge from PV or one the battery started itself counts as
@@ -429,10 +440,12 @@ a close or overdue full charge can still use the cheapest time.
         "batteries": {
             "battery1": {
                 "device_id": "battery1",
-                "capacity_wh": 10000,
+                "battery_profile": "generic-lfp",
+                "profile_adjustment": {
+                    "nominal_capacity_wh": 10000,
+                    "full_charge_interval_days": 21
+                },
                 "max_soc_percentage": 90,
-                "cell_chemistry": "LFP",
-                "full_charge_interval_days": 21,
                 "full_charge_allow_grid": true
             }
         }
@@ -517,18 +530,20 @@ Assuming the battery is named `battery1` and the EV is named `ev11`:
     ```json
     {
         "devices": {
-            "batteries": [
-                {
-                "device_id": "battery1", "capacity_wh": 8000,  ...
+            "batteries": {
+                "battery1": {
+                "device_id": "battery1",
+                "profile_adjustment": {"nominal_capacity_wh": 8000},  ...
                 "measurement_key_soc_factor": "battery1-soc-factor", ...
                 }
-            ],
-            "electric_vehicles": [
-                {
-                "device_id": "ev11", "capacity_wh": 8000,  ...
+            },
+            "electric_vehicles": {
+                "ev11": {
+                "device_id": "ev11",
+                "profile_adjustment": {"nominal_capacity_wh": 8000},  ...
                 "measurement_key_soc_factor": "ev11-soc-factor", ...
                 }
-            ]
+            }
         }
     }
     ```

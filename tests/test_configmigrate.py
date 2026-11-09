@@ -265,6 +265,249 @@ class TestDeviceMigration:
         assert migrated.devices.batteries["house"].levelized_cost_of_storage_amt_kwh == 0.123
         assert raw == original
 
+    @pytest.mark.parametrize("devices_key", ["batteries", "electric_vehicles"])
+    @pytest.mark.parametrize("as_list", [False, True])
+    def test_migration_of_legacy_battery_fields(self, devices_key, as_list):
+        """Legacy battery fields migrate to the profile based settings."""
+        battery = {
+            "device_id": "house",
+            "capacity_wh": 12000,
+            "charging_efficiency": 0.9,
+            "discharging_efficiency": 0.9,
+            "max_charge_power_w": 3000,
+        }
+        raw = {"devices": {devices_key: [battery] if as_list else {"house": battery}}}
+        migrated = migrate_config_data(raw)
+        devices = getattr(migrated.devices, devices_key)
+        assert devices is not None
+        settings = devices["house"]
+        assert settings.profile_adjustment.nominal_capacity_wh == 12000
+        # The configured charge power limit of the installation still applies.
+        assert settings.profile_adjustment.max_charge_power_w == 3000
+        assert settings.effective_max_charge_power_w <= 3000
+        dumped = settings.model_dump(exclude_computed_fields=True)
+        for legacy in ("capacity_wh", "charging_efficiency", "discharging_efficiency",
+                       "max_charge_power_w"):
+            assert legacy not in dumped
+
+    def test_migration_writes_former_defaults_of_a_battery_before_profiles(self):
+        """Former defaults were left out of files; the battery keeps them."""
+        battery = {"device_id": "house", "min_soc_percentage": 10}
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        adjustment = migrated.devices.batteries["house"].profile_adjustment
+        assert adjustment.nominal_capacity_wh == 8000
+        assert adjustment.max_charge_power_w == 5000
+        # The former charge power limit also limited discharging.
+        assert adjustment.max_discharge_power_w == 5000
+        assert migrated.devices.batteries["house"].min_soc_percentage == 10
+
+    def test_migration_keeps_the_charge_limit_as_discharge_limit(self):
+        """Before battery profiles, max_charge_power_w also capped discharging."""
+        battery = {"device_id": "house", "capacity_wh": 8000, "max_charge_power_w": 3000}
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        settings = migrated.devices.batteries["house"]
+        assert settings.profile_adjustment.max_discharge_power_w == 3000
+        assert settings.effective_max_discharge_power_w is not None
+        assert settings.effective_max_discharge_power_w <= 3000
+
+    def test_migration_logs_dropped_efficiencies(self):
+        """Efficiencies are no setting anymore; dropping them is logged as error."""
+        from loguru import logger
+
+        messages: list[str] = []
+        sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+        try:
+            battery = {"device_id": "house", "charging_efficiency": 0.9, "discharging_efficiency": 0.85}
+            migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        finally:
+            logger.remove(sink_id)
+        assert len(messages) == 2
+        assert all("Battery 'house'" in message for message in messages)
+        assert any("'charging_efficiency' 0.9" in message for message in messages)
+        assert any("'discharging_efficiency' 0.85" in message for message in messages)
+
+    @pytest.mark.parametrize(
+        "legacy_name, adjustment_name",
+        [
+            ("nominal_capacity_wh", "nominal_capacity_wh"),
+            ("max_charge_power_limit_w", "max_charge_power_w"),
+            ("max_discharge_power_limit_w", "max_discharge_power_w"),
+        ],
+    )
+    def test_migration_of_interim_profile_fields(self, legacy_name, adjustment_name):
+        """Interim fields of the settings with profiles move into the adjustment.
+
+        Such a battery is not from before battery profiles, so it gets no former
+        defaults.
+        """
+        battery = {"device_id": "house", legacy_name: 4000}
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        adjustment = migrated.devices.batteries["house"].profile_adjustment
+        assert getattr(adjustment, adjustment_name) == 4000
+        for name, value in adjustment.model_dump().items():
+            if name != adjustment_name:
+                assert value is None
+
+    def test_migration_of_full_charge_settings(self):
+        """Full charge interval and threshold move into the adjustment, chemistry is dropped."""
+        battery = {
+            "device_id": "house",
+            "cell_chemistry": "LFP",
+            "full_charge_interval_days": 21,
+            "full_charge_detect_percentage": 98,
+            "full_charge_soc_percentage": 100,
+            "full_charge_allow_grid": True,
+        }
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        settings = migrated.devices.batteries["house"]
+        assert settings.profile_adjustment.full_charge_interval_days == 21
+        assert settings.profile_adjustment.full_charge_detect_percentage == 98
+        assert settings.full_charge_soc_percentage == 100
+        assert settings.full_charge_allow_grid is True
+        dumped = settings.model_dump(exclude_computed_fields=True)
+        for legacy in ("cell_chemistry", "full_charge_interval_days",
+                       "full_charge_detect_percentage"):
+            assert legacy not in dumped
+
+    def test_migration_drops_home_assistant_config_path_of_cell_chemistry(self):
+        raw = {
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/house/cell_chemistry": "sensor.chemistry",
+                        "devices/batteries/house/full_charge_interval_days": "sensor.interval",
+                    }
+                }
+            }
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/house/profile_adjustment/full_charge_interval_days": (
+                "sensor.interval"
+            ),
+        }
+
+    def test_migration_maps_a_charge_limit_entity_to_both_limits(self):
+        """Before battery profiles, one max_charge_power_w entity also capped discharging."""
+        raw = {
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/house/max_charge_power_w": "sensor.limit",
+                        "devices/batteries/garage/max_charge_power_w": "sensor.charge",
+                        "devices/batteries/garage/profile_adjustment/max_discharge_power_w": (
+                            "sensor.discharge"
+                        ),
+                    }
+                }
+            }
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/house/profile_adjustment/max_charge_power_w": "sensor.limit",
+            "devices/batteries/house/profile_adjustment/max_discharge_power_w": "sensor.limit",
+            "devices/batteries/garage/profile_adjustment/max_charge_power_w": "sensor.charge",
+            "devices/batteries/garage/profile_adjustment/max_discharge_power_w": (
+                "sensor.discharge"
+            ),
+        }
+
+    def test_migration_keeps_a_migrated_battery(self):
+        """A battery in the current layout is not changed, e.g. on a version bump."""
+        battery = {
+            "device_id": "house",
+            "battery_profile": "my-battery",
+            "profile_adjustment": {"max_discharge_power_w": 3000},
+        }
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        settings = migrated.devices.batteries["house"]
+        assert settings.battery_profile == "my-battery"
+        assert settings.profile_adjustment.max_discharge_power_w == 3000
+        assert settings.profile_adjustment.nominal_capacity_wh is None
+        assert settings.profile_adjustment.max_charge_power_w is None
+
+    @pytest.mark.parametrize(
+        "legacy_name, adjustment_name",
+        [
+            ("capacity_wh", "nominal_capacity_wh"),
+            ("max_charge_power_w", "max_charge_power_w"),
+            ("nominal_capacity_wh", "nominal_capacity_wh"),
+            ("max_charge_power_limit_w", "max_charge_power_w"),
+        ],
+    )
+    def test_migration_keeps_present_adjustment(self, legacy_name, adjustment_name):
+        """A value already in the profile adjustment wins over its legacy field."""
+        battery = {
+            "device_id": "house",
+            legacy_name: 12000,
+            "profile_adjustment": {adjustment_name: 10000},
+        }
+        migrated = migrate_config_data({"devices": {"batteries": {"house": battery}}})
+        assert migrated.devices.batteries is not None
+        adjustment = migrated.devices.batteries["house"].profile_adjustment
+        assert getattr(adjustment, adjustment_name) == 10000
+
+    def test_migration_of_home_assistant_config_paths(self):
+        """Config paths of moved battery fields follow them into the adjustment."""
+        raw = {
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/house/capacity_wh": "sensor.capacity",
+                        "devices/electric_vehicles/car/max_charge_power_w": "sensor.ev_limit",
+                        "devices/batteries/house/charging_efficiency": "sensor.efficiency",
+                        "devices/batteries/house/min_soc_percentage": "sensor.min_soc",
+                        "general/latitude": "sensor.latitude",
+                    }
+                }
+            }
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/house/profile_adjustment/nominal_capacity_wh": "sensor.capacity",
+            "devices/electric_vehicles/car/profile_adjustment/max_charge_power_w": (
+                "sensor.ev_limit"
+            ),
+            # The former charge limit also capped discharging.
+            "devices/electric_vehicles/car/profile_adjustment/max_discharge_power_w": (
+                "sensor.ev_limit"
+            ),
+            # charging_efficiency is computed now and cannot be set.
+            "devices/batteries/house/min_soc_percentage": "sensor.min_soc",
+            "general/latitude": "sensor.latitude",
+        }
+
+    def test_migrate_config_file_keeps_charge_power_limit(self, tmp_path: Path):
+        """The legacy charge power limit survives the file migration."""
+        config_file = tmp_path / "EOS.config.json"
+        battery = {"device_id": "house", "capacity_wh": 12000, "max_charge_power_w": 3000}
+        config_file.write_text(
+            json.dumps(
+                {
+                    "general": {"version": "0.0.0-old"},
+                    "devices": {"batteries": {"house": battery}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert configmigrate.migrate_config_file(config_file, tmp_path / "EOS.config.bak")
+
+        migrated = json.loads(config_file.read_text(encoding="utf-8"))
+        house = migrated["devices"]["batteries"]["house"]
+        assert house["profile_adjustment"] == {
+            "nominal_capacity_wh": 12000,
+            "max_charge_power_w": 3000,
+            "max_discharge_power_w": 3000,
+        }
+        assert "max_charge_power_w" not in house
+        assert "capacity_wh" not in house
+
 
 class TestSlashKeyedDictMigration:
     """Dict entries whose keys contain '/' must survive migration unchanged."""

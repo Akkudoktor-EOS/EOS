@@ -469,6 +469,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     # A ClassVar: without the annotation pydantic makes it a private attribute,
     # and the class attribute would be a (truthy) descriptor object.
     _force_documentation_mode: ClassVar[bool] = False
+    # Battery profile problems logged last, see _log_battery_profile_problems().
+    _battery_profile_problems: ClassVar[tuple[tuple[str, ...], tuple[str, ...]]] = ((), ())
 
     def __hash__(self) -> int:
         # ConfigEOS is a singleton
@@ -806,7 +808,33 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
 
         self._initialized = True
-        logger.trace(f"Config setup:\n{self}")
+        # Lazy: rendering the configuration evaluates all computed fields, e.g.
+        # the battery profile lookups. Only do it if trace logging is enabled.
+        logger.opt(lazy=True).trace("Config setup:\n{config}", config=lambda: str(self))
+        self._log_battery_profile_problems()
+
+    def _log_battery_profile_problems(self) -> None:
+        """Log batteries that cannot be resolved from their battery profile.
+
+        A battery profile is checked once the configuration is set up, because
+        the user profile directory depends on ``general.data_folder_path``.
+        Problems are logged when they change, not on every settings update.
+        """
+        if self.documentation_mode():
+            return
+        try:
+            errors, warnings = self.devices.check_battery_profiles()
+        except Exception:
+            logger.exception("Battery profile check failed.")
+            return
+        problems = (tuple(errors), tuple(warnings))
+        if problems == ConfigEOS._battery_profile_problems:
+            return
+        ConfigEOS._battery_profile_problems = problems
+        for message in errors:
+            logger.error(message)
+        for message in warnings:
+            logger.warning(message)
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
@@ -892,6 +920,10 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             node = node.setdefault(key, {})
         node[keys[-1]] = setting
         ConfigEOS._runtime_settings = deep_merge(ConfigEOS._runtime_settings, runtime_setting)
+
+        if keys and keys[0] in ("devices", "general"):
+            # Device settings and the data folder (user profiles) affect the batteries.
+            self._log_battery_profile_problems()
 
     def reset_settings(self) -> None:
         """Reset all changed settings to environment/config file defaults.

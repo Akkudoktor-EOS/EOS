@@ -61,8 +61,8 @@ def configured_request(config_eos, monkeypatch):
                 "max_home_appliances": 2,
                 "batteries": {
                     "storage": {
-                        "capacity_wh": 2000,
-                        "max_charge_power_w": 1000,
+                        "profile_adjustment": {"nominal_capacity_wh": 2000,
+                        "max_charge_power_w": 1000},
                         "levelized_cost_of_storage_amt_kwh": 0.01,
                     }
                 },
@@ -534,7 +534,7 @@ async def test_missing_ev_soc_does_not_replace_explicit_battery_soc(configured_r
     config, _, _, data = configured_request
     config.merge_settings_from_dict(
         {"devices": {"max_electric_vehicles": 1,
-                     "electric_vehicles": {"car": {"capacity_wh": 60000}}}}
+                     "electric_vehicles": {"car": {"profile_adjustment": {"nominal_capacity_wh": 60000}}}}}
     )
     parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
@@ -551,8 +551,8 @@ async def test_http_config_and_real_optimizer_allow_full_ev_target(configured_re
 
     config, fake, _, data = configured_request
     config.merge_settings_from_dict({"devices": {"max_electric_vehicles": 1,
-        "electric_vehicles": {"ev": {"capacity_wh": 1000, "max_charge_power_w": 1000,
-            "charging_efficiency": 1, "min_soc_percentage": 0,
+        "electric_vehicles": {"ev": {"profile_adjustment": {"nominal_capacity_wh": 1000,
+            "max_charge_power_w": 1000}, "min_soc_percentage": 0,
             "max_soc_percentage": 100}}}})
     data["soc"]["ev"] = soc
     ems = EnergyManagement()
@@ -589,7 +589,7 @@ async def test_explicit_ev_soc_has_no_measurement_age_limit(configured_request, 
     config, ems, measurement, data = configured_request
     config.merge_settings_from_dict(
         {"devices": {"max_electric_vehicles": 1,
-                     "electric_vehicles": {"car": {"capacity_wh": 60000,
+                     "electric_vehicles": {"car": {"profile_adjustment": {"nominal_capacity_wh": 60000},
                                                  "min_soc_percentage": 100,
                                                  "max_soc_percentage": 100}}}}
     )
@@ -730,3 +730,31 @@ async def test_missing_newest_soc_value_falls_back_to_older_fresh_sample(
     parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 42
+
+
+@pytest.mark.asyncio
+async def test_battery_configuration_error_uses_defaults_and_logs_error(configured_request):
+    """A battery that cannot be resolved does not cancel the parameter preparation."""
+    from loguru import logger
+
+    config, _, _, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"batteries": {"storage": {"battery_profile": "does-not-exist"}}}}
+    )
+    messages: list[str] = []
+    sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+    try:
+        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    finally:
+        logger.remove(sink_id)
+    assert parameters.pv_battery is not None
+    # The packaged generic profile applies with the adjustment.
+    assert parameters.pv_battery.capacity_wh == 2000
+    assert parameters.pv_battery.max_charge_power_w == pytest.approx(1000.0)
+    assert parameters.pv_battery.charge_power_limit_w_by_soc is not None
+    assert any(
+        "Battery 'storage'" in m
+        and "does-not-exist" in m
+        and "Using defaults for the optimization: battery profile 'generic-lfp'" in m
+        for m in messages
+    )

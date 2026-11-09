@@ -1,16 +1,117 @@
 """Battery and electric vehicle device settings.
 
 Note: Used for the GENETIC and GENETIC0 algorithm.
+
+The technical battery data (capacity, power limits, efficiencies, technical
+SOC bounds) comes from a battery profile (see BatteryProfileSettings). The user
+selects the profile by name via ``battery_profile`` (default ``generic-lfp``);
+there is always a profile.
+
+Responsibilities
+----------------
+
+``BatteriesCommonSettings`` holds the configuration fields, their validation and
+the measurement keys. The other concerns live in their own modules, the
+settings methods delegate to them:
+
+- ``profilestore``: loading (and caching) the compiled battery profile.
+- ``batterymeasurement``: reading the operating point from the measurements.
+- ``batteryresolution``: resolving the effective parameters from profile,
+  profile adjustment and operating point (pure functions).
+
+Configuration fields versus computed fields
+-------------------------------------------
+
+Configuration fields are inputs, in three groups:
+
+- The battery profile: ``battery_profile`` names the profile, and
+  ``profile_adjustment`` holds how this unit differs from it: its nominal
+  capacity (replaces the profile capacity; required for a generic profile) and
+  the charge / discharge power limits of the installation (can only lower the
+  profile limits), and the periodic full charge interval and detection
+  threshold (replace the profile values).
+- Operating policy: ``min_soc_percentage`` / ``max_soc_percentage`` (kept within
+  the technical SOC bounds of the profile), ``charge_rates``,
+  ``min_charge_power_w``, ``levelized_cost_of_storage_amt_kwh``, the minimum SoC
+  deadline, the grid export rates and the periodic full charge target
+  (``full_charge_soc_percentage``, ``full_charge_allow_grid``).
+- Runtime state: ``capacity_estimation`` / ``capacity_estimate``.
+
+Computed fields are outputs, all named ``effective_*``. They are evaluated on
+every access (pydantic does not cache them and does not evaluate them while
+validating or constructing the model). They depend on the configuration and the
+battery profile only, never on measurements, and are evaluated at the reference
+operating point (``BatteryOperatingPoint()``: 25 degC, 50 % SoC, no measured
+power):
+
+- ``effective_nominal_capacity_wh``: profile adjustment, else profile.
+- ``effective_max_charge_power_w`` / ``effective_max_discharge_power_w``: profile
+  limits at the reference operating point, capped by the profile adjustment.
+- ``effective_charging_efficiency`` / ``effective_discharging_efficiency``: profile
+  efficiency curve at the maximum charge / discharge power.
+- ``effective_min_soc_percentage`` / ``effective_max_soc_percentage``.
+- ``effective_full_charge_interval_days`` / ``effective_full_charge_detect_percentage``:
+  profile adjustment, else profile (``resolve_full_charge``).
+
+Because pydantic also evaluates computed fields on every serialization
+(``model_dump``, ``model_dump_json``), they never raise: they are None if the
+battery cannot be resolved, e.g. the profile does not exist. The strict methods
+below raise a ``BatteryResolutionError`` naming the battery instead, and
+``check_profile`` reports the problem.
+
+Measurements versus resolution
+------------------------------
+
+- ``measure_operating_point`` (async) reads temperature, SoC and charge /
+  discharge power (``<device_id>-charge-power-w`` / ``<device_id>-discharge-power-w``)
+  from the measurements and returns a ``BatteryOperatingPoint``.
+- ``resolve_operating_parameters`` (sync, strict) evaluates the profile at a given
+  operating point, the reference operating point by default.
+- ``resolve_current_operating_parameters`` (async, strict) combines both.
+- The optimizer conversions (``to_*_param``) take a resolved snapshot, so async
+  callers resolve once at the measured operating point and convert.
 """
 
 import re
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
+from loguru import logger
 from numpydantic import NDArray, Shape
-from pydantic import Field, computed_field, field_validator, model_validator
+from pydantic import (
+    Field,
+    PrivateAttr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
-from akkudoktoreos.config.configabc import ConfigScope
+from akkudoktoreos.config.configabc import ConfigScope, SettingsBaseModel
+from akkudoktoreos.devices.settings import batterymeasurement
+from akkudoktoreos.devices.settings.batterymeasurement import (
+    BATTERY_MEASUREMENT_MAX_AGE as BATTERY_MEASUREMENT_MAX_AGE,
+)
+from akkudoktoreos.devices.settings.batteryresolution import (
+    BATTERY_DEFAULT_SOC_FACTOR as BATTERY_DEFAULT_SOC_FACTOR,
+)
+from akkudoktoreos.devices.settings.batteryresolution import (
+    BATTERY_DEFAULT_TEMPERATURE_DEGC as BATTERY_DEFAULT_TEMPERATURE_DEGC,
+)
+from akkudoktoreos.devices.settings.batteryresolution import (
+    BATTERY_FALLBACK_CAPACITY_WH,
+    BatteryFullCharge,
+    BatteryOperatingParameters,
+    BatteryOperatingPoint,
+    BatteryPowerCurves,
+    BatteryResolutionError,
+    BatterySocRangeError,
+    profile_peak_power_w,
+    resolve_battery_parameters,
+    resolve_battery_parameters_without_profile,
+    resolve_battery_power_curves,
+    resolve_full_charge,
+    resolve_nominal_capacity_wh,
+)
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.measurement.batterycapacity import (
     BatteryCapacityEstimate,
@@ -27,6 +128,7 @@ if TYPE_CHECKING:
         ElectricVehicleParameters,
         SolarPanelBatteryParameters,
     )
+    from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
 
 
 # Default charge rates for battery
@@ -34,6 +136,88 @@ BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 
 
 
 BATTERY_DEFAULT_GRID_EXPORT_RATES: list[float] = [0.25, 0.5, 0.75, 1.0]
+
+# Name of the battery profile used when the user selects none.
+BATTERY_DEFAULT_PROFILE: str = "generic-lfp"
+
+
+class BatteryProfileAdjustment(SettingsBaseModel):
+    """How a battery unit differs from its battery profile.
+
+    Each field is named after the profile field it adjusts. None keeps the
+    profile value.
+    """
+
+    nominal_capacity_wh: Optional[int] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "description": (
+                "Nominal capacity of the installed battery [Wh]. Replaces the capacity "
+                "of the battery profile. Required if the profile is generic and "
+                "provides no capacity. The effective value is available as "
+                "'effective_nominal_capacity_wh'."
+            ),
+            "examples": [None, 8000],
+        },
+    )
+    max_charge_power_w: Optional[float] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "description": (
+                "Maximum charging power of the installation, e.g. the inverter limit [W]. "
+                "Can only lower the limits of the battery profile. The effective value "
+                "is available as 'effective_max_charge_power_w'."
+            ),
+            "examples": [None, 5000],
+        },
+    )
+    max_discharge_power_w: Optional[float] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "description": (
+                "Maximum discharging power of the installation, e.g. the inverter limit "
+                "[W]. Can only lower the limits of the battery profile. The effective "
+                "value is available as 'effective_max_discharge_power_w'."
+            ),
+            "examples": [None, 5000],
+        },
+    )
+    full_charge_interval_days: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Maximum number of days between two full charges of a stationary "
+                "battery [d]. Replaces the interval of the battery profile. When the "
+                "next full charge falls due within the optimization horizon, the "
+                "maximum state of charge is raised to 'full_charge_soc_percentage'. "
+                "The periodic full charge is disabled if neither this nor the profile "
+                "sets an interval. Ignored for electric vehicles. The effective value "
+                "is available as 'effective_full_charge_interval_days'."
+            ),
+            "examples": [None, 21],
+        },
+    )
+    full_charge_detect_percentage: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=100,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Measured state of charge from which the battery counts as fully "
+                "charged [%]. Replaces the threshold of the battery profile. The "
+                "effective value is available as "
+                "'effective_full_charge_detect_percentage'."
+            ),
+            "examples": [None, 98],
+        },
+    )
 
 
 class BatteriesCommonSettings(DevicesBaseSettings):
@@ -44,33 +228,42 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     Note: Used for the GENETIC and GENETIC0 algorithm.
     """
 
+    # Reference resolution shared by the effective_* computed fields, see
+    # _reference_resolution(): (settings key, compiled profile or load error,
+    # parameters, full charge).
+    _reference_cache: Optional[
+        tuple[tuple[Any, ...], Any, Optional[BatteryOperatingParameters], BatteryFullCharge]
+    ] = PrivateAttr(default=None)
+
     capacity_estimation: Optional[BatteryCapacityEstimationSettings] = None
     capacity_estimate: Optional[BatteryCapacityEstimate] = Field(
         default=None,
-        description="Last explicitly stored capacity estimate; does not override capacity_wh.",
+        description=(
+            "Last explicitly stored capacity estimate; does not override the "
+            "effective nominal capacity."
+        ),
     )
 
-    capacity_wh: int = Field(
-        default=8000,
-        gt=0,
-        json_schema_extra={"description": "Capacity [Wh].", "examples": [8000]},
-    )
-    charging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
+    battery_profile: str = Field(
+        default=BATTERY_DEFAULT_PROFILE,
+        min_length=1,
         json_schema_extra={
-            "description": "Charging efficiency [0.01 ... 1.00].",
-            "examples": [0.88],
+            "description": (
+                "Name of the battery profile (without '.json') providing the nominal "
+                "capacity, power limits, efficiency curves and technical SOC bounds. "
+                "Differences of this unit go into 'profile_adjustment'."
+            ),
+            "examples": [BATTERY_DEFAULT_PROFILE],
         },
     )
-    discharging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
+    profile_adjustment: BatteryProfileAdjustment = Field(
+        default_factory=BatteryProfileAdjustment,
         json_schema_extra={
-            "description": "Discharge efficiency [0.01 ... 1.00].",
-            "examples": [0.88],
+            "description": (
+                "How this battery unit differs from its battery profile: nominal "
+                "capacity, installation power limits and periodic full charge."
+            ),
+            "examples": [{"nominal_capacity_wh": 8000, "max_charge_power_w": 5000}],
         },
     )
     levelized_cost_of_storage_amt_kwh: float = Field(
@@ -81,14 +274,6 @@ class BatteriesCommonSettings(DevicesBaseSettings):
                 "of delivering one kWh [€/kWh]."
             ),
             "examples": [0.12],
-        },
-    )
-    max_charge_power_w: Optional[float] = Field(
-        default=5000,
-        gt=0,
-        json_schema_extra={
-            "description": "Maximum charging power [W].",
-            "examples": [5000],
         },
     )
     min_charge_power_w: Optional[float] = Field(
@@ -116,7 +301,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         json_schema_extra={
             "description": (
                 "Minimum state of charge (SOC) as percentage of capacity [%]. "
-                "This is the target SoC for charging."
+                "This is the target SoC for charging. Raised to the technical minimum "
+                "SOC of the battery profile if that is higher."
             ),
             "examples": [10],
         },
@@ -126,10 +312,555 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         ge=0,
         le=100,
         json_schema_extra={
-            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "description": (
+                "Maximum state of charge (SOC) as percentage of capacity [%]. "
+                "Lowered to the technical maximum SOC of the battery profile if that "
+                "is lower."
+            ),
             "examples": [100],
         },
     )
+
+    # ------------------------------------------------------------------
+    # Battery profile loading (see profilestore)
+    # ------------------------------------------------------------------
+
+    def get_battery_profile(self) -> "BatteryProfile":
+        """Return the compiled battery profile for ``battery_profile``.
+
+        The profile is loaded lazily (not at validation time, so configuration
+        loading does not depend on the data directories). The profile store
+        caches the compiled profile and recompiles it when the file changes.
+
+        Returns:
+            The ready-to-use profile.
+
+        Raises:
+            FileNotFoundError: If the configured battery profile does not exist.
+            ValueError: If the profile document fails validation.
+        """
+        from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
+        from akkudoktoreos.devices.profile.profilestore import get_profile_store
+
+        return get_profile_store().get(BatteryProfileSettings, self.battery_profile)
+
+    def _load_battery_profile(self) -> "BatteryProfile":
+        """Return the compiled battery profile, or raise an error naming the battery.
+
+        Raises:
+            BatteryResolutionError: If the profile does not exist, cannot be
+                read or fails validation.
+        """
+        try:
+            return self.get_battery_profile()
+        except BatteryResolutionError:
+            raise
+        except (OSError, ValueError) as exc:
+            raise BatteryResolutionError(
+                f"Battery '{self.device_id}': battery profile '{self.battery_profile}' "
+                f"is not usable: {exc}"
+            ) from exc
+
+    def resolve_power_curves(
+        self, operating_parameters: BatteryOperatingParameters
+    ) -> Optional[BatteryPowerCurves]:
+        """Evaluate the battery profile over the whole SoC range.
+
+        The profile is evaluated at the temperature of the operating parameters,
+        i.e. the measured battery temperature or the default temperature if
+        there is no measurement.
+
+        Args:
+            operating_parameters: Resolved snapshot providing temperature and
+                capacity.
+
+        Returns:
+            The power curves, or None if the profile allows no charging at any
+            SoC at this temperature.
+
+        Raises:
+            BatteryResolutionError: If the profile cannot be loaded or its
+                limits cannot be converted to power.
+        """
+        return self._power_curves(operating_parameters, self._load_battery_profile())
+
+    def _power_curves(
+        self, operating_parameters: BatteryOperatingParameters, profile: "BatteryProfile"
+    ) -> Optional[BatteryPowerCurves]:
+        """Evaluate a loaded profile like ``resolve_power_curves``."""
+        try:
+            return resolve_battery_power_curves(
+                self,
+                profile,
+                operating_parameters.capacity_wh,
+                operating_parameters.temperature_degC,
+            )
+        except BatteryResolutionError:
+            raise
+        except ValueError as exc:
+            raise BatteryResolutionError(f"Battery '{self.device_id}': {exc}") from exc
+
+    def _genetic_snapshot(
+        self, operating_parameters: Optional[BatteryOperatingParameters], use_profile_tables: bool
+    ) -> tuple[BatteryOperatingParameters, Optional["BatteryProfile"]]:
+        """Return the snapshot to convert and the profile, loading the profile once.
+
+        Without profile tables, the given snapshot is converted as is and no
+        profile is loaded. A given snapshot brings the profile it was resolved
+        from, so the conversion does not load it again: it cannot fail on a
+        profile that was changed or deleted meanwhile, and the power tables
+        belong to the same profile version as the snapshot.
+
+        Raises:
+            BatteryResolutionError: See ``resolve_operating_parameters``; only
+                if no snapshot is given.
+        """
+        if not use_profile_tables:
+            if operating_parameters is None:
+                raise ValueError("Converting without profile tables requires a resolved snapshot.")
+            return operating_parameters, None
+        if operating_parameters is not None:
+            # None if the snapshot was resolved without profile: no tables then.
+            return operating_parameters, operating_parameters.profile
+        profile = self._load_battery_profile()
+        capacity_wh = resolve_nominal_capacity_wh(self, profile)
+        return (
+            resolve_battery_parameters(self, profile, capacity_wh, BatteryOperatingPoint()),
+            profile,
+        )
+
+    def _genetic_power_parameters(
+        self, p: BatteryOperatingParameters, profile: Optional["BatteryProfile"]
+    ) -> dict[str, Any]:
+        """Return the power and efficiency fields of the GENETIC battery parameters.
+
+        With power curves from the profile, the rated powers are the highest
+        powers over SoC; the per-SoC tables limit them in the simulation.
+        Without (no profile, or the profile allows no charging at this
+        temperature), the powers resolved at the operating point apply.
+        """
+        curves = None
+        if profile is not None:
+            try:
+                curves = self._power_curves(p, profile)
+            except BatteryResolutionError as exc:
+                # Never abort the optimization: use the powers of the snapshot.
+                logger.error(
+                    "{} Using the powers at the operating point without power tables.", exc
+                )
+        if curves is None:
+            return {
+                "max_charge_power_w": p.max_charge_power_w,
+                "max_discharge_power_w": p.max_discharge_power_w,
+            }
+        return {
+            "max_charge_power_w": curves.max_charge_power_w,
+            "max_discharge_power_w": curves.max_discharge_power_w,
+            "charge_power_limit_w_by_soc": curves.charge_power_limit_w_by_soc,
+            "discharge_power_limit_w_by_soc": curves.discharge_power_limit_w_by_soc,
+            "charging_efficiency_curve": curves.charging_efficiency_curve,
+            "discharging_efficiency_curve": curves.discharging_efficiency_curve,
+        }
+
+    # ------------------------------------------------------------------
+    # Measurement access (see batterymeasurement)
+    # ------------------------------------------------------------------
+
+    async def measure_operating_point(
+        self, target_datetime: Optional[DateTime] = None
+    ) -> BatteryOperatingPoint:
+        """Read the current operating point from the battery measurements.
+
+        Missing, non-finite or unavailable measurements fall back to the
+        reference operating point (25 degC, SoC 0.5, no power); the SoC factor
+        is clamped to [0.0 ... 1.0]. This method never raises for missing
+        measurements.
+
+        Args:
+            target_datetime: Datetime the measurements are looked up for, now if None.
+
+        Returns:
+            The measured operating point.
+        """
+        return await batterymeasurement.measure_operating_point(self, target_datetime)
+
+    # ------------------------------------------------------------------
+    # Resolution (see batteryresolution)
+    # ------------------------------------------------------------------
+
+    def resolve_nominal_capacity_wh(self) -> int:
+        """Return the effective nominal capacity [Wh].
+
+        Order: ``profile_adjustment.nominal_capacity_wh``, then the capacity of
+        the battery profile.
+
+        Raises:
+            BatteryResolutionError: If the profile cannot be loaded, or it is
+                generic and the profile adjustment provides no capacity.
+        """
+        return resolve_nominal_capacity_wh(self, self._load_battery_profile())
+
+    def resolve_operating_parameters(
+        self, operating_point: Optional[BatteryOperatingPoint] = None
+    ) -> BatteryOperatingParameters:
+        """Resolve the effective battery parameters as one snapshot.
+
+        Synchronous and deterministic: measurements are not read here. Use
+        ``resolve_current_operating_parameters`` for the measured operating point.
+        The efficiencies are taken at the charge / discharge power of the
+        operating point, or at the maximum power if there is none.
+
+        Args:
+            operating_point: Operating point to evaluate the profile at, the
+                reference operating point ``BatteryOperatingPoint()`` if None.
+
+        Returns:
+            The effective parameters.
+
+        Raises:
+            BatteryResolutionError: If the profile cannot be loaded, provides no
+                capacity, or the technical SOC bounds leave an empty SOC range.
+                An operating point the profile inhibits charging or discharging
+                at gives a maximum power of 0, no error.
+        """
+        if operating_point is None:
+            operating_point = BatteryOperatingPoint()
+        profile = self._load_battery_profile()
+        capacity_wh = resolve_nominal_capacity_wh(self, profile)
+        return resolve_battery_parameters(self, profile, capacity_wh, operating_point)
+
+    async def resolve_current_operating_parameters(
+        self, target_datetime: Optional[DateTime] = None
+    ) -> BatteryOperatingParameters:
+        """Resolve the effective battery parameters at the measured operating point.
+
+        Reads the operating point once (see ``measure_operating_point``) and
+        resolves all parameters from it, so the snapshot is consistent even if
+        measurements change meanwhile.
+
+        Args:
+            target_datetime: Datetime the measurements are looked up for, now if None.
+
+        Returns:
+            The effective parameters.
+
+        Raises:
+            BatteryResolutionError: See ``resolve_operating_parameters``.
+        """
+        operating_point = await self.measure_operating_point(target_datetime)
+        return self.resolve_operating_parameters(operating_point)
+
+    def _load_generic_battery_profile(self) -> "BatteryProfile":
+        """Return the packaged generic battery profile, the fallback for an unusable profile.
+
+        Raises:
+            BatteryResolutionError: If the generic profile cannot be loaded.
+        """
+        from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
+        from akkudoktoreos.devices.profile.profilestore import get_profile_store
+
+        try:
+            return get_profile_store().get(BatteryProfileSettings, BATTERY_DEFAULT_PROFILE)
+        except (OSError, ValueError) as exc:
+            raise BatteryResolutionError(
+                f"Battery '{self.device_id}': generic battery profile "
+                f"'{BATTERY_DEFAULT_PROFILE}' is not usable: {exc}"
+            ) from exc
+
+    def _resolve_with_profile_or_defaults(
+        self,
+        profile: "BatteryProfile",
+        operating_point: BatteryOperatingPoint,
+        problems: list[str],
+        defaults: list[str],
+    ) -> BatteryOperatingParameters:
+        """Resolve with a loaded profile, with defaults for capacity and SoC range.
+
+        Appends the problems and the defaults used to the given lists.
+
+        Raises:
+            BatteryResolutionError: If the profile cannot be resolved, e.g. its
+                limits cannot be converted to power.
+        """
+        try:
+            capacity_wh = resolve_nominal_capacity_wh(self, profile)
+        except BatteryResolutionError as exc:
+            problems.append(str(exc))
+            capacity_wh = BATTERY_FALLBACK_CAPACITY_WH
+            defaults.append(f"nominal capacity {capacity_wh} Wh")
+        try:
+            return resolve_battery_parameters(self, profile, capacity_wh, operating_point)
+        except BatterySocRangeError as exc:
+            problems.append(str(exc))
+            full_range = self.model_copy(
+                update={"min_soc_percentage": 0, "max_soc_percentage": 100}
+            )
+            parameters = resolve_battery_parameters(
+                full_range, profile, capacity_wh, operating_point
+            )
+            defaults.append(
+                f"SoC range {parameters.min_soc_percentage} ... "
+                f"{parameters.max_soc_percentage} % (technical bounds of the profile)"
+            )
+            return parameters
+
+    def resolve_operating_parameters_or_defaults(
+        self, operating_point: Optional[BatteryOperatingPoint] = None, report: bool = True
+    ) -> tuple[BatteryOperatingParameters, bool]:
+        """Resolve the parameters for the optimization, with defaults for configuration errors.
+
+        The parameter preparation of the optimizations always succeeds for a
+        configuration error. Whatever the configuration allows is resolved from
+        the battery profile and the profile adjustment; only the values that
+        cannot be resolved are filled with the former defaults:
+
+        - The profile cannot be used (missing, unreadable, invalid, limits not
+          convertible to power): the packaged generic profile
+          ``generic-lfp``.
+        - The generic profile cannot be used either: the profile adjustment
+          where set, else 8000 Wh, 5000 W charge and discharge power,
+          efficiencies 0.88, no SoC dependent power limits.
+        - A generic profile without capacity in the profile adjustment: the
+          capacity 8000 Wh.
+        - A configured SoC range outside the technical SoC bounds of the profile:
+          the technical SoC range of the profile.
+
+        Args:
+            operating_point: Operating point to evaluate the profile at, the
+                reference operating point if None.
+            report: Whether to log an error that names the battery, the problem
+                and the default values used.
+
+        Returns:
+            ``(parameters, use_profile_tables)``. ``use_profile_tables`` is
+            False if the parameters were resolved without profile; pass it to
+            the GENETIC conversions. The parameters are always valid; if the
+            profile inhibits charging at the operating point (e.g. too cold),
+            the maximum charge power is 0.
+        """
+        if operating_point is None:
+            operating_point = BatteryOperatingPoint()
+        problems: list[str] = []
+        defaults: list[str] = []
+        parameters: Optional[BatteryOperatingParameters] = None
+        use_profile_tables = True
+        try:
+            parameters = self._resolve_with_profile_or_defaults(
+                self._load_battery_profile(), operating_point, problems, defaults
+            )
+        except BatteryResolutionError as exc:
+            # Defaults of the failed attempt do not apply.
+            defaults.clear()
+            problems.append(str(exc))
+        if parameters is None and self.battery_profile != BATTERY_DEFAULT_PROFILE:
+            generic_defaults = [f"battery profile '{BATTERY_DEFAULT_PROFILE}'"]
+            try:
+                parameters = self._resolve_with_profile_or_defaults(
+                    self._load_generic_battery_profile(),
+                    operating_point,
+                    problems,
+                    generic_defaults,
+                )
+                defaults.extend(generic_defaults)
+            except BatteryResolutionError as exc:
+                problems.append(str(exc))
+        if parameters is None:
+            parameters, defaults = resolve_battery_parameters_without_profile(self, operating_point)
+            use_profile_tables = False
+        if problems and report:
+            logger.error(
+                "{} Using defaults for the optimization: {}.",
+                " ".join(problems),
+                ", ".join(defaults),
+            )
+        return parameters, use_profile_tables
+
+    async def resolve_current_operating_parameters_or_defaults(
+        self, target_datetime: Optional[DateTime] = None, report: bool = True
+    ) -> tuple[BatteryOperatingParameters, bool]:
+        """Resolve like ``resolve_operating_parameters_or_defaults`` at the measured operating point.
+
+        Args:
+            target_datetime: Datetime the measurements are looked up for, now if None.
+            report: Whether to log the configuration error and the defaults used.
+
+        Returns:
+            ``(parameters, use_profile_tables)``.
+        """
+        operating_point = await self.measure_operating_point(target_datetime)
+        return self.resolve_operating_parameters_or_defaults(operating_point, report)
+
+    def check_profile(self) -> tuple[list[str], list[str]]:
+        """Check that the battery can be resolved from its profile and adjustment.
+
+        Resolves the battery at the reference operating point. Also checks
+        that every power limit of the profile adjustment lowers the profile
+        limit; a higher one has no effect.
+
+        Returns:
+            ``(errors, warnings)``: messages naming the battery. No errors means
+            the battery can be resolved.
+        """
+        try:
+            profile = self._load_battery_profile()
+            capacity_wh = resolve_nominal_capacity_wh(self, profile)
+            reference = resolve_battery_parameters(
+                self, profile, capacity_wh, BatteryOperatingPoint()
+            )
+            peak_charge_w, peak_discharge_w = profile_peak_power_w(
+                profile, capacity_wh, BatteryOperatingPoint().temperature_degC
+            )
+        except ValueError as exc:
+            return [str(exc)], []
+        if reference.max_charge_power_w <= 0:
+            # At the reference operating point the battery must be able to charge;
+            # otherwise the profile or the adjustment is wrong.
+            return [
+                f"Battery '{self.device_id}': battery profile '{self.battery_profile}' "
+                f"allows no charging at the reference operating point "
+                f"({reference.temperature_degC} degC / {reference.soc_factor * 100.0} % SoC)."
+            ], []
+        warnings: list[str] = []
+        for name, limit_w, peak_w in (
+            ("max_charge_power_w", self.profile_adjustment.max_charge_power_w, peak_charge_w),
+            (
+                "max_discharge_power_w",
+                self.profile_adjustment.max_discharge_power_w,
+                peak_discharge_w,
+            ),
+        ):
+            if limit_w is not None and limit_w > peak_w:
+                warnings.append(
+                    f"Battery '{self.device_id}': 'profile_adjustment.{name}' {limit_w} W is "
+                    f"above the {peak_w} W of battery profile '{self.battery_profile}' and "
+                    "has no effect; the profile value applies."
+                )
+        return [], warnings
+
+    def _reference_key(self) -> tuple[Any, ...]:
+        """Return the settings the reference resolution depends on.
+
+        Exactly the fields the resolution functions of ``batteryresolution``
+        read, and all fields of the profile adjustment. Cheaper than a dump of
+        all settings, which each effective_* field would otherwise pay.
+        """
+        adjustment = self.profile_adjustment
+        return (
+            self.device_id,
+            self.battery_profile,
+            self.min_soc_percentage,
+            self.max_soc_percentage,
+            self.full_charge_soc_percentage,
+            tuple(getattr(adjustment, name) for name in type(adjustment).model_fields),
+        )
+
+    def _reference_resolution(
+        self,
+    ) -> tuple[Optional[BatteryOperatingParameters], BatteryFullCharge]:
+        """Resolve the parameters and the full charge policy at the reference operating point.
+
+        The effective_* computed fields share the result: a configuration dump
+        evaluates all of them. It is reused while the battery settings and the
+        compiled profile are unchanged; the profile store hands out the same
+        compiled profile until its file changes, so a changed profile applies
+        at once.
+
+        Returns:
+            ``(parameters, full_charge)``; parameters is None if the battery
+            cannot be resolved.
+        """
+        key = self._reference_key()
+        profile: Any
+        try:
+            profile = self._load_battery_profile()
+        except BatteryResolutionError as exc:
+            profile = str(exc)
+        cached = self._reference_cache
+        if cached is not None and cached[0] == key:
+            cached_profile = cached[1]
+            unchanged = (
+                cached_profile is profile
+                if not isinstance(profile, str)
+                else cached_profile == profile
+            )
+            if unchanged:
+                return cached[2], cached[3]
+        parameters: Optional[BatteryOperatingParameters] = None
+        if isinstance(profile, str):
+            logger.debug(f"Battery '{self.device_id}' not resolvable: {profile}")
+            full_charge = resolve_full_charge(self, None)
+        else:
+            # Resolve with the profile loaded above, not loading it again.
+            try:
+                capacity_wh = resolve_nominal_capacity_wh(self, profile)
+                parameters = resolve_battery_parameters(
+                    self, profile, capacity_wh, BatteryOperatingPoint()
+                )
+            except ValueError as exc:
+                logger.debug(f"Battery '{self.device_id}' not resolvable: {exc}")
+            full_charge = resolve_full_charge(self, profile)
+        self._reference_cache = (key, profile, parameters, full_charge)
+        return parameters, full_charge
+
+    def _effective_parameters(self) -> Optional[BatteryOperatingParameters]:
+        """Resolve at the reference operating point, None if that is not possible."""
+        return self._reference_resolution()[0]
+
+    # ------------------------------------------------------------------
+    # Computed fields, evaluated on every access at the reference operating point
+    # ------------------------------------------------------------------
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_nominal_capacity_wh(self) -> Optional[int]:
+        """Effective nominal capacity [Wh]: profile adjustment, else profile.
+
+        None if the battery cannot be resolved.
+        """
+        p = self._effective_parameters()
+        return p.capacity_wh if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_max_charge_power_w(self) -> Optional[float]:
+        """Maximum charging power [W] at the reference operating point."""
+        p = self._effective_parameters()
+        return p.max_charge_power_w if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_max_discharge_power_w(self) -> Optional[float]:
+        """Maximum discharging power [W] at the reference operating point."""
+        p = self._effective_parameters()
+        return p.max_discharge_power_w if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_charging_efficiency(self) -> Optional[float]:
+        """Charging efficiency [0.01 ... 1.00] at the maximum charge power."""
+        p = self._effective_parameters()
+        return p.charging_efficiency if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_discharging_efficiency(self) -> Optional[float]:
+        """Discharging efficiency [0.01 ... 1.00] at the maximum discharge power."""
+        p = self._effective_parameters()
+        return p.discharging_efficiency if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_min_soc_percentage(self) -> Optional[int]:
+        """Effective minimum SoC [%], within the technical bounds of the profile."""
+        p = self._effective_parameters()
+        return p.min_soc_percentage if p is not None else None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_max_soc_percentage(self) -> Optional[int]:
+        """Effective maximum SoC [%], within the technical bounds of the profile."""
+        p = self._effective_parameters()
+        return p.max_soc_percentage if p is not None else None
 
     # ------------------------------------------------------------------
     # GENETIC domain conversion
@@ -215,37 +946,10 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     # ------------------------------------------------------------------
     # Periodic full charge (stationary batteries, GENETIC only)
     # ------------------------------------------------------------------
+    #
+    # The interval and the detection threshold are battery model properties:
+    # they come from the battery profile, see ``resolve_full_charge``.
 
-    cell_chemistry: Optional[Literal["LFP", "NMC", "NCA", "LTO"]] = Field(
-        default=None,
-        json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
-            "description": (
-                "Cell chemistry of the battery. Informational only, it does not "
-                "enable anything. LFP batteries usually need a periodic full charge "
-                "to recalibrate their state of charge, see "
-                "'full_charge_interval_days'."
-            ),
-            "examples": [None, "LFP"],
-        },
-    )
-    full_charge_interval_days: Optional[float] = Field(
-        default=None,
-        gt=0,
-        allow_inf_nan=False,
-        json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
-            "description": (
-                "Maximum number of days between two full charges of a stationary "
-                "battery [d]. The last full charge is taken from the measured state "
-                "of charge. When the next one falls due within the optimization "
-                "horizon, the maximum state of charge is raised to "
-                "'full_charge_soc_percentage'. None disables the periodic full "
-                "charge. Ignored for electric vehicles."
-            ),
-            "examples": [None, 21],
-        },
-    )
     full_charge_soc_percentage: int = Field(
         default=100,
         ge=1,
@@ -254,23 +958,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             "x-scope": [str(ConfigScope.GENETIC)],
             "description": (
                 "State of charge a periodic full charge has to reach [%]. May be "
-                "above 'max_soc_percentage', which then applies on the other days."
+                "above 'max_soc_percentage', which then applies on the other days. "
+                "Capped by the technical maximum SOC of the battery profile. The "
+                "interval comes from the battery profile or "
+                "'profile_adjustment.full_charge_interval_days'."
             ),
             "examples": [100],
-        },
-    )
-    full_charge_detect_percentage: int = Field(
-        default=99,
-        ge=1,
-        le=100,
-        json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
-            "description": (
-                "Measured state of charge from which the battery counts as fully "
-                "charged [%]. Many battery management systems never report exactly "
-                "100 %."
-            ),
-            "examples": [99],
         },
     )
     full_charge_allow_grid: bool = Field(
@@ -286,75 +979,175 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         },
     )
 
-    def to_genetic_pv_bat_param(self) -> "SolarPanelBatteryParameters":
-        """Return SolarPanelBatteryParameters for the GENETIC optimizer."""
+    def resolve_full_charge(self) -> BatteryFullCharge:
+        """Return the effective periodic full charge policy of this battery.
+
+        Never raises: if the battery profile is not usable, only the profile
+        adjustment and the defaults apply.
+        """
+        try:
+            profile: Optional["BatteryProfile"] = self._load_battery_profile()
+        except BatteryResolutionError as exc:
+            logger.debug(f"Battery '{self.device_id}': full charge without profile: {exc}")
+            profile = None
+        return resolve_full_charge(self, profile)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_full_charge_interval_days(self) -> Optional[float]:
+        """Maximum days between two full charges [d]: profile adjustment, else profile.
+
+        None if the periodic full charge is disabled.
+        """
+        return self._reference_resolution()[1].interval_days
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def effective_full_charge_detect_percentage(self) -> int:
+        """Measured SoC from which the battery counts as fully charged [%]."""
+        return self._reference_resolution()[1].detect_percentage
+
+    def to_genetic_pv_bat_param(
+        self,
+        operating_parameters: Optional[BatteryOperatingParameters] = None,
+        use_profile_tables: bool = True,
+    ) -> "SolarPanelBatteryParameters":
+        """Return SolarPanelBatteryParameters for the GENETIC optimizer.
+
+        Args:
+            operating_parameters: Resolved snapshot to convert, e.g. from
+                ``resolve_current_operating_parameters``. None resolves at the
+                reference operating point.
+            use_profile_tables: Whether to add the SoC dependent power limits
+                and efficiency curves of the profile. False for a snapshot
+                resolved without profile (see
+                ``resolve_operating_parameters_or_defaults``); requires
+                ``operating_parameters``.
+
+        Raises:
+            BatteryResolutionError: See ``resolve_operating_parameters``.
+        """
         from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
 
+        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
         return SolarPanelBatteryParameters(
             device_id=self.device_id,
-            capacity_wh=self.capacity_wh,
-            charging_efficiency=self.charging_efficiency,
-            discharging_efficiency=self.discharging_efficiency,
-            max_charge_power_w=self.max_charge_power_w,
-            min_soc_percentage=self.min_soc_percentage,
-            max_soc_percentage=self.max_soc_percentage,
+            capacity_wh=p.capacity_wh,
+            charging_efficiency=p.charging_efficiency,
+            discharging_efficiency=p.discharging_efficiency,
+            min_soc_percentage=p.min_soc_percentage,
+            max_soc_percentage=p.max_soc_percentage,
             charge_rates=self.charge_rates,
             grid_export_rates=self.grid_export_rates,
+            **self._genetic_power_parameters(p, profile),
             levelized_cost_of_storage_kwh=self.levelized_cost_of_storage_amt_kwh,
         )
 
-    def to_genetic_ev_bat_param(self) -> "ElectricVehicleParameters":
-        """Return ElectricVehicleParameters for the GENETIC optimizer."""
+    def to_genetic_ev_bat_param(
+        self,
+        operating_parameters: Optional[BatteryOperatingParameters] = None,
+        use_profile_tables: bool = True,
+    ) -> "ElectricVehicleParameters":
+        """Return ElectricVehicleParameters for the GENETIC optimizer.
+
+        Args:
+            operating_parameters: Resolved snapshot to convert, e.g. from
+                ``resolve_current_operating_parameters``. None resolves at the
+                reference operating point.
+            use_profile_tables: Whether to add the SoC dependent power limits
+                and efficiency curves of the profile. False for a snapshot
+                resolved without profile (see
+                ``resolve_operating_parameters_or_defaults``); requires
+                ``operating_parameters``.
+
+        Raises:
+            BatteryResolutionError: See ``resolve_operating_parameters``.
+        """
         from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
 
+        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
         return ElectricVehicleParameters(
             device_id=self.device_id,
-            capacity_wh=self.capacity_wh,
-            charging_efficiency=self.charging_efficiency,
-            discharging_efficiency=self.discharging_efficiency,
+            capacity_wh=p.capacity_wh,
+            charging_efficiency=p.charging_efficiency,
+            discharging_efficiency=p.discharging_efficiency,
             charge_rates=self.charge_rates,
-            max_charge_power_w=self.max_charge_power_w,
-            min_soc_percentage=self.min_soc_percentage,
-            max_soc_percentage=self.max_soc_percentage,
+            min_soc_percentage=p.min_soc_percentage,
+            max_soc_percentage=p.max_soc_percentage,
             min_soc_deadline_datetime=self.min_soc_deadline_datetime,
             min_soc_max_duration_h=self.min_soc_max_duration_h,
+            **self._genetic_power_parameters(p, profile),
         )
 
     # ------------------------------------------------------------------
     # GENETIC0 domain conversion
     # ------------------------------------------------------------------
 
-    def to_genetic0_pv_bat_param(self) -> "Genetic0SolarPanelBatteryParameters":
-        """Return Genetic0SolarPanelBatteryParameters for the GENETIC0 optimizer."""
+    def to_genetic0_pv_bat_param(
+        self, operating_parameters: Optional[BatteryOperatingParameters] = None
+    ) -> "Genetic0SolarPanelBatteryParameters":
+        """Return Genetic0SolarPanelBatteryParameters for the GENETIC0 optimizer.
+
+        Args:
+            operating_parameters: Resolved snapshot to convert, e.g. from
+                ``resolve_current_operating_parameters``. None resolves at the
+                reference operating point.
+
+        Raises:
+            BatteryResolutionError: See ``resolve_operating_parameters``.
+        """
         from akkudoktoreos.devices.genetic0.genetic0battery import (
             Genetic0SolarPanelBatteryParameters,
         )
 
+        p = (
+            operating_parameters
+            if operating_parameters is not None
+            else self.resolve_operating_parameters()
+        )
         return Genetic0SolarPanelBatteryParameters(
             device_id=self.device_id,
-            capacity_wh=self.capacity_wh,
-            charging_efficiency=self.charging_efficiency,
-            discharging_efficiency=self.discharging_efficiency,
-            max_charge_power_w=self.max_charge_power_w,
-            min_soc_percentage=self.min_soc_percentage,
-            max_soc_percentage=self.max_soc_percentage,
+            capacity_wh=p.capacity_wh,
+            charging_efficiency=p.charging_efficiency,
+            discharging_efficiency=p.discharging_efficiency,
+            max_charge_power_w=p.max_charge_power_w,
+            max_discharge_power_w=p.max_discharge_power_w,
+            min_soc_percentage=p.min_soc_percentage,
+            max_soc_percentage=p.max_soc_percentage,
         )
 
-    def to_genetic0_ev_bat_param(self) -> "Genetic0ElectricVehicleParameters":
-        """Return Genetic0ElectricVehicleParameters for the GENETI0C optimizer."""
+    def to_genetic0_ev_bat_param(
+        self, operating_parameters: Optional[BatteryOperatingParameters] = None
+    ) -> "Genetic0ElectricVehicleParameters":
+        """Return Genetic0ElectricVehicleParameters for the GENETIC0 optimizer.
+
+        Args:
+            operating_parameters: Resolved snapshot to convert, e.g. from
+                ``resolve_current_operating_parameters``. None resolves at the
+                reference operating point.
+
+        Raises:
+            BatteryResolutionError: See ``resolve_operating_parameters``.
+        """
         from akkudoktoreos.devices.genetic0.genetic0battery import (
             Genetic0ElectricVehicleParameters,
         )
 
+        p = (
+            operating_parameters
+            if operating_parameters is not None
+            else self.resolve_operating_parameters()
+        )
         return Genetic0ElectricVehicleParameters(
             device_id=self.device_id,
-            capacity_wh=self.capacity_wh,
-            charging_efficiency=self.charging_efficiency,
-            discharging_efficiency=self.discharging_efficiency,
+            capacity_wh=p.capacity_wh,
+            charging_efficiency=p.charging_efficiency,
+            discharging_efficiency=p.discharging_efficiency,
             charge_rates=self.charge_rates,
-            max_charge_power_w=self.max_charge_power_w,
-            min_soc_percentage=self.min_soc_percentage,
-            max_soc_percentage=self.max_soc_percentage,
+            max_charge_power_w=p.max_charge_power_w,
+            max_discharge_power_w=p.max_discharge_power_w,
+            min_soc_percentage=p.min_soc_percentage,
+            max_soc_percentage=p.max_soc_percentage,
         )
 
     @field_validator("charge_rates", mode="before")
@@ -391,14 +1184,19 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def _validate_soc_range(self) -> "BatteriesCommonSettings":
         if self.min_soc_percentage > self.max_soc_percentage:
             raise ValueError("min_soc_percentage must be <= max_soc_percentage")
-        if self.full_charge_detect_percentage > self.full_charge_soc_percentage:
-            raise ValueError("full_charge_detect_percentage must be <= full_charge_soc_percentage")
+        detect_percentage = self.profile_adjustment.full_charge_detect_percentage
+        if detect_percentage is not None and detect_percentage > self.full_charge_soc_percentage:
+            raise ValueError(
+                "profile_adjustment.full_charge_detect_percentage must be <= "
+                "full_charge_soc_percentage"
+            )
+        max_charge_power_w = self.profile_adjustment.max_charge_power_w
         if (
             self.min_charge_power_w is not None
-            and self.max_charge_power_w is not None
-            and self.min_charge_power_w > self.max_charge_power_w
+            and max_charge_power_w is not None
+            and self.min_charge_power_w > max_charge_power_w
         ):
-            raise ValueError("min_charge_power_w must be <= max_charge_power_w")
+            raise ValueError("min_charge_power_w must be <= profile_adjustment.max_charge_power_w")
         return self
 
     @computed_field  # type: ignore[prop-decorator]
@@ -406,6 +1204,24 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def measurement_key_soc_factor(self) -> str:
         """Measurement key for SoC as factor of total capacity [0.0 ... 1.0]."""
         return f"{self.device_id}-soc-factor"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def measurement_key_temperature_degc(self) -> str:
+        """Measurement key for the battery temperature [degC]."""
+        return f"{self.device_id}-temperature-degc"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def measurement_key_charge_power_w(self) -> str:
+        """Measurement key for the charge power [W], used to compute the charging efficiency."""
+        return f"{self.device_id}-charge-power-w"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def measurement_key_discharge_power_w(self) -> str:
+        """Measurement key for the discharge power [W], used for the discharging efficiency."""
+        return f"{self.device_id}-discharge-power-w"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -437,6 +1253,9 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         """All measurement keys for this battery."""
         return [
             self.measurement_key_soc_factor,
+            self.measurement_key_temperature_degc,
+            self.measurement_key_charge_power_w,
+            self.measurement_key_discharge_power_w,
             self.measurement_key_power_l1_w,
             self.measurement_key_power_l2_w,
             self.measurement_key_power_l3_w,

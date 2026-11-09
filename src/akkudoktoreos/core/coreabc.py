@@ -35,6 +35,9 @@ _measurement_eos: Optional[Measurement] = None
 _prediction_eos: Optional[Prediction] = None
 _resource_registry_eos: Optional[ResourceRegistry] = None
 
+# True while get_config() creates the configuration, see get_config().
+_config_eos_setup_running: bool = False
+
 
 def get_adapter(init: bool = False) -> Adapter:
     """Retrieve the singleton EOS Adapter instance.
@@ -164,10 +167,14 @@ def get_config(init: Union[bool, dict[str, bool]] = False) -> ConfigEOS:
     Returns:
         ConfigEOS: The global EOS configuration singleton instance.
 
+    While the configuration is being created, its settings are loaded before
+    ``ConfigEOS()`` returns. Code that runs during that time, such as a computed
+    field that resolves a battery profile, gets the configuration being created.
+
     Raises:
         RuntimeError:
             If the configuration has not been initialized and ``init`` is
-            ``False``.
+            ``False``, or its settings are not loaded yet.
 
     Usage:
         .. code-block:: python
@@ -187,9 +194,17 @@ def get_config(init: Union[bool, dict[str, bool]] = False) -> ConfigEOS:
             # Access existing configuration
             host = get_config().server.host
     """
-    global _config_eos
+    global _config_eos, _config_eos_setup_running
     if _config_eos is None:
         from akkudoktoreos.config.config import ConfigEOS
+
+        if _config_eos_setup_running:
+            # Called while ConfigEOS() below is running. The instance is
+            # registered already and usable once its settings are loaded.
+            config_in_setup = ConfigEOS._instances.get(ConfigEOS)
+            if config_in_setup is not None and getattr(config_in_setup, "_initialized", False):
+                return config_in_setup
+            raise RuntimeError("Config access before its settings are loaded.")
 
         if not init and not ConfigEOS.documentation_mode():
             raise RuntimeError("Config access before init.")
@@ -197,7 +212,11 @@ def get_config(init: Union[bool, dict[str, bool]] = False) -> ConfigEOS:
         if isinstance(init, dict):
             ConfigEOS._init_config_eos = init
 
-        _config_eos = ConfigEOS()
+        _config_eos_setup_running = True
+        try:
+            _config_eos = ConfigEOS()
+        finally:
+            _config_eos_setup_running = False
 
     return _config_eos
 

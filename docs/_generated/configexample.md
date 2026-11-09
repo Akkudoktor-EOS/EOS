@@ -41,11 +41,15 @@
                    "device_id": "bat0",
                    "capacity_estimation": null,
                    "capacity_estimate": null,
-                   "capacity_wh": 8000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
+                   "battery_profile": "generic-lfp",
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 8000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null,
+                       "full_charge_interval_days": null,
+                       "full_charge_detect_percentage": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
-                   "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
                    "charge_rates": [
                        0.0,
@@ -70,10 +74,7 @@
                    ],
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
-                   "cell_chemistry": null,
-                   "full_charge_interval_days": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false
                }
            },
@@ -83,11 +84,15 @@
                    "device_id": "ev0",
                    "capacity_estimation": null,
                    "capacity_estimate": null,
-                   "capacity_wh": 60000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
+                   "battery_profile": "generic-lfp",
+                   "profile_adjustment": {
+                       "nominal_capacity_wh": 60000,
+                       "max_charge_power_w": null,
+                       "max_discharge_power_w": null,
+                       "full_charge_interval_days": null,
+                       "full_charge_detect_percentage": null
+                   },
                    "levelized_cost_of_storage_amt_kwh": 0.0,
-                   "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
                    "charge_rates": [
                        0.0,
@@ -112,10 +117,7 @@
                    ],
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
-                   "cell_chemistry": null,
-                   "full_charge_interval_days": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_detect_percentage": 99,
                    "full_charge_allow_grid": false
                }
            },
