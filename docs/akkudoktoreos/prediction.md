@@ -1014,6 +1014,13 @@ uses the configured PV system geometry together with the weather prediction
 simulate the expected DC module power and AC inverter output.
 
 The provider supports multiple PV planes and automatically sums their power.
+Planes that share the same `inverter_paco` feed a single physical inverter:
+their combined AC output is clipped to that rating, so the forecast never
+exceeds the inverter's AC power rating. Planes with different ratings are
+treated as separate inverters, and planes without a rating are not clipped.
+The configured system loss (`planes[].loss`, percent) is applied to both DC
+and AC output as a factor of `1 - loss / 100`, with the same semantics as
+`PVForecastAkkudoktorLocal`.
 Module and inverter models are selected from the CEC database by name or by
 their nominal power rating. AkkudoktorEOS automatically generates and caches
 the required CEC databases on first use by combining the current SAM database,
