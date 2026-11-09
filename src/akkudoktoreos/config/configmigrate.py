@@ -497,7 +497,15 @@ def _migrate_matching_fields(
         if full_path in migrated_source_paths:
             continue
 
-        if isinstance(value, dict):
+        if isinstance(value, dict) and any("/" in str(k) for k in value):
+            # Keys containing "/" (e.g. config paths used as mapping keys) can not be
+            # addressed by a "/"-separated path - migrate the whole dict as one value.
+            try:
+                target_model.set_nested_value(full_path, value)
+                count += 1
+            except Exception:
+                skipped_paths.append(full_path)
+        elif isinstance(value, dict):
             count += _migrate_matching_fields(
                 value, target_model, migrated_source_paths, skipped_paths, full_path
             )
