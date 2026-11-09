@@ -138,6 +138,7 @@ To install the **Akkudoktor-EOS** add-on in Home Assistant:
 ### Docker (Recommended)
 
 ```bash
+wget https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/docker-compose.yaml
 docker pull akkudoktor/eos:latest
 docker compose up -d
 ```
