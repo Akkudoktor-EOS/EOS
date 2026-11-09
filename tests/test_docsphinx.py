@@ -138,6 +138,9 @@ class TestSphinxDocumentation:
         env = os.environ.copy()
         env["EOS_DIR"] = eos_dir
         env["EOS_CONFIG_DIR"] = eos_dir
+        # An empty config file, so EOS does not fall back to (and migrate) the
+        # user's own config file in the user config directory.
+        Path(eos_dir, "EOS.config.json").write_text("{}", encoding="utf-8")
 
         try:
             process = subprocess.run(
@@ -146,7 +149,10 @@ class TestSphinxDocumentation:
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
+                # Sphinx writes UTF-8; the platform default (e.g. cp1252 on
+                # Windows) cannot decode it.
+                encoding="utf-8",
+                errors="replace",
                 cwd=DIR_PROJECT_ROOT,          # use the existing constant
             )
             output = process.stdout + "\n" + process.stderr

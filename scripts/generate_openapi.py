@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # Add the src directory to sys.path so import akkudoktoreos works in all cases
@@ -101,4 +102,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # EOS creates a config file if it finds none. Let it do so in a temporary
+    # directory, not in the working directory (e.g. the repository root).
+    with tempfile.TemporaryDirectory(prefix="eos-docs-") as eos_dir:
+        os.environ["EOS_DIR"] = eos_dir
+        os.environ["EOS_CONFIG_DIR"] = eos_dir
+        main()
