@@ -33,6 +33,7 @@ from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.plan import Plan
 from akkudoktoreos.server.dash.prediction import Prediction
 from akkudoktoreos.server.dash.profile import Profile
+from akkudoktoreos.server.dash.wizard import Wizard
 from akkudoktoreos.server.server import (
     drop_root_privileges,
     get_default_host,
@@ -295,6 +296,7 @@ def get_eosdash(request: Request):  # type: ignore
                 "Prediction": "/eosdash/prediction",
                 "Config": "/eosdash/configuration",
                 "Profiles": "/eosdash/profile",
+                "Setup": "/eosdash/wizard",
                 "Admin": "/eosdash/admin",
                 "About": "/eosdash/about",
             },
@@ -393,8 +395,11 @@ def put_eosdash_configuration(request: Request, data: dict):  # type: ignore
         data (dict): Dictionary containing 'key' and 'value' to trigger configuration update.
 
     Returns:
-        Configuration: The Configuration page component with updated configuration.
+        Configuration: The Configuration page component with updated configuration, or the
+            setup wizard if the update was sent from the wizard.
     """
+    if data.get("wizard_step"):
+        return Wizard(*eos_server(), data)
     return Configuration(*eos_server(), data)
 
 
@@ -438,6 +443,34 @@ def post_eosdash_profile(request: Request, data: dict):  # type: ignore
         Profile: The battery profile page component.
     """
     return Profile(*eos_server(), data)
+
+
+@app.get("/eosdash/wizard")
+def get_eosdash_wizard(request: Request, data: dict):  # type: ignore
+    """Serve the EOSdash setup wizard.
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): Optional query data, the step to show in 'wizard_step'.
+
+    Returns:
+        Wizard: The setup wizard page component.
+    """
+    return Wizard(*eos_server(), data)
+
+
+@app.post("/eosdash/wizard")
+def post_eosdash_wizard(request: Request, data: dict):  # type: ignore
+    """Provide control data to the setup wizard.
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): User-submitted data from the setup wizard.
+
+    Returns:
+        Wizard: The setup wizard page component.
+    """
+    return Wizard(*eos_server(), data)
 
 
 @app.get("/eosdash/plan")

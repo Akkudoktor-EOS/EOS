@@ -174,3 +174,30 @@ class TestEOSdashInBrowser:
             assert status == 200, f"{path}: HTTP {status}"
             assert dash.page_content().strip(), f"{path}: no content rendered"
         assert dash.errors == []
+
+    def test_setup_wizard_stays_on_step_after_config_update(self, dash: DashPage) -> None:
+        """A configuration card in the setup wizard updates the value and returns to the wizard."""
+        assert dash.open_tab("/eosdash/wizard") == 200
+        dash.page.click("#wizard-next")
+        dash.page.wait_for_selector("#wizard-back")
+
+        dash.page.click("#wizard summary:has-text('general.latitude')")
+        value_input = "#general-latitude-update-form input[type='text']"
+        dash.page.fill(value_input, "48.137")
+        with dash.page.expect_response(
+            lambda response: (
+                urlsplit(response.url).path == "/eosdash/configuration"
+                and response.request.method == "PUT"
+            )
+        ) as response_info:
+            dash.page.press(value_input, "Enter")
+        assert response_info.value.ok
+        dash.page.wait_for_function(
+            "selector => document.querySelector(selector)?.innerHTML.includes('48.137')",
+            arg=PAGE_CONTENT_SELECTOR,
+        )
+
+        # Still the location step of the wizard, not the Config page
+        assert dash.page.locator("#wizard").count() == 1
+        assert "Step 2 of" in dash.page_content()
+        assert dash.errors == []

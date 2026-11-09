@@ -457,6 +457,120 @@ def config_options(
 # -----------------------------------
 
 
+def config_update(eos_host: str, eos_port: Union[str, int], data: dict) -> None:
+    """Set a configuration value on the EOS server.
+
+    The result is remembered in ``config_update_latest``, so that the configuration card of the
+    value shows the error, if any, and stays open when the page is rendered again.
+
+    Args:
+        eos_host (str): The hostname of the EOS server.
+        eos_port (Union[str, int]): The port of the EOS server.
+        data (dict): Request data with the config name in ``key`` and the new value in ``value``.
+    """
+    key = data["key"]
+    value_json_str: str = data.get("value", "")
+    try:
+        value = json.loads(value_json_str)
+    except Exception:
+        if value_json_str in ("None", "none", "Null", "null"):
+            value = None
+        else:
+            value = value_json_str
+
+    error = None
+    config = None
+    try:
+        server = f"http://{eos_host}:{eos_port}"
+        path = key.replace(".", "/")
+        response = requests.put(f"{server}/v1/config/{path}", json=value, timeout=10)
+        response.raise_for_status()
+        config = response.json()
+    except requests.exceptions.HTTPError as err:
+        try:
+            # Try to get 'detail' from the JSON response
+            detail = response.json().get(
+                "detail", f"No error details for value '{value}' '{response.text}'"
+            )
+        except ValueError:
+            # Response is not JSON
+            detail = f"No error details for value '{value}' '{response.text}'"
+        error = f"Can not set {key} on {server}: {err}, {detail}"
+    # Mark all updates as closed
+    for k in config_update_latest:
+        config_update_latest[k]["open"] = False
+    # Remember this update as latest one
+    config_update_latest[key] = {
+        "error": error,
+        "result": config,
+        "value": value_json_str,
+        "open": True,
+    }
+
+
+def config_card(config: dict[str, Any], config_details: dict[str, dict]) -> Optional[Card]:
+    """Create the card to show and update a configuration value.
+
+    Args:
+        config (dict[str, Any]): Configuration details of the value, as created by
+            ``create_config_details``.
+        config_details (dict[str, dict]): Configuration details of all values.
+
+    Returns:
+        Optional[Card]: The card, or None if the configuration value is deprecated.
+    """
+    if config["deprecated"]:
+        return None
+
+    update_error = config_update_latest.get(config["name"], {}).get("error")
+    update_value = config_update_latest.get(config["name"], {}).get("value")
+    update_open = config_update_latest.get(config["name"], {}).get("open")
+
+    # Make mypy happy - should never trigger
+    if (
+        not isinstance(update_error, (str, type(None)))
+        or not isinstance(update_value, (str, type(None)))
+        or not isinstance(update_open, (bool, type(None)))
+    ):
+        error_msg = "update_error or update_value or update_open of wrong type."
+        logger.error(error_msg)
+        raise TypeError(error_msg)
+
+    hint = UI_HINTS.get(config["name"])
+
+    if hint and hint.form == "items":
+        return ConfigItemsCard(
+            config=config,
+            hint=hint,
+            config_details=config_details,
+            config_update_latest=config_update_latest,
+            create_config_details=create_config_details,
+        )
+    if hint and hint.form == "map_items":
+        return ConfigMapCard(
+            config=config,
+            hint=hint,
+            config_details=config_details,
+            config_update_latest=config_update_latest,
+            create_config_details=create_config_details,
+        )
+    update_form_factory = resolve_form_factory(hint, config_details) if hint else None
+    return ConfigCard(
+        config["name"],
+        config["type"],
+        config["read-only"],
+        config["value"],
+        config["default"],
+        config["description"],
+        config["deprecated"],
+        config["scope"],
+        update_error,
+        update_value,
+        update_open,
+        update_form_factory,
+    )
+
+
 def Configuration(
     eos_host: str,
     eos_port: Union[str, int],
@@ -486,45 +600,7 @@ def Configuration(
             if renderer:
                 config_visible[renderer]["visible"] = bool(data.get(f"{renderer}-visible", False))
         elif data["action"] == "update":
-            # This data contains a new value for key
-            key = data["key"]
-            value_json_str: str = data.get("value", "")
-            try:
-                value = json.loads(value_json_str)
-            except Exception:
-                if value_json_str in ("None", "none", "Null", "null"):
-                    value = None
-                else:
-                    value = value_json_str
-
-            error = None
-            config = None
-            try:
-                server = f"http://{eos_host}:{eos_port}"
-                path = key.replace(".", "/")
-                response = requests.put(f"{server}/v1/config/{path}", json=value, timeout=10)
-                response.raise_for_status()
-                config = response.json()
-            except requests.exceptions.HTTPError as err:
-                try:
-                    # Try to get 'detail' from the JSON response
-                    detail = response.json().get(
-                        "detail", f"No error details for value '{value}' '{response.text}'"
-                    )
-                except ValueError:
-                    # Response is not JSON
-                    detail = f"No error details for value '{value}' '{response.text}'"
-                error = f"Can not set {key} on {server}: {err}, {detail}"
-            # Mark all updates as closed
-            for k in config_update_latest:
-                config_update_latest[k]["open"] = False
-            # Remember this update as latest one
-            config_update_latest[key] = {
-                "error": error,
-                "result": config,
-                "value": value_json_str,
-                "open": True,
-            }
+            config_update(eos_host, eos_port, data)
 
     # (Re-)read configuration details to be shure we display actual data
     config = get_config(eos_host, eos_port)
@@ -628,20 +704,6 @@ def Configuration(
         category = config["name"].split(".")[0]
         sections.setdefault(category, {})
 
-        update_error = config_update_latest.get(config["name"], {}).get("error")
-        update_value = config_update_latest.get(config["name"], {}).get("value")
-        update_open = config_update_latest.get(config["name"], {}).get("open")
-
-        # Make mypy happy - should never trigger
-        if (
-            not isinstance(update_error, (str, type(None)))
-            or not isinstance(update_value, (str, type(None)))
-            or not isinstance(update_open, (bool, type(None)))
-        ):
-            error_msg = "update_error or update_value or update_open of wrong type."
-            logger.error(error_msg)
-            raise TypeError(error_msg)
-
         if (
             # Do not display read only values
             not config_visible["config-visible-read-only"]["visible"]
@@ -653,41 +715,8 @@ def Configuration(
             # Search value given but does not match
             continue
 
-        hint = UI_HINTS.get(config["name"])
-
-        if hint and hint.form == "items" and not config["deprecated"]:
-            card = ConfigItemsCard(
-                config=config,
-                hint=hint,
-                config_details=config_details,
-                config_update_latest=config_update_latest,
-                create_config_details=create_config_details,
-            )
-        elif hint and hint.form == "map_items" and not config["deprecated"]:
-            card = ConfigMapCard(
-                config=config,
-                hint=hint,
-                config_details=config_details,
-                config_update_latest=config_update_latest,
-                create_config_details=create_config_details,
-            )
-        elif not config["deprecated"]:
-            update_form_factory = resolve_form_factory(hint, config_details) if hint else None
-            card = ConfigCard(
-                config["name"],
-                config["type"],
-                config["read-only"],
-                config["value"],
-                config["default"],
-                config["description"],
-                config["deprecated"],
-                config["scope"],
-                update_error,
-                update_value,
-                update_open,
-                update_form_factory,
-            )
-        else:
+        card = config_card(config, config_details)
+        if card is None:
             continue
 
         sections[category][config["name"]] = card
