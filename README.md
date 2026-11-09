@@ -139,28 +139,29 @@ To install the **Akkudoktor-EOS** add-on in Home Assistant:
 
 1. **create docker compose file**:
 
-   ```yaml
-   services:
-     eos:
-       image: akkudoktor/eos:latest
-       container_name: akkudoktoreos
-       restart: unless-stopped
-       environment:
-         - OPENBLAS_NUM_THREADS=1
-         - OMP_NUM_THREADS=1
-         - MKL_NUM_THREADS=1
-         - EOS_SERVER__HOST=0.0.0.0
-         - EOS_SERVER__PORT=8503
-         - EOS_SERVER__EOSDASH_HOST=0.0.0.0
-         - EOS_SERVER__EOSDASH_PORT=8504
-         # Change this to a random secret, e.g. output of: openssl rand -hex 32
-         - EOS_SERVER__EOSDASH_SESSKEY=change-me
-       ports:
-         - "8503:8503"   # EOS API
-         - "8504:8504"   # EOSdash
-       volumes:
-         - ./data:/data
-   ```
+```yaml
+services:
+  eos:
+    image: akkudoktor/eos:latest
+    container_name: akkudoktoreos
+    restart: unless-stopped
+    environment:
+      - OPENBLAS_NUM_THREADS=1
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - EOS_SERVER__HOST=0.0.0.0
+      - EOS_SERVER__PORT=8503
+      - EOS_SERVER__EOSDASH_HOST=0.0.0.0
+      - EOS_SERVER__EOSDASH_PORT=8504
+      # Change this to a random secret, e.g. output of: openssl rand -hex 32
+      - EOS_SERVER__EOSDASH_SESSKEY=change-me
+    ports:
+      - "8503:8503"   # EOS API
+      - "8504:8504"   # EOSdash
+    volumes:
+      - ./data:/data
+```
+
 2. **create a .env file with the secret**:
 
 ```bash
