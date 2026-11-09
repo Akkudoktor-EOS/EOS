@@ -44,6 +44,41 @@ Detailed rules live in `ai/skills/`. Load the relevant skill for the task:
 | `ai/skills/rest-api/SKILL.md` | Adding/changing REST endpoints, API error responses |
 | `ai/skills/testing/SKILL.md` | Adding/updating tests, bug fixes |
 
+### Engineering skills
+
+General engineering workflows from
+[mattpocock/skills](https://github.com/mattpocock/skills) (MIT, see
+`ai/skills/engineering/LICENSE`). The project rules above take precedence
+where they overlap.
+
+| Skill | Load when |
+|---|---|
+| `ai/skills/engineering/code-review/SKILL.md` | Reviewing a branch, PR or changes since a fixed point |
+| `ai/skills/engineering/codebase-design/SKILL.md` | Designing module interfaces, seams, testability |
+| `ai/skills/engineering/diagnosing-bugs/SKILL.md` | Diagnosing hard bugs and performance regressions |
+| `ai/skills/engineering/domain-modeling/SKILL.md` | Domain terminology, glossary, ADRs |
+| `ai/skills/engineering/pr/SKILL.md` | Writing a PR body |
+| `ai/skills/engineering/prototype/SKILL.md` | Throwaway prototype to answer a design question |
+| `ai/skills/engineering/research/SKILL.md` | Researching a question against primary sources |
+| `ai/skills/engineering/tdd/SKILL.md` | Test-first features or bug fixes |
+| `ai/skills/engineering/wizard/SKILL.md` | Interactive bash wizard for steps only a human can do |
+
+Load these only when the user asks for them by name:
+
+| Skill | Purpose |
+|---|---|
+| `ai/skills/engineering/ask-matt/SKILL.md` | Pick the skill or flow that fits a situation |
+| `ai/skills/engineering/grill-with-docs/SKILL.md` | Interview to sharpen a plan, writing ADRs and glossary |
+| `ai/skills/engineering/implement/SKILL.md` | Implement work from a spec or tickets |
+| `ai/skills/engineering/implement-spec/SKILL.md` | Implement the result of `to-spec` and `to-tickets` |
+| `ai/skills/engineering/improve-codebase-architecture/SKILL.md` | Report deepening opportunities, then grill one |
+| `ai/skills/engineering/retro/SKILL.md` | Retrospective on a coding session |
+| `ai/skills/engineering/setup-matt-pocock-skills/SKILL.md` | One-time setup of issue tracker, labels, domain docs |
+| `ai/skills/engineering/to-spec/SKILL.md` | Turn the conversation into a spec on the tracker |
+| `ai/skills/engineering/to-tickets/SKILL.md` | Break a plan into tracer-bullet tickets |
+| `ai/skills/engineering/triage/SKILL.md` | Triage issues and external PRs |
+| `ai/skills/engineering/wayfinder/SKILL.md` | Plan large work as decision tickets |
+
 ## Completion checklist
 
 Before considering a change complete:

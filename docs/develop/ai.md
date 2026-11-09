@@ -56,6 +56,9 @@ Agents get their project knowledge from two places in the repository:
 | `rest-api` | REST endpoints and error responses |
 | `commit-messages` | Conventional Commits as checked by `commitizen` |
 
+General engineering workflows such as test-driven development and code review come from an
+external skill collection, see [](#ai-engineering-skills).
+
 The skills are not registered as agent-specific skills (e.g. in `.claude/skills/`). The agent reads
 them because `AGENTS.md` tells it to, which works the same for every agent.
 
@@ -85,6 +88,62 @@ the skills, start the sandbox with `AI_SANDBOX_SKILLS_RW=1`.
    `make gitlint`.
 7. **Push and open the pull request from the host.** Then the sandbox needs no GitHub
    credentials at all. See [](#ai-sandbox-github) if you want the agent to push.
+
+(ai-engineering-skills)=
+
+## Engineering skills
+
+`ai/skills/engineering` holds a copy of the engineering skills from Matt Pocock's
+[Skills For Real Engineers](https://github.com/mattpocock/skills) (MIT license, see
+`ai/skills/engineering/LICENSE`). They are small, composable workflows for everyday engineering
+work, such as test-driven development, diagnosing bugs, code review and domain modeling, and they
+work with any agent. The EOS project rules take precedence where they overlap.
+
+`AGENTS.md` lists them in two groups:
+
+- Skills the agent loads when the task needs them:
+  [code-review](https://github.com/mattpocock/skills/blob/main/docs/engineering/code-review.md),
+  [codebase-design](https://github.com/mattpocock/skills/blob/main/docs/engineering/codebase-design.md),
+  [diagnosing-bugs](https://github.com/mattpocock/skills/blob/main/docs/engineering/diagnosing-bugs.md),
+  [domain-modeling](https://github.com/mattpocock/skills/blob/main/docs/engineering/domain-modeling.md),
+  [pr](https://github.com/mattpocock/skills/blob/main/docs/engineering/pr.md),
+  [prototype](https://github.com/mattpocock/skills/blob/main/docs/engineering/prototype.md),
+  [research](https://github.com/mattpocock/skills/blob/main/docs/engineering/research.md),
+  [tdd](https://github.com/mattpocock/skills/blob/main/docs/engineering/tdd.md) and
+  [wizard](https://github.com/mattpocock/skills/blob/main/docs/engineering/wizard.md).
+- Skills the agent loads only when you ask for them by name:
+  [ask-matt](https://github.com/mattpocock/skills/blob/main/docs/engineering/ask-matt.md),
+  [grill-with-docs](https://github.com/mattpocock/skills/blob/main/docs/engineering/grill-with-docs.md),
+  [implement](https://github.com/mattpocock/skills/blob/main/docs/engineering/implement.md),
+  [implement-spec](https://github.com/mattpocock/skills/blob/main/docs/engineering/implement-spec.md),
+  [improve-codebase-architecture](https://github.com/mattpocock/skills/blob/main/docs/engineering/improve-codebase-architecture.md),
+  [retro](https://github.com/mattpocock/skills/blob/main/docs/engineering/retro.md),
+  [setup-matt-pocock-skills](https://github.com/mattpocock/skills/blob/main/docs/engineering/setup-matt-pocock-skills.md),
+  [to-spec](https://github.com/mattpocock/skills/blob/main/docs/engineering/to-spec.md),
+  [to-tickets](https://github.com/mattpocock/skills/blob/main/docs/engineering/to-tickets.md),
+  [triage](https://github.com/mattpocock/skills/blob/main/docs/engineering/triage.md) and
+  [wayfinder](https://github.com/mattpocock/skills/blob/main/docs/engineering/wayfinder.md).
+  If you are unsure which one fits, ask the agent to use `ask-matt`.
+
+The skills that work with issues and tickets (`to-spec`, `to-tickets`, `triage`, `wayfinder`,
+`implement-spec`, `code-review`) expect the issue tracker setup that `setup-matt-pocock-skills`
+writes. See the [upstream README](https://github.com/mattpocock/skills#readme) for an overview of
+all skills and flows.
+
+The copy is not edited in this repository; change requests go upstream. The test
+`tests/test_ai.py` warns when the copy differs from the upstream `main` branch. It keeps the
+upstream file hashes in the pytest cache and fetches them at most once a day; `pytest --cache-clear`
+forces a fresh check. To update the copy, run
+
+```bash
+uv run python scripts/update_mattpocock_skills.py
+```
+
+and review and commit the changes like code. `--check` only lists the differences. In the sandbox
+the update needs `AI_SANDBOX_SKILLS_RW=1`, because `ai/skills` is read-only there.
+
+If you also installed the skills as an agent plugin, e.g. `mattpocock-skills` in Claude Code, the
+agent sees every skill twice. Use either the plugin or the copy in the repository.
 
 ## The AI development sandbox
 
