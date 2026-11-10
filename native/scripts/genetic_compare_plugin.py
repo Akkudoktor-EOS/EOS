@@ -16,7 +16,9 @@ already sums in a fixed order (no ``np.dot``), the switch has no effect and ever
 bit-identical results.
 
 Tests that replace parts of the Python optimizer (``patch.object(opt, "optimize", ...)``,
-broken worker pools) differ by design; they are listed under ``patched``.
+broken worker pools) differ by design; they are listed under ``patched``. A request the kernel
+does not support counts as ``unsupported``; any other native error (a panic, an invalid
+response) is listed under ``failed`` and fails the CI job like a difference.
 ``tests/test_geneticnative.py`` runs the kernel itself and is left alone.
 """
 
@@ -80,6 +82,7 @@ def pytest_configure(config: Any) -> None:
                     "first": report.differences[:8],
                     "ignored": len(report.ignored_differences),
                     "native_error": report.native_error,
+                    "native_unsupported": report.native_unsupported,
                     "profile": report.profile,
                     "profile_reproduces_python": report.profile_reproduces_python,
                     "python_s": report.python_s,
@@ -95,7 +98,8 @@ def pytest_configure(config: Any) -> None:
 def summarize(reports: list[dict[str, Any]]) -> dict[str, Any]:
     """Counts per outcome; ``different`` lists the unpatched runs that differ."""
     summary: dict[str, Any] = {"runs": len(reports), "identical": 0, "unsupported": 0,
-                               "patched": 0, "no_report": 0, "different": [], **RUN_INFO}
+                               "patched": 0, "no_report": 0, "different": [], "failed": [],
+                               **RUN_INFO}
     for entry in reports:
         report = entry["report"]
         if report is None:
@@ -104,8 +108,10 @@ def summarize(reports: list[dict[str, Any]]) -> dict[str, Any]:
             summary["identical"] += 1
         elif entry["patched"]:
             summary["patched"] += 1
-        elif report["native_error"]:
+        elif report["native_error"] and report["native_unsupported"]:
             summary["unsupported"] += 1
+        elif report["native_error"]:
+            summary["failed"].append(entry)
         else:
             summary["different"].append(entry)
     return summary
@@ -119,10 +125,14 @@ def pytest_unconfigure(config: Any) -> None:
             json.dump({"summary": summary, "reports": REPORTS}, handle, indent=1)
     print(
         "\nGENETIC compare: {runs} runs, {identical} identical, {unsupported} not supported natively, "
-        "{patched} with patched Python, {no_report} without report, {n} different".format(
+        "{patched} with patched Python, {no_report} without report, {n} different, "
+        "{f} failed natively".format(
             n=len(summary["different"]),
+            f=len(summary["failed"]),
             **{k: summary[k] for k in ("runs", "identical", "unsupported", "patched", "no_report")},
         )
     )
     for entry in summary["different"]:
         print("  DIFFERENT", entry["test"], entry["report"]["first"][:3])
+    for entry in summary["failed"]:
+        print("  FAILED", entry["test"], entry["report"]["native_error"][:200])

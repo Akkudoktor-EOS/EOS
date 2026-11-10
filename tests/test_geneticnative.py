@@ -259,7 +259,41 @@ class TestAdapter:
                 raise self.NativeRunError("run_failed", "boom")
 
         monkeypatch.setattr(native, "_import_native", lambda: Kernel(**vars(_fake_kernel())))
-        with pytest.raises(native.NativeUnsupported, match="run_failed"):
+        with pytest.raises(native.NativeRunFailed, match="run_failed"):
+            with _backend("native"):
+                _run(_load_input("optimize_input_1.json"), ngen=3)
+
+    @pytest.mark.parametrize(
+        ("code", "error"),
+        [("unsupported", native.NativeUnsupported), ("panic", native.NativeRunFailed)],
+    )
+    def test_kernel_errors_are_classified(self, config_eos, monkeypatch, code, error):
+        """Rejections of unsupported requests are expected; every other error is a defect."""
+        _configure(config_eos)
+
+        class Kernel(_FakeKernel):
+            def run_genetic(self, request: str) -> str:
+                raise self.NativeRunError(code, "boom")
+
+        monkeypatch.setattr(native, "_import_native", lambda: Kernel(**vars(_fake_kernel())))
+        with pytest.raises(error, match=code):
+            with _backend("native"):
+                _run(_load_input("optimize_input_1.json"), ngen=3)
+        with _backend("compare"):
+            _run(_load_input("optimize_input_1.json"), ngen=3)
+        report = native.last_compare_report
+        assert report is not None and code in report.native_error
+        assert report.native_unsupported is (error is native.NativeUnsupported)
+
+    def test_invalid_kernel_response_is_a_failure(self, config_eos, monkeypatch):
+        _configure(config_eos)
+
+        class Kernel(_FakeKernel):
+            def run_genetic(self, request: str) -> str:
+                return json.dumps({"solution": {"ac_charge": "not a list"}})
+
+        monkeypatch.setattr(native, "_import_native", lambda: Kernel(**vars(_fake_kernel())))
+        with pytest.raises(native.NativeRunFailed, match="invalid kernel response"):
             with _backend("native"):
                 _run(_load_input("optimize_input_1.json"), ngen=3)
 
@@ -509,3 +543,4 @@ class TestCompareMode:
         report = native.last_compare_report
         assert report is not None and not report.identical
         assert "time_windows" in report.native_error
+        assert report.native_unsupported

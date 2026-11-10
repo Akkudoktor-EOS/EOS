@@ -77,7 +77,7 @@ fn reproduces_known_openblas_kernels() {
 #[test]
 fn rejects_a_battery_without_inverter() {
     let err = eos_genetic::run::run_json(&with(|v| v["parameters"]["inverter"] = Value::Null)).unwrap_err();
-    assert_eq!(err.code, "run_failed");
+    assert_eq!(err.code, "unsupported");
     assert!(err.message.contains("without an inverter"), "{}", err.message);
 }
 
@@ -90,6 +90,7 @@ fn rejects_empty_ev_charge_rates() {
         v["fallback_ev_charge_rates"] = serde_json::json!([]);
     }))
     .unwrap_err();
+    assert_eq!(err.code, "run_failed");
     assert!(err.message.contains("EV charge rates are empty"), "{}", err.message);
 }
 
@@ -99,5 +100,21 @@ fn rejects_parameter_fields_it_does_not_know() {
     // silently ignore it.
     let err =
         eos_genetic::run::run_json(&with(|v| v["parameters"]["inverter"]["new_limit_w"] = 1000.into())).unwrap_err();
+    assert_eq!(err.code, "unsupported");
     assert!(err.message.contains("new_limit_w"), "{}", err.message);
+}
+
+#[test]
+fn rejects_appliance_time_windows_as_unsupported() {
+    let err = eos_genetic::run::run_json(&with(|v| {
+        v["parameters"]["home_appliances"] = serde_json::json!([{
+            "device_id": "washer",
+            "consumption_wh": 1000,
+            "duration_h": 2,
+            "time_windows": {"windows": [{"start_time": "12:00", "duration": "4 hours"}]}
+        }]);
+    }))
+    .unwrap_err();
+    assert_eq!(err.code, "unsupported");
+    assert!(err.message.contains("time_windows"), "{}", err.message);
 }

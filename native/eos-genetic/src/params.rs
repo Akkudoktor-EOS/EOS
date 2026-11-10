@@ -347,7 +347,7 @@ impl GeneticOptimizationParameters {
         if self.pv_battery.is_some() && self.inverter.is_none() {
             // Python keeps such a battery out of the simulation (`GeneticSimulation.prepare`)
             // but still builds its terminal value curve; not reproduced natively.
-            return Err("a battery without an inverter is not supported natively".into());
+            return Err(format!("a battery without an inverter is {}", crate::run::NOT_SUPPORTED));
         }
         let e = &self.ems;
         if e.pv_forecast_wh.is_empty() || e.electricity_price_per_wh.is_empty() || e.total_load.is_empty() {
@@ -405,13 +405,13 @@ impl GeneticOptimizationParameters {
         ] {
             if let Some(x) = extra {
                 if let Some(k) = x.keys().next() {
-                    return Err(format!("{name}: unsupported field '{k}'"));
+                    return Err(format!("{name}: field '{k}' is {}", crate::run::NOT_SUPPORTED));
                 }
             }
         }
         for a in self.resolved_home_appliances() {
             if let Some(k) = a.extra.keys().next() {
-                return Err(format!("home appliance {}: unsupported field '{k}'", a.device_id));
+                return Err(format!("home appliance {}: field '{k}' is {}", a.device_id, crate::run::NOT_SUPPORTED));
             }
             if a.completed_cycles > a.num_cycles {
                 return Err("completed_cycles must not exceed num_cycles.".into());
