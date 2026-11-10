@@ -1,0 +1,3 @@
+# The port mirrors the Python original line by line; wide lines keep that readable.
+max_width = 120
+use_small_heuristics = "Max"

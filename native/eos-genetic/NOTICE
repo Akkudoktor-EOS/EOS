@@ -1,0 +1,17 @@
+eos-genetic - native port of the GENETIC optimizer of Akkudoktor-EOS (Energy Optimization System)
+
+This crate is a derivative work (a port to Rust) of Akkudoktor-EOS,
+Copyright (c) 2024 Dr. Andreas Schmitz and the EOS contributors,
+licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Basis of the port: Akkudoktor-EOS main 7767028 (2026-11-10).
+
+Modification notice (Apache-2.0, section 4b): the Python source was translated to Rust and
+limited to the GENETIC optimization. Arithmetic order, random numbers (CPython random /
+MT19937) and the DEAP operators are reproduced so that runs with a fixed seed are
+bit-identical to the Python original.
+
+Also reproduced (behaviour only, no source code copied): DEAP 1.4.4 (LGPL-3.0) - cxTwoPoint,
+mutUniformInt, selTournament, selBest, HallOfFame - and NumPy arithmetic (pairwise sum,
+interp, quantile) as well as the OpenBLAS ddot kernels, each re-implemented from
+documentation or disassembly.

@@ -1,0 +1,21 @@
+[package]
+name = "eos-genetic"
+description = "Native port of the Akkudoktor-EOS GENETIC optimizer (bit-identical to Python at a fixed seed)"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "eos_genetic"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+chrono-tz = { version = "0.10", default-features = false, features = ["std"] }
+
+[lints.rust]
+unsafe_code = "deny"
