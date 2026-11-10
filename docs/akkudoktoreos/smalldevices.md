@@ -96,6 +96,30 @@ Data of a real installation (77 kWh battery, direct marketing, 24 h control hori
 On a Raspberry Pi 4 a run therefore takes about 10 minutes. With a 15-minute `ems.interval`
 the device is busy about 70 % of the time; a longer interval leaves more headroom.
 
+### Native GENETIC backend (optional)
+
+The optional package `akkudoktoreos-native` runs the GENETIC optimization in Rust
+(`native/README.md` in the repository). It shortens the run time; it does not reduce the memory
+of EOS itself.
+
+```json
+{ "optimization": { "genetic": { "backend": "native" } } }
+```
+
+Measured with the EOS server, `POST /v1/optimize` with a recorded request (battery, EV, direct
+marketing, 15-minute slots, 12 h horizon, 300 individuals), one evaluation worker:
+
+| Device | Generations | Python | native |
+|---|---|---|---|
+| Cortex-A55 board (1.4 GHz, two cores) | 50 | 69 s | 2.3 s |
+| Cortex-A55 board (1.4 GHz, two cores) | 400 | 479 s | 9.8 s |
+| Apple M-series (Linux container, two cores) | 400 | 13.5 s | 0.43 s |
+
+The peak memory of a run is the same or lower than with Python; the package adds about 1 MB.
+The backend falls back to Python, with a log message, when the package is missing, was not
+verified for the installed EOS version, or does not support the request (for example appliance
+`time_windows`). With `native` the same input and seed give the same plan on every CPU.
+
 ### Storage writes
 
 With the default `database.autosave_interval_sec` the measurement and prediction databases are
