@@ -86,7 +86,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-xprocess==1.0.2",
     "coverage==7.16.2",
-    "pypdf==6.21.4",
+    "pypdf==7.0.0",
     # Browser tests of EOSdash (pytest --browser-test). The browser itself is installed
     # separately: uv run playwright install chromium
     "playwright==1.64.1",
