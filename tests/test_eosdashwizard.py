@@ -350,3 +350,8 @@ class TestWizardPage:
         html = to_xml(Wizard("localhost", 8503, {"wizard_step": "finish", "action": "save_to_file"}))
         assert eos["save"] == [("localhost", 8503)]
         assert "saved-by-test" in html
+
+    def test_devices_step_has_an_example_for_every_device_type(self, eos):
+        html = to_xml(Wizard("localhost", 8503, {"wizard_step": "devices"}))
+        for device_type in ("Battery", "Inverter", "Electric vehicle", "Home appliance"):
+            assert f"<strong>{device_type}</strong>" in html

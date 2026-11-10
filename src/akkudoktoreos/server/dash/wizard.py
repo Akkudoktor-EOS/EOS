@@ -653,9 +653,23 @@ The most important settings of a battery:
 - `charging_efficiency`, `discharging_efficiency` - as a factor, `0.95` for 95 %.
 """,
         example="""
-A 10 kWh battery that charges with up to 5 kW and shall never go below 10 %: add a battery
-with `device_id` = `battery1`, `capacity_wh` = `10000`, `max_charge_power_w` = `5000`,
-`min_soc_percentage` = `10` and `max_soc_percentage` = `100`.
+**Battery** - a 10 kWh battery that charges with up to 5 kW and shall never go below 10 %:
+add a battery with `device_id` = `battery1`, `capacity_wh` = `10000`,
+`max_charge_power_w` = `5000`, `min_soc_percentage` = `10` and `max_soc_percentage` = `100`.
+
+**Inverter** - a 10 kW inverter the battery is connected to: add an inverter with
+`device_id` = `inverter1`, `max_power_w` = `10000` and `battery_id` = `battery1`.
+
+**Electric vehicle** - a car with a 60 kWh battery at an 11 kW wallbox that shall be charged
+to 80 % by 7 o'clock in the morning: add an electric vehicle with `device_id` = `ev1`,
+`capacity_wh` = `60000`, `max_charge_power_w` = `11000`, `min_soc_percentage` = `80` (for
+an electric vehicle this is the state of charge to reach) and
+`min_soc_deadline_datetime` = `2026-07-16T07:00:00` (the departure).
+
+**Home appliance** - a dishwasher that needs 1.5 kWh in a run of 3 hours and may run once
+between 10:00 and 16:00: add a home appliance with `device_id` = `dishwasher`,
+`consumption_wh` = `1500`, `duration_h` = `3` and
+`time_windows` = `{"windows": [{"start_time": "10:00", "duration": "6 hours"}]}`.
 """,
         config_names=(
             "devices.batteries",
