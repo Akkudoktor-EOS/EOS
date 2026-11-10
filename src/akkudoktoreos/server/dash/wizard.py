@@ -304,19 +304,31 @@ def check_devices(config_details: dict[str, dict]) -> list[str]:
 def check_measurements(config_details: dict[str, dict]) -> list[str]:
     """Report what is still to do for measurements and the home automation."""
     providers = config_value(config_details, "adapter.provider") or []
+    device_ids = [
+        device_id
+        for kind in ("batteries", "electric_vehicles")
+        for device_id in _device_ids(config_details, kind)
+    ]
+    if not providers:
+        devices = f" of {', '.join(device_ids)}" if device_ids else ""
+        return [
+            "No adapter is selected, so no source for the state of charge"
+            f"{devices} is known. Select an adapter, or make sure your own system sends the "
+            "state of charge with PUT /v1/measurement/value."
+        ]
     if "HomeAssistant" not in providers:
+        # Only the Home Assistant adapter reads measurements, and only its mapping can be checked
         return []
     entity_ids = config_value(config_details, "adapter.homeassistant.device_measurement_entity_ids")
     entity_ids = entity_ids if isinstance(entity_ids, dict) else {}
     todo = []
-    for kind in ("batteries", "electric_vehicles"):
-        for device_id in _device_ids(config_details, kind):
-            key = f"{device_id}-soc-factor"
-            if not entity_ids.get(key):
-                todo.append(
-                    f"No Home Assistant entity is set for the state of charge of {device_id} "
-                    f"({key}) in adapter.homeassistant.device_measurement_entity_ids."
-                )
+    for device_id in device_ids:
+        key = f"{device_id}-soc-factor"
+        if not entity_ids.get(key):
+            todo.append(
+                f"No Home Assistant entity is set for the state of charge of {device_id} "
+                f"({key}) in adapter.homeassistant.device_measurement_entity_ids."
+            )
     return todo
 
 

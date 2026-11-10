@@ -253,7 +253,14 @@ class TestWizardChecks:
         set_value(config_details, "devices.electric_vehicles", {"ev1": {}})
         entity_ids = "adapter.homeassistant.device_measurement_entity_ids"
 
-        # Without the Home Assistant adapter the wizard can not know how the SoC gets to EOS
+        # Without an adapter no source for the SoC is known
+        set_value(config_details, "adapter.provider", None)
+        todo = check_measurements(config_details)
+        assert len(todo) == 1
+        assert "No adapter is selected" in todo[0]
+        assert "of battery1, ev1 is known" in todo[0]
+
+        # Only the mapping of the Home Assistant adapter can be checked
         set_value(config_details, "adapter.provider", ["NodeRED"])
         assert check_measurements(config_details) == []
 
@@ -264,6 +271,12 @@ class TestWizardChecks:
         todo = check_measurements(config_details)
         assert len(todo) == 1
         assert "ev1-soc-factor" in todo[0]
+
+    def test_measurements_fresh_system(self, config_details):
+        """A fresh system has no adapter and no devices: the step must not look done."""
+        todo = check_measurements(config_details)
+        assert len(todo) == 1
+        assert "state of charge is known" in todo[0]
 
     def test_step_without_check_has_nothing_to_do(self, config_details):
         assert step_todo(wizard_step("start"), config_details) == []
