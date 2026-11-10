@@ -28,10 +28,12 @@ from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
 from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.optimization.genetic import native as genetic_native
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.geneticsettings import GeneticBackend
 from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
     GeneticSolution,
@@ -4154,12 +4156,19 @@ class GeneticOptimization(OptimizationBase):
 
         The genetic configuration and the prediction hours are frozen for the
         run (see ``_genetic_cfg``); updates made while it runs apply to the next.
+        ``optimization.genetic.backend`` selects the implementation (see
+        ``akkudoktoreos.optimization.genetic.native``).
         """
         self.config.validate_optimization_horizons()
         self._run_genetic_cfg = self.config.optimization.genetic.model_copy(deep=True)
         self._run_prediction_hours = self.config.prediction.hours
         self._run_control_end_slot = self._control_start_slot() + self.control_slots
         try:
+            backend = self._genetic_cfg.backend
+            if backend != GeneticBackend.PYTHON:
+                return genetic_native.optimize_ems(
+                    self, backend, parameters, start_hour, worst_case, ngen, individuals
+                )
             return self._optimize_ems_run(parameters, start_hour, worst_case, ngen, individuals)
         finally:
             self._run_genetic_cfg = None

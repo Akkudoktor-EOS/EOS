@@ -15,6 +15,10 @@ known kernel (e.g. Neoverse N1, Cortex-A53/A55) give bit-identical results. If t
 already sums in a fixed order (no ``np.dot``), the switch has no effect and every CPU must give
 bit-identical results.
 
+The summary records the fingerprint of the GENETIC sources and the kernel version;
+``certify.py`` certifies exactly that. The comparison runs whether or not the sources are
+certified, because that is the question it answers.
+
 Tests that replace parts of the Python optimizer (``patch.object(opt, "optimize", ...)``,
 broken worker pools) differ by design; they are listed under ``patched``. A request the kernel
 does not support counts as ``unsupported``; any other native error (a panic, an invalid
@@ -71,6 +75,7 @@ def pytest_configure(config: Any) -> None:
         finally:
             report = native.last_compare_report
             kernel = native._import_native()
+            RUN_INFO.setdefault("fingerprint", native.source_fingerprint())
             RUN_INFO.setdefault("kernel_version", getattr(kernel, "__version__", None))
             RUN_INFO.setdefault("dot", os.environ.get("GENETIC_COMPARE_DOT", "") or "detected")
             REPORTS.append({

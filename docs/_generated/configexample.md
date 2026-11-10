@@ -286,6 +286,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "backend": "python",
                "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,

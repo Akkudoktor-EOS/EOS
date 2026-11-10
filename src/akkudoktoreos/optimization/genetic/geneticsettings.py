@@ -61,6 +61,31 @@ class TerminalValueMode(StrEnum):
     FIXED = "FIXED"
 
 
+class GeneticBackend(StrEnum):
+    """Implementation that runs the GENETIC optimization.
+
+    Backends
+    --------
+    - PYTHON:
+        The Python implementation in this package (the reference).
+
+    - NATIVE:
+        The native (Rust) implementation of the optional package
+        ``akkudoktoreos-native``. Falls back to PYTHON, with a log message, when
+        the package is missing, was not verified against these GENETIC sources,
+        or rejects the request. Plans use a fixed numerical profile, so the same
+        input and seed give the same plan on every CPU.
+
+    - COMPARE:
+        Runs both, returns the PYTHON result and logs every difference. For
+        verification, e.g. in CI or before switching a device to NATIVE.
+    """
+
+    PYTHON = "python"
+    NATIVE = "native"
+    COMPARE = "compare"
+
+
 class GeneticCommonSettings(SettingsBaseModel):
     """GENETIC Optimization Algorithm Configuration."""
 
@@ -134,6 +159,20 @@ class GeneticCommonSettings(SettingsBaseModel):
                 "server process only. The result for a fixed seed is the same with any value."
             ),
             "examples": [None, 1, 2],
+        },
+    )
+
+    backend: GeneticBackend = Field(
+        default=GeneticBackend.PYTHON,
+        json_schema_extra={
+            "description": (
+                "Implementation that runs the optimization [python | native | compare]. "
+                "'python' (default) is the Python implementation. 'native' uses the optional "
+                "package akkudoktoreos-native (Rust) and falls back to 'python' when it is "
+                "missing or does not support the run. 'compare' runs both, returns the Python "
+                "result and logs the differences."
+            ),
+            "examples": ["python", "native", "compare"],
         },
     )
 

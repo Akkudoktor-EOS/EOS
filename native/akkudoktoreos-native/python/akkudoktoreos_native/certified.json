@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "entries": [
+    {
+      "fingerprint": "sha256:add0598d6e82361a3d16884c8792b84d499bb11ac4b9f4b17a4bccfbf380ca6d",
+      "kernel_version": "0.1.0",
+      "verified": "2026-11-10",
+      "evidence": "60 identical runs, 19 not supported natively, 14 with patched Python, 0 different (dot: sequential)",
+      "note": "Akkudoktor-EOS main 7767028 + native GENETIC backend switch; GENETIC test suite in compare mode on linux/aarch64 with the sequential dot product"
+    }
+  ]
+}

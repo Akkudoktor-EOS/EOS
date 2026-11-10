@@ -2,8 +2,8 @@ name: Native GENETIC kernel
 
 # Builds the optional akkudoktoreos-native wheels and compares the native GENETIC optimizer
 # with the Python one. A difference makes this workflow fail, not the Python tests: the port
-# follows Python (see native/README.md). EOS does not use the kernel, so a red run here never
-# changes what EOS users get.
+# follows Python (see native/README.md). The native backend stays disabled for GENETIC sources
+# that are not certified, so a red run here never changes what EOS users get.
 
 permissions:
   contents: read
@@ -105,6 +105,20 @@ jobs:
           for entry in summary["failed"]:
               print("::error::native failed:", entry["test"], entry["report"]["native_error"][:200])
           sys.exit(1 if summary["different"] or summary["failed"] else 0)
+          EOF
+      - name: Certification status of these sources
+        if: always()
+        run: |
+          uv run --no-sync python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import akkudoktoreos_native as kernel
+          from akkudoktoreos.optimization.genetic.native import source_fingerprint
+          fingerprint = source_fingerprint()
+          certified = kernel.is_certified(fingerprint)
+          print(f"GENETIC sources `{fingerprint}`: {'certified' if certified else 'NOT certified'}"
+                " for akkudoktoreos-native " + kernel.__version__)
+          if not certified:
+              print("\nIf the compare step is green, certify with "
+                    "`python native/scripts/certify.py compare.json`.")
           EOF
       - uses: actions/upload-artifact@v7
         if: always()

@@ -19,3 +19,4 @@ classifiers = [
 python-source = "python"
 module-name = "akkudoktoreos_native._core"
 features = ["pyo3/extension-module"]
+include = [{ path = "python/akkudoktoreos_native/certified.json", format = ["sdist", "wheel"] }]

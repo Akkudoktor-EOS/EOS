@@ -40,6 +40,11 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   and coverage information. A capacity estimate does not overwrite configured capacity.
 - Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
   backend remains the default.
+- Optional native GENETIC backend: `optimization.genetic.backend` selects `python` (default),
+  `native` or `compare`. `native` runs the optimization in the optional Rust package
+  `akkudoktoreos-native` (see `native/README.md`) and falls back to Python when the package is
+  missing, was not verified for these GENETIC sources, or does not support the request.
+  `compare` runs both and logs the differences.
 - Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
   models the lower DC-to-AC efficiency at low load. Without it the constant
   `dc_to_ac_efficiency` applies unchanged.

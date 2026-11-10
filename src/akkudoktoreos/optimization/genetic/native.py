@@ -1,4 +1,4 @@
-"""Adapter between the GENETIC optimization and the optional native (Rust) kernel.
+"""Optional native (Rust) backend for the GENETIC optimization.
 
 The package ``akkudoktoreos-native`` (sources in ``native/`` of the EOS repository) is a port of
 this package's GENETIC optimizer. For the same request and seed it returns the same
@@ -6,9 +6,21 @@ this package's GENETIC optimizer. For the same request and seed it returns the s
 kernel request from a run's configuration snapshot, turns the response back into a
 ``GeneticSolution`` and compares native and Python results.
 
-EOS does not use the kernel: nothing in EOS imports this module. The tests
-(``tests/test_geneticnative.py``) and the compare job of the ``native`` CI workflow
-(``native/scripts/genetic_compare_plugin.py``) use it to check that the port follows Python.
+``optimization.genetic.backend`` selects the implementation (:func:`optimize_ems`):
+
+- ``python`` (default): ``GeneticOptimization`` as it is. Nothing in this module runs.
+- ``native``: the kernel runs the whole optimization. Whenever that is not possible - package
+  missing, these GENETIC sources not verified for the installed package, a request the kernel
+  does not support, or any error - the run falls back to Python and the reason is logged.
+- ``compare``: both run; the Python solution is returned and every difference is logged.
+
+Verification guard
+------------------
+The kernel is a port of the Python code in this package. It is used only for GENETIC sources it
+was verified against: :func:`source_fingerprint` hashes the Python sources that define the
+optimization (comments and docstrings ignored) and the package's ``certified.json`` lists the
+fingerprints it was verified for. Any change of those sources disables the native backend until
+the change is ported and the fingerprint certified; the ``native`` CI workflow reports it.
 
 Numerical profile
 -----------------
@@ -27,11 +39,14 @@ reproduces Python on every CPU.
 from __future__ import annotations
 
 import importlib
+import io
 import json
 import math
 import random
 import struct
+import threading
 import time
+import tokenize
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -42,6 +57,8 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 from loguru import logger
+
+from akkudoktoreos.optimization.genetic.geneticsettings import GeneticBackend
 
 if TYPE_CHECKING:
     from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
@@ -57,6 +74,26 @@ INTERFACE_VERSION = 1
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 SELF_CONSUMPTION_TABLE = "data/regular_grid_interpolator.pkl"
+
+# Sources that define what a GENETIC run computes, relative to the akkudoktoreos package.
+FINGERPRINT_SOURCES: tuple[str, ...] = (
+    "optimization/genetic/genetic.py",
+    "optimization/genetic/geneticdevices.py",
+    "optimization/genetic/geneticparams.py",
+    "optimization/genetic/geneticsettings.py",
+    "optimization/genetic/geneticsolution.py",
+    "optimization/genetic/fullcharge.py",
+    "optimization/genetic/tailvalue.py",
+    "optimization/genetic/terminalvalue.py",
+    "devices/devicesabc.py",
+    "devices/genetic/battery.py",
+    "devices/genetic/homeappliance.py",
+    "devices/genetic/inverter.py",
+    "devices/settings/batterysettings.py",
+    "prediction/interpolator.py",
+    "utils/gridinterpolator.py",
+)
+FINGERPRINT_DATA: tuple[str, ...] = (SELF_CONSUMPTION_TABLE,)
 
 
 def _import_native() -> Optional[ModuleType]:
@@ -83,6 +120,134 @@ def _check_package(native: Any) -> None:
         raise NativeUnsupported(
             f"{NATIVE_PACKAGE} {version} bundles another self-consumption table"
         )
+
+
+# --------------------------------------------------------------------------- guard
+
+
+def _normalized_source(text: str) -> bytes:
+    """Tokens of a Python source without comments, blank lines and docstrings.
+
+    Formatting, comments and docstrings do not change what the optimization computes, so they
+    do not change the fingerprint. Docstrings are string statements that start a logical line
+    and end it.
+    """
+    tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    skip = {tokenize.COMMENT, tokenize.NL, tokenize.ENCODING}
+    significant = [tok for tok in tokens if tok.type not in skip]
+    out: list[str] = []
+    statement_start = True
+    for index, tok in enumerate(significant):
+        following = significant[index + 1] if index + 1 < len(significant) else None
+        if (
+            tok.type == tokenize.STRING
+            and statement_start
+            and following is not None
+            and following.type in (tokenize.NEWLINE, tokenize.ENDMARKER)
+        ):
+            continue
+        if tok.type in (tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT):
+            statement_start = True
+            if out and out[-1] == "\n" and tok.type == tokenize.NEWLINE:
+                continue
+            out.append(
+                {tokenize.NEWLINE: "\n", tokenize.INDENT: "<I>", tokenize.DEDENT: "<D>"}[tok.type]
+            )
+            continue
+        statement_start = False
+        out.append(tok.string)
+    return "\x00".join(out).encode("utf-8")
+
+
+def compute_fingerprint(root: Path = _PACKAGE_ROOT) -> str:
+    """Fingerprint of the GENETIC sources below ``root`` (the ``akkudoktoreos`` package)."""
+    digest = sha256()
+    for relative in FINGERPRINT_SOURCES:
+        digest.update(relative.encode("utf-8") + b"\x00")
+        digest.update(_normalized_source((root / relative).read_text(encoding="utf-8")))
+        digest.update(b"\x00")
+    for relative in FINGERPRINT_DATA:
+        digest.update(relative.encode("utf-8") + b"\x00")
+        digest.update(sha256((root / relative).read_bytes()).digest())
+    return "sha256:" + digest.hexdigest()
+
+
+@lru_cache(maxsize=1)
+def source_fingerprint() -> str:
+    """Fingerprint of the installed GENETIC sources (cached per process)."""
+    return compute_fingerprint()
+
+
+@dataclass(frozen=True)
+class NativeStatus:
+    """Whether the native backend can run for these GENETIC sources."""
+
+    available: bool
+    reason: str = ""
+    version: Optional[str] = None
+
+
+_status_lock = threading.Lock()
+_status_cache: Optional[NativeStatus] = None
+
+
+def reset_status_cache() -> None:
+    """Forget the cached package status (tests, or after installing the package)."""
+    global _status_cache
+    with _status_lock:
+        _status_cache = None
+    source_fingerprint.cache_clear()
+    reset_caches()
+
+
+def native_status() -> NativeStatus:
+    """Status of the native backend for this process (cached).
+
+    Never raises: an unusable package (broken ``certified.json``, missing symbols) is a reason
+    to run Python, not a failed optimization.
+    """
+    global _status_cache
+    with _status_lock:
+        if _status_cache is None:
+            try:
+                _status_cache = _probe_status()
+            except Exception as exc:  # noqa: BLE001 - any defect of the optional package
+                _status_cache = NativeStatus(
+                    False, f"{NATIVE_PACKAGE} is unusable: {type(exc).__name__}: {exc}"
+                )
+        return _status_cache
+
+
+def _probe_status() -> NativeStatus:
+    native = _import_native()
+    if native is None:
+        return NativeStatus(False, f"package '{NATIVE_PACKAGE}' is not installed")
+    version = str(getattr(native, "__version__", "unknown"))
+    try:
+        _check_package(native)
+    except NativeUnsupported as exc:
+        return NativeStatus(False, str(exc), version)
+    fingerprint = source_fingerprint()
+    if native.is_certified(fingerprint):
+        return NativeStatus(True, "", version)
+    return NativeStatus(
+        False,
+        f"{NATIVE_PACKAGE} {version} was not verified against these GENETIC sources ({fingerprint})",
+        version,
+    )
+
+
+_logged_reasons: set[str] = set()
+
+
+def _log_fallback(reason: str) -> None:
+    """Log why a run uses Python: once as warning, repeats at debug level."""
+    message = "GENETIC native backend not used, running Python: {}"
+    if reason in _logged_reasons:
+        logger.debug(message, reason)
+    else:
+        _logged_reasons.add(reason)
+        logger.warning(message, reason)
 
 
 # --------------------------------------------------------------------------- numerical profile
@@ -616,3 +781,48 @@ def compare_run(
             differences[:5],
         )
     return solution
+
+
+# --------------------------------------------------------------------------- dispatch
+
+
+def optimize_ems(
+    optimization: GeneticOptimization,
+    backend: GeneticBackend,
+    parameters: GeneticOptimizationParameters,
+    start_hour: Optional[int],
+    worst_case: bool,
+    ngen: Optional[int],
+    individuals: Optional[int],
+) -> GeneticSolution:
+    """``GeneticOptimization.optimize_ems`` with the configured backend (snapshot in place)."""
+
+    def python_run() -> GeneticSolution:
+        return optimization._optimize_ems_run(parameters, start_hour, worst_case, ngen, individuals)
+
+    if backend == GeneticBackend.PYTHON:
+        return python_run()
+    status = native_status()
+    if not status.available:
+        _log_fallback(status.reason)
+        return python_run()
+    if start_hour is not None and start_hour != optimization.ems.start_datetime.hour:
+        # Python raises the error for an unsynchronized start hour.
+        return python_run()
+
+    if backend == GeneticBackend.COMPARE:
+        return compare_run(
+            optimization, python_run, parameters, start_hour, worst_case, ngen, individuals
+        )
+    try:
+        run = run_native(optimization, parameters, worst_case, ngen, individuals, RELEASE_PROFILE)
+    except Exception as exc:  # noqa: BLE001 - every failure falls back to Python
+        _log_fallback(str(exc) or type(exc).__name__)
+        return python_run()
+    logger.info(
+        "GENETIC native run ({} {}) took {:.2f} s.",
+        NATIVE_PACKAGE,
+        status.version,
+        run.elapsed_s,
+    )
+    return run.solution

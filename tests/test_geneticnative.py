@@ -11,6 +11,7 @@ import importlib.util
 import json
 import math
 import random
+import shutil
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +20,7 @@ from typing import Any, Iterator, Optional
 import numpy as np
 import pytest
 from loguru import logger
+from pydantic import ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
@@ -27,6 +29,10 @@ from akkudoktoreos.optimization.genetic import native
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticsettings import (
+    GeneticBackend,
+    GeneticCommonSettings,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.prediction import interpolator as interpolator_module
@@ -44,11 +50,20 @@ START = "2026-09-16T10:00:00+02:00"
 
 @pytest.fixture(autouse=True)
 def _fresh_native_state():
-    """Every test starts without cached profile or compare report."""
-    native.reset_caches()
+    """Every test starts without cached package status, profile or compare report."""
+    native.reset_status_cache()
+    native._logged_reasons.clear()
     native.last_compare_report = None
     yield
-    native.reset_caches()
+    native.reset_status_cache()
+
+
+@pytest.fixture
+def certified(monkeypatch):
+    """Let the installed package run on these sources, certified or not."""
+    kernel = pytest.importorskip(native.NATIVE_PACKAGE)
+    monkeypatch.setattr(kernel, "is_certified", lambda fingerprint: True)
+    native.reset_status_cache()
 
 
 @pytest.fixture
@@ -200,6 +215,10 @@ def _backend(mode: str) -> Iterator[None]:
         GeneticOptimization._optimize_ems_run = original  # type: ignore[method-assign]
 
 
+def _set_backend(config_eos: ConfigEOS, backend: str) -> None:
+    config_eos.merge_settings_from_dict({"optimization": {"genetic": {"backend": backend}}})
+
+
 def _run_both(config_eos: ConfigEOS, parameters_factory: Any, **run: Any) -> tuple[Any, Any]:
     python = _run(parameters_factory(), **run)
     with _backend("native"):
@@ -219,6 +238,9 @@ class _FakeKernel(SimpleNamespace):
     class NativeRunError(RuntimeError):
         pass
 
+    def is_certified(self, fingerprint: str) -> bool:
+        return fingerprint in self.certified_fingerprints
+
 
 def _fake_kernel(**overrides: Any) -> _FakeKernel:
     values: dict[str, Any] = {
@@ -226,6 +248,7 @@ def _fake_kernel(**overrides: Any) -> _FakeKernel:
         "INTERFACE_VERSION": native.INTERFACE_VERSION,
         "SELF_CONSUMPTION_TABLE_SHA256": native._table_sha256(),
         "DOT_KERNELS": ["sequential"],
+        "certified_fingerprints": (),
     }
     values.update(overrides)
     return _FakeKernel(**values)
@@ -336,6 +359,243 @@ class TestAdapter:
     def test_sequential_dot_sums_in_index_order(self):
         assert native.sequential_dot([1e16, 1.0, -1e16], [1.0, 1.0, 1.0]) == 0.0
         assert native.sequential_dot([1e16, -1e16, 1.0], [1.0, 1.0, 1.0]) == 1.0
+
+
+# --------------------------------------------------------------------------- configuration
+
+
+class TestConfiguration:
+    def test_default_is_python(self, config_eos):
+        assert config_eos.optimization.genetic.backend == GeneticBackend.PYTHON
+        assert GeneticCommonSettings().backend == "python"
+
+    @pytest.mark.parametrize("value", ["python", "native", "compare"])
+    def test_round_trip(self, config_eos, value):
+        _set_backend(config_eos, value)
+        assert config_eos.optimization.genetic.backend == GeneticBackend(value)
+        dumped = config_eos.optimization.genetic.model_dump(mode="json")
+        assert dumped["backend"] == value
+        assert GeneticCommonSettings(**dumped).backend == GeneticBackend(value)
+
+    def test_invalid_value_is_rejected(self, config_eos):
+        with pytest.raises(ValidationError):
+            GeneticCommonSettings.model_validate({"backend": "rust"})
+        assert config_eos.optimization.genetic.backend == GeneticBackend.PYTHON
+
+    def test_environment_variable(self, config_eos, monkeypatch):
+        monkeypatch.setenv("EOS_OPTIMIZATION__GENETIC__BACKEND", "compare")
+        config_eos.reset_settings()
+        assert config_eos.optimization.genetic.backend == GeneticBackend.COMPARE
+        monkeypatch.delenv("EOS_OPTIMIZATION__GENETIC__BACKEND")
+        config_eos.reset_settings()
+        assert config_eos.optimization.genetic.backend == GeneticBackend.PYTHON
+
+
+# --------------------------------------------------------------------------- guard
+
+
+def _copy_sources(tmp_path: Path) -> Path:
+    root = tmp_path / "akkudoktoreos"
+    for relative in (*native.FINGERPRINT_SOURCES, *native.FINGERPRINT_DATA):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(native._PACKAGE_ROOT / relative, target)
+    return root
+
+
+class TestGuard:
+    def test_fingerprint_ignores_comments_and_docstrings(self, tmp_path):
+        root = _copy_sources(tmp_path)
+        reference = native.compute_fingerprint(root)
+        assert reference == native.source_fingerprint()
+
+        genetic_py = root / "optimization/genetic/genetic.py"
+        text = genetic_py.read_text(encoding="utf-8")
+        cosmetic = text.replace(
+            '"""GENETIC algorithm to solve energy optimization."""',
+            '"""GENETIC algorithm to solve energy optimization (reworded)."""\n    # a comment\n',
+        )
+        assert cosmetic != text
+        genetic_py.write_text(cosmetic, encoding="utf-8")
+        assert native.compute_fingerprint(root) == reference
+
+        changed = text.replace("MUTATION_PROBABILITY = 0.55", "MUTATION_PROBABILITY = 0.56")
+        assert changed != text
+        genetic_py.write_text(changed, encoding="utf-8")
+        assert native.compute_fingerprint(root) != reference
+
+    def test_table_change_changes_fingerprint(self, tmp_path):
+        root = _copy_sources(tmp_path)
+        reference = native.compute_fingerprint(root)
+        table = root / native.SELF_CONSUMPTION_TABLE
+        table.write_bytes(table.read_bytes() + b"\x00")
+        assert native.compute_fingerprint(root) != reference
+
+    def test_missing_package(self, monkeypatch):
+        monkeypatch.setattr(native, "_import_native", lambda: None)
+        status = native.native_status()
+        assert not status.available
+        assert "not installed" in status.reason
+
+    def test_interface_mismatch(self, monkeypatch):
+        monkeypatch.setattr(native, "_import_native", lambda: _fake_kernel(INTERFACE_VERSION=99))
+        status = native.native_status()
+        assert not status.available
+        assert "interface" in status.reason
+
+    def test_other_table(self, monkeypatch):
+        monkeypatch.setattr(
+            native, "_import_native", lambda: _fake_kernel(SELF_CONSUMPTION_TABLE_SHA256="0" * 64)
+        )
+        status = native.native_status()
+        assert not status.available
+        assert "table" in status.reason
+
+    def test_uncertified_sources(self, monkeypatch):
+        monkeypatch.setattr(native, "_import_native", lambda: _fake_kernel())
+        status = native.native_status()
+        assert not status.available
+        assert native.source_fingerprint() in status.reason
+
+    def test_certified_sources(self, monkeypatch):
+        kernel = _fake_kernel(certified_fingerprints=(native.source_fingerprint(),))
+        monkeypatch.setattr(native, "_import_native", lambda: kernel)
+        status = native.native_status()
+        assert status.available
+        assert status.version == "0.0-test"
+
+    @needs_native
+    def test_package_certificate_lookup(self):
+        kernel = pytest.importorskip(native.NATIVE_PACKAGE)
+        assert not kernel.is_certified("sha256:" + "0" * 64)
+        for entry in kernel.certified_entries():
+            assert entry["fingerprint"].startswith("sha256:")
+            assert kernel.is_certified(entry["fingerprint"])
+
+
+# --------------------------------------------------------------------------- fallback
+
+
+class TestFallback:
+    def test_python_backend_never_touches_the_package(self, config_eos, monkeypatch):
+        _configure(config_eos)
+
+        def fail() -> None:
+            raise AssertionError("native backend consulted")
+
+        monkeypatch.setattr(native, "native_status", fail)
+        monkeypatch.setattr(native, "_import_native", fail)
+        solution = _run(_load_input("optimize_input_1.json"), ngen=3)
+        assert isinstance(solution, GeneticSolution)
+
+    @pytest.mark.parametrize("backend", ["native", "compare"])
+    def test_missing_package_falls_back_to_python(self, config_eos, monkeypatch, backend):
+        _configure(config_eos)
+        reference = _run(_load_input("optimize_input_1.json"), ngen=3)
+        monkeypatch.setattr(native, "_import_native", lambda: None)
+        messages: list[str] = []
+        handler = logger.add(lambda m: messages.append(m.record["message"]), level="WARNING")
+        try:
+            _set_backend(config_eos, backend)
+            first = _run(_load_input("optimize_input_1.json"), ngen=3)
+            second = _run(_load_input("optimize_input_1.json"), ngen=3)
+        finally:
+            logger.remove(handler)
+        assert native.compare_solutions(reference, first) == []
+        assert native.compare_solutions(reference, second) == []
+        warnings = [m for m in messages if "native backend not used" in m]
+        assert len(warnings) == 1  # repeated reasons go to debug level
+        assert native.last_compare_report is None
+
+    def test_uncertified_sources_fall_back_to_python(self, config_eos, monkeypatch):
+        _configure(config_eos)
+        reference = _run(_load_input("optimize_input_1.json"), ngen=3)
+
+        class Kernel(_FakeKernel):
+            def run_genetic(self, request: str) -> str:
+                raise AssertionError("an uncertified kernel must not run")
+
+        monkeypatch.setattr(native, "_import_native", lambda: Kernel(**vars(_fake_kernel())))
+        _set_backend(config_eos, "native")
+        solution = _run(_load_input("optimize_input_1.json"), ngen=3)
+        assert native.compare_solutions(reference, solution) == []
+
+    def test_kernel_error_falls_back_to_python(self, config_eos, monkeypatch):
+        _configure(config_eos)
+        reference = _run(_load_input("optimize_input_1.json"), ngen=3)
+
+        class Kernel(_FakeKernel):
+            def run_genetic(self, request: str) -> str:
+                raise self.NativeRunError("run_failed", "boom")
+
+        kernel = Kernel(
+            **{**vars(_fake_kernel()), "certified_fingerprints": (native.source_fingerprint(),)}
+        )
+        monkeypatch.setattr(native, "_import_native", lambda: kernel)
+        _set_backend(config_eos, "native")
+        solution = _run(_load_input("optimize_input_1.json"), ngen=3)
+        assert native.compare_solutions(reference, solution) == []
+
+    def test_unsynchronized_start_hour_still_raises(self, config_eos, monkeypatch):
+        _configure(config_eos, backend="native")
+        kernel = _fake_kernel(certified_fingerprints=(native.source_fingerprint(),))
+        monkeypatch.setattr(native, "_import_native", lambda: kernel)
+        get_ems().set_start_datetime(to_datetime(START, in_timezone="Europe/Berlin"))
+        optimization = GeneticOptimization(fixed_seed=1)
+        with pytest.raises(ValueError, match="Start hour not synced"):
+            optimization.optimize_ems(
+                parameters=_load_input("optimize_input_1.json"), start_hour=3, ngen=2
+            )
+
+    def test_broken_package_falls_back_to_python(self, config_eos, monkeypatch):
+        _configure(config_eos)
+        reference = _run(_load_input("optimize_input_1.json"), ngen=3)
+
+        class Broken(_FakeKernel):
+            def is_certified(self, fingerprint: str) -> bool:
+                raise ValueError("certified.json is broken")
+
+        monkeypatch.setattr(native, "_import_native", lambda: Broken(**vars(_fake_kernel())))
+        status = native.native_status()
+        assert not status.available and "unusable" in status.reason
+        for backend in ("native", "compare"):
+            native.reset_status_cache()
+            _set_backend(config_eos, backend)
+            solution = _run(_load_input("optimize_input_1.json"), ngen=3)
+            assert native.compare_solutions(reference, solution) == []
+
+
+@needs_native
+@pytest.mark.usefixtures("certified", "python_on_release_profile")
+class TestBackendSetting:
+    """``optimization.genetic.backend`` runs the kernel through ``optimize_ems``."""
+
+    def test_native_backend_equals_python(self, config_eos):
+        _configure(config_eos, interval_sec=900, horizon_hours=24, tail_horizon_hours=12)
+
+        def make() -> GeneticOptimizationParameters:
+            return _synthetic_input(slots=192, interval=900, seed=11, appliance=True)
+
+        python = _run(make(), seed=9)
+        _set_backend(config_eos, "native")
+        native_solution = _run(make(), seed=9)
+        assert native.compare_solutions(python, native_solution) == []
+
+    def test_compare_backend_reports(self, config_eos):
+        _configure(config_eos, backend="compare")
+        _run(_load_input("optimize_input_2.json"))
+        report = native.last_compare_report
+        assert report is not None
+        assert report.identical, report.differences[:5]
+
+    def test_unsupported_request_falls_back(self, config_eos):
+        _configure(config_eos)
+        data = _load_input("optimize_input_2.json").model_dump(mode="json")
+        _with_time_windows(data)
+        python = _run(GeneticOptimizationParameters(**data))
+        _set_backend(config_eos, "native")
+        native_solution = _run(GeneticOptimizationParameters(**data))
+        assert native.compare_solutions(python, native_solution) == []
 
 
 # --------------------------------------------------------------------------- native runs
