@@ -347,8 +347,11 @@ The inverter supports separate AC↔DC conversion efficiencies:
 
   Household load, home appliances and EV charging all count towards the limit. The penalty
   makes the optimizer release the battery in peak slots, keep reserve for them and charge
-  earlier. The plan does not rely on any peak shaving on site: the exported instructions
-  reproduce the simulated grid import.
+  earlier. The plan does not rely on any peak shaving on site: a controller executing the
+  exported instructions stays within the limit. Where PV charges the battery in a slot whose
+  planned AC factor, read as a share of the rated charge power, fits the headroom, the factor
+  keeps its meaning on `main` (a share of the charge budget PV left), and such a controller may
+  draw more grid charge than simulated, still within the limit.
 
 **Example with an efficiency curve:**
 
