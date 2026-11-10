@@ -1271,6 +1271,33 @@ class TestExecutedAcFactor:
         assert factor == pytest.approx(0.2)
         assert _controller_grid_charge_wh(factor, 5000.0, 3000.0, 8000.0) == pytest.approx(grid_wh)
 
+    def test_rated_reading_check_uses_the_ac_to_dc_efficiency(self, config_eos):
+        """Gene 0.19 at 90 % AC-to-DC efficiency, 3 kWh PV, 1 kW limit.
+
+        Read as 0.19 x 5 kW the controller would charge 950 Wh DC, but the
+        1 kWh AC headroom carries only 900 Wh DC. The simulation charges
+        0.19 x 2 kWh = 380 Wh DC; the reported 380 / 5000 = 0.076 draws exactly
+        that, while 0.19 would draw 1056 Wh AC, above the limit.
+        """
+        result, sim = _simulate(
+            config_eos,
+            load=[0.0],
+            pv=[3000.0],
+            ac=[0.19],
+            soc_percentage=20,
+            limit_w=1000.0,
+            ac_to_dc_efficiency=0.9,
+        )
+
+        grid_wh = float(result["Netzbezug_Wh_pro_Stunde"][0])
+        assert grid_wh == pytest.approx(380.0 / 0.9)
+        assert sim.ac_charge_hours is not None
+        factor = float(sim.ac_charge_hours[0])
+        assert factor == pytest.approx(0.076)
+        controller_wh = _controller_grid_charge_wh(factor, 5000.0, 3000.0, 8000.0, 0.9)
+        assert controller_wh == pytest.approx(grid_wh)
+        assert controller_wh <= 1000.0
+
     def test_factor_that_fits_at_rated_power_is_kept(self, config_eos):
         """Gene 0.2 x 5 kW = 1 kWh fits the 1.5 kW limit: the factor stays as on main."""
         _, sim = _simulate(
@@ -1315,6 +1342,46 @@ class TestFitnessPenaltyEdges:
         inverter, _ = _devices(limit_w=0.0)
 
         assert _fitness(config_eos, _result([100.0, 0.0]), inverter) == pytest.approx(1.5 + 1.0)
+
+    def test_import_just_beyond_the_tolerance_is_penalised(self, config_eos):
+        """1 mWh above the limit is an excess (the tolerance only absorbs rounding)."""
+        inverter, _ = _devices()
+
+        fitness = _fitness(config_eos, _result([8000.0 + 1e-3, 8000.0]), inverter)
+
+        assert fitness == pytest.approx(1.5 + 1e-3 * 0.01, rel=0, abs=1e-9)
+
+    @staticmethod
+    def _tail_hold_reward(load_wh: float) -> float:
+        """Reward of a held tail slot of an empty battery at 0.3 EUR/kWh, 0.01 EUR/Wh penalty."""
+        inverter, battery = _devices(soc_percentage=0)
+        battery.charge_array = np.zeros(1)
+        battery.discharge_array = np.zeros(1, dtype=np.int_)
+        return _simulate_action(
+            bat=battery,
+            inv=inverter,
+            energy_wh=0.0,
+            action=(1, 0, 0.0, 0.0),
+            price=0.0003,
+            load=load_wh,
+            pv=0.0,
+            tariff=0.0,
+            direct_marketing=False,
+            grid_import_penalty_euro_per_wh=0.01,
+        )["reward_euro"]
+
+    def test_tail_rounding_above_the_limit_is_not_penalised(self):
+        load_wh = 8000.0 + 2e-12
+
+        # Exactly the energy cost: not even the 2e-14 EUR penalty of the residue.
+        assert self._tail_hold_reward(load_wh) == -load_wh * 0.0003
+
+    def test_tail_import_just_beyond_the_tolerance_is_penalised(self):
+        load_wh = 8000.0 + 1e-3
+
+        assert self._tail_hold_reward(load_wh) == pytest.approx(
+            -load_wh * 0.0003 - 1e-3 * 0.01, rel=0, abs=1e-12
+        )
 
     def test_rounding_above_the_limit_is_not_penalised(self, config_eos):
         inverter, _ = _devices()
