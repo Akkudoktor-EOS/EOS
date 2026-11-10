@@ -125,37 +125,86 @@ def _check_package(native: Any) -> None:
 # --------------------------------------------------------------------------- guard
 
 
+# Python >= 3.12 splits f-strings into several tokens (PEP 701), 3.14 also t-strings.
+_STRING_GROUPS = tuple(
+    (getattr(tokenize, start), getattr(tokenize, end))
+    for start, end in (("FSTRING_START", "FSTRING_END"), ("TSTRING_START", "TSTRING_END"))
+    if hasattr(tokenize, start)
+)
+
+
+def _significant_tokens(text: str) -> list[tuple[int, str]]:
+    """Type and text of the tokens that matter, the same on every supported Python version.
+
+    Comments and blank lines are dropped. An f-string is one ``STRING`` token with its source
+    text, as Python 3.11 tokenizes it.
+    """
+    lines = io.StringIO(text).readlines()
+    line_offsets = [0]
+    for line in lines:
+        line_offsets.append(line_offsets[-1] + len(line))
+
+    def offset(position: tuple[int, int]) -> int:
+        return line_offsets[position[0] - 1] + position[1]
+
+    skip = {tokenize.COMMENT, tokenize.NL, tokenize.ENCODING}
+    starts = {start for start, _ in _STRING_GROUPS}
+    ends = {end for _, end in _STRING_GROUPS}
+    out: list[tuple[int, str]] = []
+    depth = 0
+    begin = (0, 0)
+    for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        if tok.type in skip:
+            continue
+        if tok.type in starts:
+            if depth == 0:
+                begin = tok.start
+            depth += 1
+            continue
+        if depth:
+            if tok.type in ends:
+                depth -= 1
+                if depth == 0:
+                    out.append((tokenize.STRING, text[offset(begin) : offset(tok.end)]))
+            continue
+        out.append((tok.type, tok.string))
+    return out
+
+
 def _normalized_source(text: str) -> bytes:
     """Tokens of a Python source without comments, blank lines and docstrings.
 
     Formatting, comments and docstrings do not change what the optimization computes, so they
     do not change the fingerprint. Docstrings are string statements that start a logical line
-    and end it.
+    and end it; they are dropped together with the end of their line.
     """
-    tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
-    skip = {tokenize.COMMENT, tokenize.NL, tokenize.ENCODING}
-    significant = [tok for tok in tokens if tok.type not in skip]
+    significant = _significant_tokens(text)
     out: list[str] = []
     statement_start = True
-    for index, tok in enumerate(significant):
-        following = significant[index + 1] if index + 1 < len(significant) else None
+    skip_newline = False
+    for index, (kind, string) in enumerate(significant):
+        following = significant[index + 1][0] if index + 1 < len(significant) else None
         if (
-            tok.type == tokenize.STRING
+            kind == tokenize.STRING
             and statement_start
-            and following is not None
-            and following.type in (tokenize.NEWLINE, tokenize.ENDMARKER)
+            and following in (tokenize.NEWLINE, tokenize.ENDMARKER)
         ):
+            skip_newline = True
             continue
-        if tok.type in (tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT):
+        if kind == tokenize.NEWLINE and skip_newline:
+            skip_newline = False
+            continue
+        skip_newline = False
+        if kind in (tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT):
             statement_start = True
-            if out and out[-1] == "\n" and tok.type == tokenize.NEWLINE:
+            if out and out[-1] == "\n" and kind == tokenize.NEWLINE:
                 continue
             out.append(
-                {tokenize.NEWLINE: "\n", tokenize.INDENT: "<I>", tokenize.DEDENT: "<D>"}[tok.type]
+                {tokenize.NEWLINE: "\n", tokenize.INDENT: "<I>", tokenize.DEDENT: "<D>"}[kind]
             )
             continue
         statement_start = False
-        out.append(tok.string)
+        out.append(string)
     return "\x00".join(out).encode("utf-8")
 
 

@@ -7,8 +7,8 @@ JSON out (:func:`run_genetic`); EOS builds the request
 
 EOS uses the kernel only for GENETIC sources it was verified against: ``certified.json`` lists
 fingerprints of those sources (computed by EOS, see
-``akkudoktoreos.optimization.genetic.native.source_fingerprint``). EOS sources without an entry
-run in Python.
+``akkudoktoreos.optimization.genetic.native.source_fingerprint``) with the kernel version that
+was verified. EOS sources without an entry for this kernel version run in Python.
 """
 
 from __future__ import annotations
@@ -60,5 +60,8 @@ def certified_entries() -> tuple[dict[str, Any], ...]:
 
 
 def is_certified(fingerprint: str) -> bool:
-    """Whether the kernel was verified against EOS sources with this fingerprint."""
-    return any(entry.get("fingerprint") == fingerprint for entry in certified_entries())
+    """Whether this kernel version was verified against EOS sources with this fingerprint."""
+    return any(
+        entry.get("fingerprint") == fingerprint and entry.get("kernel_version") == KERNEL_VERSION
+        for entry in certified_entries()
+    )

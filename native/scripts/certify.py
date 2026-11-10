@@ -38,6 +38,9 @@ def main() -> int:
     if summary["different"]:
         print(f"refusing: {len(summary['different'])} runs differ", file=sys.stderr)
         return 1
+    if summary.get("failed", []):
+        print(f"refusing: {len(summary['failed'])} native runs failed", file=sys.stderr)
+        return 1
     if summary["identical"] == 0:
         print("refusing: the compare run has no identical run", file=sys.stderr)
         return 1

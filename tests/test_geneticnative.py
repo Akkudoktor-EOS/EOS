@@ -12,6 +12,7 @@ import json
 import math
 import random
 import shutil
+import tokenize
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -424,6 +425,33 @@ class TestGuard:
         genetic_py.write_text(changed, encoding="utf-8")
         assert native.compute_fingerprint(root) != reference
 
+    def test_fingerprint_ignores_added_docstrings(self, tmp_path):
+        root = _copy_sources(tmp_path)
+        reference = native.compute_fingerprint(root)
+        battery_py = root / "devices/genetic/battery.py"
+        text = battery_py.read_text(encoding="utf-8")
+        lines = text.splitlines(keepends=True)
+        # A docstring for the first function that has none, and one at the top of the module.
+        for index, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith("def ") and not lines[index + 1].strip().startswith('"""'):
+                indent = " " * (len(line) - len(stripped) + 4)
+                lines.insert(index + 1, f'{indent}"""Added docstring."""\n')
+                break
+        else:
+            pytest.fail("no function without docstring found")
+        battery_py.write_text('"""Added module docstring."""\n' + "".join(lines), encoding="utf-8")
+        assert native.compute_fingerprint(root) == reference
+
+    def test_fstring_is_one_token_as_on_python_311(self):
+        """Python >= 3.12 splits f-strings into several tokens; the fingerprint must not."""
+        source = 'x = f"a{b!r:>{width}}c" + f"{f\'{d}\'}"\n'
+        assert native._significant_tokens(source)[2:5] == [
+            (tokenize.STRING, 'f"a{b!r:>{width}}c"'),
+            (tokenize.OP, "+"),
+            (tokenize.STRING, 'f"{f\'{d}\'}"'),
+        ]
+
     def test_table_change_changes_fingerprint(self, tmp_path):
         root = _copy_sources(tmp_path)
         reference = native.compute_fingerprint(root)
@@ -465,12 +493,21 @@ class TestGuard:
         assert status.version == "0.0-test"
 
     @needs_native
-    def test_package_certificate_lookup(self):
+    def test_package_certificate_lookup(self, monkeypatch):
         kernel = pytest.importorskip(native.NATIVE_PACKAGE)
         assert not kernel.is_certified("sha256:" + "0" * 64)
+        assert kernel.certified_entries(), "the package ships no certificate"
         for entry in kernel.certified_entries():
             assert entry["fingerprint"].startswith("sha256:")
             assert kernel.is_certified(entry["fingerprint"])
+        # An entry verified with another kernel version does not certify this one.
+        fingerprint = kernel.certified_entries()[0]["fingerprint"]
+        monkeypatch.setattr(
+            kernel,
+            "certified_entries",
+            lambda: ({"fingerprint": fingerprint, "kernel_version": "0.0.0"},),
+        )
+        assert not kernel.is_certified(fingerprint)
 
 
 # --------------------------------------------------------------------------- fallback
