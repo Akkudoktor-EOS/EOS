@@ -1,0 +1,80 @@
+name: Inverter profile
+description: Share an inverter profile so that it can be packaged with EOS for other users.
+title: "[PROFILE]: ..."
+labels: [inverter-profile]
+
+
+body:
+- type: markdown
+  attributes:
+    value: >
+      Thank you for sharing an inverter profile. EOSdash fills this form for you:
+      open **Profiles**, choose the inverter profiles, select the profile and press
+      **Share**.
+      The profile is reviewed before it is packaged with EOS. See the
+      [inverter profile documentation](https://akkudoktor-eos.readthedocs.io/en/latest/akkudoktoreos/resource.html)
+      for the meaning of the values.
+
+- type: input
+  id: inverter_model
+  attributes:
+    label: "Inverter model"
+    description: Manufacturer and model of the inverter, as on the name plate.
+    placeholder: "e.g. Fronius Symo GEN24 10.0 Plus"
+  validations:
+    required: true
+
+- type: input
+  id: profile_name
+  attributes:
+    label: "Profile name"
+    description: >
+      Suggested name of the packaged profile: letters, digits, '.', '_' and '-',
+      starting with a letter or digit.
+    placeholder: "e.g. fronius-gen24-10"
+  validations:
+    required: true
+
+- type: dropdown
+  id: data_source
+  attributes:
+    label: "Source of the values"
+    description: Where do the efficiencies and the power derating of the profile come from?
+    options:
+      - Manufacturer datasheet
+      - Own measurements
+      - Datasheet and own measurements
+      - Estimated
+  validations:
+    required: true
+
+- type: textarea
+  id: profile
+  attributes:
+    label: "Profile document"
+    description: >
+      The profile as JSON. If the field is empty, copy the JSON from the profile
+      page of EOSdash and paste it here.
+    render: json
+  validations:
+    required: true
+
+- type: textarea
+  id: notes
+  attributes:
+    label: "Notes"
+    description: >
+      Anything reviewers should know, e.g. links to the datasheet, how you
+      measured, or values you are unsure about.
+  validations:
+    required: false
+
+- type: checkboxes
+  id: consent
+  attributes:
+    label: "Publication"
+    options:
+      - label: >
+          I may share these values, and they may be published with EOS under its
+          license (Apache-2.0).
+        required: true

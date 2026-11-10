@@ -3,13 +3,10 @@ import re
 from typing import Any, Callable, Optional, Union
 
 from fasthtml.common import H1, Button, Div, Li, Select
-from monsterui.daisy import (
-    Alert,
-    AlertT,
-)
 from monsterui.foundations import stringify
 from monsterui.franken import (  # Select: Does not work - using Select from FastHTML instead;; Button: Does not pass hx_vals - using Button from FastHTML instead
     H3,
+    H4,
     ButtonT,
     Card,
     Code,
@@ -150,24 +147,48 @@ def TextView(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any) ->
     return Pre(*c, **kwargs)
 
 
-def Success(*c: Any) -> Alert:
-    return Alert(
+# Colors of the status messages from the theme of EOSdash, readable in light and
+# dark mode: (box, icon). daisyUI's alert colors come from its own color theme and
+# give dark text on a green or gray background in dark mode.
+STATUS_TONES: dict[str, tuple[str, str]] = {
+    "success": ("bg-primary/10 border-primary/40", "text-primary"),
+    "info": ("bg-muted border-border", "text-muted-foreground"),
+    "error": ("bg-destructive/10 border-destructive/40", "text-destructive"),
+}
+
+
+def StatusMessage(tone: str, icon: str, *c: Any) -> Div:
+    """A status message box in the colors of the EOSdash theme.
+
+    Args:
+        tone: ``"success"``, ``"info"`` or ``"error"``, see ``STATUS_TONES``.
+        icon: Name of the icon.
+        *c: Content of the message.
+
+    Returns:
+        The message box, with ``role="alert"``.
+    """
+    box_cls, icon_cls = STATUS_TONES[tone]
+    return Div(
         DivLAligned(
-            UkIcon("check"),
-            TextView(*c),
+            UkIcon(icon, cls=icon_cls),
+            *c,
         ),
-        cls=AlertT.success,
+        role="alert",
+        cls=f"rounded-lg border p-3 text-foreground {box_cls}",
     )
 
 
-def Error(*c: Any) -> Alert:
-    return Alert(
-        DivLAligned(
-            UkIcon("triangle-alert"),
-            TextView(*c),
-        ),
-        cls=AlertT.error,
-    )
+def Success(*c: Any) -> Div:
+    return StatusMessage("success", "check", TextView(*c))
+
+
+def Info(*c: Any) -> Div:
+    return StatusMessage("info", "info", TextView(*c))
+
+
+def Error(*c: Any) -> Div:
+    return StatusMessage("error", "triangle-alert", TextView(*c))
 
 
 def ConfigButton(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any) -> Button:
@@ -188,7 +209,7 @@ def ConfigButton(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any
     return Button(*c, submit=False, **kwargs)
 
 
-def UpdateError(error_text: str) -> Alert:
+def UpdateError(error_text: str) -> Div:
     """Renders a compact error with collapsible full detail.
 
     Extracts the short pydantic validation message (text after
@@ -199,7 +220,7 @@ def UpdateError(error_text: str) -> Alert:
         error_text: The full error string from a config update failure.
 
     Returns:
-        Alert: A collapsible error element with error styling.
+        Div: A collapsible error element with error styling.
     """
     short = None
     match = re.search(r"validation error for [^\n]+\n([^\n]+)\n\s+([^\[]+)", error_text)
@@ -208,11 +229,12 @@ def UpdateError(error_text: str) -> Alert:
     if not short:
         short = error_text.splitlines()[0].strip()
 
-    return Alert(
+    box_cls, icon_cls = STATUS_TONES["error"]
+    return Div(
         Details(
             Summary(
                 DivLAligned(
-                    UkIcon("triangle-alert"),
+                    UkIcon("triangle-alert", cls=icon_cls),
                     P(short, cls="text-sm ml-2"),
                 ),
                 cls="list-none cursor-pointer",
@@ -222,7 +244,8 @@ def UpdateError(error_text: str) -> Alert:
                 cls="rounded-lg bg-muted p-3 mt-2 max-h-[30vh] overflow-y-auto overflow-x-hidden whitespace-pre-wrap text-xs",
             ),
         ),
-        cls=AlertT.error,
+        role="alert",
+        cls=f"rounded-lg border p-3 text-foreground {box_cls}",
     )
 
 
@@ -1158,20 +1181,32 @@ def ConfigCard(
     )
 
 
-def ConfigSection(title: str, *content: Any, open: bool = False) -> Details:
-    """Collapsible section for grouping configuration entries."""
+def ConfigSection(
+    title: str, *content: Any, open: bool = False, compact: bool = False, **kwargs: Any
+) -> Details:
+    """Collapsible section for grouping configuration entries.
+
+    Args:
+        title: Title shown in the summary.
+        *content: Content of the section.
+        open: Whether the section is open.
+        compact: Smaller title and less padding, e.g. for pages with plots.
+        **kwargs: Further attributes of the ``details`` element, e.g. ``data_*``.
+    """
+    heading = H4(title, cls="text-base") if compact else H3(title, cls="ml-2")
     return Details(
         Summary(
             Div(
                 UkIcon("chevron-right", cls="transition-transform group-open:rotate-90"),
-                H3(title, cls="ml-2"),
+                heading,
                 cls="flex items-center gap-2 cursor-pointer",
             ),
             cls="list-none",
         ),
-        Div(*content, cls="space-y-3 mt-3"),
+        Div(*content, cls="space-y-2 mt-2" if compact else "space-y-3 mt-3"),
         open=open,
-        cls="group border rounded-lg p-2",
+        cls="group border rounded-md px-3 py-2" if compact else "group border rounded-lg p-2",
+        **kwargs,
     )
 
 
