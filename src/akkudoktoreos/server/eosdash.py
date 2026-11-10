@@ -32,6 +32,7 @@ from akkudoktoreos.server.dash.context import (
 from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.plan import Plan
 from akkudoktoreos.server.dash.prediction import Prediction
+from akkudoktoreos.server.dash.profile import Profile
 from akkudoktoreos.server.server import (
     drop_root_privileges,
     get_default_host,
@@ -293,6 +294,7 @@ def get_eosdash(request: Request):  # type: ignore
                 "Plan": "/eosdash/plan",
                 "Prediction": "/eosdash/prediction",
                 "Config": "/eosdash/configuration",
+                "Profiles": "/eosdash/profile",
                 "Admin": "/eosdash/admin",
                 "About": "/eosdash/about",
             },
@@ -408,6 +410,34 @@ def post_eosdash_configuration(request: Request, data: dict):  # type: ignore
         Configuration: The Configuration page component with updated configuration.
     """
     return Configuration(*eos_server(), data)
+
+
+@app.get("/eosdash/profile")
+def get_eosdash_profile(request: Request, data: dict):  # type: ignore
+    """Serve the EOSdash battery profile page.
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): Optional query data (e.g. dark mode).
+
+    Returns:
+        Profile: The battery profile page component.
+    """
+    return Profile(*eos_server(), data)
+
+
+@app.post("/eosdash/profile")
+def post_eosdash_profile(request: Request, data: dict):  # type: ignore
+    """Run an action of the battery profile page (select, save, save as, delete).
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): User-submitted data from the battery profile page.
+
+    Returns:
+        Profile: The battery profile page component.
+    """
+    return Profile(*eos_server(), data)
 
 
 @app.get("/eosdash/plan")
