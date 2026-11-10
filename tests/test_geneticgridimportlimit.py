@@ -6,11 +6,11 @@ models that limit:
 
 - AC (grid) charging of the battery is reduced, so that load plus charging
   stays within the limit.
-- The battery discharges only where the plan releases it, as without a limit,
-  so the exported instructions reproduce the simulated plan.
-- Import above the limit is simulated as is and adds a penalty to the
-  fitness, so the optimizer learns to release the battery for peaks, to keep
-  reserve and to charge earlier.
+- Where the plan holds the battery, it covers only the import above the limit
+  (threshold peak shaving, see ``test_geneticpeakshavingthreshold.py``, which
+  also replays the exported instructions).
+- Import the battery cannot cover adds a penalty to the fitness, so the
+  optimizer learns to keep reserve and to charge earlier.
 
 The limit is a power. Per slot it is an energy of
 ``max_grid_import_power_w x slot duration``. All expected values are worked
@@ -130,24 +130,6 @@ def _ac_slot(
 
 
 class TestBatteryDischarge:
-    def test_held_battery_stays_idle_above_the_limit(self):
-        """12 kWh load in one hour, limit 8 kW: a held battery delivers nothing.
-
-        A site controller that executes the plan's IDLE instruction does not
-        discharge either, so the simulation imports the full load.
-        """
-        inverter, battery = _devices()
-
-        grid_export, grid_import, losses, self_consumption = inverter.process_energy(
-            0.0, 12000.0, 0
-        )
-
-        assert grid_import == pytest.approx(12000.0)
-        assert self_consumption == 0.0
-        assert battery.soc_wh == pytest.approx(10000.0)
-        assert losses == 0.0
-        assert grid_export == 0.0
-
     def test_released_battery_discharges_as_before(self):
         """A released battery serves the whole load up to its power, no extra."""
         limited, limited_battery = _devices(battery_power_w=5000.0)
@@ -215,15 +197,26 @@ class TestAcChargeReduction:
         assert battery.soc_wh == pytest.approx(500.0)
 
     def test_load_above_limit_stops_ac_charge(self):
-        """Load 9 kWh in an AC slot: no grid charging; the held battery stays idle."""
-        inverter, battery = _devices(soc_percentage=50)
+        """Load 9 kWh in an AC slot of an empty battery: no grid charging."""
+        inverter, battery = _devices(soc_percentage=0)
 
         grid, ac_wh, ac_losses, _ = _ac_slot(inverter, battery, load_wh=9000.0, factor=1.0)
 
         assert ac_wh == 0.0
         assert ac_losses == 0.0
         assert grid == pytest.approx(9000.0)
-        assert battery.soc_wh == pytest.approx(5000.0)
+        assert battery.soc_wh == pytest.approx(0.0)
+
+    def test_shaved_peak_leaves_no_ac_charge(self):
+        """Load 9 kWh in an AC slot: the held battery shaves 1 kWh, the grid charges nothing."""
+        inverter, battery = _devices(soc_percentage=50)
+
+        grid, ac_wh, ac_losses, _ = _ac_slot(inverter, battery, load_wh=9000.0, factor=1.0)
+
+        assert ac_wh == 0.0
+        assert ac_losses == 0.0
+        assert grid == 8000.0
+        assert battery.soc_wh == pytest.approx(4000.0)
 
     def test_total_charge_model_is_capped_too(self):
         """Inverters whose AC setpoint caps the total charge respect the limit."""
@@ -322,16 +315,16 @@ def _simulate(
 
 class TestGeneticSimulation:
     def test_ac_slot_with_peak_load_does_not_charge(self, config_eos):
-        """Slot 1 plans AC charging during a 9 kWh load: no charge, no discharge."""
+        """Slot 1 plans AC charging during a 9 kWh load: an empty battery stays empty."""
         result, sim = _simulate(
             config_eos,
             load=[1000.0, 9000.0, 1000.0],
             ac=[0.0, 1.0, 0.0],
-            soc_percentage=50,
+            soc_percentage=0,
         )
 
         np.testing.assert_allclose(result["Netzbezug_Wh_pro_Stunde"], [1000.0, 9000.0, 1000.0])
-        assert result["akku_soc_pro_stunde"][2] == pytest.approx(50.0)
+        assert result["akku_soc_pro_stunde"][2] == pytest.approx(0.0)
         assert result["Kosten_Euro_pro_Stunde"][1] == pytest.approx(9000.0 * 0.0003)
         # The reported plan shows the AC charge that was simulated: none.
         assert sim.ac_charge_hours is not None
@@ -688,9 +681,10 @@ class TestTail:
             direct_marketing=False,
         )
 
-        # Holding the battery imports the whole load; releasing it covers 5 kWh.
-        assert hold["grid_import_wh"] == pytest.approx(12000.0)
-        assert hold["next_state_wh"] == pytest.approx(10000.0)
+        # Holding the battery shaves the 4 kWh above the limit; releasing it
+        # covers 5 kWh.
+        assert hold["grid_import_wh"] == pytest.approx(8000.0)
+        assert hold["next_state_wh"] == pytest.approx(6000.0)
         assert discharge["grid_import_wh"] == pytest.approx(7000.0)
         assert discharge["next_state_wh"] == pytest.approx(5000.0)
         assert charge["ac_grid_charge_wh"] == pytest.approx(2000.0)
@@ -1067,7 +1061,8 @@ class TestOptimizationWithEv:
 
 
 # ---------------------------------------------------------------------------
-# The exported instructions reproduce the simulated plan
+# Battery controls of exported instructions (the replay of whole plans with the
+# peak shaving threshold is in test_geneticpeakshavingthreshold.py)
 # ---------------------------------------------------------------------------
 
 # Battery controls (ac_charge, dc_charge, discharge_allowed) that an
@@ -1080,124 +1075,6 @@ _MODE_CONTROLS = {
     "GRID_SUPPORT_IMPORT": lambda f: (f, 0.0, 0.0),
     "FORCED_CHARGE": lambda f: (f, 1.0, 0.0),
 }
-
-
-# Scenarios for the replay: (load, PV, prices, battery capacity, limit,
-# inverter power). A full 6 kWh battery is worth more in the expensive hours
-# after a cheap 12 kWh peak hour. If the simulation let a held battery shave
-# the peak, holding it would be the best plan, and its IDLE instruction would
-# make a site controller import 12 kWh instead of 8 kWh.
-_REPLAY_SCENARIOS = {
-    "cheap_peak_then_expensive_hours": (
-        [12000.0, 6000.0, 6000.0, 6000.0],
-        [0.0, 0.0, 0.0, 0.0],
-        [0.0003, 0.0006, 0.0006, 0.0006],
-        6000,
-        LIMIT_W,
-        10000,
-    ),
-}
-
-
-def _optimize_scenario(config_eos: ConfigEOS, name: str, seed: int = 42) -> GeneticSolution:
-    """Hourly 4-slot run of a replay scenario with a full battery and no AC charging."""
-    load, pv, prices, capacity_wh, limit_w, inverter_power_w = _REPLAY_SCENARIOS[name]
-    config_eos.merge_settings_from_dict(
-        {
-            "prediction": {"hours": 48},
-            "optimization": {
-                "algorithm": "GENETIC",
-                "genetic": {
-                    "horizon_hours": 4,
-                    "tail_horizon_hours": 0,
-                    "interval_sec": 3600,
-                    "terminal_value_mode": "FIXED",
-                    "terminal_value_euro_per_kwh": 0.0,
-                },
-            },
-            "feedintariff": {"direct_marketing_enabled": False},
-        }
-    )
-    get_ems(init=True).set_start_datetime(to_datetime("2026-10-26T00:00:00"))
-    parameters = GeneticOptimizationParameters.model_validate(
-        {
-            "ems": {
-                "pv_forecast_wh": pv,
-                "total_load": load,
-                "electricity_price_per_wh": prices,
-                "feed_in_tariff_per_wh": 0.0,
-                "price_per_wh_battery": 0.0,
-            },
-            "pv_battery": {
-                "device_id": "battery1",
-                "capacity_wh": capacity_wh,
-                "max_charge_power_w": 5000,
-                "charging_efficiency": 1.0,
-                "discharging_efficiency": 1.0,
-                "initial_soc_percentage": 100,
-                "min_soc_percentage": 0,
-            },
-            "inverter": {
-                "device_id": "inverter1",
-                "max_power_wh": inverter_power_w,
-                "battery_id": "battery1",
-                "ac_to_dc_efficiency": 1.0,
-                "dc_to_ac_efficiency": 1.0,
-                "max_ac_charge_power_w": 0,
-                "max_grid_import_power_w": limit_w,
-            },
-            "ev": None,
-            "forecast_interval_seconds": 3600,
-        }
-    )
-    return GeneticOptimization(fixed_seed=seed).optimize_ems(parameters, ngen=30, individuals=40)
-
-
-class TestExportedPlan:
-    @pytest.mark.parametrize("name", list(_REPLAY_SCENARIOS))
-    def test_replayed_instructions_reproduce_the_simulated_plan(self, config_eos, name):
-        """A site controller executing energy_management_plan() gets the simulated import."""
-        load, pv, prices, capacity_wh, limit_w, inverter_power_w = _REPLAY_SCENARIOS[name]
-        solution = _optimize_scenario(config_eos, name)
-        plan = solution.energy_management_plan()
-
-        start = get_ems().start_datetime
-        controls: list[Optional[tuple[float, float, float]]] = [None] * 4
-        for instruction in plan.instructions:
-            if instruction.resource_id != "battery1":
-                continue
-            assert isinstance(instruction, FRBCInstruction)
-            slot = int((instruction.execution_time - start).total_seconds() // 3600)
-            mode = str(instruction.operation_mode_id)
-            controls[slot] = _MODE_CONTROLS[mode](float(instruction.operation_mode_factor))
-        for slot in range(1, 4):
-            if controls[slot] is None:
-                controls[slot] = controls[slot - 1]
-        assert all(control is not None for control in controls)
-        ac, dc, discharge = (list(values) for values in zip(*cast(Any, controls)))
-
-        # The controller knows nothing of the optimizer's limit, so the replay
-        # runs without it.
-        replay, _ = _simulate(
-            config_eos,
-            limit_w=None,
-            load=load,
-            pv=pv,
-            price=prices,
-            ac=ac,
-            dc=dc,
-            discharge=discharge,
-            capacity_wh=capacity_wh,
-            inverter_power_w=inverter_power_w,
-            soc_percentage=100,
-        )
-
-        np.testing.assert_allclose(
-            replay["Netzbezug_Wh_pro_Stunde"], solution.result.grid_consumption_wh_per_hour
-        )
-        np.testing.assert_allclose(
-            replay["akku_soc_pro_stunde"], solution.result.battery_soc_per_hour
-        )
 
 
 # ---------------------------------------------------------------------------

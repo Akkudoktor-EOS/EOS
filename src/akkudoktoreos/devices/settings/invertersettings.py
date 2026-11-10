@@ -130,12 +130,13 @@ class InverterCommonSettings(DevicesBaseSettings):
             "description": (
                 "Maximum power drawn from the grid [W], e.g. the capacity limit of a "
                 "grid connection with interval metering. The optimizer reduces AC "
-                "charging so that load plus charging stays within the limit. The "
-                "battery discharges only where the plan releases it; import above the "
-                "limit is penalised with "
+                "charging so that load plus charging stays within the limit. Where the "
+                "plan holds the battery, it still covers the import above the limit "
+                "(threshold peak shaving); the battery instructions of the energy "
+                "management plan carry the limit as peak_shaving_threshold_w for the "
+                "site controller. Import the battery cannot cover is penalised with "
                 "optimization.genetic.penalties.grid_import_limit_excess, so the plan "
-                "releases the battery for peaks and keeps reserve for them. null means "
-                "no limit. Default null."
+                "keeps reserve for peaks. null means no limit. Default null."
             ),
             "examples": [None, 8000],
             "x-scope": [str(ConfigScope.GENETIC)],

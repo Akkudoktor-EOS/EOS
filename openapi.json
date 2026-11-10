@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611101271724339"
+    "version": "v0.3.0.dev2611101343251788"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -6837,6 +6837,23 @@
             "title": "Operation Mode Factor",
             "description": "Factor for the operation mode configuration (0 to 1)."
           },
+          "peak_shaving_threshold_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Shaving Threshold W",
+            "description": "Grid import power [W] the site should not exceed while this instruction is active. Charging from the grid is reduced to stay within it, and where the operation mode holds the battery, the battery still discharges to cover the import above it (threshold peak shaving). Where the mode already discharges for the local load, it changes nothing. None means no threshold.",
+            "examples": [
+              null,
+              8000
+            ]
+          },
           "resource_id": {
             "type": "string",
             "title": "Resource Id",
@@ -12016,7 +12033,7 @@
               }
             ],
             "title": "Max Grid Import Power W",
-            "description": "Maximum power drawn from the grid [W], e.g. the capacity limit of a grid connection with interval metering. The optimizer reduces AC charging so that load plus charging stays within the limit. The battery discharges only where the plan releases it; import above the limit is penalised with optimization.genetic.penalties.grid_import_limit_excess, so the plan releases the battery for peaks and keeps reserve for them. null means no limit. Default null.",
+            "description": "Maximum power drawn from the grid [W], e.g. the capacity limit of a grid connection with interval metering. The optimizer reduces AC charging so that load plus charging stays within the limit. Where the plan holds the battery, it still covers the import above the limit (threshold peak shaving); the battery instructions of the energy management plan carry the limit as peak_shaving_threshold_w for the site controller. Import the battery cannot cover is penalised with optimization.genetic.penalties.grid_import_limit_excess, so the plan keeps reserve for peaks. null means no limit. Default null.",
             "examples": [
               null,
               8000
@@ -12511,7 +12528,7 @@
               }
             ],
             "title": "Max Grid Import Power W",
-            "description": "Maximum power drawn from the grid [W], e.g. the capacity limit of a grid connection with interval metering. The optimizer reduces AC charging so that load plus charging stays within the limit. The battery discharges only where the plan releases it; import above the limit is penalised with optimization.genetic.penalties.grid_import_limit_excess, so the plan releases the battery for peaks and keeps reserve for them. null means no limit. Default null.",
+            "description": "Maximum power drawn from the grid [W], e.g. the capacity limit of a grid connection with interval metering. The optimizer reduces AC charging so that load plus charging stays within the limit. Where the plan holds the battery, it still covers the import above the limit (threshold peak shaving); the battery instructions of the energy management plan carry the limit as peak_shaving_threshold_w for the site controller. Import the battery cannot cover is penalised with optimization.genetic.penalties.grid_import_limit_excess, so the plan keeps reserve for peaks. null means no limit. Default null.",
             "examples": [
               null,
               8000
@@ -13014,7 +13031,7 @@
               }
             ],
             "title": "Max Grid Import Power W",
-            "description": "Maximum power drawn from the grid in watts, e.g. the capacity limit of a grid connection with interval metering. In every slot, AC charging of the battery is reduced so that load plus charging stays within the limit. The battery discharges only where the plan releases it. Import above the limit adds the 'grid_import_limit_excess' penalty to the fitness, so the optimizer releases the battery for peaks and keeps reserve for them. None means no limit.",
+            "description": "Maximum power drawn from the grid in watts, e.g. the capacity limit of a grid connection with interval metering. In every slot, AC charging of the battery is reduced so that load plus charging stays within the limit. Where the plan holds the battery, it still covers the import above the limit (threshold peak shaving); the exported battery instructions carry the limit as peak_shaving_threshold_w. Import the battery cannot cover adds the 'grid_import_limit_excess' penalty to the fitness, so the optimizer keeps reserve for peaks. None means no limit.",
             "examples": [
               null,
               8000

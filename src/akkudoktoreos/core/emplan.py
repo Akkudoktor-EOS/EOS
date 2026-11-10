@@ -1870,6 +1870,22 @@ class FRBCInstruction(BaseInstruction):
         le=1,
         json_schema_extra={"description": "Factor for the operation mode configuration (0 to 1)."},
     )
+    peak_shaving_threshold_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Grid import power [W] the site should not exceed while this "
+                "instruction is active. Charging from the grid is reduced to stay "
+                "within it, and where the operation mode holds the battery, the "
+                "battery still discharges to cover the import above it (threshold "
+                "peak shaving). Where the mode already discharges for the local "
+                "load, it changes nothing. None means no threshold."
+            ),
+            "examples": [None, 8000],
+        },
+    )
 
     def duration(self) -> Optional[Duration]:
         # Infinite, until next instruction

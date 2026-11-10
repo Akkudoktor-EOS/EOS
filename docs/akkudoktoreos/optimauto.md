@@ -222,8 +222,8 @@ The behavior of the genetic algorithm can be customized using the following conf
 - `grid_import_limit_excess`:
   Penalty in €/kWh for energy imported above the inverter's `max_grid_import_power_w`.
   Only applies when that limit is set. The default `10.0` is far above any energy price, so
-  the optimizer releases the battery for peaks, keeps reserve and charges earlier wherever the
-  battery can avoid the excess. `0.0` disables the penalty; the value must be finite and not
+  the optimizer keeps reserve for peaks and charges earlier wherever the battery can avoid
+  the excess. `0.0` disables the penalty; the value must be finite and not
   negative. The tail lookahead uses the same penalty. Against an EV target the ranking depends
   on the vehicle: `ev_soc_miss` is charged per percentage point, so at the defaults (10 per point
   and 10 €/kWh) the EV target wins for batteries below 100 kWh and the limit wins above.
@@ -340,18 +340,22 @@ The inverter supports separate AC↔DC conversion efficiencies:
      simulated grid charge as a share of the rated charge power, so a controller draws exactly
      that, also when PV charges the battery in the same slot (with
      `ac_charge_limits_total_charge`: the reduced total charge cap, PV included),
-  2. discharges the battery only where the plan releases it (`discharge_allowed`), as without
-     a limit,
+  2. where the plan releases the battery (`discharge_allowed`), discharges it for the load as
+     without a limit; where the plan holds it, discharges it only for the import above the
+     limit (threshold peak shaving), within its power, its minimum SoC and the efficiencies,
   3. imports what is still above the limit and adds `penalties.grid_import_limit_excess` per
      kWh of that excess to the fitness.
 
   Household load, home appliances and EV charging all count towards the limit. The penalty
-  makes the optimizer release the battery in peak slots, keep reserve for them and charge
-  earlier. The plan does not rely on any peak shaving on site: a controller executing the
-  exported instructions stays within the limit. Where PV charges the battery in a slot whose
-  planned AC factor, read as a share of the rated charge power, fits the headroom, the factor
-  keeps its meaning on `main` (a share of the charge budget PV left), and such a controller may
-  draw more grid charge than simulated, still within the limit.
+  makes the optimizer keep reserve for peaks and charge earlier. Every battery instruction of
+  the energy management plan carries the limit as `peak_shaving_threshold_w`: a site
+  controller that follows the operation mode and shaves the grid import above that threshold
+  stays within the limit wherever the battery can, and reaches the simulated grid import and
+  state of charge. Where PV charges the battery in a slot whose planned AC factor, read as a
+  share of the rated charge power, fits the headroom, the factor keeps its meaning on `main`
+  (a share of the charge budget PV left), and such a controller may draw more grid charge than
+  simulated, still within the limit. A controller that ignores the field holds the battery in
+  held slots and imports the whole load where the simulation shaved a peak.
 
 **Example with an efficiency curve:**
 

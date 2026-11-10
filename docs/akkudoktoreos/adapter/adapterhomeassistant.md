@@ -114,6 +114,7 @@ dedicated entities.
 * **Entity attributes** provide additional parameters for the operation mode, such as:
 
   * `operation_mode_factor`
+  * `peak_shaving_threshold_w` (battery, only with a grid import limit)
   * Power or rate limits
   * Mode-specific control parameters
 

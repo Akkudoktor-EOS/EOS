@@ -399,7 +399,9 @@ class Battery:
         """Calculates the current state of charge in percentage."""
         return (self.soc_wh / self.capacity_wh) * 100
 
-    def discharge_energy(self, wh: float, hour: int) -> tuple[float, float]:
+    def discharge_energy(
+        self, wh: float, hour: int, ignore_hold: bool = False
+    ) -> tuple[float, float]:
         """Discharge energy from the battery.
 
         Discharge is limited by:
@@ -412,6 +414,8 @@ class Battery:
             wh (float): Requested delivered energy in watt-hours.
             hour (int): Time index. If `self.discharge_array[hour] == 0`,
                 no discharge occurs.
+            ignore_hold (bool): Discharge even if the plan holds the battery in
+                this slot (threshold peak shaving at a grid import limit).
 
         Returns:
             tuple[float, float]:
@@ -419,7 +423,7 @@ class Battery:
                 losses_wh (float): Conversion losses [Wh].
 
         """
-        if self.discharge_array[hour] == 0:
+        if self.discharge_array[hour] == 0 and not ignore_hold:
             return 0.0, 0.0
 
         # Raw extractable energy above minimum SoC

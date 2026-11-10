@@ -588,6 +588,18 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # Fallback → safe idle
         return BatteryOperationMode.IDLE, 1.0
 
+    def _peak_shaving_threshold_w(self) -> Optional[float]:
+        """Grid import limit of the optimized inverter [W], None without one.
+
+        With a limit, a battery the plan holds still covers the import above it
+        (threshold peak shaving), so the battery instructions carry it.
+        """
+        parameters = getattr(self, "parameters", None)
+        inverter = getattr(parameters, "inverter", None) if parameters is not None else None
+        if inverter is None:
+            return None
+        return inverter.max_grid_import_power_w
+
     def _soc_clamped_operation_factors(
         self,
         ac_charge: float,
@@ -595,6 +607,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         discharge_allowed: bool,
         soc_pct: float,
         battery_grid_export_allowed: bool = False,
+        peak_shaving: bool = False,
     ) -> tuple[float, float, bool, bool]:
         """Clamp raw genetic gene values by the battery's actual SOC at that hour.
 
@@ -610,6 +623,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             commanded factor would store in one optimization slot.  Set to 0 when full.
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
+            With ``peak_shaving`` (a grid import threshold) a held battery keeps
+            it: it may shave a peak within the slot and take PV back.
           - Discharge: blocked when SOC is at or below min SOC.
           - Battery grid export: blocked when SOC is at or below min SOC.
         """
@@ -661,7 +676,11 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
         # --- DC charge (PV): zero when battery is full ---
         effective_dc = dc_charge
-        if effective_dc > 0.0 and headroom_wh <= 0.0:
+        if (
+            effective_dc > 0.0
+            and headroom_wh <= 0.0
+            and not (peak_shaving and not discharge_allowed)
+        ):
             effective_dc = 0.0
 
         # --- Discharge: block at min SOC ---
@@ -744,6 +763,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     :n_points
                 ]  # result starts at start_day_slot
             ]
+            peak_shaving_threshold_w = self._peak_shaving_threshold_w()
             operation: dict[str, list[float]] = {
                 "genetic_ac_charge_factor": [],
                 "genetic_dc_charge_factor": [],
@@ -794,6 +814,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     discharge_allowed_hour,
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
+                    peak_shaving=peak_shaving_threshold_w is not None,
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac, eff_dc, eff_dis, eff_grid_export, battery_grid_export_factor_hour
@@ -1044,6 +1065,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             last_operation_mode: Optional[str] = None
             last_operation_mode_factor: Optional[float] = None
             resource_id = self._battery_device_id()
+            # With a grid import limit, every battery instruction carries it as
+            # the threshold above which a held battery shaves the import.
+            peak_shaving_threshold_w = self._peak_shaving_threshold_w()
             # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
             logger.debug("BAT: {} - {}", resource_id, self.ac_charge[start_day_slot:])
             for hour_idx, rate in enumerate(self.ac_charge):
@@ -1070,6 +1094,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     bool(self.discharge_allowed[hour_idx]),
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
+                    peak_shaving=peak_shaving_threshold_w is not None,
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac,
@@ -1098,6 +1123,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         actuator_id=resource_id,
                         operation_mode_id=operation_mode,
                         operation_mode_factor=operation_mode_factor,
+                        peak_shaving_threshold_w=peak_shaving_threshold_w,
                     )
                 )
 

@@ -113,6 +113,29 @@ class TestNodeREDAdapter:
         assert payload["resA_op_factor"] == 0.25
         url, = mock_post.call_args[0]
         assert "/eos/control_dispatch" in url
+        assert not any(key.endswith("_peak_shaving_threshold_w") for key in payload)
+
+    @pytest.mark.asyncio
+    @patch("requests.post")
+    async def test_update_data_control_dispatch_peak_shaving_threshold(
+        self, mock_post, adapter: NodeREDAdapter
+    ):
+        adapter.ems.stage.return_value = EnergyManagementStage.CONTROL_DISPATCH
+        instruction = FRBCInstruction(
+            id="battery1@extra", operation_mode_id="IDLE", operation_mode_factor=1.0,
+            actuator_id="battery1", execution_time=to_datetime(),
+            peak_shaving_threshold_w=8000.0,
+        )
+        adapter.ems.plan.return_value.get_active_instructions.return_value = [instruction]
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {}
+
+        await adapter.update_data(force_enable=True)
+
+        _, kwargs = mock_post.call_args
+        payload = kwargs["json"]
+        assert payload["battery1_op_mode"] == "IDLE"
+        assert payload["battery1_peak_shaving_threshold_w"] == 8000.0
 
     @pytest.mark.asyncio
     @patch("requests.post")

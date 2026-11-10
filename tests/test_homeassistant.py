@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional, cast
+from typing import Any, Optional, cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -11,7 +11,9 @@ from pydantic import ValidationError
 
 import akkudoktoreos.adapter.homeassistant as homeassistant_module
 from akkudoktoreos.adapter.homeassistant import HomeAssistantAdapter
+from akkudoktoreos.core.emplan import FRBCInstruction
 from akkudoktoreos.core.ems import EnergyManagementStage
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
 class TestHomeAssistantAddon:
@@ -521,3 +523,28 @@ class TestHomeAssistantConfigEntityIds:
         assert config.devices.batteries["battery1"].capacity_wh == 8000
         mock_logger.error.assert_called_once()
         assert config_key in mock_logger.error.call_args.args[0]
+
+
+class TestHomeAssistantInstructionAttributes:
+    @staticmethod
+    def _instruction(**kwargs: Any) -> FRBCInstruction:
+        return FRBCInstruction(
+            resource_id="battery1",
+            actuator_id="battery1",
+            execution_time=to_datetime("2026-10-26T00:00:00"),
+            operation_mode_id="IDLE",
+            operation_mode_factor=1.0,
+            **kwargs,
+        )
+
+    def test_attributes_without_threshold(self) -> None:
+        attributes = HomeAssistantAdapter._instruction_attributes(self._instruction())
+
+        assert attributes == {"operation_mode_factor": 1.0}
+
+    def test_attributes_carry_the_peak_shaving_threshold(self) -> None:
+        attributes = HomeAssistantAdapter._instruction_attributes(
+            self._instruction(peak_shaving_threshold_w=8000.0)
+        )
+
+        assert attributes == {"operation_mode_factor": 1.0, "peak_shaving_threshold_w": 8000.0}

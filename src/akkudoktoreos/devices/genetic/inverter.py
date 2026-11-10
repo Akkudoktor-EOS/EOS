@@ -119,11 +119,12 @@ class InverterParameters(DeviceParameters):
                 "Maximum power drawn from the grid in watts, e.g. the capacity limit "
                 "of a grid connection with interval metering. In every slot, AC "
                 "charging of the battery is reduced so that load plus charging stays "
-                "within the limit. The battery discharges only where the plan "
-                "releases it. Import above the limit adds the "
+                "within the limit. Where the plan holds the battery, it still covers "
+                "the import above the limit (threshold peak shaving); the exported "
+                "battery instructions carry the limit as peak_shaving_threshold_w. "
+                "Import the battery cannot cover adds the "
                 "'grid_import_limit_excess' penalty to the fitness, so the optimizer "
-                "releases the battery for peaks and keeps reserve for them. None "
-                "means no limit."
+                "keeps reserve for peaks. None means no limit."
             ),
             "examples": [None, 8000],
         },
@@ -424,18 +425,31 @@ class Inverter:
             )
         return battery_discharge_dc * dc_to_ac_efficiency
 
-    def _discharge_battery_to_ac(self, requested_ac_wh: float, hour: int) -> tuple[float, float]:
-        """Discharge battery energy and convert it to AC energy."""
+    def _discharge_battery_to_ac(
+        self, requested_ac_wh: float, hour: int, ignore_hold: bool = False
+    ) -> tuple[float, float]:
+        """Discharge battery energy and convert it to AC energy.
+
+        ``ignore_hold`` discharges also in a slot the plan holds the battery
+        (threshold peak shaving at the grid import limit).
+        """
         battery = self.battery
         if not battery or requested_ac_wh <= 0.0:
             return 0.0, 0.0
         if type(battery) is not Battery:
             # Another battery implementation: ask it, step by step.
-            if not battery.discharge_released(hour):
-                return 0.0, 0.0
-            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
-            dc_request = requested_ac_wh / dc_to_ac_efficiency
-            battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
+            if ignore_hold:
+                dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
+                dc_request = requested_ac_wh / dc_to_ac_efficiency
+                battery_discharge_dc, discharge_losses = battery.discharge_energy(
+                    dc_request, hour, ignore_hold=True
+                )
+            else:
+                if not battery.discharge_released(hour):
+                    return 0.0, 0.0
+                dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
+                dc_request = requested_ac_wh / dc_to_ac_efficiency
+                battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
             battery_discharge_ac = self._delivered_ac_wh(
                 battery_discharge_dc, dc_request, requested_ac_wh, dc_to_ac_efficiency
             )
@@ -447,7 +461,7 @@ class Inverter:
         # the efficiency and Battery.discharge_energy() are computed in one go,
         # without the nested calls. The arithmetic is that of
         # Battery.discharge_energy(); keep both in step.
-        if battery.discharge_array[hour] == 0:
+        if battery.discharge_array[hour] == 0 and not ignore_hold:
             # Not released in this slot: the battery delivers nothing.
             return 0.0, 0.0
         # With an efficiency curve, the efficiency is taken at the requested AC
@@ -574,21 +588,52 @@ class Inverter:
         # approximation and can create headroom for later PV charging.
         battery_discharge_ac = 0.0
         if remaining_load > 0.0 and battery and remaining_inverter_ac_capacity > 0.0:
-            requested_ac_wh = (
-                remaining_inverter_ac_capacity
-                if remaining_inverter_ac_capacity < remaining_load
-                else remaining_load
-            )
-            battery_discharge_ac, battery_discharge_losses = self._discharge_battery_to_ac(
-                requested_ac_wh, hour
-            )
-            remaining_load = remaining_load - battery_discharge_ac
-            if remaining_load < 0.0:
-                remaining_load = 0.0
-            remaining_inverter_ac_capacity = remaining_inverter_ac_capacity - battery_discharge_ac
-            if remaining_inverter_ac_capacity < 0.0:
-                remaining_inverter_ac_capacity = 0.0
-            losses += battery_discharge_losses
+            max_grid_import_wh = self.max_grid_import_wh
+            if max_grid_import_wh is not None and not battery.discharge_released(hour):
+                # Threshold peak shaving: a battery the plan holds covers only
+                # the import above the grid import limit, as a site controller
+                # with a peak shaving threshold does. The exported instructions
+                # carry the threshold (FRBCInstruction.peak_shaving_threshold_w).
+                excess_wh = remaining_load - max_grid_import_wh
+                if excess_wh > 0.0:
+                    requested_ac_wh = (
+                        remaining_inverter_ac_capacity
+                        if remaining_inverter_ac_capacity < excess_wh
+                        else excess_wh
+                    )
+                    battery_discharge_ac, battery_discharge_losses = self._discharge_battery_to_ac(
+                        requested_ac_wh, hour, ignore_hold=True
+                    )
+                    if battery_discharge_ac >= excess_wh * (1.0 - 1e-12):
+                        # Shaved completely: the import is the limit, without a
+                        # rounding residue that would read as AC charge headroom.
+                        remaining_load = max_grid_import_wh
+                    else:
+                        remaining_load = remaining_load - battery_discharge_ac
+                    remaining_inverter_ac_capacity = (
+                        remaining_inverter_ac_capacity - battery_discharge_ac
+                    )
+                    if remaining_inverter_ac_capacity < 0.0:
+                        remaining_inverter_ac_capacity = 0.0
+                    losses += battery_discharge_losses
+            else:
+                requested_ac_wh = (
+                    remaining_inverter_ac_capacity
+                    if remaining_inverter_ac_capacity < remaining_load
+                    else remaining_load
+                )
+                battery_discharge_ac, battery_discharge_losses = self._discharge_battery_to_ac(
+                    requested_ac_wh, hour
+                )
+                remaining_load = remaining_load - battery_discharge_ac
+                if remaining_load < 0.0:
+                    remaining_load = 0.0
+                remaining_inverter_ac_capacity = (
+                    remaining_inverter_ac_capacity - battery_discharge_ac
+                )
+                if remaining_inverter_ac_capacity < 0.0:
+                    remaining_inverter_ac_capacity = 0.0
+                losses += battery_discharge_losses
 
         grid_import = remaining_load
 

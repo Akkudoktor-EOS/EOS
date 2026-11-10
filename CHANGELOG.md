@@ -49,6 +49,12 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   `optimization.genetic.penalties.grid_import_limit_excess` (EUR/kWh, default 10) in the
   fitness, so the optimizer releases the battery for peaks and keeps reserve for them. Unset
   (default), plans are unchanged.
+- Threshold peak shaving at the GENETIC grid import limit: where the plan holds the battery,
+  it still covers the import above `max_grid_import_power_w`, as a site controller with a
+  peak shaving threshold does. Battery instructions of the energy management plan carry the
+  limit in the new optional `FRBCInstruction.peak_shaving_threshold_w` (also as attribute or
+  key in the Home Assistant and Node-RED adapters). Without a limit the field is `null` and
+  plans are unchanged.
 - Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
   (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
   a run by up to ~150 MB on small devices without changing the plan.
