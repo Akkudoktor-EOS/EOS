@@ -14,6 +14,29 @@ from akkudoktoreos.utils.gridinterpolator import (
 )
 
 
+def fixed_order_dot(a: np.ndarray, b: np.ndarray) -> float:
+    """Return the dot product of two vectors, summed from the first element to the last.
+
+    ``np.dot`` calls BLAS, whose kernel is chosen per CPU at run time (OpenBLAS
+    ``DYNAMIC_ARCH``, Accelerate). The kernels sum in different orders and some use fused
+    multiply-add, so the last bit of the result depends on the machine. The optimizer
+    compares fitness values exactly, so one bit is enough to give a different plan for the
+    same input and seed. Here every product is rounded and added in index order, with
+    Python floats: the same result on every CPU.
+
+    Args:
+        a: First vector.
+        b: Second vector, same length as ``a``.
+
+    Returns:
+        ``sum(a[i] * b[i])`` in index order.
+    """
+    total = 0.0
+    for x, y in zip(a.tolist(), b.tolist(), strict=True):
+        total += x * y
+    return total
+
+
 class SelfConsumptionProbabilityInterpolator:
     LOAD_DISTRIBUTION_CACHE_SIZE = 4096
     DIRECT_CONSUMPTION_CACHE_SIZE = 8192
@@ -166,15 +189,16 @@ class SelfConsumptionProbabilityInterpolator:
             return 0.0
 
         load_levels_w, probabilities = self._load_distribution(mean_load_power_w)
-        modeled_mean_load_w = float(np.dot(probabilities, load_levels_w))
+        # fixed_order_dot instead of np.dot: same result on every CPU (see there).
+        modeled_mean_load_w = fixed_order_dot(probabilities, load_levels_w)
         if modeled_mean_load_w <= 0.0:
             return 0.0
 
         # Preserve the requested mean load while keeping the conditional shape
         # from the probability table.
         normalized_load_levels_w = load_levels_w * (mean_load_power_w / modeled_mean_load_w)
-        expected_direct_power_w = float(
-            np.dot(probabilities, np.minimum(normalized_load_levels_w, pv_power_w))
+        expected_direct_power_w = fixed_order_dot(
+            probabilities, np.minimum(normalized_load_levels_w, pv_power_w)
         )
         # Scalar bounds: min/max instead of np.clip (same result, no array round trip).
         return min(max(expected_direct_power_w, 0.0), min(mean_load_power_w, pv_power_w))
