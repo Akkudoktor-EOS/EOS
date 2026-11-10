@@ -76,6 +76,13 @@ the devices you have.
 - **The state of charge must be fresh.** The GENETIC optimization does not use a state of charge
   older than `optimization.genetic.measurement_max_age_seconds` (300 seconds by default) and then
   plans with an empty battery.
+- **The status of the Measurements step only looks at the configuration.** The assistant does not
+  check whether measurements actually arrive at EOS. If your own system sends the state of charge
+  with `PUT /v1/measurement/value` and no adapter is selected, the step keeps reporting that no
+  source for the state of charge is known - you can ignore this. The other way round, a step
+  without a warning does not prove that the state of charge arrives: only the entity mapping of the
+  Home Assistant adapter is checked. Look at the **Plan** page or the EOS log to see whether EOS
+  plans with the real state of charge.
 
 ## After the Setup
 
