@@ -492,11 +492,12 @@ def test_process_energy_zero_generation_full_battery_high_consumption(inverter, 
 
 class TestInverterSettings:
     @pytest.mark.parametrize("converter", ["to_genetic_param", "to_genetic0_param"])
-    def test_inverter_conversion_requires_output_limit(self, converter):
+    def test_inverter_conversion_requires_nominal_power(self, config_eos, converter):
+        # The generic inverter profile provides no nominal power.
         settings = InverterCommonSettings(device_id="inverter")
-        with pytest.raises(ValueError, match="max_power_w"):
+        with pytest.raises(ValueError, match="nominal_power_w"):
             getattr(settings, converter)()
-        settings.max_power_w = 4200
+        settings.profile_adjustment.nominal_power_w = 4200
         assert getattr(settings, converter)().max_power_wh == 4200
 
 

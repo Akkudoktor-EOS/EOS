@@ -416,6 +416,85 @@ class TestDeviceMigration:
             ),
         }
 
+    def test_migration_logs_dropped_inverter_efficiencies_as_error(self):
+        """Like battery efficiencies, dropped inverter efficiencies are logged as error."""
+        from loguru import logger
+
+        messages: list[str] = []
+        sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+        try:
+            inverter = {
+                "device_id": "inv1",
+                "max_power_w": 8000,
+                "dc_to_ac_efficiency_curve": [[0.1, 0.9], [1.0, 0.97]],
+            }
+            migrate_config_data({"devices": {"inverters": {"inv1": inverter}}})
+        finally:
+            logger.remove(sink_id)
+        assert len(messages) == 1
+        assert "Inverter 'inv1'" in messages[0]
+        assert "dc_to_ac_efficiency_curve" in messages[0]
+
+    def test_migration_of_legacy_inverter_fields(self):
+        """Inverter power limits move into the adjustment, efficiencies are dropped."""
+        inverter = {
+            "device_id": "inv1",
+            "max_power_w": 8000,
+            "max_ac_charge_power_w": 3000,
+            "ac_to_dc_efficiency": 0.95,
+            "dc_to_ac_efficiency": 0.96,
+            "dc_to_ac_efficiency_curve": [[0.1, 0.9], [1.0, 0.96]],
+            "ac_charge_limits_total_charge": True,
+            "battery_id": "bat1",
+        }
+        migrated = migrate_config_data({"devices": {"inverters": {"inv1": inverter}}})
+        assert migrated.devices.inverters is not None
+        settings = migrated.devices.inverters["inv1"]
+        assert settings.profile_adjustment.nominal_power_w == 8000
+        assert settings.profile_adjustment.max_ac_charge_power_w == 3000
+        assert settings.profile_adjustment.max_power_w is None
+        assert settings.battery_id == "bat1"
+        dumped = settings.model_dump(exclude_computed_fields=True)
+        for legacy in ("max_power_w", "max_ac_charge_power_w", "ac_to_dc_efficiency",
+                       "dc_to_ac_efficiency", "dc_to_ac_efficiency_curve",
+                       "ac_charge_limits_total_charge"):
+            assert legacy not in dumped
+
+    def test_migration_keeps_ac_charging_disabled(self):
+        """A legacy AC→DC efficiency of 0 disabled AC charging."""
+        inverter = {"device_id": "inv1", "max_power_w": 8000, "ac_to_dc_efficiency": 0.0}
+        migrated = migrate_config_data({"devices": {"inverters": [inverter]}})
+        assert migrated.devices.inverters is not None
+        assert migrated.devices.inverters["inv1"].profile_adjustment.max_ac_charge_power_w == 0
+
+    def test_migration_keeps_present_inverter_adjustment(self):
+        inverter = {
+            "device_id": "inv1",
+            "max_power_w": 8000,
+            "profile_adjustment": {"nominal_power_w": 6000},
+        }
+        migrated = migrate_config_data({"devices": {"inverters": {"inv1": inverter}}})
+        assert migrated.devices.inverters is not None
+        assert migrated.devices.inverters["inv1"].profile_adjustment.nominal_power_w == 6000
+
+    def test_migration_of_inverter_home_assistant_config_paths(self):
+        raw = {
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/inverters/inv1/max_power_w": "sensor.inverter_power",
+                        "devices/inverters/inv1/dc_to_ac_efficiency": "sensor.efficiency",
+                        "devices/inverters/inv1/battery_id": "sensor.battery",
+                    }
+                }
+            }
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/inverters/inv1/profile_adjustment/nominal_power_w": "sensor.inverter_power",
+            "devices/inverters/inv1/battery_id": "sensor.battery",
+        }
+
     def test_migration_keeps_a_migrated_battery(self):
         """A battery in the current layout is not changed, e.g. on a version bump."""
         battery = {

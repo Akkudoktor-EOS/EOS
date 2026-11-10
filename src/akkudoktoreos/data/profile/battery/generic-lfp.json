@@ -65,14 +65,14 @@
     ]
   },
   "charge_efficiency": {
-    "description": "Generic one-way DC charge efficiency of an LFP battery pack (cells and BMS) versus absolute C-rate. Losses grow with current (I^2 R), so efficiency falls slowly with C-rate. AC/DC conversion losses are not included; they belong to the inverter settings (ac_to_dc_efficiency).",
+    "description": "Generic one-way DC charge efficiency of an LFP battery pack (cells and BMS) versus absolute C-rate. Losses grow with current (I^2 R), so efficiency falls slowly with C-rate. AC/DC conversion losses are not included; they belong to the inverter profile (AC to DC efficiency curve).",
     "c_rate": [0.05, 0.1, 0.25, 0.5, 0.75, 1.0],
     "efficiency": [0.975, 0.975, 0.97, 0.96, 0.95, 0.94],
     "interpolation": "linear",
     "out_of_range_behavior": "clamp_to_nearest"
   },
   "discharge_efficiency": {
-    "description": "Generic one-way DC discharge efficiency of an LFP battery pack (cells and BMS) versus absolute C-rate. The curve ends at the 0.5C continuous discharge rating of this profile; higher C-rates are clamped to the last point. DC/AC conversion losses are not included; they belong to the inverter settings (dc_to_ac_efficiency).",
+    "description": "Generic one-way DC discharge efficiency of an LFP battery pack (cells and BMS) versus absolute C-rate. The curve ends at the 0.5C continuous discharge rating of this profile; higher C-rates are clamped to the last point. DC/AC conversion losses are not included; they belong to the inverter profile (DC to AC efficiency curve).",
     "c_rate": [0.05, 0.1, 0.25, 0.5],
     "efficiency": [0.975, 0.975, 0.97, 0.96],
     "interpolation": "linear",

@@ -178,8 +178,67 @@ def _migrate_battery_item(item: Dict[str, Any]) -> None:
         item["profile_adjustment"] = adjustment
 
 
+# Former inverter fields that describe how the unit differs from its inverter
+# profile and move into ``profile_adjustment``: (legacy name, adjustment field).
+# max_power_w was the rated AC power; with the generic profile it is the
+# nominal power of the unit.
+_INVERTER_FIELDS_TO_ADJUSTMENT = (
+    ("max_power_w", "nominal_power_w"),
+    ("max_ac_charge_power_w", "max_ac_charge_power_w"),
+)
+
+# Former inverter fields whose value the inverter profile provides now.
+_INVERTER_FIELDS_NOW_IN_PROFILE = (
+    "ac_to_dc_efficiency",
+    "dc_to_ac_efficiency",
+    "dc_to_ac_efficiency_curve",
+    "ac_charge_limits_total_charge",
+)
+
+
+def _migrate_inverter_item(item: Dict[str, Any]) -> None:
+    """Migrate one inverter settings dict in place.
+
+    - ``max_power_w`` becomes ``profile_adjustment.nominal_power_w`` and
+      ``max_ac_charge_power_w`` moves into ``profile_adjustment``. A value
+      already present in ``profile_adjustment`` wins over a legacy one.
+    - A legacy ``ac_to_dc_efficiency`` of 0 disabled AC charging; it becomes
+      ``profile_adjustment.max_ac_charge_power_w = 0``.
+    - The efficiencies and ``ac_charge_limits_total_charge`` come from the
+      inverter profile now and are dropped. Dropping is logged as error, like
+      for battery efficiencies, because the simulation then uses the profile
+      values.
+    """
+    raw_adjustment = item.get("profile_adjustment")
+    adjustment = dict(raw_adjustment) if isinstance(raw_adjustment, dict) else {}
+    for legacy_name, new_name in _INVERTER_FIELDS_TO_ADJUSTMENT:
+        if legacy_name in item:
+            value = item.pop(legacy_name)
+            if value is not None:
+                adjustment.setdefault(new_name, value)
+    if item.get("ac_to_dc_efficiency") == 0:
+        adjustment["max_ac_charge_power_w"] = 0
+    dropped = [name for name in _INVERTER_FIELDS_NOW_IN_PROFILE if name in item]
+    if item.get("ac_charge_limits_total_charge") is True:
+        logger.warning(
+            f"Inverter '{item.get('device_id')}': 'ac_charge_limits_total_charge' is a "
+            "property of the inverter profile now. The default profile does not limit PV "
+            "charging by the AC charge power; select an inverter profile that does."
+        )
+    for name in dropped:
+        item.pop(name)
+    if dropped:
+        logger.error(
+            f"Inverter '{item.get('device_id')}': dropped {', '.join(dropped)}; the values "
+            f"of inverter profile '{item.get('inverter_profile', 'generic-hybrid')}' apply. "
+            "Adapt the inverter profile if needed."
+        )
+    if adjustment:
+        item["profile_adjustment"] = adjustment
+
+
 def _migrate_config_entity_ids(value: Any) -> Any:
-    """Rewrite Home Assistant config paths of battery fields moved into the profile adjustment.
+    """Rewrite Home Assistant config paths of device fields moved into the profile adjustment.
 
     E.g. ``devices/batteries/bat0/capacity_wh`` becomes
     ``devices/batteries/bat0/profile_adjustment/nominal_capacity_wh``. Paths of
@@ -188,9 +247,19 @@ def _migrate_config_entity_ids(value: Any) -> Any:
     if not isinstance(value, dict):
         return value
     moved = dict(_BATTERY_FIELDS_TO_ADJUSTMENT)
+    inverter_moved = dict(_INVERTER_FIELDS_TO_ADJUSTMENT)
     result: Dict[str, Any] = {}
     for path, entity_id in value.items():
         parts = path.strip("/").split("/") if isinstance(path, str) else []
+        if len(parts) == 4 and parts[0] == "devices" and parts[1] == "inverters":
+            if parts[3] in inverter_moved:
+                path = "/".join([*parts[:3], "profile_adjustment", inverter_moved[parts[3]]])
+            elif parts[3] in _INVERTER_FIELDS_NOW_IN_PROFILE:
+                logger.warning(
+                    f"Dropping Home Assistant config entity '{entity_id}' for '{path}': "
+                    "the value comes from the inverter profile now."
+                )
+                continue
         if (
             len(parts) == 4
             and parts[0] == "devices"
@@ -277,9 +346,11 @@ MIGRATION_MAP: Dict[
     ),
     "devices/electric_vehicles/0/initial_soc_percentage": None,
     # - inverters
+    #   nominal power and installation limits -> profile_adjustment,
+    #   efficiencies come from the inverter profile now
     "devices/inverters": (
         "devices/inverters",
-        _list_to_device_dict("inv"),
+        _list_to_device_dict("inv", _migrate_inverter_item),
     ),
     # - home_appliances
     "devices/home_appliances": (

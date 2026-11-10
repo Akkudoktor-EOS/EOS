@@ -690,6 +690,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         operating_point = await self.measure_operating_point(target_datetime)
         return self.resolve_operating_parameters_or_defaults(operating_point, report)
 
+    def uses_profile(self, kind: str, name: str) -> bool:
+        """Return whether this battery uses the profile of the given kind and name."""
+        from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
+
+        return kind == BatteryProfileSettings.profile_kind and name == self.battery_profile
+
     def check_profile(self) -> tuple[list[str], list[str]]:
         """Check that the battery can be resolved from its profile and adjustment.
 

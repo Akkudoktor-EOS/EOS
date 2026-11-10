@@ -37,7 +37,7 @@ def prepare_tariffs(config_eos):
                     "max_batteries": 0,
                     "max_electric_vehicles": 0,
                     "max_inverters": 1,
-                    "inverters": {"inverter1": {"max_power_w": 10000}},
+                    "inverters": {"inverter1": {"profile_adjustment": {"nominal_power_w": 10000}}},
                     "max_home_appliances": 0,
                 },
             }

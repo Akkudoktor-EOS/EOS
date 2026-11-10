@@ -219,7 +219,11 @@ class ConfigOptimizationRequest(
             device = groups["inverters"][0]
             if device.battery_id != (battery.device_id if battery else None):
                 raise ValueError("Inverter battery_id must match the configured battery.")
-            inverter = device.to_genetic_param()
+            # The derating of the inverter profile applies at the measured
+            # ambient temperature, 45 degC without a measurement.
+            inverter = device.to_genetic_param(
+                await device.resolve_current_operating_parameters_or_defaults(observation_time)
+            )
         if inverter is None:
             raise ValueError("Configure an inverter to model PV and grid energy flows.")
         appliances = [device.to_genetic_param() for device in groups["home_appliances"]]

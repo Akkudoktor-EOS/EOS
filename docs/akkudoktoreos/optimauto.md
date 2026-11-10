@@ -282,61 +282,67 @@ that is configured, even if more devices are configured.
 {
     "devices": {
         "max_inverters": 1,
-        "inverters": [
-            {
-                "device_id": "inv1",
-                "max_power_w": 10000,
-                "battery_id": "bat1",
-                "ac_to_dc_efficiency": 0.95,
-                "dc_to_ac_efficiency": 0.95,
-                "max_ac_charge_power_w": 5000
-            }
-        ]
-    }
-}
-```
-
-The inverter supports separate AC↔DC conversion efficiencies:
-
-- `ac_to_dc_efficiency`: Conversion loss when charging the battery from AC grid power (0-1).
-  Set to `0` to disable AC charging. Default `1.0`.
-- `dc_to_ac_efficiency`: Conversion loss when discharging battery to AC load/grid (0-1).
-  Must be > 0. Default `1.0`.
-- `max_ac_charge_power_w`: Maximum AC charging power in watts. `null` = no additional limit.
-  Set to `0` to disable AC charging. Default `null`.
-- `dc_to_ac_efficiency_curve`: Optional load-dependent DC→AC efficiency as a list of
-  `[load_fraction, efficiency]` points, with the load fraction relative to `max_power_w`.
-  Real inverters are much less efficient at low load, e.g. when the battery serves a small
-  night-time base load. The points must be strictly increasing in load fraction (0-1) with
-  efficiencies in (0, 1]; values in between are interpolated linearly, values outside are
-  clamped to the first/last point. When set, the curve replaces `dc_to_ac_efficiency` for
-  battery discharge. The efficiency is always the one at the AC power that is delivered: if
-  the battery limits a discharge (low state of charge or its power limit), the conversion is
-  evaluated at that lower load, not at the requested one. Default `null` (constant
-  `dc_to_ac_efficiency`, unchanged behaviour).
-- `dc_to_ac_efficiency_reference_load_fraction`: Load fraction at which the curve is evaluated
-  where stored energy is valued without a specific discharge, e.g. the energy left in the
-  battery at the end of the horizon and the AC charge break-even. Choose the typical load
-  the battery serves. Only used with `dc_to_ac_efficiency_curve`. Default `0.06`.
-
-**Example with an efficiency curve:**
-
-```json
-{
-    "devices": {
         "inverters": {
             "inv1": {
-                "max_power_w": 10000,
-                "battery_id": "bat1",
-                "dc_to_ac_efficiency_curve": [
-                    [0.02, 0.80], [0.07, 0.93], [0.30, 0.96], [1.00, 0.95]
-                ],
-                "dc_to_ac_efficiency_reference_load_fraction": 0.06
+                "inverter_profile": "generic-hybrid",
+                "profile_adjustment": {
+                    "nominal_power_w": 10000,
+                    "max_ac_charge_power_w": 5000
+                },
+                "battery_id": "bat1"
             }
         }
     }
 }
 ```
+
+The technical data of the inverter comes from an **inverter profile** (see
+[](#inverter-profiles)): the efficiency curves for battery discharge (DC→AC) and for charging
+the battery from the grid (AC→DC), the AC charge power limit of the model and the power derating
+over the ambient temperature. The inverter settings select the profile and describe how the unit
+differs from it:
+
+- `inverter_profile`: Name of the inverter profile. Default `generic-hybrid`.
+- `profile_adjustment.nominal_power_w`: Nominal AC power of the installed inverter [W]. Replaces
+  the nominal power of the profile; required for a generic profile such as `generic-hybrid`.
+- `profile_adjustment.max_power_w`: AC power limit of the installation [W], e.g. a configured
+  output limit. Can only lower the (derated) nominal power. Default `null`.
+- `profile_adjustment.max_ac_charge_power_w`: AC charge power limit of the installation [W]. Can
+  only lower the limit of the profile. Set to `0` to disable AC charging. Default `null`.
+- `dc_to_ac_efficiency_reference_load_fraction`: Load fraction of the maximum power at which the
+  DC→AC efficiency curve is evaluated where stored energy is valued without a specific discharge,
+  e.g. the energy left in the battery at the end of the horizon and the AC charge break-even.
+  Choose the typical load the battery serves. Default `0.06`.
+
+The efficiency curves are over the load fraction, the AC power relative to the nominal power.
+Real inverters are much less efficient at low load, e.g. when the battery serves a small
+night-time base load. The efficiency is always the one at the AC power of the conversion: if the
+battery limits a discharge (low state of charge or its power limit), the conversion is evaluated
+at that lower load, not at the requested one; charging from the grid draws the AC energy at the
+efficiency of the AC load actually drawn.
+
+**Power derating:** inverters reduce their power when they get hot. EOS reads the ambient
+temperature of the inverter from the measurement `<device_id>-temperature-degc` (e.g.
+`inv1-temperature-degc`) at the start of each optimization and limits the maximum power and the
+AC charge power by the derating of the profile at that temperature. Without a measurement in the
+last hour EOS assumes 45 °C, where the `generic-hybrid` profile is not derated yet.
+
+The resolved values are shown as read-only fields of the inverter configuration
+(`effective_nominal_power_w`, `effective_max_power_w`, `effective_max_ac_charge_power_w`,
+`effective_dc_to_ac_efficiency`, `effective_ac_to_dc_efficiency`), evaluated at 45 °C. If the
+configured inverter profile does not exist or is invalid, the optimization uses `generic-hybrid`
+with the profile adjustment instead and logs an error naming the inverter.
+
+:::{admonition} Note
+:class: note
+Configurations of earlier versions are migrated automatically. `max_power_w` becomes
+`profile_adjustment.nominal_power_w` and `max_ac_charge_power_w` moves into the profile
+adjustment; an `ac_to_dc_efficiency` of `0` keeps AC charging disabled. The former fields
+`ac_to_dc_efficiency`, `dc_to_ac_efficiency`, `dc_to_ac_efficiency_curve` and
+`ac_charge_limits_total_charge` come from the inverter profile now and are dropped (logged as
+error), so the efficiencies of the profile apply instead of the former default `1.0` (lossless).
+To keep other values, save an own inverter profile and select it.
+:::
 
 #### Electric vehicle simulation configuration
 

@@ -37,7 +37,6 @@ from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
     Genetic0HomeApplianceParameters,
 )
 from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
-from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
 from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
@@ -47,11 +46,14 @@ from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 # StartMixin                  - Creates circular dependency with ems.py
 
 
-# Demo devices: used if no device is configured, and for this run only if the
-# configured device cannot be prepared.
+# Demo devices: used if no device of a kind is configured.
 DEMO_BATTERY_SETTINGS: dict = {
     "device_id": "battery1",
     "profile_adjustment": {"nominal_capacity_wh": 8000},
+}
+DEMO_INVERTER_SETTINGS: dict = {
+    "device_id": "inverter1",
+    "profile_adjustment": {"nominal_power_w": 10000},
 }
 DEMO_ELECTRIC_VEHICLE_SETTINGS: dict = {
     "device_id": "ev1",
@@ -603,47 +605,45 @@ class Genetic0OptimizationParameters(
                     ) = await battery_config.resolve_current_operating_parameters_or_defaults()
                     battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
                 except Exception as e:
-                    # Never cancel the run and never change the user's configuration:
-                    # optimize with the demo battery for this run only.
+                    # Never cancel the run, never change the user's configuration and
+                    # never invent a device: optimize without this battery.
                     logger.error(
                         "Battery '{}' cannot be prepared for the optimization: {} "
-                        "Using the demo battery for this run.",
+                        "The battery is left out of this run.",
                         battery_config.device_id,
                         e,
                     )
-                    battery_config = BatteriesCommonSettings(**DEMO_BATTERY_SETTINGS)
-                    battery_parameters, _ = (
-                        battery_config.resolve_operating_parameters_or_defaults()
-                    )
-                    battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
-                # Levelized cost of ownership
-                if battery_config.levelized_cost_of_storage_amt_kwh is None:
-                    logger.info(
-                        "No battery device LCOS data available - defaulting to 0 [amount/kWh]. Parameter preparation attempt {}.",
-                        attempt,
-                    )
-                    battery_config.levelized_cost_of_storage_amt_kwh = 0
-                battery_lcos_kwh = battery_config.levelized_cost_of_storage_amt_kwh
-                # Initial SOC
-                try:
-                    initial_soc_factor = await cls._nearest_soc_factor(
-                        battery_config.measurement_key_soc_factor, ems.observation_datetime
-                    )
-                    if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
-                        logger.error(
-                            f"Invalid battery initial SoC factor {initial_soc_factor} - defaulting to 0.0."
+                    battery_params = None
+                    battery_lcos_kwh = 0
+                if battery_params is not None:
+                    # Levelized cost of ownership
+                    if battery_config.levelized_cost_of_storage_amt_kwh is None:
+                        logger.info(
+                            "No battery device LCOS data available - defaulting to 0 [amount/kWh]. Parameter preparation attempt {}.",
+                            attempt,
                         )
-                        initial_soc_factor = 0.0
-                    # genetic parameter is 0..100 as int
-                    initial_soc_percentage = int(initial_soc_factor * 100)
-                except Exception:
-                    initial_soc_percentage = None
-                if initial_soc_percentage is None:
-                    logger.info(
-                        f"No battery device SoC data (measurement key = '{battery_config.measurement_key_soc_factor}') available - defaulting to 0."
-                    )
-                    initial_soc_percentage = 0
-                battery_params.initial_soc_percentage = initial_soc_percentage
+                        battery_config.levelized_cost_of_storage_amt_kwh = 0
+                    battery_lcos_kwh = battery_config.levelized_cost_of_storage_amt_kwh
+                    # Initial SOC
+                    try:
+                        initial_soc_factor = await cls._nearest_soc_factor(
+                            battery_config.measurement_key_soc_factor, ems.observation_datetime
+                        )
+                        if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
+                            logger.error(
+                                f"Invalid battery initial SoC factor {initial_soc_factor} - defaulting to 0.0."
+                            )
+                            initial_soc_factor = 0.0
+                        # genetic parameter is 0..100 as int
+                        initial_soc_percentage = int(initial_soc_factor * 100)
+                    except Exception:
+                        initial_soc_percentage = None
+                    if initial_soc_percentage is None:
+                        logger.info(
+                            f"No battery device SoC data (measurement key = '{battery_config.measurement_key_soc_factor}') available - defaulting to 0."
+                        )
+                        initial_soc_percentage = 0
+                    battery_params.initial_soc_percentage = initial_soc_percentage
 
             # Electric Vehicles
             # -----------------
@@ -673,44 +673,37 @@ class Genetic0OptimizationParameters(
                         ev_parameters
                     )
                 except Exception as e:
-                    # Never cancel the run and never change the user's configuration:
-                    # optimize with the demo electric vehicle for this run only.
+                    # Never cancel the run, never change the user's configuration and
+                    # never invent a device: optimize without this electric vehicle.
                     logger.error(
                         "Electric vehicle '{}' cannot be prepared for the optimization: {} "
-                        "Using the demo electric vehicle for this run.",
+                        "The electric vehicle is left out of this run.",
                         electric_vehicle_config.device_id,
                         e,
                     )
-                    electric_vehicle_config = BatteriesCommonSettings(
-                        **DEMO_ELECTRIC_VEHICLE_SETTINGS
-                    )
-                    (
-                        ev_parameters,
-                        _,
-                    ) = electric_vehicle_config.resolve_operating_parameters_or_defaults()
-                    electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(
-                        ev_parameters
-                    )
-                # Initial SOC
-                try:
-                    initial_soc_factor = await cls._nearest_soc_factor(
-                        electric_vehicle_config.measurement_key_soc_factor, ems.observation_datetime
-                    )
-                    if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
-                        logger.error(
-                            f"Invalid electric vehicle initial SoC factor {initial_soc_factor} - defaulting to 0.0."
+                    electric_vehicle_params = None
+                if electric_vehicle_params is not None:
+                    # Initial SOC
+                    try:
+                        initial_soc_factor = await cls._nearest_soc_factor(
+                            electric_vehicle_config.measurement_key_soc_factor,
+                            ems.observation_datetime,
                         )
-                        initial_soc_factor = 0.0
-                    # genetic parameter is 0..100 as int
-                    initial_soc_percentage = int(initial_soc_factor * 100)
-                except Exception:
-                    initial_soc_percentage = None
-                if initial_soc_percentage is None:
-                    logger.info(
-                        f"No electric vehicle device SoC data (measurement key = '{electric_vehicle_config.measurement_key_soc_factor}') available - defaulting to 0."
-                    )
-                    initial_soc_percentage = 0
-                electric_vehicle_params.initial_soc_percentage = initial_soc_percentage
+                        if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
+                            logger.error(
+                                f"Invalid electric vehicle initial SoC factor {initial_soc_factor} - defaulting to 0.0."
+                            )
+                            initial_soc_factor = 0.0
+                        # genetic parameter is 0..100 as int
+                        initial_soc_percentage = int(initial_soc_factor * 100)
+                    except Exception:
+                        initial_soc_percentage = None
+                    if initial_soc_percentage is None:
+                        logger.info(
+                            f"No electric vehicle device SoC data (measurement key = '{electric_vehicle_config.measurement_key_soc_factor}') available - defaulting to 0."
+                        )
+                        initial_soc_percentage = 0
+                    electric_vehicle_params.initial_soc_percentage = initial_soc_percentage
 
             # Inverters
             # ---------
@@ -724,30 +717,27 @@ class Genetic0OptimizationParameters(
                     logger.info("No inverter device data available - defaulting to demo data.")
                     cls.config.devices.inverters = {
                         "inverter1": {
-                            "device_id": "inverter1",
-                            "max_power_w": 10000,
+                            **DEMO_INVERTER_SETTINGS,
                             "battery_id": battery_config.device_id,
                         },
                     }
+                # Take first inverter
+                inverter_config = list(cls.config.devices.inverters.values())[0]
                 try:
-                    # Take first inverter
-                    inverter_config = list(cls.config.devices.inverters.values())[0]
-                    inverter_params = inverter_config.to_genetic0_param()
+                    # A configuration error gives default values, reported as error.
+                    inverter_params = inverter_config.to_genetic0_param(
+                        await inverter_config.resolve_current_operating_parameters_or_defaults()
+                    )
                 except Exception as e:
-                    logger.info(
-                        "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                        attempt,
+                    # Never cancel the run, never change the user's configuration and
+                    # never invent a device: optimize without this inverter.
+                    logger.error(
+                        "Inverter '{}' cannot be prepared for the optimization: {} "
+                        "The inverter is left out of this run.",
+                        inverter_config.device_id,
                         e,
                     )
-                    cls.config.devices.inverters = {
-                        "inverter1": {
-                            "device_id": "inverter1",
-                            "max_power_w": 10000,
-                            "battery_id": battery_config.device_id,
-                        },
-                    }
-                    # Retry
-                    continue
+                    inverter_params = None
 
             # Home Appliances
             # ---------------

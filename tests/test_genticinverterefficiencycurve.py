@@ -1,9 +1,10 @@
-"""Tests for the load-dependent DC-to-AC efficiency curve of the GENETIC inverter.
+"""Tests for the load-dependent efficiency curves of the GENETIC inverter.
 
 ``dc_to_ac_efficiency_curve`` replaces the constant ``dc_to_ac_efficiency`` by a
 curve over the load fraction (AC power / rated power). Real inverters are much
 less efficient at low load, which matters for night-time discharge into a small
-base load. Without a curve the behaviour must stay exactly the legacy one.
+base load. ``ac_to_dc_efficiency_curve`` does the same for charging the battery
+from the grid. Without a curve the behaviour must stay exactly the legacy one.
 """
 
 from types import SimpleNamespace
@@ -15,12 +16,16 @@ from pydantic import ValidationError
 
 from akkudoktoreos.devices.devicesabc import (
     interpolate_efficiency_curve,
+    solve_ac_for_charge_dc_energy,
     solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
+from akkudoktoreos.devices.settings.invertersettings import (
+    InverterCommonSettings,
+    InverterProfileAdjustment,
+)
 from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
@@ -112,10 +117,6 @@ class TestCurveValidation:
         with pytest.raises(ValidationError):
             InverterParameters(
                 device_id="inverter1", max_power_wh=1000, dc_to_ac_efficiency_curve=curve
-            )
-        with pytest.raises(ValidationError):
-            InverterCommonSettings(
-                device_id="inverter1", max_power_w=1000, dc_to_ac_efficiency_curve=curve
             )
 
     @pytest.mark.parametrize("fraction", [-0.1, 1.1])
@@ -416,61 +417,35 @@ def test_low_load_curve_increases_losses(config_eos):
 
 
 class TestSettings:
-    def test_settings_pass_curve_to_genetic_parameters(self):
-        settings = InverterCommonSettings.model_validate(
-            {
-                "device_id": "inverter1",
-                "max_power_w": 5000,
-                "dc_to_ac_efficiency_curve": [[0.02, 0.8], [0.07, 0.93], [1.0, 0.95]],
-                "dc_to_ac_efficiency_reference_load_fraction": 0.1,
-            }
-        )
-        params = settings.to_genetic_param()
-        assert params.dc_to_ac_efficiency_curve == [(0.02, 0.8), (0.07, 0.93), (1.0, 0.95)]
-        assert params.dc_to_ac_efficiency_reference_load_fraction == 0.1
+    """The DC→AC curve of the GENETIC parameters comes from the inverter profile."""
 
-    def test_defaults_keep_constant_efficiency(self):
-        params = InverterCommonSettings(device_id="inverter1", max_power_w=5000).to_genetic_param()
-        assert params.dc_to_ac_efficiency_curve is None
-        assert params.dc_to_ac_efficiency_reference_load_fraction == pytest.approx(0.06)
-
-    def test_genetic0_is_unaffected(self):
+    def test_settings_pass_profile_curve_to_genetic_parameters(self, config_eos):
         settings = InverterCommonSettings(
             device_id="inverter1",
-            max_power_w=5000,
-            dc_to_ac_efficiency_curve=[(0.0, 0.8), (1.0, 0.95)],
+            profile_adjustment=InverterProfileAdjustment(nominal_power_w=5000),
+            dc_to_ac_efficiency_reference_load_fraction=0.1,
+        )
+        profile = settings.get_inverter_profile()
+        params = settings.to_genetic_param()
+        assert params.dc_to_ac_efficiency_curve is not None
+        # Not derated at 45 degC: the curve is the profile curve over [0, 1].
+        expected = list(zip(profile.dc_to_ac_efficiency.x, profile.dc_to_ac_efficiency.y))
+        assert [x for x, _ in params.dc_to_ac_efficiency_curve] == pytest.approx(
+            [x for x, _ in expected]
+        )
+        assert [y for _, y in params.dc_to_ac_efficiency_curve] == pytest.approx(
+            [y for _, y in expected]
+        )
+        assert params.dc_to_ac_efficiency_reference_load_fraction == 0.1
+        assert params.dc_to_ac_efficiency == pytest.approx(profile.dc_to_ac_efficiency_at(0.1))
+
+    def test_genetic0_has_no_curve(self, config_eos):
+        settings = InverterCommonSettings(
+            device_id="inverter1",
+            profile_adjustment=InverterProfileAdjustment(nominal_power_w=5000),
         )
         params = settings.to_genetic0_param()
         assert not hasattr(params, "dc_to_ac_efficiency_curve")
-
-    def test_config_accepts_curve(self, config_eos):
-        config_eos.merge_settings_from_dict(
-            {
-                "devices": {
-                    "inverters": {
-                        "inverter1": {
-                            "max_power_w": 5000,
-                            "dc_to_ac_efficiency_curve": [[0.02, 0.8], [0.07, 0.93], [1.0, 0.95]],
-                        }
-                    }
-                }
-            }
-        )
-        inverters = config_eos.devices.inverters
-        assert inverters is not None
-        assert inverters["inverter1"].dc_to_ac_efficiency_curve == [
-            (0.02, 0.8),
-            (0.07, 0.93),
-            (1.0, 0.95),
-        ]
-        config_eos.set_nested_value(
-            "devices/inverters/inverter1/dc_to_ac_efficiency_curve", [[0.0, 0.85], [1.0, 0.95]]
-        )
-        assert inverters["inverter1"].dc_to_ac_efficiency_curve == [(0.0, 0.85), (1.0, 0.95)]
-        with pytest.raises(ValueError, match="at least two points"):
-            config_eos.set_nested_value(
-                "devices/inverters/inverter1/dc_to_ac_efficiency_curve", [[0.5, 0.9]]
-            )
 
 
 # ---------------------------------------------------------------------------
@@ -664,3 +639,75 @@ class TestBatteryLimitedDischarge:
         )
         ac, losses = inverter._discharge_battery_to_ac(500.0 * slot_duration_h, 0)
         assert ac == pytest.approx(200.0 * slot_duration_h * efficiency)
+
+
+# ---------------------------------------------------------------------------
+# AC→DC curve for charging the battery from the grid
+# ---------------------------------------------------------------------------
+
+CHARGE_CURVE = [(0.05, 0.86), (0.3, 0.96), (1.0, 0.95)]
+
+
+class TestSolveAcForChargeDcEnergy:
+    @pytest.mark.parametrize("dc_wh", [1.0, 30.0, 100.0, 250.0, 500.0, 900.0, 2000.0])
+    def test_solution_is_consistent(self, dc_wh):
+        ac_wh = solve_ac_for_charge_dc_energy(CHARGE_CURVE, dc_wh, 1000.0)
+        efficiency = interpolate_efficiency_curve(CHARGE_CURVE, ac_wh / 1000.0)
+        assert ac_wh * efficiency == pytest.approx(dc_wh, rel=1e-9)
+
+    def test_clamped_ends(self):
+        # Below the first point the first efficiency applies, above the last the last.
+        assert solve_ac_for_charge_dc_energy(CHARGE_CURVE, 8.6, 1000.0) == pytest.approx(10.0)
+        assert solve_ac_for_charge_dc_energy(CHARGE_CURVE, 1900.0, 1000.0) == pytest.approx(2000.0)
+
+    def test_flat_curve_equals_constant_efficiency(self):
+        flat = [(0.0, 0.9), (1.0, 0.9)]
+        assert solve_ac_for_charge_dc_energy(flat, 450.0, 1000.0) == pytest.approx(500.0)
+
+    def test_no_energy(self):
+        assert solve_ac_for_charge_dc_energy(CHARGE_CURVE, 0.0, 1000.0) == 0.0
+
+
+class TestChargeFromGridWithCurve:
+    def test_curve_is_validated(self):
+        with pytest.raises(ValidationError):
+            InverterParameters(
+                device_id="inverter1", max_power_wh=1000, ac_to_dc_efficiency_curve=[(0.5, 0.9)]
+            )
+
+    @staticmethod
+    def _empty_battery() -> Battery:
+        battery = _real_battery(soc_percentage=0)
+        battery.charge_array = np.ones(1)
+        return battery
+
+    def test_low_load_charge_draws_more_ac(self):
+        flat = _real_inverter(self._empty_battery(), ac_to_dc_efficiency=0.96)
+        curved = _real_inverter(
+            self._empty_battery(),
+            ac_to_dc_efficiency=0.96,
+            ac_to_dc_efficiency_curve=CHARGE_CURVE,
+        )
+        # 5 % of the 1 kW battery charge power: a low AC load, efficiency ~0.87.
+        flat_ac, flat_losses = flat.charge_battery_from_grid(0, 0.05)
+        curved_ac, curved_losses = curved.charge_battery_from_grid(0, 0.05)
+        assert flat_ac == pytest.approx(50.0 / 0.96)
+        assert curved_ac > flat_ac
+        assert curved_ac * interpolate_efficiency_curve(
+            CHARGE_CURVE, curved_ac / 1000.0
+        ) == pytest.approx(50.0)
+        assert curved_losses == pytest.approx(curved_ac - 50.0)
+
+    def test_settings_pass_the_profile_curve(self, config_eos):
+        settings = InverterCommonSettings(
+            device_id="inverter1",
+            profile_adjustment=InverterProfileAdjustment(nominal_power_w=5000),
+        )
+        profile = settings.get_inverter_profile()
+        params = settings.to_genetic_param()
+        assert params.ac_to_dc_efficiency_curve is not None
+        assert [y for _, y in params.ac_to_dc_efficiency_curve] == pytest.approx(
+            list(profile.ac_to_dc_efficiency.y)
+        )
+        # The constant is the efficiency at the AC charge limit, here the nominal power.
+        assert params.ac_to_dc_efficiency == pytest.approx(profile.ac_to_dc_efficiency_at(1.0))

@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "inverter_model": "Generic hybrid inverter",
+  "nominal_power_w": null,
+  "max_ac_charge_power_w": null,
+  "ac_charge_limits_total_charge": false,
+  "dc_to_ac_efficiency": {
+    "description": "Typical battery-to-AC efficiency of a hybrid inverter over the load fraction, not the datasheet of a specific model.",
+    "load_fraction": [0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0],
+    "efficiency": [0.88, 0.93, 0.955, 0.965, 0.97, 0.968, 0.965]
+  },
+  "ac_to_dc_efficiency": {
+    "description": "Typical AC-to-battery efficiency of a hybrid inverter over the load fraction, not the datasheet of a specific model.",
+    "load_fraction": [0.05, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0],
+    "efficiency": [0.86, 0.92, 0.95, 0.96, 0.965, 0.963, 0.96]
+  },
+  "power_derating": {
+    "description": "Typical derating: full power up to 45 degC ambient, then linearly down to 60 % at 60 degC and to 0 at 65 degC.",
+    "temperature_degC": [-25.0, 45.0, 60.0, 65.0],
+    "power_fraction": [1.0, 1.0, 0.6, 0.0]
+  }
+}

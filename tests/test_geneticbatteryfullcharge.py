@@ -266,7 +266,7 @@ def full_charge_request(config_eos, monkeypatch):
                     }
                 },
                 "electric_vehicles": {},
-                "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 5000}},
+                "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 5000}}},
                 "home_appliances": {},
             },
         }
@@ -308,6 +308,26 @@ async def test_cold_battery_does_not_cancel_the_request(full_charge_request, mon
     assert parameters.pv_battery.max_charge_power_w == 0.0
     assert parameters.pv_battery.max_discharge_power_w is not None
     assert parameters.pv_battery.max_discharge_power_w > 0.0
+
+
+@pytest.mark.asyncio
+async def test_hot_inverter_does_not_cancel_the_request(full_charge_request, monkeypatch):
+    """An inverter derated to zero power at its temperature still gets valid parameters."""
+    from akkudoktoreos.devices.settings.inverterresolution import InverterOperatingPoint
+    from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
+
+    config, _, _, data = full_charge_request
+    config.devices.batteries["storage"].profile_adjustment.full_charge_interval_days = None
+
+    async def hot(self, target_datetime=None):
+        return InverterOperatingPoint(temperature_degC=70.0)
+
+    monkeypatch.setattr(InverterCommonSettings, "measure_operating_point", hot)
+
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+
+    assert parameters.inverter is not None
+    assert parameters.inverter.max_power_wh > 0.0
 
 def _history(start: DateTime, full_days_ago: Optional[float]) -> tuple[list[DateTime], list[float]]:
     """Hourly SoC history over 30 days, full once ``full_days_ago`` (if given)."""

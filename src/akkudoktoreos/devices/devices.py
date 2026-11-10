@@ -170,23 +170,42 @@ class DevicesCommonSettings(SettingsBaseModel):
                 keys.extend(device.measurement_keys or [])
         return keys
 
-    def check_battery_profiles(self) -> tuple[list[str], list[str]]:
-        """Check that every battery and electric vehicle can be resolved from its profile.
+    def check_device_profiles(self) -> tuple[list[str], list[str]]:
+        """Check that every device with a profile can be resolved from it.
 
-        See ``BatteriesCommonSettings.check_profile``.
+        Covers batteries, electric vehicles and inverters, see
+        ``BatteriesCommonSettings.check_profile`` and
+        ``InverterCommonSettings.check_profile``.
 
         Returns:
-            ``(errors, warnings)`` of all batteries and electric vehicles, each
-            message naming its device.
+            ``(errors, warnings)`` of all these devices, each message naming its
+            device.
         """
         errors: list[str] = []
         warnings: list[str] = []
-        for device_dict in (self.batteries, self.electric_vehicles):
+        for device_dict in (self.batteries, self.electric_vehicles, self.inverters):
             for device in (device_dict or {}).values():
                 device_errors, device_warnings = device.check_profile()
                 errors.extend(device_errors)
                 warnings.extend(device_warnings)
         return errors, warnings
+
+    def devices_using_profile(self, kind: str, name: str) -> list[str]:
+        """Return the IDs of the batteries, electric vehicles and inverters that use a profile.
+
+        Args:
+            kind: Profile kind, e.g. ``battery``.
+            name: Profile name.
+
+        Returns:
+            The device IDs, in configuration order.
+        """
+        return [
+            device.device_id
+            for device_dict in (self.batteries, self.electric_vehicles, self.inverters)
+            for device in (device_dict or {}).values()
+            if device.uses_profile(kind, name)
+        ]
 
 
 # Type used for indexing: (resource_id, optional actuator_id)

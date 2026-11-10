@@ -7,6 +7,7 @@ leaves of the cap. Without the flag the default model applies: PV charges first
 and the grid adds ``ac_charge`` of the remaining charge power on top.
 """
 
+import dataclasses
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -14,7 +15,12 @@ import pytest
 
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
+from akkudoktoreos.devices.profile.inverterprofile import InverterProfileSettings
+from akkudoktoreos.devices.profile.profilestore import get_profile_store
+from akkudoktoreos.devices.settings.invertersettings import (
+    InverterCommonSettings,
+    InverterProfileAdjustment,
+)
 
 MAX_CHARGE_W = 5000
 
@@ -226,19 +232,23 @@ class TestGeneticSimulation:
 
 
 class TestConfigOption:
-    """The flag is a device config option that reaches the GENETIC optimizer."""
+    """The flag is a property of the inverter profile that reaches the GENETIC optimizer."""
 
     @pytest.mark.parametrize("enabled", [False, True])
-    def test_config_passes_the_flag_to_the_optimizer(self, enabled):
+    def test_profile_passes_the_flag_to_the_optimizer(self, config_eos, monkeypatch, enabled):
+        generic = get_profile_store().get(InverterProfileSettings, "generic-hybrid")
+        profile = dataclasses.replace(generic, ac_charge_limits_total_charge=enabled)
+        monkeypatch.setattr(InverterCommonSettings, "get_inverter_profile", lambda self: profile)
         settings = InverterCommonSettings(
             device_id="inverter",
-            max_power_w=10000,
             battery_id="battery1",
-            ac_charge_limits_total_charge=enabled,
+            profile_adjustment=InverterProfileAdjustment(nominal_power_w=10000),
         )
         assert settings.to_genetic_param().ac_charge_limits_total_charge is enabled
 
-    def test_default_keeps_the_existing_model(self):
-        settings = InverterCommonSettings(device_id="inverter", max_power_w=10000)
-        assert settings.ac_charge_limits_total_charge is False
+    def test_default_profile_keeps_the_existing_model(self, config_eos):
+        settings = InverterCommonSettings(
+            device_id="inverter",
+            profile_adjustment=InverterProfileAdjustment(nominal_power_w=10000),
+        )
         assert settings.to_genetic_param().ac_charge_limits_total_charge is False

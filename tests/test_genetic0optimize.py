@@ -228,3 +228,74 @@ class TestGenetic0SocClampedOperationFactors:
     async def test_optimization_solution_with_configured_battery(self, solution):
         optimization_solution = await solution.optimization_solution()
         assert optimization_solution is not None
+
+
+class TestGenetic0SolutionWithProfileInverter:
+    """The solution uses the inverter parameters of the run, not the inverter settings.
+
+    Inverter settings no longer hold efficiencies or power fields (they come
+    from the inverter profile), so reading them from the settings fails.
+    """
+
+    @pytest.fixture
+    def solution(self, config_eos: ConfigEOS) -> Genetic0Solution:
+        config_eos.merge_settings_from_dict(
+            {
+                "devices": {
+                    "max_batteries": 1,
+                    "batteries": {
+                        "battery1": {
+                            "device_id": "battery1",
+                            "profile_adjustment": {"nominal_capacity_wh": 8000},
+                        }
+                    },
+                    "max_inverters": 1,
+                    "inverters": {
+                        "inverter1": {
+                            "device_id": "inverter1",
+                            "battery_id": "battery1",
+                            "profile_adjustment": {
+                                "nominal_power_w": 10000,
+                                "max_ac_charge_power_w": 2000,
+                            },
+                        }
+                    },
+                }
+            }
+        )
+        data = json.loads((DIR_TESTDATA / "optimize_result_1.json").read_text())
+        return Genetic0Solution.model_validate(data)
+
+    def test_uses_solution_inverter_parameters(self, solution):
+        bat = solution.parameters.pv_battery
+        inverter = solution.parameters.inverter
+        assert bat is not None and inverter is not None
+        # The stored inverter has no AC charge limit and efficiency 1.0, unlike
+        # the configured one: the battery charge power limits the AC charge.
+        headroom_wh = 0.01 * bat.capacity_wh
+        expected = headroom_wh / (
+            bat.max_charge_power_w * inverter.ac_to_dc_efficiency * bat.charging_efficiency
+        )
+        ac, _, _ = solution._soc_clamped_operation_factors(
+            1.0, 1.0, True, float(bat.max_soc_percentage) - 1.0
+        )
+        assert ac == pytest.approx(expected)
+
+    def test_without_stored_parameters_the_configured_inverter_is_resolved(self, solution):
+        inverter = solution._inverter_parameters(None)
+        assert inverter is not None
+        assert inverter.max_power_wh == pytest.approx(10000)
+        assert inverter.max_ac_charge_power_w == pytest.approx(2000)
+        assert 0.0 < inverter.ac_to_dc_efficiency < 1.0
+
+    def test_unresolvable_inverter_counts_as_no_inverter(self, solution, config_eos):
+        config_eos.merge_settings_from_dict(
+            {"devices": {"inverters": {"inverter1": {"profile_adjustment": {"nominal_power_w": None}}}}}
+        )
+        assert solution._inverter_parameters(None) is None
+
+    @pytest.mark.asyncio
+    async def test_optimization_solution_with_configured_inverter(self, solution):
+        """Regression: AttributeError 'ac_to_dc_efficiency' on InverterCommonSettings."""
+        optimization_solution = await solution.optimization_solution()
+        assert optimization_solution is not None
