@@ -1,0 +1,12 @@
+# Native (Rust) kernels for Akkudoktor-EOS. Optional: EOS runs without them.
+#   eos-genetic           the GENETIC optimizer (pure Rust, no Python)
+#   akkudoktoreos-native  the Python binding (PyO3, built into wheels with maturin)
+[workspace]
+resolver = "2"
+members = ["eos-genetic", "akkudoktoreos-native"]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true

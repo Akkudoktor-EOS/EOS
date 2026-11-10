@@ -1,0 +1,17 @@
+[package]
+name = "akkudoktoreos-native"
+description = "Python binding of the native Akkudoktor-EOS kernels"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "_core"
+crate-type = ["cdylib"]
+
+[dependencies]
+eos-genetic = { path = "../eos-genetic" }
+# abi3: one wheel per platform for every CPython >= 3.11 (EOS requires 3.11).
+pyo3 = { version = "0.30", features = ["extension-module", "abi3-py311"] }
