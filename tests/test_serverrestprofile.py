@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
+from akkudoktoreos.devices.profile.inverterprofile import InverterProfileSettings
 from akkudoktoreos.devices.profile.profilestore import ProfileStore, get_profile_store
 from akkudoktoreos.server.rest.error import register_problem_handlers
 from akkudoktoreos.server.rest.profile import router
@@ -59,6 +60,16 @@ class TestRead:
         assert response.status_code == 200
         assert response.json()["chemistry"] == "LFP"
         BatteryProfileSettings.model_validate(response.json())
+
+    def test_inverter_profiles(self, client):
+        assert "inverter" in client.get("/v1/profile").json()
+        listed = client.get("/v1/profile/inverter").json()
+        assert {"name": "generic-hybrid", "source": "package", "packaged": True} in listed
+        schema = client.get("/v1/profile/inverter/schema").json()
+        assert "power_derating" in schema["properties"]
+        response = client.get("/v1/profile/inverter/generic-hybrid")
+        assert response.status_code == 200
+        InverterProfileSettings.model_validate(response.json())
 
     def test_errors_are_problem_details(self, client):
         response = client.get("/v1/profile/nope")
@@ -168,6 +179,48 @@ class TestDelete:
 
     def test_delete_of_a_missing_profile_is_404(self, client):
         assert client.delete("/v1/profile/battery/does-not-exist").status_code == 404
+
+    @pytest.mark.parametrize("devices", ["batteries", "electric_vehicles"])
+    def test_delete_of_a_battery_profile_in_use_is_409(
+        self, client, config_eos, generic_lfp, devices
+    ):
+        client.put("/v1/profile/battery/my-battery", json=generic_lfp)
+        config_eos.merge_settings_from_dict(
+            {"devices": {devices: {"unit1": {"device_id": "unit1", "battery_profile": "my-battery"}}}}
+        )
+        response = client.delete("/v1/profile/battery/my-battery")
+        assert response.status_code == 409
+        assert response.json()["title"] == "Profile in use"
+        assert "unit1" in response.json()["detail"]
+        assert client.get("/v1/profile/battery/my-battery").status_code == 200
+
+    def test_delete_of_an_inverter_profile_in_use_is_409(self, client, config_eos):
+        generic_hybrid = client.get("/v1/profile/inverter/generic-hybrid").json()
+        client.put("/v1/profile/inverter/my-inverter", json=generic_hybrid)
+        config_eos.merge_settings_from_dict(
+            {
+                "devices": {
+                    "inverters": {
+                        "inverter1": {"device_id": "inverter1", "inverter_profile": "my-inverter"}
+                    }
+                }
+            }
+        )
+        response = client.delete("/v1/profile/inverter/my-inverter")
+        assert response.status_code == 409
+        assert "inverter1" in response.json()["detail"]
+        # A battery profile of the same name is not in use.
+        assert client.delete("/v1/profile/battery/my-inverter").status_code == 404
+
+    def test_delete_of_an_override_in_use_reverts_to_the_packaged_profile(
+        self, client, config_eos, generic_lfp
+    ):
+        client.put("/v1/profile/battery/generic-lfp", json=generic_lfp)
+        config_eos.merge_settings_from_dict(
+            {"devices": {"batteries": {"battery1": {"device_id": "battery1"}}}}
+        )
+        assert config_eos.devices.batteries["battery1"].battery_profile == "generic-lfp"
+        assert client.delete("/v1/profile/battery/generic-lfp").status_code == 200
 
 
 def test_eos_app_serves_the_profile_api(config_eos):

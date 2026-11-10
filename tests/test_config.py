@@ -855,7 +855,7 @@ class TestDeviceSettings:
         with pytest.raises(ValidationError, match="device_id"):
             DevicesCommonSettings.model_validate({"batteries": {"house": {"device_id": "other"}}})
 
-    def test_check_battery_profiles_names_unresolvable_devices(self, config_eos):
+    def test_check_device_profiles_names_unresolvable_devices(self, config_eos):
         # generic-lfp provides no capacity: the house battery lacks it, the car has it.
         devices = DevicesCommonSettings.model_validate(
             {
@@ -863,15 +863,29 @@ class TestDeviceSettings:
                 "electric_vehicles": {"car": {"profile_adjustment": {"nominal_capacity_wh": 60000}}},
             }
         )
-        errors, warnings = devices.check_battery_profiles()
+        errors, warnings = devices.check_device_profiles()
         assert len(errors) == 1
         assert "Battery 'house'" in errors[0]
         assert warnings == []
 
-    def test_config_logs_battery_profile_problems_once(self, config_eos, monkeypatch):
+    def test_check_device_profiles_covers_inverters(self, config_eos):
+        # generic-hybrid provides no nominal power.
+        devices = DevicesCommonSettings.model_validate(
+            {
+                "inverters": {
+                    "inv1": {},
+                    "inv2": {"profile_adjustment": {"nominal_power_w": 5000, "max_power_w": 8000}},
+                }
+            }
+        )
+        errors, warnings = devices.check_device_profiles()
+        assert len(errors) == 1 and "Inverter 'inv1'" in errors[0]
+        assert len(warnings) == 1 and "Inverter 'inv2'" in warnings[0]
+
+    def test_config_logs_device_profile_problems_once(self, config_eos, monkeypatch):
         from loguru import logger
 
-        monkeypatch.setattr(ConfigEOS, "_battery_profile_problems", ((), ()))
+        monkeypatch.setattr(ConfigEOS, "_device_profile_problems", ((), ()))
         messages: list[str] = []
         sink_id = logger.add(
             lambda message: messages.append(message.record["message"]), level="WARNING"
@@ -888,7 +902,7 @@ class TestDeviceSettings:
                 "devices/batteries/house/profile_adjustment/nominal_capacity_wh", 10000
             )
             assert not [m for m in messages if "Battery 'house'" in m]
-            assert ConfigEOS._battery_profile_problems == ((), ())
+            assert ConfigEOS._device_profile_problems == ((), ())
         finally:
             logger.remove(sink_id)
 

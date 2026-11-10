@@ -29,7 +29,8 @@ from fastapi import APIRouter, Body
 from fastapi import Path as FastapiPath
 
 # Import the profile types so that they are registered with the store.
-from akkudoktoreos.devices.profile import batteryprofile  # noqa: F401
+from akkudoktoreos.core.coreabc import get_config
+from akkudoktoreos.devices.profile import batteryprofile, inverterprofile  # noqa: F401
 from akkudoktoreos.devices.profile.profilestore import (
     ProfileDocument,
     ProfileEntry,
@@ -123,10 +124,24 @@ async def delete_profile(kind: KindPath, name: NamePath) -> ProfileEntry | None:
     """Delete a user profile.
 
     Returns the profile that applies now (the packaged one of the same name),
-    or null if there is none.
+    or null if there is none. A profile that a configured device uses can only
+    be deleted if a packaged profile of the same name applies afterwards.
     """
     document_type = _document_type(kind)
     store = get_profile_store()
+    entries = await asyncio.to_thread(store.list_profiles, document_type)
+    entry = next((entry for entry in entries if entry.name == name), None)
+    if entry is not None and not entry.packaged:
+        users = get_config().devices.devices_using_profile(kind, name)
+        if users:
+            raise EOSProblem(
+                status=409,
+                title="Profile in use",
+                detail=(
+                    f"The {kind} profile '{name}' is used by {', '.join(users)} and has no "
+                    "packaged profile to revert to. Select another profile for these devices first."
+                ),
+            )
     try:
         await asyncio.to_thread(store.delete, document_type, name)
     except PermissionError as exc:

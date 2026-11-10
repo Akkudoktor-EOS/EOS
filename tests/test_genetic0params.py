@@ -161,7 +161,7 @@ class TestGenetic0MeasuredSOC:
                     "batteries": {
                         "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
-                    "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
+                    "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 1000}}},
                 },
             }
         )
@@ -208,7 +208,7 @@ class TestGenetic0MeasuredSOC:
                     "batteries": {
                         "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
-                    "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
+                    "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 1000}}},
                 },
             }
         )
@@ -254,7 +254,7 @@ class TestGenetic0MeasuredSOC:
                     "batteries": {
                         "storage": {"profile_adjustment": {"nominal_capacity_wh": 2000, "max_charge_power_w": 1000}}
                     },
-                    "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
+                    "inverters": {"inverter": {"battery_id": "storage", "profile_adjustment": {"nominal_power_w": 1000}}},
                 },
             }
         )
@@ -386,3 +386,83 @@ class TestGenetic0DemoData:
         assert any(
             "Battery 'storage'" in m and "nominal capacity 8000 Wh" in m for m in messages
         )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "settings_class, method, field, device_id",
+        [
+            ("BatteriesCommonSettings", "to_genetic0_pv_bat_param", "pv_battery", "storage"),
+            ("BatteriesCommonSettings", "to_genetic0_ev_bat_param", "ev", "car"),
+            ("InverterCommonSettings", "to_genetic0_param", "inverter", "hybrid"),
+        ],
+    )
+    async def test_device_that_cannot_be_prepared_is_left_out(
+        self, config_eos, monkeypatch, settings_class, method, field, device_id
+    ):
+        """No demo device replaces a configured device that cannot be prepared."""
+        from loguru import logger
+
+        from akkudoktoreos.devices.settings import batterysettings, invertersettings
+
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {"hours": 48},
+                "optimization": {"genetic0": {"horizon_hours": 24}},
+                "elecfee": {"provider": None},
+                "devices": {
+                    "max_batteries": 1,
+                    "max_electric_vehicles": 1,
+                    "max_inverters": 1,
+                    "max_home_appliances": 0,
+                    "batteries": {
+                        "storage": {"profile_adjustment": {"nominal_capacity_wh": 5000}}
+                    },
+                    "electric_vehicles": {
+                        "car": {"profile_adjustment": {"nominal_capacity_wh": 40000}}
+                    },
+                    "inverters": {
+                        "hybrid": {
+                            "battery_id": "storage",
+                            "profile_adjustment": {"nominal_power_w": 6000},
+                        }
+                    },
+                },
+            }
+        )
+        configured = config_eos.devices.model_dump(exclude_computed_fields=True)
+        module = batterysettings if settings_class == "BatteriesCommonSettings" else invertersettings
+
+        def broken(self, *args, **kwargs):
+            raise RuntimeError("conversion failed")
+
+        monkeypatch.setattr(getattr(module, settings_class), method, broken)
+        get_ems().set_start_datetime(to_datetime("2026-08-01T14:00:00+00:00"))
+        tariff = pd.Series(
+            0.00008, index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min")
+        )
+
+        async def read_array(**kwargs):
+            return np.full(48, 0.0003)
+
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(side_effect=read_array),
+            key_to_raw_series=AsyncMock(return_value=tariff),
+        )
+        messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: messages.append(message.record["message"]), level="ERROR"
+        )
+        try:
+            with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
+                parameters = await Genetic0OptimizationParameters.prepare()
+        finally:
+            logger.remove(sink_id)
+        assert parameters is not None
+        assert getattr(parameters, field) is None
+        assert any(f"'{device_id}'" in m and "left out" in m for m in messages)
+        assert not any("demo" in m for m in messages)
+        # The other devices are prepared, the configuration is unchanged.
+        for other in {"pv_battery", "ev", "inverter"} - {field}:
+            assert getattr(parameters, other) is not None
+        assert config_eos.devices.model_dump(exclude_computed_fields=True) == configured

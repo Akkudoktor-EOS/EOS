@@ -26,6 +26,7 @@ from akkudoktoreos.devices.devicesabc import (
     BatteryOperationMode,
 )
 from akkudoktoreos.devices.genetic.battery import Battery
+from akkudoktoreos.devices.genetic.inverter import InverterParameters
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
@@ -593,6 +594,26 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # Fallback → safe idle
         return BatteryOperationMode.IDLE, 1.0
 
+    def _inverter_parameters_list(
+        self, parameters: Optional[GeneticOptimizationParameters]
+    ) -> list[InverterParameters]:
+        """Return the inverter parameters the solution was computed with, as a list.
+
+        Without stored parameters, the first configured inverter is resolved from
+        its inverter profile. An inverter that cannot be resolved is treated as
+        no inverter; the configuration check already reported it.
+        """
+        if parameters is not None:
+            return [parameters.inverter] if parameters.inverter is not None else []
+        inverters = self.config.devices.inverters or {}
+        if not inverters:
+            return []
+        try:
+            return [list(inverters.values())[0].to_genetic_param()]
+        except ValueError as exc:
+            logger.debug(f"Inverter not resolvable for the solution: {exc}")
+            return []
+
     def _soc_clamped_operation_factors(
         self,
         ac_charge: float,
@@ -649,13 +670,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             if headroom_wh <= 0.0:
                 effective_ac = 0.0
             else:
-                inv_list = (
-                    [parameters.inverter]
-                    if parameters is not None and parameters.inverter is not None
-                    else list((self.config.devices.inverters or {}).values())
-                    if parameters is None
-                    else []
-                )
+                inv_list = self._inverter_parameters_list(parameters)
                 ac_to_dc_eff = float(inv_list[0].ac_to_dc_efficiency) if inv_list else 1.0
                 max_ac_cp_w = (
                     float(inv_list[0].max_ac_charge_power_w)

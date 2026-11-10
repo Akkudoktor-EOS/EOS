@@ -221,20 +221,20 @@ Profiles can be managed with the REST API:
 
 | **Endpoint**                           | **Description**                                                  |
 | -------------------------------------- | ---------------------------------------------------------------- |
-| **GET** `/v1/profile`                  | List the profile kinds (e.g. `battery`).                         |
+| **GET** `/v1/profile`                  | List the profile kinds (`battery`, `inverter`).                  |
 | **GET** `/v1/profile/{kind}`           | List the user and packaged profiles of a kind.                   |
 | **GET** `/v1/profile/{kind}/schema`    | JSON schema of the profile documents of a kind.                  |
 | **GET** `/v1/profile/{kind}/{name}`    | Get a profile document.                                          |
 | **PUT** `/v1/profile/{kind}/{name}`    | Validate a profile document and save it as user profile.         |
 | **DELETE** `/v1/profile/{kind}/{name}` | Delete a user profile. Returns the profile that applies instead. |
 
-The **Profiles** page of EOSdash edits battery profiles as JSON and plots the limit maps and
-efficiency curves as EOS evaluates them. Edits can be previewed before they are saved.
+The **Profiles** page of EOSdash edits battery and inverter profiles as JSON and plots them as EOS
+evaluates them: for a battery the limit maps and efficiency curves, for an inverter the efficiency
+curves and the power derating. Edits can be previewed before they are saved.
 
-To share a profile with other users, open it on the **Profiles** page and press **Share on
-GitHub**. It opens a new issue with the battery profile form in your browser, filled in with the
-profile; check it and submit it. EOS sends nothing itself. Reviewed profiles are packaged with
-EOS.
+To share a profile with other users, open it on the **Profiles** page and press **Share**. It
+opens a new issue with the battery or inverter profile form in your browser, filled in with the
+profile; check it and submit it. EOS sends nothing itself. Reviewed profiles are packaged with EOS.
 
 ### Battery Stati
 
@@ -323,6 +323,61 @@ the EV battery can be operated in two operation modes:
 The **operation mode factor** (0.0–1.0) specifies the normalized power rate relative to the
 battery's nominal maximum charge power. A value of 1.0 corresponds to full-rate charging, while 0.0
 indicates no power transfer. Intermediate values scale the power proportionally.
+
+## Inverter
+
+The inverter connects the DC side (PV, battery) with the AC side (household, grid). Its
+configuration (`devices/inverters/<device_id>`) is described in the automatic optimization, see
+the inverter simulation configuration there.
+
+(inverter-profiles)=
+
+### Inverter Profiles
+
+The technical data of an inverter comes from an **inverter profile**, a JSON document with:
+
+- the DC→AC efficiency curve (battery discharge) and the AC→DC efficiency curve (charging the
+  battery from the grid) over the load fraction, the AC power relative to the nominal power,
+- the nominal AC power, except for a generic profile,
+- optionally the AC charge power limit of the model (`max_ac_charge_power_w`) and whether this
+  limit also limits PV charging of the battery (`ac_charge_limits_total_charge`, e.g. some hybrid
+  inverters in time-of-use grid charging),
+- optionally the power derating over the ambient temperature (`power_derating`: the allowed
+  fraction of the nominal power at each temperature).
+
+The curves are read linearly between their breakpoints and held at their end values beyond them.
+Unknown keys are rejected.
+
+```json
+{
+  "inverter_model": "My hybrid inverter",
+  "nominal_power_w": 10000,
+  "dc_to_ac_efficiency": {
+    "load_fraction": [0.05, 0.2, 0.5, 1.0],
+    "efficiency": [0.88, 0.955, 0.97, 0.965]
+  },
+  "ac_to_dc_efficiency": {
+    "load_fraction": [0.05, 0.2, 0.5, 1.0],
+    "efficiency": [0.86, 0.95, 0.965, 0.96]
+  },
+  "power_derating": {
+    "temperature_degC": [45.0, 60.0],
+    "power_fraction": [1.0, 0.6]
+  }
+}
+```
+
+EOS ships the profile `generic-hybrid` with typical efficiencies of a hybrid inverter, no nominal
+power (set `profile_adjustment.nominal_power_w`) and full power up to 45 °C. EOS evaluates the
+derating at the ambient temperature measured as `<device_id>-temperature-degc`, or at 45 °C
+without a measurement. Inverter profiles are stored, looked up and managed like battery profiles
+(kind `inverter`, user directory `<general/data_folder_path>/profile/inverter/`), with the same
+REST API and the **Profiles** page of EOSdash.
+
+The optimization always gets valid inverter parameters. If they cannot be resolved, EOS logs an
+error and uses defaults: the profile `generic-hybrid` for an unusable profile, a nominal power of
+10000 W if none is set, and the parameters at 45 °C if the inverter is derated to zero power at
+the measured temperature.
 
 ## Home Appliance
 

@@ -1,6 +1,7 @@
 """Configuration-owned requests and the real automatic GENETIC path."""
 
 from types import SimpleNamespace
+from typing import Any, Optional
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -67,7 +68,12 @@ def configured_request(config_eos, monkeypatch):
                     }
                 },
                 "electric_vehicles": {},
-                "inverters": {"inverter": {"battery_id": "storage", "max_power_w": 1000}},
+                "inverters": {
+                    "inverter": {
+                        "battery_id": "storage",
+                        "profile_adjustment": {"nominal_power_w": 1000},
+                    }
+                },
                 "home_appliances": {},
             },
         }
@@ -758,3 +764,74 @@ async def test_battery_configuration_error_uses_defaults_and_logs_error(configur
         and "Using defaults for the optimization: battery profile 'generic-lfp'" in m
         for m in messages
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "temperature_degc, expected_max_power_w",
+    [(None, 1000.0), (45.0, 1000.0), (60.0, 600.0)],
+)
+async def test_inverter_is_derated_at_measured_temperature(
+    configured_request, monkeypatch, temperature_degc, expected_max_power_w
+):
+    """The generic profile derates above 45 degC; without a measurement 45 degC applies."""
+    from akkudoktoreos.devices.settings import invertermeasurement
+
+    _, _, _, data = configured_request
+
+    async def measured(key: str, target_datetime: Any) -> Optional[float]:
+        return temperature_degc if key == "inverter-temperature-degc" else None
+
+    monkeypatch.setattr(invertermeasurement, "get_measured_value", measured)
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.inverter is not None
+    assert parameters.inverter.max_power_wh == pytest.approx(expected_max_power_w)
+    assert parameters.inverter.max_ac_charge_power_w == pytest.approx(expected_max_power_w)
+    assert parameters.inverter.ac_to_dc_efficiency_curve is not None
+
+
+@pytest.mark.asyncio
+async def test_unusable_inverter_profile_falls_back_to_generic(configured_request):
+    """A missing inverter profile does not cancel the parameter preparation."""
+    from loguru import logger
+
+    config, _, _, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"inverters": {"inverter": {"inverter_profile": "does-not-exist"}}}}
+    )
+    messages: list[str] = []
+    sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+    try:
+        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    finally:
+        logger.remove(sink_id)
+    assert parameters.inverter is not None
+    assert parameters.inverter.max_power_wh == pytest.approx(1000.0)
+    assert any(
+        "Inverter 'inverter'" in m and "inverter profile 'generic-hybrid'" in m
+        for m in messages
+    )
+
+
+@pytest.mark.asyncio
+async def test_inverter_without_nominal_power_uses_the_fallback_power(configured_request):
+    """The run is not cancelled: the fallback nominal power applies, reported as error."""
+    from loguru import logger
+
+    from akkudoktoreos.devices.settings.inverterresolution import (
+        INVERTER_FALLBACK_NOMINAL_POWER_W,
+    )
+
+    config, _, _, data = configured_request
+    config.merge_settings_from_dict(
+        {"devices": {"inverters": {"inverter": {"profile_adjustment": {"nominal_power_w": None}}}}}
+    )
+    messages: list[str] = []
+    sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+    try:
+        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    finally:
+        logger.remove(sink_id)
+    assert parameters.inverter is not None
+    assert parameters.inverter.max_power_wh == pytest.approx(INVERTER_FALLBACK_NOMINAL_POWER_W)
+    assert any("nominal_power_w" in m for m in messages)
