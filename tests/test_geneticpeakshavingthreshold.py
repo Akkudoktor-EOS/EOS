@@ -218,6 +218,43 @@ class TestHeldBatteryShavesTheExcess:
         assert other == pytest.approx(plain)
         assert other_battery.soc_wh == pytest.approx(plain_battery.soc_wh)
 
+    @pytest.mark.parametrize("load_wh", [9659.98, 5590.34, 9292.95])
+    def test_a_shaved_slot_sits_exactly_at_the_limit(self, load_wh):
+        """Excess above the limit itself: (load - (load - limit)) rounds, the import does not.
+
+        1.5 kW limit, 95 % efficiencies, a 20 kW battery that covers the excess.
+        """
+        inverter, _ = _devices(
+            limit_w=1500.0,
+            capacity_wh=50000,
+            battery_power_w=20000.0,
+            inverter_power_w=30000.0,
+            discharging_efficiency=0.95,
+            dc_to_ac_efficiency=0.95,
+        )
+
+        _, grid_import, _, _ = inverter.process_energy(0.0, load_wh, 0)
+
+        assert grid_import == 1500.0
+
+    def test_shaving_uses_inverter_capacity_that_pv_export_cannot_use(self):
+        """10 kW inverter, 12 kWh load, 6 kWh PV, 2 kW limit, full battery.
+
+        Direct PV and the shaved excess fill the inverter; the PV left over can
+        neither charge the full battery nor be exported through it.
+        """
+        inverter, battery = _devices(limit_w=2000.0)
+
+        grid_export, grid_import, losses, self_consumption = inverter.process_energy(
+            6000.0, 12000.0, 0
+        )
+
+        assert grid_import == 2000.0
+        assert self_consumption == pytest.approx(10000.0)
+        assert grid_export == 0.0
+        assert battery.discharged_energy_wh(0) > 0.0
+        assert losses > 0.0
+
     def test_pv_in_the_slot_is_used_before_the_battery(self):
         """Direct PV lowers the import first; the battery covers what is left above 8 kWh."""
         unlimited, _ = _devices(limit_w=None)
@@ -309,6 +346,25 @@ class TestSimulation:
         # No AC charge is left in the slot, not even a rounding residue.
         assert sim.ac_charge_hours is not None
         assert list(sim.ac_charge_hours) == [0.0, 0.0, 0.0]
+
+    def test_shaved_slot_reports_no_ac_charge_residue(self, config_eos):
+        """An AC slot whose excess exceeds the limit itself: the reported factor is exactly 0."""
+        result, sim = _simulate(
+            config_eos,
+            load=[9659.98, 1000.0],
+            ac=[1.0, 0.0],
+            limit_w=1500.0,
+            soc_percentage=50,
+            capacity_wh=50000,
+            battery_power_w=20000.0,
+            inverter_power_w=30000.0,
+            discharging_efficiency=0.95,
+            dc_to_ac_efficiency=0.95,
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == 1500.0
+        assert sim.ac_charge_hours is not None
+        assert float(sim.ac_charge_hours[0]) == 0.0
 
     def test_ev_charging_is_shaved_too(self, config_eos):
         """6 kWh house load plus 7 kWh EV charging: the battery covers 5 kWh."""
@@ -624,8 +680,14 @@ class TestExportedPlan:
                     pv_battery=inverter.battery.parameters, inverter=inverter.parameters
                 ),
                 interval_seconds=3600,
+                result=SimpleNamespace(
+                    grid_consumption_wh_per_hour=list(result["Netzbezug_Wh_pro_Stunde"])
+                ),
             ),
         )
+        # The slot shaved: its import is at the 2 kW limit.
+        shaved_peak = GeneticSolution._slot_shaved_peak(solution, 0, 2000.0)
+        assert shaved_peak
 
         ac, dc, discharge, export = GeneticSolution._soc_clamped_operation_factors(
             solution,
@@ -633,7 +695,7 @@ class TestExportedPlan:
             float(sim.dc_charge_hours[0]),
             bool(sim.bat_discharge_hours[0]),
             float(result["akku_soc_pro_stunde"][0]),
-            peak_shaving=True,
+            shaved_peak=shaved_peak,
         )
         mode, factor = GeneticSolution._battery_operation_from_solution(
             ac, dc, discharge, export
@@ -656,3 +718,278 @@ class TestExportedPlan:
             replay["Netzbezug_Wh_pro_Stunde"], result["Netzbezug_Wh_pro_Stunde"]
         )
         assert replay_sim.inverter.battery.soc_wh == pytest.approx(inverter.battery.soc_wh)
+
+
+# ---------------------------------------------------------------------------
+# AC charging with a limit: held slots that do not shave export as without one
+# ---------------------------------------------------------------------------
+
+AC_SLOTS = 6
+# Cheap (negative) hours first, expensive hours last: the plan charges from the
+# grid early and keeps the energy. Load 1 kWh per hour, far below any limit.
+_AC_PRICES = [-0.0002, -0.0002, -0.0002, 0.0006, 0.0006, 0.0006]
+# Cases (initial SoC, prices) for a 90 % maximum SoC. "room": charging from 60 %
+# leaves 3 kWh and later 1 kWh of room. "full": after charging to 90 % a later
+# cheap slot starts full with a neutral AC gene. The rooms are multiples of the
+# 0.1 charge-rate steps, so the clamped factors are exact.
+_AC_CASES = {
+    "room": (60, _AC_PRICES),
+    "full": (80, [-0.0002, -0.0003, -0.0002, -0.0001, 0.0006, 0.0006]),
+}
+
+
+def _optimize_ac(
+    config_eos: ConfigEOS,
+    limit_w: Optional[float],
+    *,
+    soc_percentage: int,
+    max_soc_percentage: int = 90,
+    load: Optional[list[float]] = None,
+    prices: Optional[list[float]] = None,
+    seed: int = 42,
+) -> GeneticSolution:
+    """Hourly 6-slot run with AC charging: 10 kWh / 5 kW battery, lossless devices."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {
+                "algorithm": "GENETIC",
+                "genetic": {
+                    "horizon_hours": AC_SLOTS,
+                    "tail_horizon_hours": 0,
+                    "interval_sec": 3600,
+                    "terminal_value_mode": "FIXED",
+                    "terminal_value_euro_per_kwh": 0.0,
+                },
+            },
+            "feedintariff": {"direct_marketing_enabled": False},
+        }
+    )
+    get_ems(init=True).set_start_datetime(to_datetime("2026-10-26T00:00:00"))
+    parameters = GeneticOptimizationParameters.model_validate(
+        {
+            "ems": {
+                "pv_forecast_wh": [0.0] * AC_SLOTS,
+                "total_load": load or [1000.0] * AC_SLOTS,
+                "electricity_price_per_wh": prices or _AC_PRICES,
+                "feed_in_tariff_per_wh": 0.0,
+                "price_per_wh_battery": 0.0,
+            },
+            "pv_battery": {
+                "device_id": "battery1",
+                "capacity_wh": 10000,
+                "max_charge_power_w": 5000,
+                "charging_efficiency": 1.0,
+                "discharging_efficiency": 1.0,
+                "initial_soc_percentage": soc_percentage,
+                "min_soc_percentage": 0,
+                "max_soc_percentage": max_soc_percentage,
+            },
+            "inverter": {
+                "device_id": "inverter1",
+                "max_power_wh": 10000,
+                "battery_id": "battery1",
+                "ac_to_dc_efficiency": 1.0,
+                "dc_to_ac_efficiency": 1.0,
+                "max_grid_import_power_w": limit_w,
+            },
+            "ev": None,
+            "forecast_interval_seconds": 3600,
+        }
+    )
+    return GeneticOptimization(fixed_seed=seed).optimize_ems(parameters, ngen=30, individuals=40)
+
+
+def _battery_instructions(plan: EnergyManagementPlan) -> list[tuple[Any, str, float]]:
+    """(execution time, mode, factor) of the battery instructions, without the threshold."""
+    instructions = [
+        cast(FRBCInstruction, i) for i in plan.instructions if i.resource_id == "battery1"
+    ]
+    return [
+        (i.execution_time, str(i.operation_mode_id), float(i.operation_mode_factor))
+        for i in instructions
+    ]
+
+
+def _independent_controller(
+    plan: EnergyManagementPlan,
+    load: list[float],
+    *,
+    soc_wh: float,
+    capacity_wh: float = 10000.0,
+    power_w: float = 5000.0,
+) -> tuple[list[float], list[float]]:
+    """Grid import and start SoC [%] per hourly slot of a site controller without PV.
+
+    Written independently of the EOS device code. The controller knows only the
+    instructions: it charges ``factor`` x its rated power from the grid in
+    charging modes, up to its own full battery (it does not know EOS's maximum
+    SoC), discharges for the load in discharging modes and, with a threshold,
+    for the import above it in the other modes.
+    """
+    controls, thresholds = {}, {}
+    start = get_ems().start_datetime
+    for instruction in plan.instructions:
+        if instruction.resource_id != "battery1":
+            continue
+        assert isinstance(instruction, FRBCInstruction)
+        slot = int((instruction.execution_time - start).total_seconds() // 3600)
+        controls[slot] = _MODE_CONTROLS[str(instruction.operation_mode_id)](
+            float(instruction.operation_mode_factor)
+        )
+        thresholds[slot] = instruction.peak_shaving_threshold_w
+    grid, soc = [], []
+    ac = dc = discharge = 0.0
+    threshold: Optional[float] = None
+    for slot, load_wh in enumerate(load):
+        if slot in controls:
+            ac, dc, discharge = controls[slot]
+            threshold = thresholds[slot]
+        soc.append(soc_wh / capacity_wh * 100.0)
+        charge_wh = min(ac * power_w, capacity_wh - soc_wh) if ac > 0.0 else 0.0
+        if discharge:
+            delivered_wh = min(load_wh, power_w, soc_wh)
+        elif threshold is not None and charge_wh == 0.0:
+            delivered_wh = min(max(load_wh - threshold, 0.0), power_w, soc_wh)
+        else:
+            delivered_wh = 0.0
+        soc_wh += charge_wh - delivered_wh
+        grid.append(load_wh + charge_wh - delivered_wh)
+    return grid, soc
+
+
+class TestHeldSlotsWithoutShaving:
+    @pytest.mark.parametrize("seed", [1, 5, 42])
+    @pytest.mark.parametrize("case", list(_AC_CASES))
+    def test_never_binding_limit_exports_the_plan_without_limit(self, config_eos, seed, case):
+        """A 20 kW limit never binds: same instructions as without a limit, plus the threshold.
+
+        Also for slots that start full (90 % maximum SoC) with a neutral AC gene
+        and for a battery with 3 kWh room: their charge factors are clamped by
+        the room as without a limit, because the battery shaves nothing there.
+        """
+        soc_percentage, prices = _AC_CASES[case]
+        unlimited = _optimize_ac(
+            config_eos, None, soc_percentage=soc_percentage, prices=prices, seed=seed
+        )
+        unlimited_plan = unlimited.energy_management_plan()
+        limited = _optimize_ac(
+            config_eos, 20000.0, soc_percentage=soc_percentage, prices=prices, seed=seed
+        )
+        limited_plan = limited.energy_management_plan()
+
+        assert limited.ac_charge == unlimited.ac_charge
+        assert _battery_instructions(limited_plan) == _battery_instructions(unlimited_plan)
+        assert {
+            cast(FRBCInstruction, i).peak_shaving_threshold_w
+            for i in limited_plan.instructions
+            if i.resource_id == "battery1"
+        } == {20000.0}
+
+    @pytest.mark.parametrize("seed", [1, 5, 42])
+    @pytest.mark.parametrize("case", list(_AC_CASES))
+    def test_independent_controller_charges_what_was_simulated(self, config_eos, seed, case):
+        """No unplanned grid charge above EOS's 90 % maximum SoC."""
+        soc_percentage, prices = _AC_CASES[case]
+        solution = _optimize_ac(
+            config_eos, 20000.0, soc_percentage=soc_percentage, prices=prices, seed=seed
+        )
+
+        grid, soc = _independent_controller(
+            solution.energy_management_plan(),
+            [1000.0] * AC_SLOTS,
+            soc_wh=soc_percentage * 100.0,
+        )
+
+        np.testing.assert_allclose(grid, solution.result.grid_consumption_wh_per_hour, atol=1e-6)
+        np.testing.assert_allclose(soc, solution.result.battery_soc_per_hour, atol=1e-6)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("case", list(_AC_CASES))
+    async def test_solution_table_matches_the_plan_without_limit(self, config_eos, case):
+        """The battery1_*_op_* columns follow the same rule as the instructions."""
+        soc_percentage, prices = _AC_CASES[case]
+        columns = {}
+        for limit_w in (None, 20000.0):
+            solution = _optimize_ac(
+                config_eos, limit_w, soc_percentage=soc_percentage, prices=prices, seed=1
+            )
+            table = (await solution.optimization_solution()).solution.to_dataframe()
+            columns[limit_w] = table[[c for c in table.columns if "_op_" in c]]
+
+        assert columns[20000.0].equals(columns[None])
+
+
+class TestIndependentControllerWithThreshold:
+    @pytest.mark.parametrize("name", ["two_peaks_small_battery", "cheap_peak_then_expensive_hours"])
+    def test_independent_controller_reaches_the_simulated_plan(self, config_eos, name):
+        """Scenarios without PV, executed by the independent controller model."""
+        load, _, _, capacity_wh, soc_percentage, _ = _SCENARIOS[name]
+        solution = _optimize_scenario(config_eos, name)
+
+        grid, soc = _independent_controller(
+            solution.energy_management_plan(),
+            load,
+            soc_wh=capacity_wh * soc_percentage / 100.0,
+            capacity_wh=float(capacity_wh),
+        )
+
+        np.testing.assert_allclose(grid, solution.result.grid_consumption_wh_per_hour, atol=1e-6)
+        np.testing.assert_allclose(soc, solution.result.battery_soc_per_hour, atol=1e-6)
+
+
+class TestClampOfShavedSlots:
+    @staticmethod
+    def _solution() -> GeneticSolution:
+        """What the clamp reads from a solution: a full 10 kWh / 5 kW battery, hourly slots."""
+        inverter, battery = _devices()
+        return cast(
+            GeneticSolution,
+            SimpleNamespace(
+                parameters=SimpleNamespace(
+                    pv_battery=battery.parameters, inverter=inverter.parameters
+                ),
+                interval_seconds=3600,
+            ),
+        )
+
+    def test_released_slot_is_clamped_as_without_a_threshold(self):
+        """A released full battery at the limit: PV permission cleared as on main."""
+        factors = GeneticSolution._soc_clamped_operation_factors(
+            self._solution(), 0.0, 1.0, True, 100.0, shaved_peak=True
+        )
+
+        assert factors == (0.0, 0.0, True, False)
+
+    def test_held_shaved_slot_keeps_its_charge_factors(self):
+        factors = GeneticSolution._soc_clamped_operation_factors(
+            self._solution(), 0.1, 1.0, False, 100.0, shaved_peak=True
+        )
+
+        assert factors == (0.1, 1.0, False, False)
+
+    def test_held_slot_without_shaving_is_clamped(self):
+        factors = GeneticSolution._soc_clamped_operation_factors(
+            self._solution(), 0.1, 1.0, False, 100.0, shaved_peak=False
+        )
+
+        assert factors == (0.0, 0.0, False, False)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("name", list(_SCENARIOS))
+    async def test_solution_table_shows_the_exported_modes(self, config_eos, name):
+        """battery1_*_op_* columns of optimization_solution() match energy_management_plan()."""
+        solution = _optimize_scenario(config_eos, name)
+        table = (await solution.optimization_solution()).solution.to_dataframe()
+        plan_controls = _battery_controls(solution.energy_management_plan())[:3]
+
+        modes = [m for m in _MODE_CONTROLS if f"battery1_{m.lower()}_op_mode" in table.columns]
+        table_controls = []
+        for row in range(SLOTS):
+            active = [m for m in modes if table[f"battery1_{m.lower()}_op_mode"].iloc[row] == 1.0]
+            assert len(active) == 1
+            factor = float(table[f"battery1_{active[0].lower()}_op_factor"].iloc[row])
+            table_controls.append(_MODE_CONTROLS[active[0]](factor))
+        ac, dc, discharge = (list(values) for values in zip(*table_controls))
+
+        assert (ac, dc, discharge) == tuple(plan_controls)

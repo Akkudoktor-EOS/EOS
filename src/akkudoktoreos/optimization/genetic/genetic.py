@@ -3941,12 +3941,12 @@ class GeneticOptimization(OptimizationBase):
                 gesamtbilanz += (target - reached) * full_charge_penalty
 
         # --- Grid import limit penalty ---
-        # Import above max_grid_import_power_w is simulated as is: the battery
-        # only discharges where the plan releases it, so the exported plan is
-        # what the simulation executed. The penalty per kWh of that excess makes
-        # the optimizer release the battery for peaks, keep reserve and charge
-        # earlier. It is computed from the simulated import, i.e. from what the
-        # battery actually delivered.
+        # Import above max_grid_import_power_w is what is left after the battery
+        # discharged: for the whole load where the plan releases it, for the
+        # excess (threshold peak shaving) where the plan holds it. The penalty
+        # per kWh of the rest makes the optimizer keep reserve for peaks and
+        # charge earlier. It is computed from the simulated import, i.e. from
+        # what the battery actually delivered.
         max_grid_import_wh = getattr(self.simulation.inverter, "max_grid_import_wh", None)
         if max_grid_import_wh is not None:
             excess = (

@@ -1,5 +1,6 @@
 """Genetic algorithm optimisation solution."""
 
+import math
 from typing import Any, Optional, Union, cast
 
 import numpy as np
@@ -26,6 +27,7 @@ from akkudoktoreos.devices.devicesabc import (
     BatteryOperationMode,
 )
 from akkudoktoreos.devices.genetic.battery import Battery
+from akkudoktoreos.devices.genetic.inverter import GRID_IMPORT_LIMIT_TOLERANCE_WH
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
@@ -600,6 +602,25 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             return None
         return inverter.max_grid_import_power_w
 
+    def _slot_shaved_peak(self, result_idx: int, peak_shaving_threshold_w: Optional[float]) -> bool:
+        """Whether the simulated slot may have shaved a peak at the threshold.
+
+        A held battery shaves only where the import reaches the grid import
+        limit; it then stays exactly at the limit, or above it once the battery
+        has nothing left. Slots below the limit (most AC charging slots among
+        them) shaved nothing.
+        """
+        if peak_shaving_threshold_w is None:
+            return False
+        imports = self.result.grid_consumption_wh_per_hour
+        if result_idx >= len(imports):
+            return False
+        slot_import_wh = imports[result_idx]
+        if slot_import_wh is None or not math.isfinite(slot_import_wh):
+            return False
+        limit_wh = peak_shaving_threshold_w * float(self.interval_seconds) / 3600.0
+        return slot_import_wh >= limit_wh - GRID_IMPORT_LIMIT_TOLERANCE_WH
+
     def _soc_clamped_operation_factors(
         self,
         ac_charge: float,
@@ -607,7 +628,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         discharge_allowed: bool,
         soc_pct: float,
         battery_grid_export_allowed: bool = False,
-        peak_shaving: bool = False,
+        shaved_peak: bool = False,
     ) -> tuple[float, float, bool, bool]:
         """Clamp raw genetic gene values by the battery's actual SOC at that hour.
 
@@ -623,10 +644,11 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             commanded factor would store in one optimization slot.  Set to 0 when full.
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
-          - With ``peak_shaving`` (a grid import threshold) a held slot keeps
-            its AC and DC charge factors unclamped: the battery may shave a
-            peak within the slot and charge again, so the start-of-slot
-            headroom does not bound what it takes.
+          - With ``shaved_peak`` (the simulated slot reached the grid import
+            threshold) a held slot keeps its AC and DC charge factors
+            unclamped: the battery shaved a peak within the slot and may charge
+            again, so the start-of-slot headroom does not bound what it takes.
+            Held slots that shaved nothing are clamped as without a threshold.
           - Discharge: blocked when SOC is at or below min SOC.
           - Battery grid export: blocked when SOC is at or below min SOC.
         """
@@ -648,10 +670,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         ch_eff = float(bat.charging_efficiency)
         headroom_wh = max(0.0, (max_soc - soc_pct) / 100.0 * capacity_wh)
 
-        # A held battery with a peak shaving threshold may discharge within the
-        # slot and charge again: its start-of-slot headroom is no bound for
-        # the charge controls, which keep the simulated values.
-        shaving_slot = peak_shaving and not discharge_allowed
+        # A held battery that shaved a peak discharged within the slot and may
+        # charge again: its start-of-slot headroom is no bound for the charge
+        # controls, which keep the simulated values.
+        shaving_slot = shaved_peak and not discharge_allowed
 
         # --- AC charge: scale to available headroom ---
         effective_ac = ac_charge
@@ -817,7 +839,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     discharge_allowed_hour,
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
-                    peak_shaving=peak_shaving_threshold_w is not None,
+                    shaved_peak=self._slot_shaved_peak(result_idx, peak_shaving_threshold_w),
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac, eff_dc, eff_dis, eff_grid_export, battery_grid_export_factor_hour
@@ -1097,7 +1119,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     bool(self.discharge_allowed[hour_idx]),
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
-                    peak_shaving=peak_shaving_threshold_w is not None,
+                    shaved_peak=self._slot_shaved_peak(result_idx, peak_shaving_threshold_w),
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac,
