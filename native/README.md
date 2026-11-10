@@ -71,10 +71,11 @@ PYTHONPATH=native/scripts GENETIC_COMPARE_DOT=sequential GENETIC_COMPARE_OUT=com
   plus the timezones of the timestamps). Python is put on the release profile for that
   (`native.SequentialDotNumpy`, NumPy grid interpolation).
 - The compare plugin runs every GENETIC optimization of the test suite in both and reports
-  `identical`, `unsupported` (the kernel rejected the request), `patched` (the test replaces
-  parts of the Python optimizer, so a difference is expected) and `different`.
+  `identical`, `unsupported` (the kernel rejected a request it does not support), `patched`
+  (the test replaces parts of the Python optimizer, so a difference is expected), `different`
+  and `failed` (any other native error: a panic, an invalid response).
 - The `native` CI workflow builds the wheels, runs both on x86_64 and aarch64 and fails on any
-  `different` run. It runs only when GENETIC sources or `native/` change.
+  `different` or `failed` run. It runs only when GENETIC sources or `native/` change.
 
 ## Building
 

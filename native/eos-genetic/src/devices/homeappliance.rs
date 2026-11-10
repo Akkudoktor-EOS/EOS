@@ -116,10 +116,7 @@ impl HomeAppliance {
         if p.time_windows.as_ref().is_some_and(|v| !v.is_null())
             || p.shared_time_windows.as_ref().is_some_and(|v| !v.is_null())
         {
-            return Err(format!(
-                "home appliance '{}': time_windows are not supported by the native optimizer",
-                p.device_id
-            ));
+            return Err(format!("home appliance '{}': time_windows are {}", p.device_id, crate::run::NOT_SUPPORTED));
         }
         // validate_home_appliance_load_definition
         let profile_given = p.load_profile_power_w.is_some();

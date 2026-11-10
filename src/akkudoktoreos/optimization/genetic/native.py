@@ -190,7 +190,21 @@ def reference_profile(native: Any = None) -> Optional[dict[str, Any]]:
 
 
 class NativeUnsupported(Exception):
-    """The run cannot be done natively; the message says why."""
+    """The request cannot be run natively; the message says why.
+
+    A feature the kernel does not support, or a missing or incompatible package. Expected, not
+    a defect.
+    """
+
+
+class NativeRunFailed(Exception):
+    """The kernel failed on a request it accepted (error, panic, invalid response): a defect."""
+
+
+# Error codes of the kernel for requests it does not support (eos_genetic::run).
+UNSUPPORTED_CODES = frozenset(
+    {"unsupported", "unsupported_parameters", "unsupported_settings", "interface_version"}
+)
 
 
 def _json_ready(value: Any) -> Any:
@@ -346,11 +360,16 @@ def run_native(
         response = json.loads(native.run_genetic(json.dumps(_json_ready(request), allow_nan=False)))
     except native.NativeRunError as exc:
         code, message = (exc.args + ("", ""))[:2] if exc.args else ("error", "")
-        raise NativeUnsupported(f"kernel rejected the run ({code}): {message}") from exc
+        if code in UNSUPPORTED_CODES:
+            raise NativeUnsupported(f"kernel rejected the run ({code}): {message}") from exc
+        raise NativeRunFailed(f"kernel failed ({code}): {message}") from exc
     elapsed = time.perf_counter() - started
-    data = response["solution"]
-    data["parameters"] = _solution_parameters(optimization, parameters)
-    solution = GeneticSolution(**data)
+    try:
+        data = response["solution"]
+        data["parameters"] = _solution_parameters(optimization, parameters)
+        solution = GeneticSolution(**data)
+    except Exception as exc:  # noqa: BLE001 - any invalid response is a kernel defect
+        raise NativeRunFailed(f"invalid kernel response: {type(exc).__name__}: {exc}") from exc
     _use_python_timezones(optimization, solution)
     return NativeRun(solution, response.get("diagnostics", {}), elapsed)
 
@@ -366,7 +385,7 @@ def _use_python_timezones(optimization: GeneticOptimization, solution: GeneticSo
     native_start = solution.start_solution_datetime
     # Instants, not datetimes: across zones, Python never equates times in a DST fold.
     if native_start is None or native_start.timestamp() != start.timestamp():
-        raise NativeUnsupported(
+        raise NativeRunFailed(
             f"kernel solution starts at {native_start}, the energy management run at {start}"
         )
     solution.start_solution_datetime = start
@@ -462,6 +481,9 @@ class CompareReport:
     python_net_euro: float
     native_net_euro: float
     native_error: str = ""
+    # The native run was not possible for an expected reason (NativeUnsupported), as opposed to
+    # a kernel defect.
+    native_unsupported: bool = False
     # Differences that are expected for this configuration and not counted (see CACHE_COUNTERS).
     ignored_differences: list[str] = field(default_factory=list)
 
@@ -508,6 +530,7 @@ def compare_run(
         )
     native_run: Optional[NativeRun] = None
     native_error = ""
+    native_unsupported = False
     try:
         native_run = run_native(
             optimization,
@@ -519,6 +542,7 @@ def compare_run(
         )
     except Exception as exc:  # noqa: BLE001 - reported, Python result is returned
         native_error = str(exc) or type(exc).__name__
+        native_unsupported = isinstance(exc, NativeUnsupported)
     started = time.perf_counter()
     solution = python_run()
     python_s = time.perf_counter() - started
@@ -533,6 +557,7 @@ def compare_run(
             python_net_euro=_net_euro(solution),
             native_net_euro=math.nan,
             native_error=native_error,
+            native_unsupported=native_unsupported,
         )
         logger.warning("GENETIC compare: native run failed: {}", native_error)
         return solution

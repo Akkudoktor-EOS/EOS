@@ -99,10 +99,12 @@ jobs:
           uv run --no-sync python - <<'EOF'
           import json, sys
           summary = json.load(open("compare.json"))["summary"]
-          print(json.dumps({k: v for k, v in summary.items() if k != "different"}, indent=1))
+          print(json.dumps({k: v for k, v in summary.items() if k not in ("different", "failed")}, indent=1))
           for entry in summary["different"]:
               print("::error::native differs:", entry["test"], entry["report"]["first"][:3])
-          sys.exit(1 if summary["different"] else 0)
+          for entry in summary["failed"]:
+              print("::error::native failed:", entry["test"], entry["report"]["native_error"][:200])
+          sys.exit(1 if summary["different"] or summary["failed"] else 0)
           EOF
       - uses: actions/upload-artifact@v7
         if: always()

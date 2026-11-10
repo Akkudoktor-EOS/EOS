@@ -105,6 +105,14 @@ fn err(code: &'static str, message: impl Into<String>) -> RunError {
     RunError { code, message: message.into() }
 }
 
+/// Marker in the message of a request the kernel rejects because it does not support it
+/// (error code `unsupported`). Every other `run_failed` is a defect of the kernel.
+pub const NOT_SUPPORTED: &str = "not supported natively";
+
+fn run_error(message: String) -> RunError {
+    if message.contains(NOT_SUPPORTED) { err("unsupported", message) } else { err("run_failed", message) }
+}
+
 /// Fitness threads like EOS `auto_evaluation_workers`: one core stays free, at most two.
 pub fn auto_threads() -> usize {
     let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
@@ -187,8 +195,8 @@ pub fn prepare(req: &RunRequest) -> Result<(GeneticOptimizationParameters, RunCo
 pub fn run(req: &RunRequest) -> Result<Value, RunError> {
     let (params, cfg, numeric) = prepare(req)?;
     let t0 = std::time::Instant::now();
-    let core = crate::genetic::optimize_ems(&params, &cfg, req.generations, req.individuals, numeric)
-        .map_err(|e| err("run_failed", e))?;
+    let core =
+        crate::genetic::optimize_ems(&params, &cfg, req.generations, req.individuals, numeric).map_err(run_error)?;
     let elapsed = t0.elapsed().as_secs_f64();
     let solution = crate::convert::genetic_solution(&core, cfg.timezone);
     let solution = serde_json::to_value(&solution).map_err(|e| err("serialization", e.to_string()))?;
