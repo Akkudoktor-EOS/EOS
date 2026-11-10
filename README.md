@@ -128,12 +128,9 @@ To install the **Akkudoktor-EOS** add-on in Home Assistant:
 
    Click **Open Web UI** in the add-on panel.
 
-5. **Configure EOS** (optional):
-   In the dashboard, go to:
-
-   ```
-   Config
-   ```
+5. **Configure EOS**:
+   In the dashboard, go to **Setup** for the first configuration step by step, or to **Config**
+   for all settings.
 
 ### Docker (Recommended)
 
@@ -225,7 +222,8 @@ export EOS_DIR=/path/to/your/config
 
 ### Configuration Methods
 
-1. **EOSdash** (Recommended) - Web interface at `http://localhost:8504`
+1. **EOSdash** (Recommended) - Web interface at `http://localhost:8504`, with a setup assistant
+   for the first configuration (menu **Setup**)
 2. **Manual** - Edit `EOS.config.json` directly
 3. **API** - Use the [Server API](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json)
 

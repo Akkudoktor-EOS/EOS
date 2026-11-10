@@ -49,7 +49,8 @@ export EOS_DIR=/path/to/your/config
 There are three ways to configure AkkudoktorEOS:
 
 1. **EOSdash (Recommended)** - The easiest method is to use the web-based dashboard at
-   [http://localhost:8504](http://localhost:8504)
+   [http://localhost:8504](http://localhost:8504). Its [setup assistant](#setup-page) takes you
+   through the first configuration step by step.
 
 2. **Manual editing** - Create or edit the `EOS.config.json` file directly in your preferred text
    editor
