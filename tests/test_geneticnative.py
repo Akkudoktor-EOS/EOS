@@ -443,6 +443,26 @@ class TestGuard:
         battery_py.write_text('"""Added module docstring."""\n' + "".join(lines), encoding="utf-8")
         assert native.compute_fingerprint(root) == reference
 
+    def test_fstring_statement_changes_fingerprint(self, tmp_path):
+        """A standalone f-string evaluates its expressions; it is not a docstring."""
+        root = _copy_sources(tmp_path)
+        reference = native.compute_fingerprint(root)
+        battery_py = root / "devices/genetic/battery.py"
+        text = battery_py.read_text(encoding="utf-8")
+        lines = text.splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            stripped = line.lstrip()
+            if stripped.startswith("return "):
+                indent = line[: len(line) - len(stripped)]
+                lines.insert(index, f'{indent}f"{{self.reset()}}"\n')
+                break
+        battery_py.write_text("".join(lines), encoding="utf-8")
+        assert native.compute_fingerprint(root) != reference
+        assert native._is_constant_string('"""doc"""')
+        assert native._is_constant_string("r'doc'")
+        assert not native._is_constant_string('f"{x}"')
+        assert not native._is_constant_string("RF'{x}'")
+
     def test_fstring_is_one_token_as_on_python_311(self):
         """Python >= 3.12 splits f-strings into several tokens; the fingerprint must not."""
         source = 'x = f"a{b!r:>{width}}c" + f"{f\'{d}\'}"\n'

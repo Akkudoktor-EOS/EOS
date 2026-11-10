@@ -171,12 +171,19 @@ def _significant_tokens(text: str) -> list[tuple[int, str]]:
     return out
 
 
+def _is_constant_string(literal: str) -> bool:
+    """Whether a string token is a constant (no f- or t-string, which evaluate expressions)."""
+    prefix = literal[: min(i for i in (literal.find("'"), literal.find('"')) if i >= 0)]
+    return not set(prefix.lower()) & {"f", "t"}
+
+
 def _normalized_source(text: str) -> bytes:
     """Tokens of a Python source without comments, blank lines and docstrings.
 
     Formatting, comments and docstrings do not change what the optimization computes, so they
     do not change the fingerprint. Docstrings are string statements that start a logical line
-    and end it; they are dropped together with the end of their line.
+    and end it; they are dropped together with the end of their line. An f-string statement
+    is not a docstring: it evaluates expressions.
     """
     significant = _significant_tokens(text)
     out: list[str] = []
@@ -188,6 +195,7 @@ def _normalized_source(text: str) -> bytes:
             kind == tokenize.STRING
             and statement_start
             and following in (tokenize.NEWLINE, tokenize.ENDMARKER)
+            and _is_constant_string(string)
         ):
             skip_newline = True
             continue
