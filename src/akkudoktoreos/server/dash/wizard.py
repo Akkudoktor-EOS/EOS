@@ -169,8 +169,9 @@ these settings. The cards are the same as on the **Config** page:
 - Click a card to open it. It shows the description, the type and the default of the setting.
 - Type the new value into the **update** field and press Enter, or choose a value and press
   **Set**. The value is checked by EOS; if EOS rejects it, the card shows why.
-- A new value is used by EOS right away. It is written to the configuration file - and
-  survives a restart of EOS - only when you save the configuration in the last step.
+- A new value is used by EOS right away. By default EOS also saves it to the configuration
+  file within a minute, so it survives a restart of EOS. If you switched the automatic saving
+  off, save the configuration in the last step.
 
 Above the explanation you see all steps. A check mark means EOS has what it needs from that
 step, a warning sign means something is left to do. You can leave the assistant at any time
@@ -241,7 +242,10 @@ Use `PREDICTION` while you are still setting up the forecasts and want to look a
         intro="""
 Below is what the steps of this assistant found. Go back to a step to complete it.
 
-**Save the configuration** to keep your settings when EOS restarts.
+EOS saves changes of the configuration to the configuration file on its own if
+`general.config_save_mode` is `AUTOMATIC`, which is the default. With `MANUAL` your settings
+are lost when EOS restarts unless you save them. **Save configuration** writes the
+configuration file right now in both modes.
 
 This assistant does not cover everything yet. Set up the following on the **Config** page:
 
@@ -255,6 +259,7 @@ This assistant does not cover everything yet. Set up the following on the **Conf
 Then look at the **Prediction** page to check the forecasts and at the **Plan** page for the
 result of the optimization.
 """,
+        config_names=("general.config_save_mode",),
     ),
 )
 
