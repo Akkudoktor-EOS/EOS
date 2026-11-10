@@ -14,6 +14,7 @@ All expected values are worked out by hand in the tests.
 """
 
 import json
+from types import SimpleNamespace
 from typing import Any, Optional, cast
 
 import numpy as np
@@ -61,6 +62,7 @@ def _devices(
     inverter_power_w: float = 10000.0,
     dc_to_ac_efficiency: float = 1.0,
     dc_to_ac_efficiency_curve: Optional[list[tuple[float, float]]] = None,
+    total_charge: bool = False,
     battery_class: type[Battery] = Battery,
 ) -> tuple[Inverter, Battery]:
     """Real battery and inverter; the battery is held (not released) in every slot."""
@@ -88,6 +90,7 @@ def _devices(
             battery_id="battery1",
             dc_to_ac_efficiency=dc_to_ac_efficiency,
             dc_to_ac_efficiency_curve=dc_to_ac_efficiency_curve,
+            ac_charge_limits_total_charge=total_charge,
             max_grid_import_power_w=limit_w,
         ),
         battery=battery,
@@ -591,3 +594,65 @@ class TestExportedPlan:
         for instruction in plan.instructions:
             assert isinstance(instruction, FRBCInstruction)
             assert instruction.peak_shaving_threshold_w is None
+
+    def test_total_charge_setpoint_of_a_full_held_slot_is_exported(self, config_eos):
+        """Total-charge inverter, full battery, 0.1 setpoint (500 Wh cap per hour).
+
+        12 kWh load and 9 kWh PV at a 2 kW limit: the held battery shaves the
+        peak and PV refills it up to the 500 Wh cap. The exported controls of
+        the slot, derived by the plan export from the slot's start SoC (full),
+        must keep that cap; without it PV refills more than simulated.
+        """
+        kwargs: dict[str, Any] = {
+            "load": [12000.0],
+            "pv": [9000.0],
+            "ac": [0.1],
+            "dc": [1.0],
+            "total_charge": True,
+            "limit_w": 2000.0,
+        }
+        result, sim = _simulate(config_eos, **kwargs)
+        assert sim.ac_charge_hours is not None and sim.dc_charge_hours is not None
+        assert sim.bat_discharge_hours is not None
+        inverter = sim.inverter
+        assert inverter is not None and inverter.battery is not None
+        # Only what the export reads from a solution: its parameters and slot length.
+        solution = cast(
+            GeneticSolution,
+            SimpleNamespace(
+                parameters=SimpleNamespace(
+                    pv_battery=inverter.battery.parameters, inverter=inverter.parameters
+                ),
+                interval_seconds=3600,
+            ),
+        )
+
+        ac, dc, discharge, export = GeneticSolution._soc_clamped_operation_factors(
+            solution,
+            float(sim.ac_charge_hours[0]),
+            float(sim.dc_charge_hours[0]),
+            bool(sim.bat_discharge_hours[0]),
+            float(result["akku_soc_pro_stunde"][0]),
+            peak_shaving=True,
+        )
+        mode, factor = GeneticSolution._battery_operation_from_solution(
+            ac, dc, discharge, export
+        )
+        replay_ac, replay_dc, replay_discharge = _MODE_CONTROLS[str(mode)](factor)
+        replay, replay_sim = _simulate(
+            config_eos,
+            **{
+                **kwargs,
+                "ac": [replay_ac],
+                "dc": [replay_dc],
+                "discharge": [replay_discharge],
+            },
+        )
+        assert replay_sim.inverter is not None and replay_sim.inverter.battery is not None
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == 2000.0
+        assert inverter.battery.soc_wh < 10000.0
+        np.testing.assert_allclose(
+            replay["Netzbezug_Wh_pro_Stunde"], result["Netzbezug_Wh_pro_Stunde"]
+        )
+        assert replay_sim.inverter.battery.soc_wh == pytest.approx(inverter.battery.soc_wh)

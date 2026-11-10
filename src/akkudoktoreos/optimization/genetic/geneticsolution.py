@@ -623,8 +623,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             commanded factor would store in one optimization slot.  Set to 0 when full.
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
-            With ``peak_shaving`` (a grid import threshold) a held battery keeps
-            it: it may shave a peak within the slot and take PV back.
+          - With ``peak_shaving`` (a grid import threshold) a held slot keeps
+            its AC and DC charge factors unclamped: the battery may shave a
+            peak within the slot and charge again, so the start-of-slot
+            headroom does not bound what it takes.
           - Discharge: blocked when SOC is at or below min SOC.
           - Battery grid export: blocked when SOC is at or below min SOC.
         """
@@ -646,9 +648,14 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         ch_eff = float(bat.charging_efficiency)
         headroom_wh = max(0.0, (max_soc - soc_pct) / 100.0 * capacity_wh)
 
+        # A held battery with a peak shaving threshold may discharge within the
+        # slot and charge again: its start-of-slot headroom is no bound for
+        # the charge controls, which keep the simulated values.
+        shaving_slot = peak_shaving and not discharge_allowed
+
         # --- AC charge: scale to available headroom ---
         effective_ac = ac_charge
-        if effective_ac > 0.0:
+        if effective_ac > 0.0 and not shaving_slot:
             if headroom_wh <= 0.0:
                 effective_ac = 0.0
             else:
@@ -676,11 +683,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
         # --- DC charge (PV): zero when battery is full ---
         effective_dc = dc_charge
-        if (
-            effective_dc > 0.0
-            and headroom_wh <= 0.0
-            and not (peak_shaving and not discharge_allowed)
-        ):
+        if effective_dc > 0.0 and headroom_wh <= 0.0 and not shaving_slot:
             effective_dc = 0.0
 
         # --- Discharge: block at min SOC ---
