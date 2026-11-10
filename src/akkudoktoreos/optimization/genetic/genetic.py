@@ -1120,6 +1120,10 @@ class GeneticOptimization(OptimizationBase):
         # The EV Battery itself always has a minimum SoC of 0 %, so the target
         # has to be kept here for the seeding heuristic.
         self._ev_target_soc_percentage: Optional[float] = None
+        # Value of EV energy above the target SoC as [(soc_percentage, amount/kWh)]
+        # steps (parameters.ev.soc_value_steps). None: energy above the target
+        # earns no credit.
+        self._ev_soc_value_steps: Optional[list[tuple[float, float]]] = None
         # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
@@ -2689,7 +2693,12 @@ class GeneticOptimization(OptimizationBase):
         return changed
 
     def _heuristic_ev_schedule(self, *, prefer_pv: bool) -> list[int]:
-        """Build a low-cost EV schedule that reaches the configured minimum SoC."""
+        """Build a low-cost EV schedule that reaches the configured minimum SoC.
+
+        With SoC value steps it goes on charging, in the cheapest remaining
+        slots, as long as a slot's cost per stored kWh is below the value of
+        the next kWh and the maximum SoC is not reached.
+        """
         if not self.optimize_ev or not self.ev_possible_charge_values:
             return []
 
@@ -2712,7 +2721,8 @@ class GeneticOptimization(OptimizationBase):
             ev.capacity_wh * (target_soc - ev.initial_soc_percentage) / 100.0,
             0.0,
         )
-        if required_stored_wh <= 0.0:
+        value_steps = getattr(self, "_ev_soc_value_steps", None)
+        if required_stored_wh <= 0.0 and not value_steps:
             return schedule
 
         start_slot = self._control_start_slot()
@@ -2747,16 +2757,50 @@ class GeneticOptimization(OptimizationBase):
 
         max_stored_wh = ev.max_charge_power_w * self.slot_duration_h * ev.charging_efficiency
         remaining_wh = required_stored_wh
-        for slot in candidates:
-            required_rate = remaining_wh / max(max_stored_wh, 1e-9)
-            rate, rate_index = next(
-                (item for item in positive_rates if item[0] >= required_rate),
-                positive_rates[-1],
+        seeded_wh = 0.0
+        if remaining_wh > 0.0:
+            for slot in candidates:
+                required_rate = remaining_wh / max(max_stored_wh, 1e-9)
+                rate, rate_index = next(
+                    (item for item in positive_rates if item[0] >= required_rate),
+                    positive_rates[-1],
+                )
+                schedule[slot] = rate_index
+                remaining_wh -= max_stored_wh * rate
+                seeded_wh += max_stored_wh * rate
+                if remaining_wh <= 1e-9:
+                    break
+        if value_steps:
+            # Beyond the target: full power in the cheapest free slots as long
+            # as a slot costs less per stored kWh than the next stored kWh is
+            # worth. The PV variant pays the feed-in tariff for the surplus it
+            # takes and the import price for the rest of the slot's energy.
+            # With direct marketing an export at a negative tariff is curtailed,
+            # so the surplus then costs nothing (and earns nothing either).
+            curtails_negative = bool(getattr(self.simulation, "direct_marketing_enabled", False))
+            full_rate, full_index = positive_rates[-1]
+            full_ac_wh = ev.max_charge_power_w * self.slot_duration_h * full_rate
+
+            def fill_cost_wh(slot: int) -> float:
+                surplus_wh = min(max(pv[slot] - load[slot], 0.0), full_ac_wh) if prefer_pv else 0.0
+                surplus_price = max(feed_in[slot], 0.0) if curtails_negative else feed_in[slot]
+                return float(surplus_wh * surplus_price + (full_ac_wh - surplus_wh) * prices[slot])
+
+            # Sorted by the cost of a full-power slot (stable, so equal costs
+            # keep the order of the candidates); the value does not rise with
+            # the SoC, so the first slot that does not pay ends the fill.
+            free_slots = sorted(
+                (slot for slot in candidates if schedule[slot] == zero_index), key=fill_cost_wh
             )
-            schedule[slot] = rate_index
-            remaining_wh -= max_stored_wh * rate
-            if remaining_wh <= 1e-9:
-                break
+            soc = ev.initial_soc_percentage + seeded_wh / ev.capacity_wh * 100.0
+            for slot in free_slots:
+                if soc >= ev.max_soc_percentage - 1e-9:
+                    break
+                value_per_wh = self._ev_soc_value_per_wh(max(soc, target_soc))
+                if fill_cost_wh(slot) >= value_per_wh * full_ac_wh * ev.charging_efficiency:
+                    break
+                schedule[slot] = full_index
+                soc += max_stored_wh * full_rate / ev.capacity_wh * 100.0
         return schedule
 
     def _heuristic_appliance_genes(self) -> list[int]:
@@ -3854,6 +3898,77 @@ class GeneticOptimization(OptimizationBase):
         reached = [value for value in reached if math.isfinite(value)]
         return max(reached) if reached else battery.current_soc_percentage()
 
+    @staticmethod
+    def _ev_soc_value_headroom(ev_parameters: Any) -> bool:
+        """Whether a positive SoC value step lies above the vehicle's SoC and target.
+
+        Args:
+            ev_parameters: The EV parameters of this run.
+
+        Returns:
+            True when charging beyond the target can earn a credit.
+        """
+        steps = ev_parameters.soc_value_steps
+        if not steps:
+            return False
+        floor = max(ev_parameters.initial_soc_percentage, ev_parameters.min_soc_percentage)
+        top = ev_parameters.max_soc_percentage
+        return any(amount > 0.0 and min(soc, top) > floor for soc, amount in steps)
+
+    def _ev_soc_value_credit(self, soc_percentage: float) -> float:
+        """Credit for the EV energy above the target SoC [amount].
+
+        Each kWh stored between the target (``min_soc_percentage``) and a
+        step's SoC earns that step's amount; energy below the target, above
+        the last step or above ``max_soc_percentage`` earns nothing. The
+        steps' amounts do not rise with the SoC, so the credit is concave:
+        the first kWh above the target is the most valuable one.
+
+        Args:
+            soc_percentage: EV state of charge at the deadline, or at the end
+                of the control horizon without one [%].
+
+        Returns:
+            The credit, 0.0 without value steps.
+        """
+        steps = getattr(self, "_ev_soc_value_steps", None)
+        ev = self.simulation.ev
+        if not steps or ev is None:
+            return 0.0
+        kwh_per_percent = ev.capacity_wh / 100.0 / 1000.0
+        lower = getattr(self, "_ev_target_soc_percentage", None) or 0.0
+        top = min(soc_percentage, float(ev.max_soc_percentage))
+        credit = 0.0
+        for step_soc, amount in steps:
+            if lower >= top:
+                break
+            upper = min(step_soc, top)
+            if upper > lower:
+                credit += (upper - lower) * kwh_per_percent * amount
+            lower = max(lower, step_soc)
+        return credit
+
+    def _ev_soc_value_per_wh(self, soc_percentage: float) -> float:
+        """Value of the next Wh stored in the EV at the given SoC [amount/Wh].
+
+        It is the amount of the first step above both the SoC and the target,
+        and 0.0 at or above ``max_soc_percentage``, above the last step or
+        without value steps.
+        """
+        steps = getattr(self, "_ev_soc_value_steps", None)
+        ev = self.simulation.ev
+        if not steps or ev is None or soc_percentage >= ev.max_soc_percentage:
+            return 0.0
+        target = getattr(self, "_ev_target_soc_percentage", None) or 0.0
+        return next(
+            (
+                amount / 1000.0
+                for step_soc, amount in steps
+                if step_soc > soc_percentage and step_soc > target
+            ),
+            0.0,
+        )
+
     def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
         """EV state of charge the target is checked against [%].
 
@@ -4119,6 +4234,10 @@ class GeneticOptimization(OptimizationBase):
             ev_soc_percentage = self._ev_soc_at_deadline(simulation_result, start_hour)
             if ev_soc_percentage < parameters.ev.min_soc_percentage:
                 gesamtbilanz += abs(parameters.ev.min_soc_percentage - ev_soc_percentage) * penalty
+            # Energy above the target is worth what the caller says it saves
+            # later (soc_value_steps), at the same moment the target is checked.
+            if getattr(self, "_ev_soc_value_steps", None):
+                gesamtbilanz -= self._ev_soc_value_credit(ev_soc_percentage)
 
         return (gesamtbilanz,)
 
@@ -4460,10 +4579,14 @@ class GeneticOptimization(OptimizationBase):
                 slot_duration_h=self.slot_duration_h,
             )
             eauto.set_charge_per_hour(np.full(self.control_end_slot, 1))
+            # A vehicle at its target is only planned when energy above the
+            # target has a value it can still gain.
             self.optimize_ev = (
                 parameters.ev.min_soc_percentage > parameters.ev.initial_soc_percentage
+                or self._ev_soc_value_headroom(parameters.ev)
             )
             self._ev_target_soc_percentage = float(parameters.ev.min_soc_percentage)
+            self._ev_soc_value_steps = parameters.ev.soc_value_steps
             # electrical vehicle charge rates
             if parameters.ev.charge_rates is not None:
                 self.ev_possible_charge_values = parameters.ev.charge_rates
@@ -4495,6 +4618,7 @@ class GeneticOptimization(OptimizationBase):
         else:
             self.optimize_ev = False
             self._ev_target_soc_percentage = None
+            self._ev_soc_value_steps = None
 
         # Battery AC charge rates — use the battery's configured charge_rates so the
         # optimizer can select partial AC charge power (e.g. 10 %, 50 %, 100 %) instead

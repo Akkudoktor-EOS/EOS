@@ -66,6 +66,13 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   time on. Before it the vehicle neither charges nor discharges and keeps its initial SoC, so a
   plan made ahead of time no longer charges a car that is not there or not yet allowed to
   charge. Unset (default), plans are unchanged.
+- Optional value of EV energy above the target SoC for GENETIC: `soc_value_steps` on an electric
+  vehicle, `[[soc_percentage, amount_per_kwh], ...]`, credits every kWh stored between
+  `min_soc_percentage` and the steps (at most `max_soc_percentage`) where the target is checked
+  (deadline, else end of the control horizon). The planner then charges beyond the target where
+  that costs less than the value - in a cheap night ahead of later trips or from PV surplus - and
+  also plans a vehicle that already reached its target. The target keeps its penalty. Without the
+  field, plans are unchanged.
 - Parallel fitness evaluation for GENETIC: `optimization.genetic.workers` (unset = automatic:
   at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
   process as before) and `optimization.genetic.pin_workers` (workers pinned to the last

@@ -11,6 +11,7 @@ from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import ConfigScope
+from akkudoktoreos.devices.devicesabc import validate_soc_value_steps
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.measurement.batterycapacity import (
     BatteryCapacityEstimate,
@@ -34,6 +35,23 @@ BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 
 
 
 BATTERY_DEFAULT_GRID_EXPORT_RATES: list[float] = [0.25, 0.5, 0.75, 1.0]
+
+
+EV_SOC_VALUE_STEPS_DESCRIPTION = (
+    "Electric vehicles only. Value of energy stored in the vehicle above "
+    "'min_soc_percentage', as steps [[soc_percentage, amount_per_kwh], ...] "
+    "with strictly ascending state of charge in ]0, 100] and finite, "
+    "non-negative amounts that do not rise with the state of charge. Every "
+    "kWh stored (SoC energy, after charging losses) between the previous step "
+    "- at first 'min_soc_percentage' - and a step's state of charge, at most "
+    "'max_soc_percentage', is credited with that step's amount at the moment "
+    "the target is checked: the deadline, or else the end of the control "
+    "horizon. The optimizer then charges beyond the target where that costs "
+    "less than the value, e.g. in a cheap night or from PV surplus. Energy "
+    "below the target earns nothing, so the target keeps its penalty. None or "
+    "an empty list: energy above the target earns no credit, as before. Used "
+    "by GENETIC."
+)
 
 
 class BatteriesCommonSettings(DevicesBaseSettings):
@@ -228,6 +246,23 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         },
     )
 
+    soc_value_steps: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": EV_SOC_VALUE_STEPS_DESCRIPTION,
+            "examples": [None, [[80, 0.25]], [[60, 0.3], [80, 0.22]]],
+        },
+    )
+
+    @field_validator("soc_value_steps", mode="after")
+    @classmethod
+    def _validate_soc_value_steps(
+        cls, value: Optional[list[tuple[float, float]]]
+    ) -> Optional[list[tuple[float, float]]]:
+        """Ascending SoC, non-increasing finite amounts; an empty list means no value."""
+        return validate_soc_value_steps(value)
+
     @field_validator("min_soc_deadline_datetime", "charge_start_datetime", mode="before")
     @classmethod
     def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
@@ -343,6 +378,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             min_soc_deadline_datetime=self.min_soc_deadline_datetime,
             min_soc_max_duration_h=self.min_soc_max_duration_h,
             charge_start_datetime=self.charge_start_datetime,
+            soc_value_steps=self.soc_value_steps,
         )
 
     # ------------------------------------------------------------------

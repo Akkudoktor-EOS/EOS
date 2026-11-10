@@ -1,9 +1,14 @@
+import math
 from typing import Any, Iterator, Optional
 
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
-from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
+from akkudoktoreos.devices.devicesabc import validate_soc_value_steps
+from akkudoktoreos.devices.settings.batterysettings import (
+    BATTERY_DEFAULT_CHARGE_RATES,
+    EV_SOC_VALUE_STEPS_DESCRIPTION,
+)
 from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
@@ -211,6 +216,31 @@ class ElectricVehicleParameters(BaseBatteryParameters):
             "examples": [None, "2026-07-15T20:00:00+02:00"],
         },
     )
+
+    soc_value_steps: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": EV_SOC_VALUE_STEPS_DESCRIPTION,
+            "examples": [None, [[80, 0.25]], [[60, 0.3], [80, 0.22]]],
+        },
+    )
+
+    @field_validator("soc_value_steps", mode="after")
+    @classmethod
+    def _validate_soc_value_steps(
+        cls, value: Optional[list[tuple[float, float]]]
+    ) -> Optional[list[tuple[float, float]]]:
+        """Ascending SoC, non-increasing finite amounts; an empty list means no value."""
+        return validate_soc_value_steps(value)
+
+    @model_validator(mode="after")
+    def validate_soc_value_credit_is_finite(self) -> "ElectricVehicleParameters":
+        """The credit for a full vehicle must stay a finite number in the fitness."""
+        if self.soc_value_steps and not math.isfinite(
+            self.capacity_wh / 1000.0 * self.soc_value_steps[0][1]
+        ):
+            raise ValueError("soc_value_steps amounts are too large for the vehicle capacity.")
+        return self
 
     @field_validator("min_soc_deadline_datetime", "charge_start_datetime", mode="before")
     @classmethod

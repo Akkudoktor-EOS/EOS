@@ -389,6 +389,54 @@ target state of charge by a deadline:
 A date time without timezone is read as local time. Without these settings, the vehicle can charge
 throughout the horizon and has to reach its target by the end of it.
 
+By default energy above `min_soc_percentage` has no value for GENETIC: it costs money and earns
+nothing, so the optimizer has no reason to charge beyond the target (it may still do so where the
+charge rates round up or prices are negative), and a vehicle that already reached its target gets
+no charging plan - even in a cheap night or with PV surplus that would otherwise be fed in. Energy
+above the target can be given a value:
+
+- `soc_value_steps`: `[[soc_percentage, amount_per_kwh], ...]` with strictly ascending state of
+  charge in ]0, 100] and finite, non-negative amounts that do not rise with the state of charge.
+  Every kWh stored in the vehicle (SoC energy, after charging losses) between the previous step -
+  at first `min_soc_percentage` - and a step's state of charge is credited with that step's
+  amount. Energy below the target, above the last step or above `max_soc_percentage` earns
+  nothing. The credit is taken where the target is checked: at the deadline
+  (`min_soc_deadline_datetime` or `min_soc_max_duration_h`), or else at the end of the control
+  horizon. Charging after the deadline therefore earns nothing. A deadline that is relaxed
+  because it leaves no full slot after `charge_start_datetime` is not checked, so the credit is
+  then taken at the end of the control horizon, like the target.
+
+The optimizer then charges beyond the target, up to `max_soc_percentage`, in slots where storing a
+kWh costs less than the value of the next kWh: a grid kWh costs the import price divided by the
+charging efficiency, PV surplus the feed-in tariff it no longer earns. Non-rising amounts make
+the value concave, so the first kWh above the target is worth the most. The target keeps its
+penalty and does not compete with the value: more energy only lowers the penalty and raises the
+credit. The value does compete with the other penalties of the fitness (for example a grid
+import limit), so amounts far above energy prices should be avoided.
+
+A vehicle that already reached its target is planned as long as it is below
+`max_soc_percentage` and a step with a positive amount ends above its state of charge (a step
+beyond `max_soc_percentage` counts up to the maximum). With a charge start, the vehicle
+can only charge after it. The plan never charges in a slot that begins at `max_soc_percentage`;
+inside a slot the vehicle may reach its maximum, and a client should stop charging there.
+
+What energy above the target is worth is up to the caller, typically what it saves later: for
+a commuter, the expected cost of charging that energy before the following trips; for PV
+surplus charging without a target (`min_soc_percentage` 0), a value just above the feed-in tariff
+divided by the charging efficiency, so that surplus is stored and grid energy is not. Without
+`soc_value_steps` (or with an empty list) plans are unchanged.
+
+```json
+{
+    "min_soc_percentage": 50,
+    "max_soc_percentage": 80,
+    "soc_value_steps": [[65, 0.31], [80, 0.27]]
+}
+```
+
+Here a car that has to reach 50 % by its departure is charged further where a stored kWh costs
+less than 0.31 (between 50 and 65 %) or 0.27 (between 65 and 80 %).
+
 #### Battery simulation configuration
 
 **Example:**
