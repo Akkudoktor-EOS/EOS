@@ -461,15 +461,16 @@ def test_deadline_with_a_charge_start_inside_the_current_slot(
 
 
 @pytest.mark.parametrize(
-    "run_start,expected_slot",
+    "run_start,expected_slot,expected_share",
     [
         # Before the charge start: 13:00-14:00 begins before 13:05, the first
         # half of 14:00-15:00 lies before the deadline.
-        ("2026-09-16T12:00:00", 2),
+        ("2026-09-16T12:00:00", 2, 0.5),
         # Inside the charge start's slot, after it: 13:00-14:00 is usable now.
-        ("2026-09-16T13:07:00", 1),
-        # In the deadline's slot: the current slot is usable until 14:30.
-        ("2026-09-16T14:10:00", 0),
+        ("2026-09-16T13:07:00", 1, 0.5),
+        # In the deadline's slot: only the 20 minutes from now to 14:30 count,
+        # not the 10 minutes of the slot that have already passed.
+        ("2026-09-16T14:10:00", 0, 1 / 3),
     ],
 )
 def test_deadline_inside_a_slot_is_kept_in_every_run(
@@ -477,11 +478,13 @@ def test_deadline_inside_a_slot_is_kept_in_every_run(
     set_other_timezone: Callable[[str], str],
     run_start: str,
     expected_slot: int,
+    expected_share: float,
 ) -> None:
     """Charge start 13:05, deadline 14:30 on an hourly grid, planned three times.
 
-    Every run keeps the deadline, with or without the charge start: the half of
-    14:00-15:00 before the deadline counts towards the target in all of them.
+    Every run keeps the deadline, with or without the charge start: the time of
+    14:00-15:00 before the deadline (from now on, in the run at 14:10) counts
+    towards the target in all of them.
     """
     set_other_timezone("Europe/Berlin")
     optimizer = configure_grid(config_eos, interval_sec=3600, hours=24, start=run_start)
@@ -492,7 +495,21 @@ def test_deadline_inside_a_slot_is_kept_in_every_run(
     without = ev_only_parameters(min_soc_deadline_datetime=deadline)
     for params in (parameters, without):
         deadline_slot, share = kept_deadline(optimizer, params)
-        assert (deadline_slot, share) == (expected_slot, pytest.approx(0.5))
+        assert (deadline_slot, share) == (expected_slot, pytest.approx(expected_share))
+
+
+@pytest.mark.parametrize("charge_start", [None, "2026-09-16T01:00:00+02:00"])
+def test_deadline_passed_inside_the_current_slot_is_due_now(
+    config_eos: ConfigEOS, set_other_timezone: Callable[[str], str], charge_start: str | None
+) -> None:
+    """Run at 02:55 for a departure at 02:50 on the hourly grid: the departure has
+    passed, so nothing charged from now on may count - the target is due now."""
+    set_other_timezone("Europe/Berlin")
+    optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T02:55:00")
+    parameters = ev_only_parameters(
+        charge_start_datetime=charge_start, min_soc_deadline_datetime="2026-09-16T02:50:00+02:00"
+    )
+    assert optimizer._ev_deadline(parameters) == (0, 0.0)
 
 
 def test_deadline_share_across_the_end_of_daylight_saving_time(

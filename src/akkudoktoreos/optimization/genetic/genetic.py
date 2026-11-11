@@ -1246,7 +1246,9 @@ class GeneticOptimization(OptimizationBase):
         The target is checked at the deadline itself. A deadline inside a slot
         (a departure at 02:50 on the hourly grid) counts the part of that slot
         before it: the slot's charge is taken as spread evenly over the slot, so
-        only that share of it counts, never the charge after the departure.
+        only that share of it counts, never the charge after the departure. In
+        the current slot only the time from now to the deadline counts, and a
+        deadline that has passed is due right now.
 
         A deadline at or before the charge start can not be met by any plan and
         is relaxed: the target is required at the end of the horizon instead,
@@ -1314,11 +1316,21 @@ class GeneticOptimization(OptimizationBase):
             )
             return None
 
-        if position < start_slot + 1e-9:
+        # Now, in slots: the current slot has partly passed already.
+        now_position = float(start_slot)
+        if self._slot0_datetime is not None:
+            now_seconds = (
+                self.ems.observation_datetime.in_timezone(self._slot0_datetime.timezone)
+                - self._slot0_datetime
+            ).total_seconds()
+            now_position = max(now_position, now_seconds / slot_seconds)
+        if position < now_position + 1e-9:
             # A deadline in the past means the target is due right now.
             return start_slot, 0.0
         deadline_slot = math.floor(position + 1e-9)
-        share = position - deadline_slot
+        # Only the time from the start of the deadline slot - or from now, in
+        # the current slot - until the deadline counts.
+        share = position - max(float(deadline_slot), now_position)
         if share < 1e-9:
             share = 0.0
 

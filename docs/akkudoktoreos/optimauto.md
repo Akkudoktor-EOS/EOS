@@ -379,11 +379,13 @@ target state of charge by a deadline:
   `min_soc_percentage` has to be reached. The target is checked at the deadline itself. A
   deadline inside a slot counts the part of that slot before it: the planned charge of a slot
   is taken as spread evenly over the slot, so with a departure at 02:50 on the hourly grid 50 of
-  the 60 minutes of 02:00-03:00 count, and the charge after 02:50 does not. Unlike the charge
-  start, a partly used slot can count here: its charge is only checked at the deadline, it is
-  never placed before the moment the vehicle may charge. The deadline does not end charging: the
-  plan may still charge after it, for example at negative prices or in the rest of the
-  deadline's slot, so a client should not execute EV charging after the vehicle has left.
+  the 60 minutes of 02:00-03:00 count, and the charge after 02:50 does not. In the current slot
+  only the time from now to the deadline counts; a deadline that has passed is due right now.
+  Unlike the charge start, a partly used slot can count here: its charge is only checked at the
+  deadline, it is never placed before the moment the vehicle may charge. The deadline does not
+  end charging: the plan may still charge after it, for example at negative prices or in the
+  rest of the deadline's slot, so a client should not execute EV charging after the vehicle has
+  left.
   A deadline at or before the charge start can not be met by any plan; it is then ignored with a
   warning and the target applies at the end of the horizon, also in runs after the charge start.
   Every later deadline is kept. When the vehicle has no time to charge before it - charge start
