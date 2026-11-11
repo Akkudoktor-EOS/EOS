@@ -88,9 +88,23 @@ Rules:
 
 3. Footer (optional)
 
-Use only for breaking changes (BREAKING CHANGE: …) or issue references
-(Refs: #123). Conventional Commits allows this; it is not a replacement for
-the body section.
+Use only for breaking changes (BREAKING CHANGE: …), issue references
+(Refs: #123) and the agent trailer below. Conventional Commits allows this; it
+is not a replacement for the body section.
+
+4. Agent trailer (mandatory for agents)
+
+Every commit that a coding agent wrote or co-wrote ends with
+
+```text
+Assisted-by: <tool> (<model id>)
+```
+
+e.g. `Assisted-by: Claude Code (claude-opus-5-5)` or
+`Assisted-by: OpenCode (qwen3-coder)`. Keep trailers the tool adds itself
+(e.g. `Co-Authored-By:`) and put `Assisted-by:` with them in the last
+paragraph. The CI check for agent-assisted pull requests reads it, see
+`docs/develop/ai.md`.
 
 ## Layout
 
@@ -102,6 +116,7 @@ the body section.
 [<another short description>]
 
 [optional footer]
+[Assisted-by: <tool> (<model id>)]
 ```
 
 - Exactly one blank line between the subject and the body heading.
@@ -191,5 +206,6 @@ as shown above.)
 □ Each secondary item is a short single-line description.
 □ No emoji, no asterisk-prefixed headings.
 □ If more than one body heading would be needed, split the commit instead.
-□ Run uv run cz check --rev-range main..HEAD (or rely on the pre-commit hook) to confirm the
+□ Agent-written commits end with `Assisted-by: <tool> (<model id>)`.
+□ Run uv run --frozen cz check --rev-range main..HEAD (or rely on the pre-commit hook) to confirm the
   message passes the project's check.

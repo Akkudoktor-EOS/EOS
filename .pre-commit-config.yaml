@@ -56,6 +56,8 @@ repos:
     hooks:
       - id: pymarkdown
         files: ^docs/
+        # docs/agents/ is seeded from the vendored engineering skills, not user documentation.
+        exclude: ^docs/agents/
         args:
           - --config=docs/pymarkdown.json
           - scan

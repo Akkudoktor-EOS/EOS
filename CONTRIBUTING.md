@@ -133,6 +133,24 @@ enforce the [`Conventional Commits`](https://www.conventionalcommits.org) commit
 You may use [`commitizen`](https://commitizen-tools.github.io/commitizen) also to create a
 commit message and commit your change.
 
+### AI-assisted contributions
+
+You may use coding agents, but you are the author of what you propose and must review the complete
+change yourself. Pull requests that an agent wrote or co-wrote are checked by CI:
+
+- Every commit an agent wrote or co-wrote ends with the trailer
+  `Assisted-by: <tool> (<model id>)`, e.g. `Assisted-by: Claude Code (claude-opus-5-5)`.
+- Tick the "AI-assisted" box in the pull request template.
+- The pull request body ends with a `## Self-review` section from the agent's self-review. It names
+  the full SHA of the head commit it reviewed. Before every push, rerun the self-review and rewrite
+  the section, do not just edit the SHA; replace the body right after the push. Agents also add an
+  `Assisted-by:` line to the body, which marks the pull request as agent-assisted.
+
+CI checks that the section is present and names the current head commit; other problems are
+only noted. It cannot check the review itself. If the check fails, CI comments on the pull request
+with what is wrong and how to fix it. See `docs/develop/ai.md` (AI-assisted development) for the
+workflow and the exact format.
+
 ## Thank you!
 
 And last but not least thanks to all our contributors

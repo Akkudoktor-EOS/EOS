@@ -68,6 +68,7 @@ develop/develop.md
 develop/ai.md
 develop/release.md
 develop/async.md
+adr/index.md
 develop/CHANGELOG.md
 
 ```

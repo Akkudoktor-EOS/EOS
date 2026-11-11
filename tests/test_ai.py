@@ -1,5 +1,7 @@
 """Tests for the AI agent development support in ``ai/``."""
 
+import json
+import re
 import stat
 import sys
 import time
@@ -15,6 +17,7 @@ DIR_PROJECT_ROOT = Path(__file__).parent.parent
 if str(DIR_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(DIR_PROJECT_ROOT))
 
+from scripts import check_pr_self_review as self_review_check  # noqa: E402
 from scripts import update_mattpocock_skills as skills_updater  # noqa: E402
 
 
@@ -302,3 +305,335 @@ class TestMattpocockSkills:
         missing_url = (tmp_path / "missing").as_uri()
 
         assert skills_updater.main(["--url", missing_url, "--target", str(skills_dir)]) == 2
+
+
+class TestPrSelfReviewCheck:
+    """CI check of the self-review declaration in ``scripts/check_pr_self_review.py``."""
+
+    HEAD_SHA = "0123456789abcdef0123456789abcdef01234567"
+    OTHER_SHA = "fedcba9876543210fedcba9876543210fedcba98"
+    AGENT_COMMIT = "feat: add x\n\nAssisted-by: Claude Code (claude-opus-5-5)\n"
+    CLAUDE_COMMIT = "fix: y\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
+    HUMAN_COMMIT = "fix: z\n\nCo-Authored-By: Jane Doe <jane@example.com>\n"
+
+    @classmethod
+    def body(cls, ticked: bool = True, review: str | None = None) -> str:
+        """Return a pull request body following the template."""
+        box = "x" if ticked else " "
+        if review is None:
+            review = (
+                f"Reviewed: {cls.HEAD_SHA}\n"
+                "Base: main\n"
+                "Standards: 0 hard, 2 judgement\n"
+                "Spec: 1 open (source: .scratch/chore/ai_qa/plan.md)\n\n"
+                "- judgement: possible Feature Envy, left as is\n"
+            )
+        return (
+            "## Summary\n\nSomething.\n\n"
+            f"- [{box}] AI-assisted (an agent wrote or co-wrote part of this PR)\n"
+            "- [x] I reviewed the complete diff myself (author review)\n\n"
+            "<!-- The agent fills in the section below. -->\n"
+            f"## Self-review\n\n{review}"
+        )
+
+    def check(
+        self, body: str, commits: list[str], title: str = "feat: x", author: str = "someone"
+    ) -> self_review_check.CheckResult:
+        """Run the check for the head SHA."""
+        return self_review_check.check_pull_request(body, commits, self.HEAD_SHA, title, author)
+
+    def test_not_agent_assisted_passes(self) -> None:
+        """Human-only commits and an unticked box need no self-review."""
+        result = self.check("## Summary\n\n- [ ] AI-assisted\n", [self.HUMAN_COMMIT])
+
+        assert not result.agent_assisted
+        assert result.passed
+
+    @pytest.mark.parametrize("commit", [AGENT_COMMIT, CLAUDE_COMMIT])
+    def test_complete_self_review_passes(self, commit: str) -> None:
+        """A ticked box and a fresh, complete self-review pass, open findings included."""
+        result = self.check(self.body(), [self.HUMAN_COMMIT, commit])
+
+        assert result.agent_assisted
+        assert result.errors == []
+
+    def test_ticked_box_without_trailer_needs_self_review(self) -> None:
+        """A ticked box alone makes the pull request agent-assisted."""
+        result = self.check(self.body(review="nothing\n").replace("## Self-review", "## Notes"), [])
+
+        assert result.agent_assisted
+        assert result.errors == ["The pull request body has no '## Self-review' section."]
+
+    def test_trailer_without_ticked_box_is_noted(self) -> None:
+        """An agent trailer with an unticked box passes with a note."""
+        result = self.check(self.body(ticked=False), [self.AGENT_COMMIT])
+
+        assert result.passed
+        assert len(result.notes) == 1
+        assert "box" in result.notes[0]
+
+    @pytest.mark.parametrize(
+        "marker",
+        [
+            "Assisted-by: OpenCode (qwen3-coder)",
+            "🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+        ],
+    )
+    def test_body_marker_makes_agent_assisted(self, marker: str) -> None:
+        """An agent marker in the body counts; an unticked box is noted."""
+        ticked = self.check(self.body() + f"\n{marker}\n", [self.HUMAN_COMMIT])
+        unticked = self.check(self.body(ticked=False) + f"\n{marker}\n", [self.HUMAN_COMMIT])
+
+        assert ticked.agent_assisted
+        assert ticked.errors == []
+        assert ticked.notes == []
+        assert unticked.agent_assisted
+        assert unticked.passed
+        assert len(unticked.notes) == 1
+        assert "agent marker" in unticked.notes[0]
+
+    def test_marker_without_section_fails(self) -> None:
+        """An agent marker makes the section with the SHA required, ticked box or not."""
+        body = "- [ ] AI-assisted\n\nAssisted-by: OpenCode (qwen3-coder)\n"
+
+        result = self.check(body, [self.HUMAN_COMMIT])
+
+        assert "The pull request body has no '## Self-review' section." in result.errors
+
+    def test_body_marker_in_html_comment_does_not_count(self) -> None:
+        """A marker inside a template comment is not a signal."""
+        body = "- [ ] AI-assisted\n<!-- e.g. Assisted-by: Claude Code (claude-opus-5-5) -->\n"
+
+        result = self.check(body, [self.HUMAN_COMMIT])
+
+        assert not result.agent_assisted
+
+    def test_stale_self_review_fails(self) -> None:
+        """A self-review for another commit than the head fails."""
+        body = self.body().replace(self.HEAD_SHA, self.OTHER_SHA)
+
+        result = self.check(body, [self.AGENT_COMMIT])
+
+        assert len(result.errors) == 1
+        assert self.OTHER_SHA in result.errors[0]
+        assert self.HEAD_SHA in result.errors[0]
+
+    def test_abbreviated_sha_fails(self) -> None:
+        """An abbreviated SHA is rejected, even if it is a prefix of the head."""
+        body = self.body().replace(self.HEAD_SHA, self.HEAD_SHA[:12])
+
+        result = self.check(body, [self.AGENT_COMMIT])
+
+        assert len(result.errors) == 1
+        assert "full 40-character" in result.errors[0]
+
+    def test_missing_sha_fails(self) -> None:
+        """A section without the Reviewed line fails; missing optional lines are not reported."""
+        result = self.check(self.body(review="- looks fine\n"), [self.AGENT_COMMIT])
+
+        assert result.errors == ["The self-review has no 'Reviewed: <sha>' line."]
+        assert result.notes == []
+
+    def test_only_sha_passes(self) -> None:
+        """The Reviewed line alone is enough to pass."""
+        result = self.check(self.body(review=f"Reviewed: {self.HEAD_SHA}\n"), [self.AGENT_COMMIT])
+
+        assert result.passed
+        assert result.notes == []
+
+    def test_uppercase_sha_fails(self) -> None:
+        """A full SHA in uppercase is malformed."""
+        body = self.body().replace(self.HEAD_SHA, self.HEAD_SHA.upper())
+
+        result = self.check(body, [self.AGENT_COMMIT])
+
+        assert len(result.errors) == 1
+        assert "lowercase" in result.errors[0]
+
+    @pytest.mark.parametrize(
+        ("good", "bad", "key"),
+        [
+            ("Standards: 0 hard, 2 judgement", "Standards: two hard, 2 judgement", "Standards:"),
+            ("Standards: 0 hard, 2 judgement", "Standards: 0 hard", "Standards:"),
+            (
+                "Spec: 1 open (source: .scratch/chore/ai_qa/plan.md)",
+                "Spec: 1 open (source: )",
+                "Spec:",
+            ),
+            ("Spec: 1 open (source: .scratch/chore/ai_qa/plan.md)", "Spec: 1 open", "Spec:"),
+            ("Base: main", "Base:", "Base:"),
+        ],
+        ids=["standards-word", "standards-short", "spec-empty-source", "spec-no-source", "base"],
+    )
+    def test_malformed_optional_lines_are_noted(self, good: str, bad: str, key: str) -> None:
+        """A present but malformed optional line passes with a note."""
+        body = self.body()
+        assert good in body
+
+        result = self.check(body.replace(good, bad), [self.AGENT_COMMIT])
+
+        assert result.passed
+        assert len(result.notes) == 1
+        assert f"'{key}" in result.notes[0]
+
+    def test_section_inside_html_comment_does_not_count(self) -> None:
+        """An example section in a template comment is not a declaration."""
+        body = self.body().replace("## Self-review", "<!--\n## Self-review") + "-->\n"
+
+        result = self.check(body, [self.AGENT_COMMIT])
+
+        assert result.errors == ["The pull request body has no '## Self-review' section."]
+
+    def test_section_ends_at_next_heading(self) -> None:
+        """Fields after the next heading do not belong to the self-review."""
+        body = self.body(review=f"Reviewed: {self.HEAD_SHA}\n\n## Other\n\nBase: main\n")
+
+        result = self.check(body, [self.AGENT_COMMIT])
+
+        assert result.passed
+        assert result.notes == []
+
+    def test_windows_line_endings_pass(self) -> None:
+        """A body and commits saved with CRLF line endings are checked like LF ones."""
+        body = self.body().replace("\n", "\r\n")
+        commit = self.AGENT_COMMIT.replace("\n", "\r\n")
+
+        result = self.check(body, [commit])
+
+        assert result.agent_assisted
+        assert result.errors == []
+        assert result.notes == []
+
+    def test_report_lists_notes(self) -> None:
+        """Notes appear in the report of a passing and of a failing check."""
+        passing = self.check(self.body(ticked=False), [self.AGENT_COMMIT])
+        failing = self.check(
+            self.body(ticked=False).replace(self.HEAD_SHA, self.OTHER_SHA), [self.AGENT_COMMIT]
+        )
+
+        for result in (passing, failing):
+            report = self_review_check.render_report(result, self.HEAD_SHA)
+            assert "do not fail the check" in report
+            assert result.notes[0] in report
+
+    @pytest.mark.parametrize(
+        ("title", "author"),
+        [("chore: bump x", "dependabot[bot]"), ("Release 1.2.3", "someone")],
+    )
+    def test_skipped_pull_requests(self, title: str, author: str) -> None:
+        """Dependabot and release pull requests are not checked."""
+        result = self.check("", [self.AGENT_COMMIT], title=title, author=author)
+
+        assert result.skipped_reason
+        assert result.passed
+
+    def test_main_exit_codes(self, tmp_path: Path) -> None:
+        """The command line exits 0 for a valid and 1 for a stale declaration."""
+        body_file = tmp_path / "body.md"
+        commits_file = tmp_path / "commits.jsonl"
+        body_file.write_text(self.body(), encoding="utf-8")
+        commits_file.write_text(
+            "\n".join(json.dumps(m) for m in [self.HUMAN_COMMIT, self.AGENT_COMMIT]) + "\n",
+            encoding="utf-8",
+        )
+        args = ["--body-file", str(body_file), "--commits-file", str(commits_file)]
+
+        assert self_review_check.main([*args, "--head-sha", self.HEAD_SHA]) == 0
+        assert self_review_check.main([*args, "--head-sha", self.OTHER_SHA]) == 1
+
+    def test_report_for_failure_explains_the_fix(self) -> None:
+        """A failing check renders the marked comment with the errors and how to fix them."""
+        body = self.body().replace(self.HEAD_SHA, self.OTHER_SHA)
+        result = self.check(body, [self.AGENT_COMMIT])
+
+        report = self_review_check.render_report(result, self.HEAD_SHA)
+
+        assert report.startswith(self_review_check.COMMENT_MARKER + "\n")
+        assert "check failed" in report
+        assert f"- {result.errors[0]}" in report
+        assert "How to fix" in report
+        assert "gh pr edit" in report
+        assert "Reviewed: <full 40-character SHA" in report
+
+    def test_report_keeps_author_text_inside_the_code_block(self) -> None:
+        """Backticks from the body cannot close the code block and inject Markdown."""
+        body = self.body().replace(self.HEAD_SHA, "````\n@someone")
+        result = self.check(body, [self.AGENT_COMMIT])
+
+        report = self_review_check.render_report(result, self.HEAD_SHA)
+
+        fence_match = re.search(r"(?m)^(`{4,})$", report)
+        assert fence_match is not None
+        fence = fence_match.group(1)
+        block = report[fence_match.end() : report.index("\n" + fence + "\n", fence_match.end())]
+        assert "@someone" not in report.replace(block, "")
+        assert "````" in block
+
+    @pytest.mark.parametrize(
+        ("body", "commits", "title", "expected"),
+        [
+            ("BODY", ["AGENT"], "feat: x", "up to date for"),
+            ("- [ ] AI-assisted\n", ["HUMAN"], "feat: x", "not agent-assisted"),
+            ("", ["AGENT"], "Release 1.0.0", "does not apply"),
+        ],
+    )
+    def test_report_for_passing_check(
+        self, body: str, commits: list[str], title: str, expected: str
+    ) -> None:
+        """A passing check renders a short marked note."""
+        messages = {"AGENT": self.AGENT_COMMIT, "HUMAN": self.HUMAN_COMMIT}
+        result = self.check(
+            self.body() if body == "BODY" else body, [messages[c] for c in commits], title=title
+        )
+
+        report = self_review_check.render_report(result, self.HEAD_SHA)
+
+        assert report.startswith(self_review_check.COMMENT_MARKER + "\n")
+        assert "check passed" in report
+        assert expected in report
+
+    def test_main_writes_report_file(self, tmp_path: Path) -> None:
+        """``--report-file`` receives the report for both outcomes."""
+        body_file = tmp_path / "body.md"
+        commits_file = tmp_path / "commits.jsonl"
+        report_file = tmp_path / "report.md"
+        body_file.write_text(self.body(), encoding="utf-8")
+        commits_file.write_text(json.dumps(self.AGENT_COMMIT) + "\n", encoding="utf-8")
+        args = ["--body-file", str(body_file), "--commits-file", str(commits_file)]
+
+        assert self_review_check.main(
+            [*args, "--head-sha", self.HEAD_SHA, "--report-file", str(report_file)]
+        ) == 0
+        assert "check passed" in report_file.read_text(encoding="utf-8")
+        assert self_review_check.main(
+            [*args, "--head-sha", self.OTHER_SHA, "--report-file", str(report_file)]
+        ) == 1
+        assert "check failed" in report_file.read_text(encoding="utf-8")
+
+    def test_workflow_uses_the_script_marker(self) -> None:
+        """The workflow finds its comment by the same marker the script writes."""
+        workflow = (DIR_PROJECT_ROOT / ".github" / "workflows" / "ai-self-review.yml").read_text(
+            encoding="utf-8"
+        )
+
+        assert f'COMMENT_MARKER: "{self_review_check.COMMENT_MARKER}"' in workflow
+
+    def test_report_for_failure_links_the_docs(self) -> None:
+        """The failure comment links the docs and covers the push."""
+        result = self.check(self.body(review="- nothing\n"), [self.AGENT_COMMIT])
+
+        report = self_review_check.render_report(result, self.HEAD_SHA)
+
+        assert f"]({self_review_check.DOCS_URL})" in report
+        assert "right after the push" in report
+        assert "before every later push" in report
+        assert "gh pr edit" in report
+        assert "by hand" in report
+
+    def test_read_commit_messages_rejects_non_strings(self, tmp_path: Path) -> None:
+        """A commits file line that is not a JSON string is an error."""
+        commits_file = tmp_path / "commits.jsonl"
+        commits_file.write_text('{"message": "x"}\n', encoding="utf-8")
+
+        with pytest.raises(ValueError, match="expected a JSON string"):
+            self_review_check.read_commit_messages(commits_file)
