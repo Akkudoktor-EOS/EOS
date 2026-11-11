@@ -117,8 +117,9 @@ marketing, 15-minute slots, 12 h horizon, 300 individuals), one evaluation worke
 
 The peak memory of a run is the same or lower than with Python; the package adds about 1 MB.
 The backend falls back to Python, with a log message, when the package is missing, was not
-verified for the installed EOS version, or does not support the request (for example appliance
-`time_windows`). With `native` the same input and seed give the same plan on every CPU.
+verified against the installed GENETIC sources (their fingerprint is not in the package's
+`certified.json`), or does not support the request (for example appliance `time_windows`).
+With `native` the same input and seed give the same plan on every CPU.
 
 ### Storage writes
 

@@ -78,7 +78,11 @@ class GeneticBackend(StrEnum):
 
     - COMPARE:
         Runs both, returns the PYTHON result and logs every difference. For
-        verification, e.g. in CI or before switching a device to NATIVE.
+        verification, e.g. in CI or before switching a device to NATIVE. Like
+        NATIVE it needs a package that is installed and verified against these
+        sources; otherwise it runs PYTHON only, with the same log message.
+        Sources that are not verified yet are compared with the pytest plugin
+        ``native/scripts/genetic_compare_plugin.py``.
     """
 
     PYTHON = "python"

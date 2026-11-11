@@ -33,7 +33,9 @@ optimization:
   `GeneticSolution`. Falls back to Python, with one warning per reason, when the package is
   missing, was not verified for these GENETIC sources, or rejects the request (see below).
 - `compare` – runs both, returns the Python result, logs whether they are identical, and keeps
-  the last report in `akkudoktoreos.optimization.genetic.native.last_compare_report`.
+  the last report in `akkudoktoreos.optimization.genetic.native.last_compare_report`. Like
+  `native` it needs a usable, certified package and otherwise runs Python only; to compare
+  sources that are not certified yet, use the compare plugin (see below).
 
 ## Verification guard
 
