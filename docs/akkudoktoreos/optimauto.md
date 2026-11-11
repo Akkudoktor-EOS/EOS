@@ -380,7 +380,8 @@ target state of charge by a deadline:
   deadline inside a slot counts the part of that slot before it: the planned charge of a slot
   is taken as spread evenly over the slot, so with a departure at 02:50 on the hourly grid 50 of
   the 60 minutes of 02:00-03:00 count, and the charge after 02:50 does not. In the current slot
-  only the time from now to the deadline counts; a deadline that has passed is due right now.
+  only the time from now to the deadline counts (see below); a deadline that has passed is due
+  right now.
   Unlike the charge start, a partly used slot can count here: its charge is only checked at the
   deadline, it is never placed before the moment the vehicle may charge. The deadline does not
   end charging: the plan may still charge after it, for example at negative prices or in the
@@ -393,6 +394,15 @@ target state of charge by a deadline:
   on the hourly grid - EOS warns and plans no charging for the target; once the charge start has
   passed, the vehicle may charge in the current slot, so a run during that slot plans the
   charging up to the deadline.
+
+A run that starts inside a slot (EOS rounds the start of the optimization down to the slot)
+charges the vehicle in that current slot only for the rest of it: a charge factor `f` stores
+`f` x charging power x the time left in the slot, not a whole slot's energy. The exported factor
+stays a share of the charging power, to be applied for the rest of the slot. A client that runs
+the optimization again every few minutes therefore gets the factor the remaining time needs,
+which rises towards the end of the slot when needed, instead of a smaller factor with every run.
+Only the vehicle is treated this way; load, PV and the stationary battery keep their whole-slot
+forecasts and controls in the current slot.
 
 A date time without timezone is read as local time. Without these settings, the vehicle can charge
 throughout the horizon and has to reach its target by the end of it.

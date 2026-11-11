@@ -137,6 +137,11 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   read the vehicle's minimum SoC, which is always 0 %, instead of the requested target, so no
   seed ever charged the vehicle. A new EV mutation moves planned charging in time without changing
   its energy, so the cheapest slots before the deadline are found reliably.
+- GENETIC charges an EV in the current slot only for the time left in it. A run that started
+  inside a slot counted the whole slot as still ahead, so a client that re-plans every few
+  minutes got a smaller charge factor with every run and missed the target (a user report:
+  about 75 % instead of 80 % at the departure). The exported factor stays a share of the
+  charging power for the rest of the slot; load, PV and the stationary battery are unchanged.
 
 ## 0.3.0 (2026-03-17)
 

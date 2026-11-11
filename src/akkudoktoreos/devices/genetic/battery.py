@@ -259,15 +259,22 @@ class Battery:
         parameters: BaseBatteryParameters,
         prediction_hours: int,
         slot_duration_h: float = 1.0,
+        first_slot_share: float = 1.0,
     ):
         # `prediction_hours` is the number of optimization slots, not hours. At
         # the default optimization interval of 3600 s, slot_duration_h is 1.0 and
         # the slot count equals the hour count, so existing callers are
         # unaffected. At 900 s (15 min) slot_duration_h is 0.25 and there are 4x
         # as many slots, each able to move a quarter of the hourly energy.
+        # `first_slot_share` is the part of slot 0 that is still ahead when the
+        # run starts inside it (0.5 at 14:30 on the hourly grid). It scales the
+        # charge power cap of slot 0 only; 1.0 keeps the whole slot.
+        if not 0.0 < first_slot_share <= 1.0:
+            raise ValueError(f"first_slot_share {first_slot_share} is outside of ]0, 1].")
         self.parameters = parameters
         self.prediction_hours = prediction_hours
         self.slot_duration_h = slot_duration_h
+        self.first_slot_share = first_slot_share
         self._setup()
 
     def _setup(self) -> None:
@@ -525,7 +532,8 @@ class Battery:
         Charging is constrained by:
 
         - Available SoC headroom (``max_soc_wh − soc_wh``)
-        - ``max_charge_power_w``
+        - ``max_charge_power_w`` over the slot; in slot 0 only over the part
+          of it that is still ahead (``first_slot_share``)
         - A slot limit set by ``limit_slot_charge()``, if any
         - ``charging_efficiency``
 
@@ -566,9 +574,13 @@ class Battery:
         soc_wh_fast = self.soc_wh
         # Scale the power cap [W] to a per-slot energy cap [Wh] (W x slot hours).
         # At slot_duration_h=1.0 (hourly) this equals the legacy power value.
+        # Slot 0 only has the part of it left that is still ahead of the run.
+        slot_duration_h = self.slot_duration_h
+        if hour == 0:
+            slot_duration_h *= self.first_slot_share
         max_charge_per_slot_wh_fast = max(
             min(
-                self.max_charge_power_w * self.slot_duration_h,
+                self.max_charge_power_w * slot_duration_h,
                 self._charge_limit_raw_wh_per_slot[hour],
             )
             - self._charged_raw_wh_per_slot[hour],

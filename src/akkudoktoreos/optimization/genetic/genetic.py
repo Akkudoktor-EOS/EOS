@@ -1113,6 +1113,9 @@ class GeneticOptimization(OptimizationBase):
         # deadline at the start of its slot): that share of the slot's charge
         # counts towards the target.
         self._ev_soc_deadline_share: float = 0.0
+        # Part of slot 0 still ahead of the run start: the EV charges slot 0
+        # only for that part (1.0 for a run on a slot boundary).
+        self._ev_first_slot_share: float = 1.0
         # Slot by which a due periodic full charge of the stationary battery has
         # to have happened. None means no full charge is enforced in this run.
         self._full_charge_deadline_slot: Optional[int] = None
@@ -1236,6 +1239,30 @@ class GeneticOptimization(OptimizationBase):
         horizon_slots = self._genetic_cfg.horizon_hours * self.slots_per_hour
         return min(self.control_end_slot, start_slot + horizon_slots)
 
+    def _now_position(self) -> float:
+        """Now (the observation time) in slots relative to slot 0, fractional.
+
+        Slot 0 begins at the start of the current slot, so a run at 14:10 on
+        the hourly grid is at 1/6. Without a run start timestamp it is the
+        control start.
+        """
+        start_slot = self._control_start_slot()
+        if self._slot0_datetime is None:
+            return float(start_slot)
+        now_seconds = (
+            self.ems.observation_datetime.in_timezone(self._slot0_datetime.timezone)
+            - self._slot0_datetime
+        ).total_seconds()
+        return max(float(start_slot), now_seconds / (self.slot_duration_h * 3600))
+
+    def _current_slot_share(self) -> float:
+        """Part of the current slot (slot 0) that is still ahead of now, in ]0, 1].
+
+        A run at 14:10 on the hourly grid has 50 of the 60 minutes left (5/6).
+        """
+        elapsed = self._now_position() - self._control_start_slot()
+        return min(max(1.0 - elapsed, 1e-6), 1.0)
+
     def _ev_deadline(
         self, parameters: GeneticOptimizationParameters
     ) -> Optional[tuple[int, float]]:
@@ -1246,25 +1273,27 @@ class GeneticOptimization(OptimizationBase):
         The target is checked at the deadline itself. A deadline inside a slot
         (a departure at 02:50 on the hourly grid) counts the part of that slot
         before it: the slot's charge is taken as spread evenly over the slot, so
-        only that share of it counts, never the charge after the departure. In
-        the current slot only the time from now to the deadline counts, and a
-        deadline that has passed is due right now.
+        only that share of it counts, never the charge after the departure. The
+        current slot is only charged from now on (see ``_current_slot_share``):
+        its share is the time from now to the deadline over the time from now
+        to the end of the slot.
 
         A deadline at or before the charge start can not be met by any plan and
         is relaxed: the target is required at the end of the horizon instead,
         with a warning. Any later deadline is kept, also when the vehicle has no
         time to charge before it (charge start and deadline inside one slot that
         begins before the charge start): moving the target past the departure
-        would plan charging for a vehicle that has left.
+        would plan charging for a vehicle that has left. A deadline that has
+        passed is due right now.
 
         Args:
             parameters: Optimization parameters of this run.
 
         Returns:
-            Absolute slot index of the deadline and the share of that slot before
-            the deadline in [0, 1), or None when the target is only required at
-            the end of the horizon (no deadline, one beyond the horizon, or a
-            relaxed one).
+            Absolute slot index of the deadline and the share of that slot's
+            charge before the deadline in [0, 1), or None when the target is only
+            required at the end of the horizon (no deadline, one beyond the
+            horizon, or a relaxed one).
         """
         ev_parameters = parameters.ev
         if ev_parameters is None:
@@ -1273,13 +1302,7 @@ class GeneticOptimization(OptimizationBase):
         start_slot = self._control_start_slot()
         slot_seconds = self.slot_duration_h * 3600
         # Now, in slots: the current slot has partly passed already.
-        now_position = float(start_slot)
-        if self._slot0_datetime is not None:
-            now_seconds = (
-                self.ems.observation_datetime.in_timezone(self._slot0_datetime.timezone)
-                - self._slot0_datetime
-            ).total_seconds()
-            now_position = max(now_position, now_seconds / slot_seconds)
+        now_position = self._now_position()
         # (position in slots relative to slot 0, the moment) per given deadline.
         candidates: list[tuple[float, Any]] = []
 
@@ -1330,8 +1353,10 @@ class GeneticOptimization(OptimizationBase):
             return start_slot, 0.0
         deadline_slot = math.floor(position + 1e-9)
         # Only the time from the start of the deadline slot - or from now, in
-        # the current slot - until the deadline counts.
-        share = position - max(float(deadline_slot), now_position)
+        # the current slot - until the deadline counts, as a share of the time
+        # the slot is charged: the whole slot, or the rest of the current slot.
+        charge_from = max(float(deadline_slot), now_position)
+        share = (position - charge_from) / (deadline_slot + 1.0 - charge_from)
         if share < 1e-9:
             share = 0.0
 
@@ -2463,7 +2488,10 @@ class GeneticOptimization(OptimizationBase):
         Only slots in which charging can still count towards the target take
         part: from the control start (or the charge start) to the deadline
         (or the control end), including a deadline slot with a share before
-        the deadline.
+        the deadline. A swap with such a deadline slot, or with the current
+        slot of a run that starts inside it (charged only for the rest of it),
+        changes the counted energy by that share; the fitness judges it like
+        any other move.
 
         Returns:
             Whether the genome was changed.
@@ -2678,6 +2706,12 @@ class GeneticOptimization(OptimizationBase):
             return getattr(self, "_ev_soc_deadline_share", 0.0)
         return 1.0
 
+    def _ev_slot_time_share(self, slot: int) -> float:
+        """Part of a slot the EV can charge in: the rest of slot 0, else 1.0."""
+        if slot == self._control_start_slot():
+            return getattr(self, "_ev_first_slot_share", 1.0)
+        return 1.0
+
     def _clear_ev_genes_before_charge_start(self, ev_genes: Any) -> bool:
         """Set the EV genes of the slots before the charge start to "no charge".
 
@@ -2831,7 +2865,9 @@ class GeneticOptimization(OptimizationBase):
         seeded_wh = 0.0
         if remaining_wh > 0.0:
             for slot in candidates:
-                counted_wh = max_stored_wh * self._ev_counted_share(slot)
+                counted_wh = (
+                    max_stored_wh * self._ev_slot_time_share(slot) * self._ev_counted_share(slot)
+                )
                 required_rate = remaining_wh / max(counted_wh, 1e-9)
                 rate, rate_index = next(
                     (item for item in positive_rates if item[0] >= required_rate),
@@ -2854,13 +2890,19 @@ class GeneticOptimization(OptimizationBase):
             full_ac_wh = ev.max_charge_power_w * self.slot_duration_h * full_rate
 
             def fill_cost_wh(slot: int) -> float:
-                surplus_wh = min(max(pv[slot] - load[slot], 0.0), full_ac_wh) if prefer_pv else 0.0
+                # The current slot is only charged for the rest of it; its
+                # surplus forecast stays the whole slot's.
+                slot_ac_wh = full_ac_wh * self._ev_slot_time_share(slot)
+                surplus_wh = min(max(pv[slot] - load[slot], 0.0), slot_ac_wh) if prefer_pv else 0.0
                 surplus_price = max(feed_in[slot], 0.0) if curtails_negative else feed_in[slot]
-                return float(surplus_wh * surplus_price + (full_ac_wh - surplus_wh) * prices[slot])
+                return float(surplus_wh * surplus_price + (slot_ac_wh - surplus_wh) * prices[slot])
 
             def fill_cost_per_counted_wh(slot: int) -> float:
-                # A deadline slot costs the whole slot but counts only its share.
-                return fill_cost_wh(slot) / max(self._ev_counted_share(slot), 1e-9)
+                # A deadline slot costs the whole slot but counts only its
+                # share; the current slot costs and stores only its rest. Both
+                # are scaled to a whole slot at full power.
+                counted = self._ev_counted_share(slot) * self._ev_slot_time_share(slot)
+                return fill_cost_wh(slot) / max(counted, 1e-9)
 
             # Sorted by the cost per counted energy of a full-power slot (stable,
             # so equal costs keep the order of the candidates); the value does
@@ -2881,7 +2923,12 @@ class GeneticOptimization(OptimizationBase):
                 ):
                     break
                 schedule[slot] = full_index
-                counted_wh = max_stored_wh * full_rate * self._ev_counted_share(slot)
+                counted_wh = (
+                    max_stored_wh
+                    * full_rate
+                    * self._ev_slot_time_share(slot)
+                    * self._ev_counted_share(slot)
+                )
                 soc += counted_wh / ev.capacity_wh * 100.0
         return schedule
 
@@ -4057,8 +4104,9 @@ class GeneticOptimization(OptimizationBase):
         Without a deadline this is the SoC after the last slot, which is what the
         penalty always used. With a deadline it is the SoC at the deadline: at
         the beginning of the deadline slot plus, for a deadline inside it, its
-        share of that slot's charge (charging spread evenly over the slot).
-        Where the vehicle reaches its maximum SoC inside that slot, this
+        share of that slot's charge (charging spread evenly over the slot, or
+        over the rest of the current slot). Where the vehicle reaches its
+        maximum SoC inside that slot, this
         underestimates the SoC at the deadline, it never overestimates it.
 
         Args:
@@ -4640,6 +4688,10 @@ class GeneticOptimization(OptimizationBase):
             )
         # Forecasts are trimmed to now; all genome/device indices are run-relative.
         start_slot = self._control_start_slot()
+        # Local datetime of slot 0 (the start of the current slot). It turns
+        # decoded start slots into absolute local timestamps, drives DAILY day
+        # grouping of the appliances and places the EV moments on the slots.
+        self._slot0_datetime = self.ems.start_datetime
 
         # Set the number of generations
         generations = ngen
@@ -4667,11 +4719,18 @@ class GeneticOptimization(OptimizationBase):
             akku.set_charge_per_hour(np.full(self.control_end_slot, 0))
 
         eauto: Optional[Battery] = None
+        # A run inside a slot can only charge the vehicle for the rest of it.
+        # Without this every run counted the whole current slot as still ahead,
+        # and a client that re-plans every few minutes got a lower factor each
+        # time and missed the target. Only the EV is scaled: load, PV and the
+        # house battery keep their whole-slot forecasts and controls.
+        self._ev_first_slot_share = self._current_slot_share()
         if parameters.ev:
             eauto = Battery(
                 parameters.ev,
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
+                first_slot_share=self._ev_first_slot_share,
             )
             eauto.set_charge_per_hour(np.full(self.control_end_slot, 1))
             # A vehicle at its target is only planned when energy above the
@@ -4759,9 +4818,7 @@ class GeneticOptimization(OptimizationBase):
             logger.debug("Battery grid export levels: {}", self.bat_possible_grid_export_values)
 
         # Initialize the flexible consumers (home appliances) and their genome
-        # layout. slot0_datetime (the run start) turns decoded start
-        # slots into absolute local timestamps and drives DAILY day grouping.
-        self._slot0_datetime = self.ems.start_datetime
+        # layout (see _slot0_datetime above).
         home_appliances = [
             HomeAppliance(
                 parameters=appliance_params,

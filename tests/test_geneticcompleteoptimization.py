@@ -260,7 +260,9 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    # On the slot boundary: the deadline is the start of slot 6, and slot 0 is
+    # charged for the whole hour.
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
 
     parameters = _ev_deadline_parameters(hours, min_soc_max_duration_h=6)
