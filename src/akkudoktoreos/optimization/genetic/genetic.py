@@ -3113,13 +3113,35 @@ class GeneticOptimization(OptimizationBase):
         """Penalty per Wh imported above the grid import limit [EUR/Wh].
 
         Configured as ``penalties.grid_import_limit_excess`` in EUR/kWh and
-        validated by ``GeneticCommonSettings`` (finite, >= 0). A penalties dict
-        without the key uses the default.
+        validated by ``GeneticCommonSettings`` (finite, >= 0) when the penalties
+        are set as a whole. A penalties dict without the key uses the default.
+        Setting the single entry (``set_nested_value``) skips that validation, so
+        a value that is still not a finite number >= 0 is replaced by the
+        default here: the run goes on, an error names the value and the
+        substitute (once per value and optimizer), the configuration is kept.
+
+        Returns:
+            The penalty in EUR per Wh, finite and >= 0.
         """
-        penalty_euro_per_kwh = self._genetic_cfg.penalties.get(
+        raw = self._genetic_cfg.penalties.get(
             "grid_import_limit_excess", GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH
         )
-        return float(penalty_euro_per_kwh) / 1000.0
+        try:
+            penalty_euro_per_kwh = float(raw) if not isinstance(raw, bool) else math.nan
+        except (TypeError, ValueError):
+            penalty_euro_per_kwh = math.nan
+        if not math.isfinite(penalty_euro_per_kwh) or penalty_euro_per_kwh < 0.0:
+            reported = getattr(self, "_reported_grid_import_limit_penalty", None)
+            if reported != repr(raw):
+                self._reported_grid_import_limit_penalty = repr(raw)
+                logger.error(
+                    "Penalty function parameter `grid_import_limit_excess` {!r} is not a "
+                    "finite number >= 0, using the default {} EUR/kWh instead.",
+                    raw,
+                    GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH,
+                )
+            penalty_euro_per_kwh = GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH
+        return penalty_euro_per_kwh / 1000.0
 
     def _grid_limit_ev_shift_candidates(
         self,

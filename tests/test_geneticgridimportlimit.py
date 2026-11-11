@@ -45,7 +45,10 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsettings import GeneticCommonSettings
+from akkudoktoreos.optimization.genetic.geneticsettings import (
+    GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH,
+    GeneticCommonSettings,
+)
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.genetic.tailvalue import (
     _simulate_action,
@@ -945,6 +948,43 @@ class TestConfiguration:
             config_eos.merge_settings_from_dict(
                 {"optimization": {"genetic": {"penalties": {"grid_import_limit_excess": -1}}}}
             )
+
+    @pytest.mark.parametrize("value", [-5.0, float("inf"), float("nan")])
+    def test_invalid_penalty_set_past_the_validation_falls_back_to_the_default(
+        self, config_eos, caplog, value
+    ):
+        """An invalid penalty never reaches the fitness, however it got into the config.
+
+        Setting one entry of the penalties dict (as ``PUT /v1/config/...`` does)
+        does not run the field validators. The run then uses the default, logs
+        an error with the input and the substitute and leaves the configuration
+        as it is.
+        """
+        config_eos.optimization.genetic.penalties = {"ev_soc_miss": 10}
+        config_eos.set_nested_value(
+            "optimization/genetic/penalties/grid_import_limit_excess", value
+        )
+        stored = config_eos.optimization.genetic.penalties["grid_import_limit_excess"]
+        assert math.isnan(stored) if math.isnan(value) else stored == value
+        optimizer = GeneticOptimization.__new__(GeneticOptimization)
+
+        def fallback_records() -> list[Any]:
+            return [r for r in caplog.records if "is not a finite number" in r.message]
+
+        with caplog.at_level("ERROR"):
+            penalty = optimizer._grid_import_limit_penalty_euro_per_wh()
+            logged = len(fallback_records())
+            # Every fitness evaluation asks again; the error is not repeated.
+            assert optimizer._grid_import_limit_penalty_euro_per_wh() == penalty
+            assert len(fallback_records()) == logged
+
+        assert penalty == pytest.approx(GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH / 1000.0)
+        assert logged > 0 and {record.levelname for record in fallback_records()} == {"ERROR"}
+        message = fallback_records()[0].message
+        assert "grid_import_limit_excess" in message
+        assert str(GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH) in message
+        stored = config_eos.optimization.genetic.penalties["grid_import_limit_excess"]
+        assert math.isnan(stored) if math.isnan(value) else stored == value
 
     def test_penalty_default_applies_only_without_the_key(self, config_eos):
         inverter, _ = _devices(slot_duration_h=0.25)
