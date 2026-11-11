@@ -43,11 +43,12 @@ LOAD_SLOT0_WH = 3000.0
 
 
 def _simulate_slot0(
-    first_slot_share: float, *, ac_factor: float = 0.0
+    first_slot_share: float, *, ac_factor: float = 0.0, battery_soc_percentage: int = 0
 ) -> tuple[dict[str, Any], Battery]:
     """Hourly, three slots, 8 kW limit; 3 kW house load in slot 0, EV asked at 7 kW.
 
-    The stationary battery is empty and held: it cannot shave the import.
+    The stationary battery (5 kW) is held. By default it is empty and cannot
+    shave the import.
     """
     slots = 3
     ev_options: dict[str, Any] = {"first_slot_share": first_slot_share}
@@ -55,7 +56,7 @@ def _simulate_slot0(
         SolarPanelBatteryParameters(
             device_id="battery1",
             capacity_wh=10000,
-            initial_soc_percentage=0,
+            initial_soc_percentage=battery_soc_percentage,
             min_soc_percentage=0,
             max_soc_percentage=100,
             charging_efficiency=1.0,
@@ -131,6 +132,16 @@ class TestFirstSlotShare:
         )
         assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(
             LOAD_SLOT0_WH + 0.5 * EV_POWER_W * share
+        )
+
+    @pytest.mark.parametrize("share", [1.0, 0.5])
+    def test_held_battery_shaving_keeps_the_full_ev_rate_in_slot0(self, config_eos, share):
+        """A charged, held battery shaves the 2 kW above the limit; the EV keeps 7 kW."""
+        result, _ = _simulate_slot0(share, battery_soc_percentage=100)
+
+        assert 0 not in result["ev_grid_limited_charge_factors"]
+        assert result["EAuto_SoC_pro_Stunde"][1] == pytest.approx(
+            EV_POWER_W * share / 60000 * 100
         )
 
     @pytest.mark.parametrize("share", [1.0, 0.25])

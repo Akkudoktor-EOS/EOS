@@ -169,6 +169,40 @@ def _slot_values(values: Any) -> Any:
     return values
 
 
+def _full_slot_import_wh(
+    inverter: Inverter,
+    battery: Optional[Battery],
+    battery_slot_state: Optional[tuple[float, float, float]],
+    hour: int,
+    energy_produced: float,
+    consumption_wh: float,
+    battery_grid_export_allowed: bool,
+    battery_grid_export_factor: float,
+) -> float:
+    """Grid import of a slot whose load is ``consumption_wh`` [Wh], leaving the slot as it is.
+
+    Simulates the slot again from the battery state before it,
+    ``battery_slot_state``, and then restores the battery and the inverter to
+    the state the slot had reached. PV and the battery (released, or holding
+    with threshold peak shaving) cover their share as in the slot itself.
+    """
+    reached_state = battery.slot_state(hour) if battery is not None else None
+    peak_shaving_ac_wh = inverter.peak_shaving_ac_wh
+    if battery is not None and battery_slot_state is not None:
+        battery.restore_slot_state(hour, battery_slot_state)
+    _, import_wh, _, _ = inverter.process_energy(
+        energy_produced,
+        consumption_wh,
+        hour,
+        battery_grid_export_allowed,
+        battery_grid_export_factor,
+    )
+    if battery is not None and reached_state is not None:
+        battery.restore_slot_state(hour, reached_state)
+    inverter.peak_shaving_ac_wh = peak_shaving_ac_wh
+    return import_wh
+
+
 def _unpack_genes(packed: PackedGenes) -> list[int]:
     """Decode genes encoded by ``_pack_genes``."""
     if packed[0] == b"\x00":
@@ -768,7 +802,8 @@ class GeneticSimulation(PydanticBaseModel):
         # the slot still ahead (``Battery.first_slot_share`` of the EV charge
         # start, #1532), while load and PV fill the whole slot. The limit is a
         # power: the EV draws its slot 0 energy in that part, so the limit
-        # checks of slot 0 count it as if the EV charged the whole slot.
+        # checks of slot 0 use the import the slot would have if the EV
+        # charged the whole slot (PV and battery covering their share).
         ev_first_slot_extra = 0.0
         if max_grid_import_wh_fast is not None and ev_fast:
             ev_first_slot_share = float(getattr(ev_fast, "first_slot_share", 1.0))
@@ -913,6 +948,8 @@ class GeneticSimulation(PydanticBaseModel):
                         battery_slot_state = battery_fast.slot_state(hour)
                 else:
                     ev_slot_state = None
+                if ev_import_extra > 0.0 and battery_fast and battery_slot_state is None:
+                    battery_slot_state = battery_fast.slot_state(hour)
                 (
                     energy_feedin_grid_actual,
                     energy_consumption_grid_actual,
@@ -925,10 +962,20 @@ class GeneticSimulation(PydanticBaseModel):
                     battery_grid_export_allowed,
                     battery_grid_export_factor,
                 )
-                if (
-                    ev_slot_state is not None
-                    and energy_consumption_grid_actual + ev_import_extra > ev_limit_wh
-                ):
+                # Import the limit is checked against [Wh].
+                limit_import_wh = energy_consumption_grid_actual
+                if ev_import_extra > 0.0:
+                    limit_import_wh = _full_slot_import_wh(
+                        inverter_fast,
+                        battery_fast,
+                        battery_slot_state,
+                        hour,
+                        energy_produced,
+                        consumption + ev_import_extra,
+                        battery_grid_export_allowed,
+                        battery_grid_export_factor,
+                    )
+                if ev_slot_state is not None and limit_import_wh > ev_limit_wh:
                     # The grid import limit wins against EV charging. PV, the
                     # battery (released: for the whole load, held: for the
                     # import above the limit) and the grid up to the limit
@@ -969,7 +1016,19 @@ class GeneticSimulation(PydanticBaseModel):
                             battery_grid_export_allowed,
                             battery_grid_export_factor,
                         )
-                        if energy_consumption_grid_actual + ev_import_extra <= ev_limit_wh:
+                        limit_import_wh = energy_consumption_grid_actual
+                        if ev_import_extra > 0.0:
+                            limit_import_wh = _full_slot_import_wh(
+                                inverter_fast,
+                                battery_fast,
+                                battery_slot_state,
+                                hour,
+                                energy_produced,
+                                consumption + ev_import_extra,
+                                battery_grid_export_allowed,
+                                battery_grid_export_factor,
+                            )
+                        if limit_import_wh <= ev_limit_wh:
                             break
                     if ev_grid_limited_charge_factors is not None:
                         ev_grid_limited_charge_factors[hour_idx] = float(
@@ -998,7 +1057,7 @@ class GeneticSimulation(PydanticBaseModel):
                             ac_charge_losses,
                             executed_factor,
                         ) = inverter_fast.charge_battery_from_grid_executed(
-                            hour, ac_charge_factor, energy_consumption_grid_actual + ev_import_extra
+                            hour, ac_charge_factor, limit_import_wh
                         )
                         if executed_factor < ac_charge_factor:
                             grid_limited = True
