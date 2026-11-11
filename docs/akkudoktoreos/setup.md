@@ -55,13 +55,15 @@ save the configuration in the last step of the assistant. See the
 6. **Prices and fees**: the electricity price, the fees added to it and the feed-in tariff.
 7. **Load**: the forecast of your consumption.
 8. **Devices**: batteries, inverters, electric vehicles and home appliances.
-9. **Measurements**: how the current state of charge and the meter readings get to EOS. See
-   [measurements](#measurement-page), the [Home Assistant adapter](#adapter-homeassistant-page) and
-   the [Node-RED adapter](#adapter-nodered-page).
-10. **Finish** shows the status of all steps and a button to save the configuration.
+9. **Measurements**: how the current state of charge and the meter readings get to EOS, and the
+   choice of the adapter. See [measurements](#measurement-page) and the
+   [Node-RED adapter](#adapter-nodered-page).
+10. **Home Assistant**: what EOS reads from and writes to Home Assistant, with a template sensor
+    and an automation as example. See the [Home Assistant adapter](#adapter-homeassistant-page).
+11. **Finish** shows the status of all steps and a button to save the configuration.
 
-You do not need every step. Skip the **PV system** step if you have no PV system, and set up only
-the devices you have.
+You do not need every step. Skip the **PV system** step if you have no PV system, the **Home
+Assistant** step if you do not use Home Assistant, and set up only the devices you have.
 
 ## Things to Know
 
@@ -80,9 +82,16 @@ the devices you have.
   check whether measurements actually arrive at EOS. If your own system sends the state of charge
   with `PUT /v1/measurement/value` and no adapter is selected, the step keeps reporting that no
   source for the state of charge is known - you can ignore this. The other way round, a step
-  without a warning does not prove that the state of charge arrives: only the entity mapping of the
-  Home Assistant adapter is checked. Look at the **Plan** page or the EOS log to see whether EOS
-  plans with the real state of charge.
+  without a warning does not prove that the state of charge arrives: the **Home Assistant** step
+  only checks that an entity is mapped, not that it delivers a value. Look at the **Plan** page or
+  the EOS log to see whether EOS plans with the real state of charge.
+- **The Home Assistant adapter needs the add-on.** It reaches Home Assistant only when EOS runs as
+  a Home Assistant add-on; there is no setting for an address or a token. If EOS runs elsewhere,
+  let Home Assistant send the measurements with `PUT /v1/measurement/value`, e.g. with a
+  `rest_command`.
+- **EOS does not switch your devices.** With the Home Assistant adapter EOS writes its instruction
+  for a device to the entity `sensor.eos_<device_id>`. An automation in Home Assistant has to act
+  on it.
 
 ## After the Setup
 
