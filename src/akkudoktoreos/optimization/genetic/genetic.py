@@ -2883,7 +2883,8 @@ class GeneticOptimization(OptimizationBase):
         For each slot whose simulated import exceeds the limit while the EV
         charges (largest excess first), one candidate lowers the slot's EV rate
         by one step and raises the rate in the cheapest slots whose import
-        leaves room for it, until the EV draws the removed energy again. Slots
+        (less the PV they export) leaves room for it, as many steps as fit,
+        until the EV draws the removed energy again. Slots
         before the EV deadline only take energy from slots before it. A
         further candidate applies all these moves at once. The candidates are
         fitness-checked by the local search, so a move that misses the EV
@@ -2909,14 +2910,19 @@ class GeneticOptimization(OptimizationBase):
             return []
 
         # Simulate a copy: evaluate_inner may rewrite appliance genes in place.
-        imports = np.asarray(
-            self.evaluate_inner(list(individual))["Netzbezug_Wh_pro_Stunde"], dtype=float
-        )
+        simulated = self.evaluate_inner(list(individual))
+        imports = np.asarray(simulated["Netzbezug_Wh_pro_Stunde"], dtype=float)
+        exports = np.asarray(simulated["Netzeinspeisung_Wh_pro_Stunde"], dtype=float)
         start_slot = self._control_start_slot()
         end_slot = min(self.control_end_slot, start_slot + imports.size)
 
         def slot_import(slot: int) -> float:
             return float(imports[slot - start_slot])
+
+        def slot_room(slot: int) -> float:
+            # Added EV charging first takes PV the slot exports, then the grid.
+            # An estimate: the fitness check of each candidate decides.
+            return max_grid_import_wh - slot_import(slot) + float(exports[slot - start_slot])
 
         sources = [
             slot
@@ -2945,7 +2951,7 @@ class GeneticOptimization(OptimizationBase):
             lowered = ordered[rank - 1]
             removed_wh = (rates[int(ev_values[source])] - rates[lowered]) * rated_wh
             ev_values[source] = lowered
-            room[source] = room.get(source, max_grid_import_wh - slot_import(source)) + removed_wh
+            room[source] = room.get(source, slot_room(source)) + removed_wh
             target_end = charge_end_slot
             if deadline_slot is not None and source < deadline_slot:
                 target_end = min(target_end, deadline_slot)
@@ -2955,19 +2961,22 @@ class GeneticOptimization(OptimizationBase):
             )
             refilled_wh = 0.0
             for target in targets:
+                # Raise the target step by step while it has room and energy
+                # is still missing (charge rates need not be evenly spaced).
+                while refilled_wh < removed_wh - 1e-9:
+                    target_rank = position[int(ev_values[target])]
+                    if target_rank + 1 >= len(ordered):
+                        break
+                    raised = ordered[target_rank + 1]
+                    added_wh = (rates[raised] - rates[int(ev_values[target])]) * rated_wh
+                    free_wh = room.get(target, slot_room(target))
+                    if added_wh > free_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH:
+                        break
+                    ev_values[target] = raised
+                    room[target] = free_wh - added_wh
+                    refilled_wh += added_wh
                 if refilled_wh >= removed_wh - 1e-9:
                     break
-                target_rank = position[int(ev_values[target])]
-                if target_rank + 1 >= len(ordered):
-                    continue
-                raised = ordered[target_rank + 1]
-                added_wh = (rates[raised] - rates[int(ev_values[target])]) * rated_wh
-                free_wh = room.get(target, max_grid_import_wh - slot_import(target))
-                if added_wh > free_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH:
-                    continue
-                ev_values[target] = raised
-                room[target] = free_wh - added_wh
-                refilled_wh += added_wh
             return True
 
         battery_genes, _, appliance_genes = self.split_individual(individual)

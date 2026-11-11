@@ -1103,23 +1103,41 @@ EV_FULL_RATE_WH = 2750.0  # 11 kW per quarter hour, lossless charger
 EV_CHEAP_SLOTS = range(4, 12)  # 01:00-03:00
 
 
-def _ev_limit_optimizer(config_eos: ConfigEOS, limit_w: Optional[float]) -> GeneticOptimization:
-    """Short run of six quarter-hour hours; afterwards the optimizer holds the run's inputs.
+def _ev_limit_optimizer(
+    config_eos: ConfigEOS,
+    limit_w: Optional[float],
+    *,
+    interval_sec: int = 900,
+    load: Optional[list[float]] = None,
+    pv: Optional[list[float]] = None,
+    prices: Optional[list[float]] = None,
+    charge_rates: Optional[list[float]] = None,
+    deadline: str = "2026-11-05T04:00:00",
+) -> GeneticOptimization:
+    """Short run; afterwards the optimizer holds the run's inputs.
 
-    EV 60 kWh, 11 kW with the rates 0 / 0.5 / 1, empty, 18 % (10.8 kWh) by
-    04:00 (slot 16); 1 kW house load; cheapest import 01:00-03:00. The
-    battery is at its minimum SoC and cannot shave. At a 9 kW limit only the
-    half rate (5.5 kW) fits next to the load.
+    Default: six quarter-hour hours. EV 60 kWh, 11 kW with the rates
+    0 / 0.5 / 1, empty, 18 % (10.8 kWh) by 04:00 (slot 16); 1 kW house load;
+    cheapest import 01:00-03:00. The battery is at its minimum SoC and cannot
+    shave. At a 9 kW limit only the half rate (5.5 kW) fits next to the load.
     """
+    slots_per_hour = 3600 // interval_sec
+    slots = len(load) if load is not None else EV_SLOTS
+    if load is None:
+        load = [EV_LOAD_WH] * slots
+    if prices is None:
+        prices = [0.0003] * slots
+        for slot in EV_CHEAP_SLOTS:
+            prices[slot] = 0.00015
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
             "optimization": {
                 "algorithm": "GENETIC",
                 "genetic": {
-                    "horizon_hours": 6,
+                    "horizon_hours": slots // slots_per_hour,
                     "tail_horizon_hours": 0,
-                    "interval_sec": 900,
+                    "interval_sec": interval_sec,
                     "terminal_value_mode": "FIXED",
                     "terminal_value_euro_per_kwh": 0.0,
                 },
@@ -1128,14 +1146,11 @@ def _ev_limit_optimizer(config_eos: ConfigEOS, limit_w: Optional[float]) -> Gene
         }
     )
     get_ems(init=True).set_start_datetime(to_datetime("2026-11-05T00:00:00"))
-    prices = [0.0003] * EV_SLOTS
-    for slot in EV_CHEAP_SLOTS:
-        prices[slot] = 0.00015
     parameters = GeneticOptimizationParameters.model_validate(
         {
             "ems": {
-                "pv_forecast_wh": [0.0] * EV_SLOTS,
-                "total_load": [EV_LOAD_WH] * EV_SLOTS,
+                "pv_forecast_wh": pv if pv is not None else [0.0] * slots,
+                "total_load": load,
                 "electricity_price_per_wh": prices,
                 "feed_in_tariff_per_wh": 0.0,
                 "price_per_wh_battery": 0.0,
@@ -1149,7 +1164,7 @@ def _ev_limit_optimizer(config_eos: ConfigEOS, limit_w: Optional[float]) -> Gene
             },
             "inverter": {
                 "device_id": "inverter1",
-                "max_power_wh": 10000,
+                "max_power_wh": 20000,
                 "battery_id": "battery1",
                 "max_ac_charge_power_w": 0,
                 "max_grid_import_power_w": limit_w,
@@ -1162,10 +1177,10 @@ def _ev_limit_optimizer(config_eos: ConfigEOS, limit_w: Optional[float]) -> Gene
                 "max_soc_percentage": 100,
                 "charging_efficiency": 1.0,
                 "max_charge_power_w": 11000,
-                "charge_rates": [0.0, 0.5, 1.0],
-                "min_soc_deadline_datetime": "2026-11-05T04:00:00",
+                "charge_rates": charge_rates or [0.0, 0.5, 1.0],
+                "min_soc_deadline_datetime": deadline,
             },
-            "forecast_interval_seconds": 900,
+            "forecast_interval_seconds": interval_sec,
         }
     )
     optimizer = GeneticOptimization(fixed_seed=1)
@@ -1173,18 +1188,22 @@ def _ev_limit_optimizer(config_eos: ConfigEOS, limit_w: Optional[float]) -> Gene
     return optimizer
 
 
-def _full_rate_incumbent(optimizer: GeneticOptimization) -> list[int]:
-    """Battery idle, EV at the full rate in the first four cheap slots (11 kWh).
-
-    Each of them imports 12 kW, 3 kW above the 9 kW limit.
-    """
-    full_index = optimizer.ev_possible_charge_values.index(1.0)
-    ev_genes = np.zeros(optimizer.control_end_slot, dtype=np.int_)
-    for slot in range(4, 8):
-        ev_genes[slot] = full_index
+def _incumbent(optimizer: GeneticOptimization, ev_rates: list[float]) -> list[int]:
+    """Battery idle (no PV charging) in every slot, EV at the given rates."""
+    ev_genes = np.array(
+        [optimizer.ev_possible_charge_values.index(rate) for rate in ev_rates], dtype=np.int_
+    )
     return optimizer.merge_individual(
         np.zeros(optimizer.control_end_slot, dtype=np.int_), ev_genes, None
     )
+
+
+def _full_rate_incumbent(optimizer: GeneticOptimization) -> list[int]:
+    """EV at the full rate in the first four cheap slots (11 kWh).
+
+    Each of them imports 12 kW, 3 kW above the 9 kW limit.
+    """
+    return _incumbent(optimizer, [1.0 if 4 <= slot < 8 else 0.0 for slot in range(EV_SLOTS)])
 
 
 def _ev_rates(optimizer: GeneticOptimization, genome: list[int]) -> list[float]:
@@ -1232,6 +1251,67 @@ class TestEvGridLimitLocalSearch:
         rates = _ev_rates(optimizer, best)
         assert [slot for slot, rate in enumerate(rates) if rate > 0.0] == list(EV_CHEAP_SLOTS)
         assert set(rates) == {0.0, 0.5}
+
+    def test_destination_keeps_rising_while_it_has_room(self, config_eos):
+        """Rates 0 / .3 / .4 / .5 / .6, hourly: 8 kW and 1 kW load, EV at .3 in both hours.
+
+        Hour 0 imports 11.3 kW. Lowering it to 0 removes 3.3 kWh; hour 1
+        (4.3 kW) has room for all of it, three steps up to .6 (7.6 kW).
+        """
+        rates = [0.0, 0.3, 0.4, 0.5, 0.6]
+        optimizer = _ev_limit_optimizer(
+            config_eos,
+            EV_LIMIT_W,
+            interval_sec=3600,
+            load=[8000.0, 1000.0],
+            prices=[0.0003, 0.0003],
+            charge_rates=rates,
+            deadline="2026-11-05T02:00:00",
+        )
+        incumbent = creator.Individual(_incumbent(optimizer, [0.3, 0.3]))
+
+        candidates = [
+            _ev_rates(optimizer, genome)
+            for genome in optimizer._grid_limit_ev_shift_candidates(incumbent)
+        ]
+        best, _, _, initial, final = optimizer._locally_improve_grid_export(
+            incumbent, max_evaluations=96
+        )
+
+        assert candidates[0] == [0.0, 0.6]
+        assert final < initial
+        assert max(optimizer.evaluate_inner(list(best))["Netzbezug_Wh_pro_Stunde"]) <= 9000.0
+
+    def test_pv_surplus_of_the_destination_counts_as_room(self, config_eos):
+        """Hourly, rates 0 / 1: the EV's 11 kWh move from a 12 kW hour into a PV hour.
+
+        Hour 1 has 1 kW load and 8 kW PV: 11 kW EV charging there imports
+        about 4 kW, well within the 9 kW limit, although 11 kWh exceed the
+        9 kWh the limit leaves without counting the PV surplus.
+        """
+        optimizer = _ev_limit_optimizer(
+            config_eos,
+            EV_LIMIT_W,
+            interval_sec=3600,
+            load=[1000.0, 1000.0],
+            pv=[0.0, 8000.0],
+            prices=[0.0002, 0.0003],
+            charge_rates=[0.0, 1.0],
+            deadline="2026-11-05T02:00:00",
+        )
+        incumbent = creator.Individual(_incumbent(optimizer, [1.0, 0.0]))
+
+        candidates = [
+            _ev_rates(optimizer, genome)
+            for genome in optimizer._grid_limit_ev_shift_candidates(incumbent)
+        ]
+        best, _, _, initial, final = optimizer._locally_improve_grid_export(
+            incumbent, max_evaluations=96
+        )
+
+        assert candidates[0] == [0.0, 1.0]
+        assert final < initial
+        assert max(optimizer.evaluate_inner(list(best))["Netzbezug_Wh_pro_Stunde"]) <= 9000.0
 
     @pytest.mark.parametrize("limit_w", [None, 1e9])
     def test_no_candidates_without_a_binding_limit(self, config_eos, limit_w):
