@@ -13,6 +13,7 @@ import math
 import random
 import shutil
 import sys
+import time
 import tokenize
 from contextlib import contextmanager
 from pathlib import Path
@@ -739,6 +740,7 @@ class TestFallback:
             (float("nan"), True),  # JSON null in the request
             ("1_000", True),  # Python's float() reads it, Rust's parse::<f64>() does not
             ("ten", True),
+            ("\u0130nf", True),  # Rust matches inf/nan in ASCII only
             ([], True),
         ],
     )
@@ -768,6 +770,21 @@ class TestFallback:
             else []
         )
         assert native.kernel_fallbacks(request) == expected
+
+    def test_long_invalid_penalty_is_checked_in_linear_time(self):
+        """A long digit run before an invalid character must not backtrack quadratically."""
+        request = {
+            "settings": {"individuals": 60, "generations": 25,
+                         "penalties": {"ev_soc_miss": "1" * 20000 + "x"}},
+            "parameters": {"ev": {"min_soc_percentage": 70, "initial_soc_percentage": 30,
+                                  "charge_rates": [0.0, 1.0]}},
+            "individuals": None,
+            "generations": None,
+            "fallback_ev_charge_rates": None,
+        }
+        started = time.perf_counter()
+        assert len(native.kernel_fallbacks(request)) == 1
+        assert time.perf_counter() - started < 0.5
 
     def test_kernel_fallbacks_without_ev_and_with_configured_rates(self):
         request: dict[str, Any] = {

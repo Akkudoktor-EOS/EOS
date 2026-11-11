@@ -864,8 +864,12 @@ def compare_run(
 # --------------------------------------------------------------------------- dispatch
 
 
-# ``str::parse::<f64>`` of Rust, after ``trim()``: no underscores, no inner spaces.
-_RUST_FLOAT = re.compile(r"[+-]?(inf|infinity|nan|(\d+\.?\d*|\.\d+)(e[+-]?\d+)?)", re.IGNORECASE)
+# ``str::parse::<f64>`` of Rust, after ``trim()``: ASCII only, no underscores, no inner spaces.
+# The fraction digits follow the point only, so a long digit run does not backtrack.
+_RUST_FLOAT = re.compile(
+    r"[+-]?(?:inf|infinity|nan|(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)",
+    re.IGNORECASE | re.ASCII,
+)
 
 
 def _kernel_reads_number(value: Any) -> bool:
