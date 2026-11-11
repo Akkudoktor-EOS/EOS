@@ -182,13 +182,14 @@ Verify prices against your local tariffs.
   (0-1). Must be > 0. Default `1.0` (backward compatible).
 - `max_ac_charge_power_w`: Maximum AC charging power in watts. `null` means no additional limit
   (battery's own `max_charge_power_w` applies). Set to `0` to disable AC charging. Default `null`.
-- `max_grid_import_power_w`: Maximum power drawn from the grid in watts. AC charging is
-  reduced so that load plus charging stays within the limit; where the plan holds the battery,
-  it still covers the import above the limit (threshold peak shaving). Import the battery
-  cannot cover is penalised with `optimization.genetic.penalties.grid_import_limit_excess`
-  (€/kWh, default `10.0`), so the plan keeps reserve for peaks. The battery instructions of
-  the energy management plan carry the limit as `peak_shaving_threshold_w`. `null` means no
-  limit. Default `null`.
+
+The grid import power limit (`max_grid_import_power_w`) with threshold peak shaving is only
+available in the GENETIC optimization (automatic optimization or `POST /v1/optimize`, see
+[Automatic Optimization](optimauto.md)). `POST /optimize` runs GENETIC0 and rejects the field as
+an unknown inverter parameter. Its legacy response could not carry the limit either: in a GENETIC
+plan a slot with `discharge_allowed = 0` may still contain simulated peak-shaving discharge, and
+only the energy management plan (`peak_shaving_threshold_w`) and the solution's
+`result.peak_shaving_wh_per_hour` show it.
 
 #### Efficiency Model
 

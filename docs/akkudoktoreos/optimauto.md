@@ -357,6 +357,14 @@ The inverter supports separate AC↔DC conversion efficiencies:
   simulated, still within the limit. A controller that ignores the field holds the battery in
   held slots and imports the whole load where the simulation shaved a peak.
 
+  The GENETIC solution itself (response of `POST /v1/optimize`) does not carry the threshold
+  in its control arrays: a slot with `discharge_allowed = 0` may still contain simulated
+  peak-shaving discharge. `result.peak_shaving_wh_per_hour` reports that energy per slot (AC
+  side, `0` where the battery shaved nothing, `null` without a limit); the threshold is the
+  configured `max_grid_import_power_w`. A client that executes the control arrays instead of
+  the energy management plan has to shave the import above that threshold itself, otherwise
+  its grid import and state of charge deviate from the simulation in those slots.
+
 **Example with an efficiency curve:**
 
 ```json
