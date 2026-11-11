@@ -2883,10 +2883,12 @@ class GeneticOptimization(OptimizationBase):
         For each slot whose simulated import exceeds the limit while the EV
         charges (largest excess first), one candidate lowers the slot's EV rate
         by one step and raises the rate in the cheapest slots whose import
-        (less the PV they export) leaves room for it, as many steps as fit,
-        until the EV draws the removed energy again. Slots
-        before the EV deadline only take energy from slots before it. A
-        further candidate applies all these moves at once. The candidates are
+        leaves room for it, until the EV draws the removed energy again:
+        first in steps that fit into the missing energy, then with one larger
+        step. Slots before the EV deadline only take energy from slots before
+        it. A further candidate applies all these moves at once. Each candidate
+        is built twice, with and without counting the PV a destination exports
+        as room (an estimate of the PV the EV can take). The candidates are
         fitness-checked by the local search, so a move that misses the EV
         target or costs more than it saves is not taken.
 
@@ -2919,10 +2921,14 @@ class GeneticOptimization(OptimizationBase):
         def slot_import(slot: int) -> float:
             return float(imports[slot - start_slot])
 
-        def slot_room(slot: int) -> float:
+        def slot_room(slot: int, pv_credit: bool) -> float:
             # Added EV charging first takes PV the slot exports, then the grid.
-            # An estimate: the fitness check of each candidate decides.
-            return max_grid_import_wh - slot_import(slot) + float(exports[slot - start_slot])
+            # Only an estimate (the PV model can import and export in one
+            # slot), so candidates are built with and without this credit.
+            room_wh = max_grid_import_wh - slot_import(slot)
+            if pv_credit:
+                room_wh += float(exports[slot - start_slot])
+            return room_wh
 
         sources = [
             slot
@@ -2943,7 +2949,9 @@ class GeneticOptimization(OptimizationBase):
         charge_end_slot = max(start_slot, end_slot - self.fixed_eauto_hours)
         deadline_slot = self._ev_soc_deadline_slot
 
-        def move(ev_values: np.ndarray, room: dict[int, float], source: int) -> bool:
+        def move(
+            ev_values: np.ndarray, room: dict[int, float], source: int, pv_credit: bool
+        ) -> bool:
             """Lower the source by one step and refill elsewhere; False if nothing moved."""
             rank = position[int(ev_values[source])]
             if rank == 0:
@@ -2951,7 +2959,7 @@ class GeneticOptimization(OptimizationBase):
             lowered = ordered[rank - 1]
             removed_wh = (rates[int(ev_values[source])] - rates[lowered]) * rated_wh
             ev_values[source] = lowered
-            room[source] = room.get(source, slot_room(source)) + removed_wh
+            room[source] = room.get(source, slot_room(source, pv_credit)) + removed_wh
             target_end = charge_end_slot
             if deadline_slot is not None and source < deadline_slot:
                 target_end = min(target_end, deadline_slot)
@@ -2960,23 +2968,29 @@ class GeneticOptimization(OptimizationBase):
                 key=lambda slot: (float(prices[slot]), slot),
             )
             refilled_wh = 0.0
-            for target in targets:
-                # Raise the target step by step while it has room and energy
-                # is still missing (charge rates need not be evenly spaced).
-                while refilled_wh < removed_wh - 1e-9:
-                    target_rank = position[int(ev_values[target])]
-                    if target_rank + 1 >= len(ordered):
-                        break
-                    raised = ordered[target_rank + 1]
-                    added_wh = (rates[raised] - rates[int(ev_values[target])]) * rated_wh
-                    free_wh = room.get(target, slot_room(target))
-                    if added_wh > free_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH:
-                        break
-                    ev_values[target] = raised
-                    room[target] = free_wh - added_wh
-                    refilled_wh += added_wh
-                if refilled_wh >= removed_wh - 1e-9:
-                    break
+            # First only steps that fit into the energy still missing, then,
+            # if some is still missing, one larger step in the cheapest slot
+            # with room (charge rates need not be evenly spaced).
+            for overshoot in (False, True):
+                for target in targets:
+                    while refilled_wh < removed_wh - 1e-9:
+                        target_rank = position[int(ev_values[target])]
+                        if target_rank + 1 >= len(ordered):
+                            break
+                        raised = ordered[target_rank + 1]
+                        added_wh = (rates[raised] - rates[int(ev_values[target])]) * rated_wh
+                        if not overshoot and added_wh > removed_wh - refilled_wh + 1e-9:
+                            break
+                        free_wh = room.get(target, slot_room(target, pv_credit))
+                        if added_wh > free_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH:
+                            break
+                        ev_values[target] = raised
+                        room[target] = free_wh - added_wh
+                        refilled_wh += added_wh
+                        if overshoot:
+                            break
+                    if refilled_wh >= removed_wh - 1e-9:
+                        return True
             return True
 
         battery_genes, _, appliance_genes = self.split_individual(individual)
@@ -2990,14 +3004,15 @@ class GeneticOptimization(OptimizationBase):
                 seen.add(key)
                 candidates.append(candidate)
 
-        combined = ev_genes.copy()
-        combined_room: dict[int, float] = {}
-        for source in sources[:max_sources]:
-            single = ev_genes.copy()
-            if move(single, {}, source):
-                add(single)
-            move(combined, combined_room, source)
-        add(combined)
+        for pv_credit in (True, False):
+            combined = ev_genes.copy()
+            combined_room: dict[int, float] = {}
+            for source in sources[:max_sources]:
+                single = ev_genes.copy()
+                if move(single, {}, source, pv_credit):
+                    add(single)
+                move(combined, combined_room, source, pv_credit)
+            add(combined)
         return candidates
 
     def _locally_improve_grid_export(
