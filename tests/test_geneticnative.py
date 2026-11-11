@@ -593,6 +593,52 @@ class TestFallback:
         solution = _run(_load_input("optimize_input_1.json"), ngen=3)
         assert native.compare_solutions(reference, solution) == []
 
+    def test_kernel_fallbacks_are_logged_like_python(self, config_eos, monkeypatch, caplog):
+        """The kernel applies Python's fallback values silently; the adapter logs each one.
+
+        Missing individuals, generations, ``ev_soc_miss`` penalty and EV charge rates get the
+        same substitutes in the kernel as in Python, so a native run logs them with Python's
+        messages and levels.
+        """
+        _configure(config_eos, individuals=None, generations=None)
+        config_eos.set_nested_value("optimization/genetic/penalties", {"ac_charge_break_even": 1})
+        # No configured EV either: its charge rates are the second source before the default.
+        config_eos.set_nested_value("devices/electric_vehicles", None)
+
+        def make() -> GeneticOptimizationParameters:
+            return _synthetic_input(slots=48, interval=3600, seed=3)
+
+        reference = _run(make(), ngen=3)
+        response = {"solution": reference.model_dump(mode="json"), "diagnostics": {}}
+        response["solution"].pop("parameters")
+
+        class Kernel(_FakeKernel):
+            def run_genetic(self, request: str) -> str:
+                return json.dumps(response)
+
+        kernel = Kernel(
+            **{**vars(_fake_kernel()), "certified_fingerprints": (native.source_fingerprint(),)}
+        )
+        monkeypatch.setattr(native, "_import_native", lambda: kernel)
+        _set_backend(config_eos, "native")
+        # Merging settings restores the default penalties; drop ev_soc_miss again.
+        config_eos.set_nested_value("optimization/genetic/penalties", {"ac_charge_break_even": 1})
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            _run(make(), ngen=None)
+        logged = {(record.levelname, record.getMessage()) for record in caplog.records}
+        assert ("ERROR", "Individuals not configured. Using 300.") in logged
+        assert ("ERROR", "Generations not configured. Using 400.") in logged
+        assert (
+            "ERROR",
+            "Penalty function parameter `ev_soc_miss` not configured, using 10.",
+        ) in logged
+        assert (
+            "WARNING",
+            "No charge rates provided for electric vehicle - using default.",
+        ) in logged
+        assert not any("native backend not used" in message for _, message in logged)
+
     def test_unsynchronized_start_hour_still_raises(self, config_eos, monkeypatch):
         _configure(config_eos, backend="native")
         kernel = _fake_kernel(certified_fingerprints=(native.source_fingerprint(),))
