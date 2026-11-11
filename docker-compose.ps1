@@ -34,4 +34,4 @@ $env:DOCKER_COMPOSE_DATA_DIR = $DockerComposeDataDir
 
 Write-Host "EOS data dir: '$env:DOCKER_COMPOSE_DATA_DIR'"
 
-docker compose -f docker-compose.yml up -d
+docker compose -f docker-compose.yaml up -d
