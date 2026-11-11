@@ -27,6 +27,7 @@ the maintainers' review remain the actual controls.
 - The check only blocks merging once maintainers make it a required status check.
 - The workflow runs on `pull_request_target` with the base branch's script and never runs pull
   request code, so a pull request cannot weaken its own check; changes to the check take effect
-  only after they are merged.
+  only after they are merged. Superseded by [0002](0002-self-review-check-on-pull-request.md).
 - The workflow needs `pull-requests: write` to comment how to fix a failing check. That is safe
-  only as long as it runs no pull request code.
+  only as long as it runs no pull request code. Superseded by
+  [0002](0002-self-review-check-on-pull-request.md).

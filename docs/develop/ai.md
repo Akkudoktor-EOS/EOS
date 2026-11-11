@@ -260,6 +260,8 @@ comment says so. The same report appears in the job summary of the run. Values t
 pull request body or the commit messages appear in the comment only inside a code block, so they
 cannot mention anyone or inject Markdown. If the check script itself fails, the comment says that
 the check could not run and points to the log of the workflow run; the check then fails.
+Pull requests from forks get a read-only token, so the workflow does not comment on them; their
+report is only in the job summary of the run.
 
 Every push changes the head, so the check fails until the body names the new head. Therefore the
 self-review is rerun and `pr.md` rewritten before the push, and the body is replaced right after
@@ -270,13 +272,21 @@ Rebases and squashes before the merge need a fresh declaration too.
 
 The check cannot tell a real review from a typed-in SHA, as no AI runs in CI. Like a sign-off, it
 makes forgetting impossible and a false claim deliberate. Your author review and the maintainers'
-review remain the controls. See the decision record
-[0001](../adr/0001-self-declared-sha-bound-review-gate.md).
+review remain the controls. See the decision records
+[0001](../adr/0001-self-declared-sha-bound-review-gate.md) and
+[0002](../adr/0002-self-review-check-on-pull-request.md).
 
-The workflow runs on `pull_request_target`: it uses the workflow and the script of the base
-branch, never the code of the pull request, so a pull request cannot weaken its own check. It runs
-only for pull requests into `main`, never on pushes to `main` or to other branches, and not for
-pull requests into other branches.
+The workflow runs on `pull_request`, because GitHub blocks `pull_request_target` by default in
+public repositories from December 2026. The workflow file therefore comes from the pull request,
+while the check script is taken from the base branch, and no other code of the pull request runs. A
+pull request that changes the workflow can weaken its own check, so `.github/CODEOWNERS` makes a
+maintainer the code owner of `.github/workflows/`, `.github/CODEOWNERS` and
+`scripts/check_pr_self_review.py`. This takes effect once the branch protection of `main` requires a
+review from code owners. Depending on the approval setting of the repository, runs for pull requests
+from forks of first-time contributors wait for a maintainer's approval. A pull request with merge
+conflicts gets no run until the conflicts are resolved. The workflow runs only for pull requests
+into `main`, never on pushes to `main` or to other branches, and not for pull requests into other
+branches.
 
 ## The AI development sandbox
 

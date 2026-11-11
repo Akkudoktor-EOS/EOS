@@ -3,19 +3,21 @@ name: ai-self-review
 # Checks the self-review declaration of agent-assisted pull requests, see
 # docs/adr/0001-self-declared-sha-bound-review-gate.md and docs/develop/ai.md.
 #
-# pull_request_target runs the workflow and the check script of the base branch, so a pull
-# request cannot weaken its own check. The job never checks out or runs code of the pull
-# request; it reads the body and the commit messages through the API only.
+# It runs on pull_request, see docs/adr/0002-self-review-check-on-pull-request.md. The workflow
+# file therefore comes from the pull request, but the job checks out and runs the check script of
+# the base branch; it never checks out or runs other code of the pull request and reads the body
+# and the commit messages through the API only. A pull request that changes this workflow can
+# weaken its own check, so .github/CODEOWNERS requires a maintainer's review for it.
 #
 # It runs only for pull requests into main, never on pushes to main or to other branches, and not
 # for pull requests into other branches.
 #
 # On failure it posts one comment that explains the fix, found again by its marker and updated in
-# place; once the check passes, the comment is updated to say so. Commenting needs
-# pull-requests: write, which is safe here because no pull request code runs.
+# place; once the check passes, the comment is updated to say so. Pull requests from forks get a
+# read-only token, so the comment step is skipped for them; the report is in the job summary.
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, edited, synchronize, reopened]
     branches: [main]
 
@@ -83,6 +85,8 @@ jobs:
         echo "status=$status" >> "$GITHUB_OUTPUT"
         cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
     - name: Comment on the pull request
+      # The token of a pull request from a fork is read-only and cannot comment.
+      if: github.event.pull_request.head.repo.full_name == github.repository
       # A failing comment must not change the result of the check.
       continue-on-error: true
       env:
@@ -104,8 +108,13 @@ jobs:
       if: always()
       env:
         STATUS: ${{ steps.check.outputs.status }}
+        FROM_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
       run: |
         if [ "${STATUS:-1}" != "0" ]; then
-          echo "::error::The self-review check failed; see the step summary or the pull request comment."
+          if [ "$FROM_FORK" = "true" ]; then
+            echo "::error::The self-review check failed; see the job summary of this run."
+          else
+            echo "::error::The self-review check failed; see the job summary or the pull request comment."
+          fi
         fi
         exit "${STATUS:-1}"
