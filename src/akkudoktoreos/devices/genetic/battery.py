@@ -1,10 +1,12 @@
-import math
 from typing import Any, Iterator, Optional
 
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
-from akkudoktoreos.devices.devicesabc import validate_soc_value_steps
+from akkudoktoreos.devices.devicesabc import (
+    soc_value_credit_is_finite,
+    validate_soc_value_steps,
+)
 from akkudoktoreos.devices.settings.batterysettings import (
     BATTERY_DEFAULT_CHARGE_RATES,
     EV_SOC_VALUE_STEPS_DESCRIPTION,
@@ -238,9 +240,7 @@ class ElectricVehicleParameters(BaseBatteryParameters):
     @model_validator(mode="after")
     def validate_soc_value_credit_is_finite(self) -> "ElectricVehicleParameters":
         """The credit for a full vehicle must stay a finite number in the fitness."""
-        if self.soc_value_steps and not math.isfinite(
-            self.capacity_wh / 1000.0 * self.soc_value_steps[0][1]
-        ):
+        if not soc_value_credit_is_finite(self.soc_value_steps, self.capacity_wh):
             raise ValueError("soc_value_steps amounts are too large for the vehicle capacity.")
         return self
 

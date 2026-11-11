@@ -135,16 +135,34 @@ def test_invalid_soc_value_steps_are_rejected(steps: Any) -> None:
 
 def test_value_steps_whose_credit_overflows_are_rejected() -> None:
     """Finite amounts that make the credit for the whole vehicle infinite would
-    turn every fitness into -inf."""
+    turn every fitness into -inf: a direct GENETIC request rejects them."""
     with pytest.raises(ValidationError):
         ElectricVehicleParameters(
             device_id="car", capacity_wh=60000, soc_value_steps=[(80.0, 1e308)]
         )
+
+
+def test_value_steps_whose_credit_overflows_fall_back_in_the_preparation(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The configured steps never cancel a run: the preparation drops them.
+
+    The configuration accepts each amount on its own; only together with the
+    capacity is the credit infinite. The GENETIC parameters then get the
+    field's default (no value above the target), the error names the input and
+    the substitute, and the configuration keeps the steps.
+    """
     settings = BatteriesCommonSettings(
         device_id="car", capacity_wh=60000, soc_value_steps=[(80.0, 1e308)]
     )
-    with pytest.raises(ValidationError):
-        settings.to_genetic_ev_bat_param()
+    with caplog.at_level("ERROR"):
+        params = settings.to_genetic_ev_bat_param()
+    assert params.soc_value_steps is None
+    assert params.capacity_wh == 60000
+    assert "soc_value_steps" in caplog.text
+    assert "1e+308" in caplog.text
+    assert "None" in caplog.text
+    assert settings.soc_value_steps == [(80.0, 1e308)]
 
 
 def test_empty_soc_value_steps_mean_no_value() -> None:

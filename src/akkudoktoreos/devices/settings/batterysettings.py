@@ -7,11 +7,15 @@ import re
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import numpy as np
+from loguru import logger
 from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import ConfigScope
-from akkudoktoreos.devices.devicesabc import validate_soc_value_steps
+from akkudoktoreos.devices.devicesabc import (
+    soc_value_credit_is_finite,
+    validate_soc_value_steps,
+)
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.measurement.batterycapacity import (
     BatteryCapacityEstimate,
@@ -365,8 +369,25 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         )
 
     def to_genetic_ev_bat_param(self) -> "ElectricVehicleParameters":
-        """Return ElectricVehicleParameters for the GENETIC optimizer."""
+        """Return ElectricVehicleParameters for the GENETIC optimizer.
+
+        The preparation never fails on ``soc_value_steps``: steps whose credit
+        for the whole capacity is not a finite number (each amount alone is
+        finite) are replaced by the field's default None, logged as an error.
+        The settings keep the steps.
+        """
         from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
+
+        soc_value_steps = self.soc_value_steps
+        if not soc_value_credit_is_finite(soc_value_steps, self.capacity_wh):
+            logger.error(
+                "Electric vehicle '{}': soc_value_steps {} give an infinite credit for "
+                "capacity_wh {}; using None (no value above the target SoC) instead.",
+                self.device_id,
+                soc_value_steps,
+                self.capacity_wh,
+            )
+            soc_value_steps = None
 
         return ElectricVehicleParameters(
             device_id=self.device_id,
@@ -380,7 +401,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             min_soc_deadline_datetime=self.min_soc_deadline_datetime,
             min_soc_max_duration_h=self.min_soc_max_duration_h,
             charge_start_datetime=self.charge_start_datetime,
-            soc_value_steps=self.soc_value_steps,
+            soc_value_steps=soc_value_steps,
         )
 
     # ------------------------------------------------------------------

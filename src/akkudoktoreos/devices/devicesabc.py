@@ -228,6 +228,29 @@ def validate_soc_value_steps(
     return validated
 
 
+def soc_value_credit_is_finite(
+    steps: Optional[list[tuple[float, float]]], capacity_wh: float
+) -> bool:
+    """Return whether the SoC value credit of a whole vehicle stays a finite number.
+
+    Each amount is finite on its own (see ``validate_soc_value_steps``), but a
+    huge amount times the capacity can still overflow to infinity and turn every
+    fitness into -inf. The amounts do not rise with the state of charge, so the
+    first step bounds the credit per kWh.
+
+    Args:
+        steps: Validated value steps, or None for no value.
+        capacity_wh: Capacity of the vehicle [Wh].
+
+    Returns:
+        True without steps or when the first step's amount for the whole
+        capacity is finite.
+    """
+    if not steps:
+        return True
+    return math.isfinite(capacity_wh / 1000.0 * steps[0][1])
+
+
 def interpolate_efficiency_curve(curve: list[tuple[float, float]], load_fraction: float) -> float:
     """Return the efficiency of a curve at a load fraction.
 
