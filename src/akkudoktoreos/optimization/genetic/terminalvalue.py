@@ -276,7 +276,10 @@ def build_terminal_value_curve(
     # LCOS is charged on delivered DC energy; the curve is in AC energy.
     lcos_per_wh_ac = (lcos_euro_per_kwh / 1000.0) / max(dc_to_ac_efficiency, 1e-9)
 
-    order = np.argsort(-prices)
+    # Stable: slots with the same price keep their order. The default (quicksort) leaves the
+    # order of equal prices to the platform - NumPy sorts with SIMD kernels on x86-64 - and that
+    # order decides where the curve is cut at the battery capacity, i.e. the plan.
+    order = np.argsort(-prices, kind="stable")
     energy_points: list[float] = [0.0]
     value_points: list[float] = [0.0]
     marginals: list[float] = []
