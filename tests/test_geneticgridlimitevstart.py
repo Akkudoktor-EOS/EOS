@@ -136,12 +136,23 @@ class TestFirstSlotShare:
 
     @pytest.mark.parametrize("share", [1.0, 0.5])
     def test_held_battery_shaving_keeps_the_full_ev_rate_in_slot0(self, config_eos, share):
-        """A charged, held battery shaves the 2 kW above the limit; the EV keeps 7 kW."""
+        """A charged, held battery shaves the 2 kW above the limit; the EV keeps 7 kW.
+
+        The battery shaves only in the part of slot 0 the EV charges in: 2 kW
+        over ``share`` of the hour. The import is the 3 kW load before that
+        part and the 8 kW limit in it.
+        """
         result, _ = _simulate_slot0(share, battery_soc_percentage=100)
 
         assert 0 not in result["ev_grid_limited_charge_factors"]
         assert result["EAuto_SoC_pro_Stunde"][1] == pytest.approx(
             EV_POWER_W * share / 60000 * 100
+        )
+        shaved_wh = (LOAD_SLOT0_WH + EV_POWER_W - LIMIT_W) * share
+        assert result["peak_shaving_wh_per_hour"][0] == pytest.approx(shaved_wh)
+        assert result["akku_soc_pro_stunde"][1] == pytest.approx(100.0 - shaved_wh / 10000 * 100)
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(
+            LOAD_SLOT0_WH * (1.0 - share) + LIMIT_W * share
         )
 
     @pytest.mark.parametrize("share", [1.0, 0.25])
