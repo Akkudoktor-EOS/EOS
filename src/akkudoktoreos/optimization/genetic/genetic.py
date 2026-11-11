@@ -1280,11 +1280,15 @@ class GeneticOptimization(OptimizationBase):
 
         A deadline at or before the charge start can not be met by any plan and
         is relaxed: the target is required at the end of the horizon instead,
-        with a warning. Any later deadline is kept, also when the vehicle has no
-        time to charge before it (charge start and deadline inside one slot that
-        begins before the charge start): moving the target past the departure
-        would plan charging for a vehicle that has left. A deadline that has
-        passed is due right now.
+        with a warning. So is a deadline that has passed (at or before now): a
+        vehicle that is still planned for is still connected, and a target due
+        right now could not be changed by any plan - the vehicle would stop
+        charging below its target, also in cheap slots after the departure. The
+        warning names the passed deadline when the target is not reached. Any
+        later deadline is kept, also when the vehicle has no time to charge
+        before it (charge start and deadline inside one slot that begins before
+        the charge start): moving a future target past the departure would plan
+        charging for a vehicle that has left.
 
         Args:
             parameters: Optimization parameters of this run.
@@ -1349,8 +1353,21 @@ class GeneticOptimization(OptimizationBase):
             return None
 
         if position < now_position + 1e-9:
-            # A deadline in the past means the target is due right now.
-            return start_slot, 0.0
+            # The deadline has passed while the vehicle is still planned for, so
+            # it is still connected. A target due right now could not be changed
+            # by any plan (the penalty would be a constant): the target is
+            # required at the end of the horizon instead, as without a deadline.
+            if ev_parameters.initial_soc_percentage < ev_parameters.min_soc_percentage:
+                logger.warning(
+                    "EV '{}': deadline {} has passed with the target SoC {} % not reached "
+                    "({} % now) - the target SoC is required at the end of the horizon "
+                    "instead.",
+                    ev_parameters.device_id,
+                    deadline_moment,
+                    ev_parameters.min_soc_percentage,
+                    ev_parameters.initial_soc_percentage,
+                )
+            return None
         deadline_slot = math.floor(position + 1e-9)
         # Only the time from the start of the deadline slot - or from now, in
         # the current slot - until the deadline counts, as a share of the time

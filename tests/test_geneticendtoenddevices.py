@@ -221,7 +221,29 @@ def test_real_warm_start_handles_changed_completed_cycle_layout(config_eos: Conf
     assert len(second.start_solution) == len(first.start_solution) - 1
 
 
-@pytest.mark.parametrize("deadline", ["2026-09-15T23:00:00", "2026-09-16T00:01:00"])
+def test_real_ev_after_a_passed_departure_keeps_its_target(config_eos: ConfigEOS) -> None:
+    """A departure that has passed with the target not reached, the vehicle still planned
+    for: the target is required at the end of the horizon instead of right now."""
+    configure(config_eos)
+    params = parameters(
+        ev={
+            "device_id": "car",
+            "capacity_wh": 4000,
+            "initial_soc_percentage": 0,
+            "min_soc_percentage": 25,
+            "charging_efficiency": 1.0,
+            "max_charge_power_w": 4000,
+            "charge_rates": [0.0, 1.0],
+            "min_soc_deadline_datetime": "2026-09-15T23:00:00",
+        }
+    )
+    optimizer, solution = run(params)
+    assert optimizer._ev_soc_deadline_slot is None
+    assert solution.ev_obj is not None
+    assert solution.ev_obj.soc_wh / solution.ev_obj.capacity_wh * 100.0 >= 25.0
+
+
+@pytest.mark.parametrize("deadline", ["2026-09-16T00:01:00"])
 def test_real_ev_does_not_credit_energy_delivered_after_departure(
     config_eos: ConfigEOS, deadline: str
 ) -> None:
@@ -242,7 +264,7 @@ def test_real_ev_does_not_credit_energy_delivered_after_departure(
     assert optimizer._ev_soc_deadline_slot == 0
     # A departure one minute into slot 0 credits that minute only: at most 1/15 of a
     # full-power quarter hour (25 %), never the energy charged after it.
-    share = 1 / 15 if deadline.endswith("00:01:00") else 0.0
+    share = 1 / 15
     assert optimizer._ev_soc_deadline_share == pytest.approx(share)
     soc_at_deadline = optimizer._ev_soc_at_deadline(
         {"EAuto_SoC_pro_Stunde": solution.result.ev_soc_per_hour}, 0

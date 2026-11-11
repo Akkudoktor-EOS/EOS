@@ -202,7 +202,9 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             "description": (
                 "Absolute moment by which 'min_soc_percentage' has to be "
                 "reached (departure time). A date time without timezone is read "
-                "as local time. None means end of the optimization horizon."
+                "as local time. None means end of the optimization horizon. GENETIC "
+                "treats a deadline that has passed like None, with a warning while "
+                "the target is not reached."
             ),
             "examples": [None, "2026-07-16T07:00:00+02:00"],
         },

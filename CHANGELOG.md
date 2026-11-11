@@ -142,6 +142,10 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   minutes got a smaller charge factor with every run and missed the target (a user report:
   about 75 % instead of 80 % at the departure). The exported factor stays a share of the
   charging power for the rest of the slot; load, PV and the stationary battery are unchanged.
+- An EV deadline that has passed with the target not reached no longer stops the vehicle below
+  its target: GENETIC requires the target at the end of the horizon instead (cheapest slots,
+  value of energy above the target as without a deadline) and logs a warning naming the passed
+  deadline.
 
 ## 0.3.0 (2026-03-17)
 

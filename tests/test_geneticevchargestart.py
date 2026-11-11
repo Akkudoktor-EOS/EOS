@@ -325,11 +325,12 @@ def kept_deadline(
         # relaxed and the target is required at the end of the horizon.
         ("2026-09-16T20:00:00+02:00", "2026-09-16T18:00:00+02:00", None),
         ("2026-09-16T20:00:00+02:00", "2026-09-16T08:00:00+02:00", None),
-        # Without a charge start a past deadline is still due right now.
-        (None, "2026-09-16T08:00:00+02:00", (0, 0.0)),
-        # A charge start and a later deadline that have both passed: the
-        # target is due right now, too.
-        ("2026-09-16T07:00:00+02:00", "2026-09-16T08:00:00+02:00", (0, 0.0)),
+        # A past deadline with the target not reached is relaxed as well: the
+        # vehicle is still connected, and no plan could change a target that
+        # is due right now.
+        (None, "2026-09-16T08:00:00+02:00", None),
+        # A charge start and a later deadline that have both passed: relaxed, too.
+        ("2026-09-16T07:00:00+02:00", "2026-09-16T08:00:00+02:00", None),
         # A deadline at or before the charge start stays relaxed after the
         # charge start was reached: no plan can meet it at any time.
         ("2026-09-16T08:00:00+02:00", "2026-09-16T08:00:00+02:00", None),
@@ -511,17 +512,40 @@ def test_duration_deadline_counts_from_the_run_start(
 
 
 @pytest.mark.parametrize("charge_start", [None, "2026-09-16T01:00:00+02:00"])
-def test_deadline_passed_inside_the_current_slot_is_due_now(
-    config_eos: ConfigEOS, set_other_timezone: Callable[[str], str], charge_start: str | None
+def test_deadline_passed_inside_the_current_slot_is_relaxed_with_a_warning(
+    config_eos: ConfigEOS,
+    set_other_timezone: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+    charge_start: str | None,
 ) -> None:
-    """Run at 02:55 for a departure at 02:50 on the hourly grid: the departure has
-    passed, so nothing charged from now on may count - the target is due now."""
+    """Run at 02:55 for a departure at 02:50 on the hourly grid, the target not reached.
+
+    The vehicle is still planned for, so it is still connected. A target due right
+    now could not be changed by any plan, and the vehicle stopped below its target.
+    The target is required at the end of the horizon instead, and the warning names
+    the passed deadline.
+    """
     set_other_timezone("Europe/Berlin")
     optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T02:55:00")
     parameters = ev_only_parameters(
         charge_start_datetime=charge_start, min_soc_deadline_datetime="2026-09-16T02:50:00+02:00"
     )
-    assert optimizer._ev_deadline(parameters) == (0, 0.0)
+    with caplog.at_level("WARNING"):
+        assert optimizer._ev_deadline(parameters) is None
+    assert "02:50" in caplog.text and "has passed" in caplog.text
+
+
+def test_passed_deadline_with_the_target_reached_is_relaxed_without_a_warning(
+    config_eos: ConfigEOS, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Nothing is missed: no warning, and energy above the target counts as without a deadline."""
+    optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T02:55:00")
+    parameters = ev_only_parameters(
+        initial_soc_percentage=85, min_soc_deadline_datetime="2026-09-16T02:50:00+02:00"
+    )
+    with caplog.at_level("WARNING"):
+        assert optimizer._ev_deadline(parameters) is None
+    assert "has passed" not in caplog.text
 
 
 def test_deadline_share_across_the_end_of_daylight_saving_time(

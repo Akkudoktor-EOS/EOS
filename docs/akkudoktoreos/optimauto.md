@@ -380,8 +380,7 @@ target state of charge by a deadline:
   deadline inside a slot counts the part of that slot before it: the planned charge of a slot
   is taken as spread evenly over the slot, so with a departure at 02:50 on the hourly grid 50 of
   the 60 minutes of 02:00-03:00 count, and the charge after 02:50 does not. In the current slot
-  only the time from now to the deadline counts (see below); a deadline that has passed is due
-  right now.
+  only the time from now to the deadline counts (see below).
   Unlike the charge start, a partly used slot can count here: its charge is only checked at the
   deadline, it is never placed before the moment the vehicle may charge. The deadline does not
   end charging: the plan may still charge after it, for example at negative prices or in the
@@ -394,6 +393,11 @@ target state of charge by a deadline:
   on the hourly grid - EOS warns and plans no charging for the target; once the charge start has
   passed, the vehicle may charge in the current slot, so a run during that slot plans the
   charging up to the deadline.
+  A deadline that has passed (at or before the start of the run) while the target is not
+  reached is relaxed as well, with a warning that names it: the target then applies at the end
+  of the horizon, so a vehicle that is still connected goes on charging in the cheapest slots
+  instead of stopping below its target. Remove the vehicle from the request, or set a new
+  deadline, once it has left.
 
 A run that starts inside a slot (EOS rounds the start of the optimization down to the slot)
 charges the vehicle in that current slot only for the rest of it: a charge factor `f` stores
@@ -422,8 +426,8 @@ above the target can be given a value:
   (`min_soc_deadline_datetime` or `min_soc_max_duration_h`), or else at the end of the control
   horizon. Charging after the deadline therefore earns nothing, also inside the deadline's
   slot: only the share of that slot before the deadline is credited. A deadline at or before
-  `charge_start_datetime` is relaxed and not checked, so the credit is then taken at the end of
-  the control horizon, like the target.
+  `charge_start_datetime`, or one that has passed, is relaxed and not checked, so the credit is
+  then taken at the end of the control horizon, like the target.
 
 The optimizer then charges beyond the target, up to `max_soc_percentage`, in slots where storing a
 kWh costs less than the value of the next kWh: a grid kWh costs the import price divided by the

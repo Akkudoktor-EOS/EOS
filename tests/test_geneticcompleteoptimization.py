@@ -195,9 +195,11 @@ def test_ev_deadline_slot_resolution(config_eos: ConfigEOS):
     parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.add(hours=100))
     assert optimization._ev_deadline_slot(parameters) is None
 
-    # In the past: due right now.
+    # In the past with the target not reached: the vehicle is still connected, so
+    # the target is required at the end of the horizon (no plan can change a
+    # target that is due right now).
     parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.subtract(hours=2))
-    assert optimization._ev_deadline_slot(parameters) == 0
+    assert optimization._ev_deadline_slot(parameters) is None
 
     # No deadline at all.
     assert optimization._ev_deadline_slot(_ev_deadline_parameters(48)) is None

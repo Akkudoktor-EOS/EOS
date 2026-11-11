@@ -7,7 +7,10 @@ rest of that slot left to charge in: the energy of slot 0 is the factor times
 the charging power times that rest. The factor itself stays a share of the
 charging power that the client applies for the rest of the slot.
 
-The replay test follows a user report from an hourly grid: target 80 % by
+A deadline that has passed with the target not reached keeps the target until
+the end of the horizon while the vehicle is still planned for (connected).
+
+The replay tests follow a user report from an hourly grid: target 80 % by
 04:00, the vehicle at 34 % at midnight, cheap import until 05:00.
 """
 
@@ -235,6 +238,40 @@ def test_deadline_inside_the_current_slot_counts_its_share_of_the_rest(night: Co
 
 
 # ---------------------------------------------------------------------------
+# A deadline that has passed with the target not reached
+# ---------------------------------------------------------------------------
+
+
+def test_missed_deadline_keeps_charging_to_the_target_in_the_cheap_hour(
+    night: ConfigEOS, caplog: pytest.LogCaptureFixture
+) -> None:
+    """04:03, the vehicle at 75 % after a deadline at 04:00, import cheap until 05:00.
+
+    The target was due right now: no plan could change it, so the vehicle stopped.
+    It is now required at the end of the horizon - in the cheapest slots, i.e. in
+    04:00-05:00 - with a warning that names the passed deadline.
+    """
+    with caplog.at_level("WARNING"):
+        optimizer, solution = optimize("04:03:00", 75)
+    assert optimizer._ev_soc_deadline_slot is None
+    assert "04:00:00" in caplog.text and "has passed" in caplog.text
+    # 75 % -> 80 % is 3150 Wh in the 57 minutes left of the cheap hour: >= 0.316.
+    assert slot0_factor(solution) >= 3150 / (MAX_CHARGE_POWER_W * 57 / 60)
+    assert solution.result.ev_soc_per_hour[1] >= 80.0
+
+
+def test_missed_deadline_credits_the_value_until_the_end_of_the_horizon(
+    night: ConfigEOS,
+) -> None:
+    """The target is reached (85 %), the deadline has passed and energy up to 90 % is
+    worth 0.30 per kWh against 0.10 in the cheap hour: as without a deadline, the
+    vehicle charges up to 90 % in that hour instead of standing still."""
+    _, solution = optimize("04:03:00", 85, soc_value_steps=[[90, 0.3]])
+    assert slot0_factor(solution) > 0.0
+    assert solution.result.ev_soc_per_hour[1] == pytest.approx(90.0, abs=1.0)
+
+
+# ---------------------------------------------------------------------------
 # Replay of the user report: re-planned every five minutes
 # ---------------------------------------------------------------------------
 
@@ -300,3 +337,13 @@ def test_replanned_every_five_minutes_reaches_the_target_by_the_deadline(
         needed_wh = (80.0 - step.soc_percentage) / 100.0 * CAPACITY_WH
         rest_h = (4 * 60 - step.minute) / 60
         assert step.factor >= min(needed_wh / (MAX_CHARGE_POWER_W * rest_h), 1.0) - 1e-9, step
+
+
+def test_replay_after_a_missed_deadline_charges_to_the_target_in_the_cheap_hour(
+    night: ConfigEOS,
+) -> None:
+    """The second part of the report: 75 % at 04:00. The vehicle stood still although
+    import stayed cheap until 05:00; it now reaches its target in that hour."""
+    soc_at_five, steps = replay(start_minute=4 * 60, end_minute=5 * 60, soc_percentage=75.0)
+    print(f"SoC at 05:00: {soc_at_five:.2f} %, factors: {[step.factor for step in steps]}")
+    assert soc_at_five >= 80.0
