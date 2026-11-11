@@ -148,6 +148,11 @@ by Home Assistant integrations, such as:
 
 These values are typically consumed by EOS **device simulations** during optimisation.
 
+The configuration key is the `/`-separated path of the setting. Devices are addressed by their
+`device_id`, e.g. `devices/batteries/battery1/capacity_wh`. Only existing settings are updated: a
+path that names no setting, e.g. a device that is not configured, is reported as an error in the
+EOS log. An entity that is unavailable or unknown leaves the configured value unchanged.
+
 ### 3.2 Device measurement entity IDs
 
 EOS retrieves **measurement values** that describe the *current state* of devices, such as:
@@ -179,7 +184,7 @@ EOS value:
 
 * **Boolean `True`**: `["y", "yes", "on", "true", "home", "open"]`
 * **Boolean `False`**: `["n", "no", "off", "false", "closed"]`
-* **`None`**: `["unavailable", "none"]`
+* **`None`**: `["unavailable", "unknown", "none"]`
 * **`float`**: if the value can be converted to a floating-point number
 * **`str`**: if none of the above apply
 

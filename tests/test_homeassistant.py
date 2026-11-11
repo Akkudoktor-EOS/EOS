@@ -427,3 +427,97 @@ class TestHomeAssistantDeviceMeasurementKeys:
         registered_keys = {"battery-1-soc-factor", "battery_1-soc-factor"}
 
         assert HomeAssistantAdapter._resolve_device_measurement_key(key, registered_keys) == key
+
+
+class _ConfigEntityHarness:
+    """Run the configuration sync of the adapter against a real EOS configuration."""
+
+    _update_data = HomeAssistantAdapter._update_data
+    _convert_entity_state = HomeAssistantAdapter._convert_entity_state
+
+    def __init__(self, config, states: dict[str, str]) -> None:
+        self.config = config
+        self.ems = SimpleNamespace(
+            stage=lambda: EnergyManagementStage.DATA_ACQUISITION,
+            observation_datetime=object(),
+        )
+        self.get_entity_state = lambda entity_id: states[entity_id]
+
+
+class TestHomeAssistantConfigEntityIds:
+    @pytest.fixture(autouse=True)
+    def cec_databases(self):
+        """This adapter test needs no CEC reference-device data."""
+        yield None
+
+    @pytest.fixture
+    def config(self, config_eos):
+        config_eos.merge_settings_from_dict(
+            {
+                "devices": {
+                    "batteries": {
+                        "battery1": {
+                            "device_id": "battery1",
+                            "capacity_wh": 8000,
+                            "min_soc_percentage": 10,
+                        }
+                    }
+                }
+            }
+        )
+        return config_eos
+
+    async def _sync(self, config, entity_ids: dict[str, str], states: dict[str, str]) -> None:
+        config.adapter.homeassistant.config_entity_ids = entity_ids
+        adapter = _ConfigEntityHarness(config, states)
+        await HomeAssistantAdapter._update_data(cast(HomeAssistantAdapter, adapter))
+
+    @pytest.mark.asyncio
+    async def test_sets_value_by_device_id(self, config) -> None:
+        await self._sync(
+            config,
+            {"devices/batteries/battery1/capacity_wh": "sensor.capacity"},
+            {"sensor.capacity": "12000"},
+        )
+        assert config.devices.batteries["battery1"].capacity_wh == 12000
+
+    @pytest.mark.asyncio
+    async def test_applies_zero(self, config) -> None:
+        """0 is a value, not a missing state."""
+        await self._sync(
+            config,
+            {"devices/batteries/battery1/min_soc_percentage": "sensor.min_soc"},
+            {"sensor.min_soc": "0"},
+        )
+        assert config.devices.batteries["battery1"].min_soc_percentage == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("state", ["unavailable", "unknown"])
+    async def test_keeps_value_of_unavailable_entity(self, config, state) -> None:
+        await self._sync(
+            config,
+            {"devices/batteries/battery1/capacity_wh": "sensor.capacity"},
+            {"sensor.capacity": state},
+        )
+        assert config.devices.batteries["battery1"].capacity_wh == 8000
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "config_key",
+        [
+            "devices/batteries/0/capacity_wh",
+            "devices/batteries/battery2/capacity_wh",
+            "devices/batteries/battery1/no_such_setting",
+        ],
+    )
+    async def test_does_not_add_unknown_setting(self, config, config_key, monkeypatch) -> None:
+        """A path that names no existing setting must not add a device."""
+        mock_logger = Mock()
+        monkeypatch.setattr(homeassistant_module, "logger", mock_logger)
+
+        await self._sync(config, {config_key: "sensor.capacity"}, {"sensor.capacity": "12000"})
+
+        assert list(config.devices.batteries) == ["battery1"]
+        assert config.devices.batteries["battery1"].capacity_wh == 8000
+        mock_logger.error.assert_called_once()
+        assert config_key in mock_logger.error.call_args.args[0]

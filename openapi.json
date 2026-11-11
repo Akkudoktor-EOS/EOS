@@ -11398,10 +11398,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/capacity_wh",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/battery1/capacity_wh\nDevices are addressed by their device_id. The setting must exist.",
             "examples": [
               {
-                "devices/batteries/0/capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },
@@ -11574,10 +11574,10 @@
               }
             ],
             "title": "Config Entity Ids",
-            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/capacity_wh",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/battery1/capacity_wh\nDevices are addressed by their device_id. The setting must exist.",
             "examples": [
               {
-                "devices/batteries/0/capacity_wh": "sensor.battery1_capacity"
+                "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity"
               }
             ]
           },
