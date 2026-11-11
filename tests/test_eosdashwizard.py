@@ -14,6 +14,7 @@ from akkudoktoreos.server.dash.wizard import (
     WIZARD_STEPS,
     Wizard,
     check_devices,
+    check_homeassistant,
     check_horizon,
     check_load,
     check_location,
@@ -100,11 +101,25 @@ class TestWizardSteps:
 
     def test_choice_with_list_value(self, config_details):
         step = wizard_step("measurements")
-        set_value(config_details, "adapter.provider", ["NodeRED", "HomeAssistant"])
+        set_value(config_details, "adapter.provider", ["HomeAssistant", "NodeRED"])
         names = step_config_names(step, config_details)
         assert "adapter.nodered.host" in names
-        assert "adapter.homeassistant.device_measurement_entity_ids" in names
+        assert "adapter.nodered.port" in names
         assert len(names) == len(set(names))
+
+    def test_homeassistant_step_shows_all_adapter_settings(self, config_details):
+        """Every writable setting of the Home Assistant adapter is in its step."""
+        adapter_names = [
+            name
+            for name, details in config_details.items()
+            if name.startswith("adapter.homeassistant.")
+            and name.count(".") == 2
+            and details["read-only"] == "rw"
+            and not details["deprecated"]
+        ]
+        assert adapter_names
+        names = step_config_names(wizard_step("homeassistant"), config_details)
+        assert sorted(names) == sorted(adapter_names)
 
     @pytest.mark.parametrize("algorithm", [algorithm.value for algorithm in OptimizationAlgorithm])
     def test_horizon_follows_algorithm(self, config_details, algorithm):
@@ -251,7 +266,6 @@ class TestWizardChecks:
     def test_measurements(self, config_details):
         set_value(config_details, "devices.batteries", {"battery1": {}})
         set_value(config_details, "devices.electric_vehicles", {"ev1": {}})
-        entity_ids = "adapter.homeassistant.device_measurement_entity_ids"
 
         # Without an adapter no source for the SoC is known
         set_value(config_details, "adapter.provider", None)
@@ -260,17 +274,55 @@ class TestWizardChecks:
         assert "No adapter is selected" in todo[0]
         assert "of battery1, ev1 is known" in todo[0]
 
-        # Only the mapping of the Home Assistant adapter can be checked
-        set_value(config_details, "adapter.provider", ["NodeRED"])
-        assert check_measurements(config_details) == []
+        # The mapping of the Home Assistant adapter is checked in its own step
+        for providers in (["NodeRED"], ["HomeAssistant"]):
+            set_value(config_details, "adapter.provider", providers)
+            assert check_measurements(config_details) == []
 
+    def test_homeassistant_not_selected(self, config_details, monkeypatch):
+        monkeypatch.setattr(wizard, "is_home_assistant_addon", lambda: False)
+        set_value(config_details, "devices.batteries", {"battery1": {}})
+        for providers in (None, ["NodeRED"]):
+            set_value(config_details, "adapter.provider", providers)
+            assert check_homeassistant(config_details) == []
+
+    def test_homeassistant(self, config_details, monkeypatch):
+        monkeypatch.setattr(wizard, "is_home_assistant_addon", lambda: True)
+        set_value(config_details, "devices.batteries", {"battery1": {}})
+        set_value(config_details, "devices.electric_vehicles", {"ev1": {}})
         set_value(config_details, "adapter.provider", ["HomeAssistant"])
-        set_value(config_details, entity_ids, None)
-        assert len(check_measurements(config_details)) == 2
-        set_value(config_details, entity_ids, {"battery1-soc-factor": "sensor.battery_soc"})
-        todo = check_measurements(config_details)
+        measurements = "adapter.homeassistant.device_measurement_entity_ids"
+        instructions = "adapter.homeassistant.device_instruction_entity_ids"
+
+        set_value(config_details, measurements, None)
+        set_value(config_details, instructions, None)
+        todo = check_homeassistant(config_details)
+        assert len(todo) == 3
+        assert "battery1-soc-factor" in todo[0]
+        assert "ev1-soc-factor" in todo[1]
+        assert instructions in todo[2]
+
+        set_value(config_details, measurements, {"battery1-soc-factor": "sensor.battery_soc"})
+        set_value(config_details, instructions, ["sensor.eos_battery1"])
+        todo = check_homeassistant(config_details)
         assert len(todo) == 1
         assert "ev1-soc-factor" in todo[0]
+
+        set_value(
+            config_details,
+            measurements,
+            {"battery1-soc-factor": "sensor.battery_soc", "ev1-soc-factor": "sensor.ev_soc"},
+        )
+        assert check_homeassistant(config_details) == []
+
+    def test_homeassistant_outside_of_addon(self, config_details, monkeypatch):
+        """The adapter cannot reach Home Assistant outside of an add-on."""
+        monkeypatch.setattr(wizard, "is_home_assistant_addon", lambda: False)
+        set_value(config_details, "adapter.provider", ["HomeAssistant"])
+        set_value(config_details, "adapter.homeassistant.device_instruction_entity_ids", ["x"])
+        todo = check_homeassistant(config_details)
+        assert len(todo) == 1
+        assert "add-on" in todo[0]
 
     def test_measurements_fresh_system(self, config_details):
         """A fresh system has no adapter and no devices: the step must not look done."""
@@ -368,3 +420,9 @@ class TestWizardPage:
         html = to_xml(Wizard("localhost", 8503, {"wizard_step": "devices"}))
         for device_type in ("Battery", "Inverter", "Electric vehicle", "Home appliance"):
             assert f"<strong>{device_type}</strong>" in html
+
+    def test_homeassistant_step_example_renders_yaml(self, eos):
+        html = to_xml(Wizard("localhost", 8503, {"wizard_step": "homeassistant"}))
+        assert "<pre" in html
+        assert "sensor.eos_battery1" in html
+        assert "add-on" in html

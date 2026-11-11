@@ -32,6 +32,7 @@ from monsterui.franken import (
 )
 
 from akkudoktoreos.config.config import ConfigEOS
+from akkudoktoreos.config.configabc import is_home_assistant_addon
 from akkudoktoreos.server.dash.components import (
     Badge,
     ConfigButton,
@@ -316,19 +317,46 @@ def check_measurements(config_details: dict[str, dict]) -> list[str]:
             f"{devices} is known. Select an adapter, or make sure your own system sends the "
             "state of charge with PUT /v1/measurement/value."
         ]
+    # The mapping of the Home Assistant adapter is checked in the Home Assistant step
+    return []
+
+
+def check_homeassistant(config_details: dict[str, dict]) -> list[str]:
+    """Report what is still to do for the Home Assistant adapter.
+
+    Nothing is to do if the Home Assistant adapter is not selected.
+    """
+    providers = config_value(config_details, "adapter.provider") or []
     if "HomeAssistant" not in providers:
-        # Only the Home Assistant adapter reads measurements, and only its mapping can be checked
         return []
+
+    todo = []
+    if not is_home_assistant_addon():
+        # EOSdash is started by the EOS server and inherits its environment
+        todo.append(
+            "EOS does not run as a Home Assistant add-on, so the Home Assistant adapter "
+            "cannot reach Home Assistant. Run EOS as an add-on, or remove HomeAssistant "
+            "from adapter.provider and send the measurements with PUT /v1/measurement/value."
+        )
+
     entity_ids = config_value(config_details, "adapter.homeassistant.device_measurement_entity_ids")
     entity_ids = entity_ids if isinstance(entity_ids, dict) else {}
-    todo = []
-    for device_id in device_ids:
-        key = f"{device_id}-soc-factor"
-        if not entity_ids.get(key):
-            todo.append(
-                f"No Home Assistant entity is set for the state of charge of {device_id} "
-                f"({key}) in adapter.homeassistant.device_measurement_entity_ids."
-            )
+    for kind in ("batteries", "electric_vehicles"):
+        for device_id in _device_ids(config_details, kind):
+            key = f"{device_id}-soc-factor"
+            if not entity_ids.get(key):
+                todo.append(
+                    f"No Home Assistant entity is set for the state of charge of {device_id} "
+                    f"({key}) in adapter.homeassistant.device_measurement_entity_ids."
+                )
+
+    if _is_empty(
+        config_value(config_details, "adapter.homeassistant.device_instruction_entity_ids")
+    ):
+        todo.append(
+            "adapter.homeassistant.device_instruction_entity_ids is not set, so EOS writes "
+            "no instructions to Home Assistant and your automations get nothing to act on."
+        )
     return todo
 
 
@@ -703,23 +731,25 @@ of charge older than `optimization.genetic.measurement_max_age_seconds` and then
 
 There are two ways to get measurements into EOS:
 
-- An adapter, selected with `adapter.provider`. With `HomeAssistant` EOS reads the entities
-  you assign to the measurement keys before each energy management run and writes its
-  instructions and results back to Home Assistant. With `NodeRED` EOS sends its
-  instructions to a Node-RED flow.
+- An adapter, selected with `adapter.provider`. With `HomeAssistant` EOS reads the
+  measurements from Home Assistant entities before each energy management run and writes
+  its instructions back to Home Assistant - this needs EOS to run as a Home Assistant
+  add-on, the next step explains it. With `NodeRED` EOS sends its instructions to a
+  Node-RED flow; the measurements still have to come from your flow.
 - Your own system sends each value to the EOS server with `PUT /v1/measurement/value`.
 
-Energy meter readings are optional. With `LoadAkkudoktorAdjusted` EOS uses the load meter
-readings to adapt the load forecast to your household.
+Energy meter readings are optional. They are meter readings in kWh that only count up, not
+the current power. With `LoadAkkudoktorAdjusted` EOS uses the load meter readings to adapt
+the load forecast to your household; list their measurement keys in
+`measurement.load_emr_keys`. The Home Assistant adapter does this on its own for the
+entities it reads.
 """,
         example="""
-Home Assistant: select `HomeAssistant` in `adapter.provider` and set
-`adapter.homeassistant.device_measurement_entity_ids` to
-`{"battery1-soc-factor": "sensor.battery1_soc_factor"}`. If your battery reports the state
-of charge in percent, create a template sensor in Home Assistant that divides it by 100.
-
 Your own system, e.g. a Node-RED flow or a script, at least every five minutes:
 `PUT /v1/measurement/value?datetime=2026-01-31T12:00:00&key=battery1-soc-factor&value=0.55`
+
+Home Assistant: select `HomeAssistant` in `adapter.provider` and continue with the next
+step.
 """,
         config_names=(
             "adapter.provider",
@@ -730,20 +760,113 @@ Your own system, e.g. a Node-RED flow or a script, at least every five minutes:
             WizardChoice(
                 "adapter.provider",
                 {
-                    "HomeAssistant": (
-                        "adapter.homeassistant.device_measurement_entity_ids",
-                        "adapter.homeassistant.load_emr_entity_ids",
-                        "adapter.homeassistant.pv_production_emr_entity_ids",
-                        "adapter.homeassistant.grid_import_emr_entity_ids",
-                        "adapter.homeassistant.grid_export_emr_entity_ids",
-                        "adapter.homeassistant.device_instruction_entity_ids",
-                        "adapter.homeassistant.solution_entity_ids",
-                    ),
                     "NodeRED": ("adapter.nodered.host", "adapter.nodered.port"),
                 },
             ),
         ),
         check=check_measurements,
+    ),
+    WizardStep(
+        id="homeassistant",
+        title="Home Assistant",
+        intro="""
+Skip this step if you do not use Home Assistant.
+
+**EOS must run as a Home Assistant add-on.** The Home Assistant adapter talks to Home
+Assistant through the API of the add-on system, with the access Home Assistant grants the
+add-on. There is no setting for an address or a token. If EOS runs somewhere else, remove
+`HomeAssistant` from `adapter.provider` and let Home Assistant send the measurements with
+`PUT /v1/measurement/value`, e.g. with a `rest_command`.
+
+Select `HomeAssistant` in `adapter.provider` (step **Measurements**). Before each energy
+management run EOS then **reads** from Home Assistant:
+
+- `device_measurement_entity_ids` - the current state of your devices, above all the state
+  of charge: map `<device_id>-soc-factor` to an entity whose state is a factor from `0.0` to
+  `1.0`. Without it EOS plans with an empty battery.
+- `load_emr_entity_ids`, `pv_production_emr_entity_ids`, `grid_import_emr_entity_ids`,
+  `grid_export_emr_entity_ids` - optional energy meter readings in **kWh** that only count
+  up (`state_class: total_increasing`), not power sensors in W. EOS uses the entity IDs as
+  measurement keys and adds them to `measurement.*_emr_keys` on its own.
+- `config_entity_ids` - optional: configuration values taken from entities, e.g. a battery
+  capacity an integration reports. The key is the path of the setting with `/`, and devices
+  are addressed by their `device_id`: `devices/batteries/battery1/capacity_wh`.
+
+After each run EOS **writes** to Home Assistant:
+
+- `device_instruction_entity_ids` - one entity per device, named `sensor.eos_<device_id>`,
+  e.g. `sensor.eos_battery1`. The state is the operation mode EOS wants right now in lower
+  case, e.g. `self_consumption`, `forced_charge` or `idle`; the attribute
+  `operation_mode_factor` says how much, from `0.0` to `1.0`.
+- `solution_entity_ids` - optional values of the current plan for dashboards and debugging,
+  named `sensor.eos_<solution key>`, e.g. `sensor.eos_battery1_soc_factor`.
+
+EOS only writes the entities you list. The **Config** page shows read-only lists to pick
+from: `adapter.homeassistant.homeassistant_entity_ids` has the entities of Home Assistant,
+`adapter.homeassistant.eos_device_instruction_entity_ids` and
+`adapter.homeassistant.eos_solution_entity_ids` have the names EOS can write. The
+instruction names appear after the first optimization.
+
+**EOS does not switch anything itself.** Write an automation in Home Assistant that reacts to
+`sensor.eos_<device_id>` and controls your inverter, wallbox or appliance. The entities EOS
+writes have no unique ID: to use them in dashboards or the history, wrap them in template
+sensors.
+""",
+        example="""
+A battery `battery1` whose integration reports the state of charge in percent as
+`sensor.battery_soc`. Create a template sensor in Home Assistant that converts it:
+
+```yaml
+template:
+  - sensor:
+      - name: "Battery1 SoC Factor"
+        unique_id: "battery1_soc_factor"
+        state: "{{ states('sensor.battery_soc') | float(0) / 100 }}"
+```
+
+In EOS set:
+
+- `device_measurement_entity_ids` = `{"battery1-soc-factor": "sensor.battery1_soc_factor"}`
+- `load_emr_entity_ids` = `["sensor.house_consumption_total_kwh"]`
+- `device_instruction_entity_ids` = `["sensor.eos_battery1"]`
+
+Then let Home Assistant follow the instruction, e.g. charge the battery from the grid while
+EOS asks for it (replace the actions with the ones of your inverter integration):
+
+```yaml
+automation:
+  - alias: "EOS battery1 instruction"
+    triggers:
+      - trigger: state
+        entity_id: sensor.eos_battery1
+    actions:
+      - choose:
+          - conditions: "{{ is_state('sensor.eos_battery1', 'forced_charge') }}"
+            sequence:
+              - action: select.select_option
+                target:
+                  entity_id: select.inverter_battery_mode
+                data:
+                  option: "Charge from grid"
+        default:
+          - action: select.select_option
+            target:
+              entity_id: select.inverter_battery_mode
+            data:
+              option: "Self consumption"
+```
+""",
+        config_names=(
+            "adapter.homeassistant.device_measurement_entity_ids",
+            "adapter.homeassistant.load_emr_entity_ids",
+            "adapter.homeassistant.pv_production_emr_entity_ids",
+            "adapter.homeassistant.grid_import_emr_entity_ids",
+            "adapter.homeassistant.grid_export_emr_entity_ids",
+            "adapter.homeassistant.config_entity_ids",
+            "adapter.homeassistant.device_instruction_entity_ids",
+            "adapter.homeassistant.solution_entity_ids",
+        ),
+        check=check_homeassistant,
     ),
     WizardStep(
         id="finish",
