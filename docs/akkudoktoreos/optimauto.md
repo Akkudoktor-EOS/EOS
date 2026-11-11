@@ -396,8 +396,8 @@ target state of charge by a deadline:
   A deadline that has passed (at or before the start of the run) while the target is not
   reached is relaxed as well, with a warning that names it: the target then applies at the end
   of the horizon, so a vehicle that is still connected goes on charging in the cheapest slots
-  instead of stopping below its target. Remove the vehicle from the request, or set a new
-  deadline, once it has left.
+  instead of stopping below its target; a `min_soc_max_duration_h` given as well still applies.
+  Remove the vehicle from the request, or set a new deadline, once it has left.
 
 A run that starts inside a slot (EOS rounds the start of the optimization down to the slot)
 charges the vehicle in that current slot only for the rest of it: a charge factor `f` stores

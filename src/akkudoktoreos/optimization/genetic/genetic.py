@@ -1284,7 +1284,8 @@ class GeneticOptimization(OptimizationBase):
         vehicle that is still planned for is still connected, and a target due
         right now could not be changed by any plan - the vehicle would stop
         charging below its target, also in cheap slots after the departure. The
-        warning names the passed deadline when the target is not reached. Any
+        warning names the passed deadline when the target is not reached; a
+        maximum duration given as well still applies. Any
         later deadline is kept, also when the vehicle has no time to charge
         before it (charge start and deadline inside one slot that begins before
         the charge start): moving a future target past the departure would plan
@@ -1333,6 +1334,20 @@ class GeneticOptimization(OptimizationBase):
         if not candidates:
             return None
 
+        # A given deadline that has passed does not drop a later one (a maximum
+        # duration counts from now, so it never has passed).
+        upcoming = [candidate for candidate in candidates if candidate[0] >= now_position + 1e-9]
+        if upcoming and len(upcoming) < len(candidates):
+            if ev_parameters.initial_soc_percentage < ev_parameters.min_soc_percentage:
+                logger.warning(
+                    "EV '{}': deadline {} has passed with the target SoC {} % not reached "
+                    "({} % now) - the maximum duration applies instead.",
+                    ev_parameters.device_id,
+                    ev_parameters.min_soc_deadline_datetime,
+                    ev_parameters.min_soc_percentage,
+                    ev_parameters.initial_soc_percentage,
+                )
+            candidates = upcoming
         position, deadline_moment = min(candidates, key=lambda candidate: candidate[0])
         if position >= self.control_end_slot - 1e-9:
             # Beyond the horizon: the end-of-horizon requirement already covers it.
