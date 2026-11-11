@@ -167,7 +167,7 @@ services:
 ```bash
 echo "EOS_SESSKEY=$(openssl rand -hex 16)" > .env
 ```
-  
+
 3. **pull image and start**:
 
 ```bash
