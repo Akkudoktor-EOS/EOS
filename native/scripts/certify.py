@@ -11,7 +11,6 @@ run (``genetic_compare_plugin``) found no differences.
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
 import sys
 from pathlib import Path
@@ -26,12 +25,22 @@ CERTIFIED = (
 
 
 def main() -> int:
+    """Certify the installed GENETIC sources from a compare report.
+
+    Refuses (exit code 1) a report with differing or failed native runs, without an
+    identical run, or made for other sources or another kernel version than installed.
+    Otherwise it replaces the entry of the current fingerprint in ``certified.json``.
+
+    Returns:
+        0 when the sources were certified, 1 when the report was refused.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("compare_report", type=Path)
     parser.add_argument("--note", default="")
     args = parser.parse_args()
 
     from akkudoktoreos.optimization.genetic.native import compute_fingerprint
+    from akkudoktoreos.utils.datetimeutil import to_datetime
 
     report = json.loads(args.compare_report.read_text(encoding="utf-8"))
     summary = report["summary"]
@@ -68,7 +77,7 @@ def main() -> int:
         {
             "fingerprint": fingerprint,
             "kernel_version": summary["kernel_version"],
-            "verified": dt.date.today().isoformat(),
+            "verified": to_datetime(as_string="YYYY-MM-DD"),
             "evidence": (
                 f"{summary['identical']} identical runs, {summary['unsupported']} not supported "
                 f"natively, {summary['patched']} with patched Python, 0 different "

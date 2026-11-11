@@ -12,6 +12,7 @@ import json
 import math
 import random
 import shutil
+import sys
 import tokenize
 from contextlib import contextmanager
 from pathlib import Path
@@ -440,6 +441,42 @@ class TestComparePlugin:
         assert summary["patched"] == 2
         assert summary["identical"] == 1
         assert summary["different"] == []
+
+    @pytest.mark.parametrize("failed", [False, True])
+    def test_certify_records_the_local_date_and_refuses_failures(
+        self, tmp_path, monkeypatch, failed
+    ):
+        certify = _load_script("certify")
+        certified = tmp_path / "certified.json"
+        certified.write_text(json.dumps({"format": 1, "entries": []}), encoding="utf-8")
+        fingerprint = native.compute_fingerprint()
+        summary = {
+            "runs": 2,
+            "identical": 1,
+            "unsupported": 0,
+            "patched": 1,
+            "different": [],
+            "failed": [_plugin_entry(patched=True, error="kernel failed")] if failed else [],
+            "fingerprint": fingerprint,
+            "kernel_version": "0.0-test",
+            "dot": "sequential",
+        }
+        report = tmp_path / "compare.json"
+        report.write_text(json.dumps({"summary": summary, "reports": []}), encoding="utf-8")
+        monkeypatch.setattr(certify, "CERTIFIED", certified)
+        monkeypatch.setitem(
+            sys.modules, native.NATIVE_PACKAGE, SimpleNamespace(__version__="0.0-test")
+        )
+        monkeypatch.setattr("sys.argv", ["certify.py", str(report)])
+        entries = json.loads(certified.read_text(encoding="utf-8"))["entries"]
+        assert entries == []
+        assert certify.main() == (1 if failed else 0)
+        entries = json.loads(certified.read_text(encoding="utf-8"))["entries"]
+        if failed:
+            assert entries == []
+        else:
+            assert [entry["fingerprint"] for entry in entries] == [fingerprint]
+            assert entries[0]["verified"] == to_datetime(as_string="YYYY-MM-DD")
 
 
 # --------------------------------------------------------------------------- guard
