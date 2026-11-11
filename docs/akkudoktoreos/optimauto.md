@@ -376,15 +376,21 @@ target state of charge by a deadline:
   lets the vehicle charge at once. If the charge start lies after the control horizon, the vehicle
   gets no charging plan in this run.
 - `min_soc_deadline_datetime`: deadline (for example the departure time) by which
-  `min_soc_percentage` has to be reached. A slot that ends after the deadline does not count
-  towards the target. The deadline does not end charging: the plan may still charge after it,
-  for example at negative prices, so a client should not execute EV charging after the vehicle
-  has left. A deadline that leaves no full slot after the charge start (at or before it, or in the
-  same slot) can not be met; it is then ignored and the target applies at the end of the horizon.
-  A deadline at or before the charge start stays ignored in runs after the charge start. Once the
-  charge start has passed, the vehicle may charge in the current slot, so a run during the charge
-  start's slot can keep a deadline in the following slot that runs before and after it ignore
-  (hourly grid, charge start 13:05, deadline 14:30: ignored at 12:00 and 14:10, kept at 13:07).
+  `min_soc_percentage` has to be reached. The target is checked at the deadline itself. A
+  deadline inside a slot counts the part of that slot before it: the planned charge of a slot
+  is taken as spread evenly over the slot, so with a departure at 02:50 on the hourly grid 50 of
+  the 60 minutes of 02:00-03:00 count, and the charge after 02:50 does not. Unlike the charge
+  start, a partly used slot can count here: its charge is only checked at the deadline, it is
+  never placed before the moment the vehicle may charge. The deadline does not end charging: the
+  plan may still charge after it, for example at negative prices or in the rest of the
+  deadline's slot, so a client should not execute EV charging after the vehicle has left.
+  A deadline at or before the charge start can not be met by any plan; it is then ignored with a
+  warning and the target applies at the end of the horizon, also in runs after the charge start.
+  Every later deadline is kept. When the vehicle has no time to charge before it - charge start
+  and deadline inside one slot that begins before the charge start, for example 01:07 and 01:50
+  on the hourly grid - EOS warns and plans no charging for the target; once the charge start has
+  passed, the vehicle may charge in the current slot, so a run during that slot plans the
+  charging up to the deadline.
 
 A date time without timezone is read as local time. Without these settings, the vehicle can charge
 throughout the horizon and has to reach its target by the end of it.
@@ -402,9 +408,10 @@ above the target can be given a value:
   amount. Energy below the target, above the last step or above `max_soc_percentage` earns
   nothing. The credit is taken where the target is checked: at the deadline
   (`min_soc_deadline_datetime` or `min_soc_max_duration_h`), or else at the end of the control
-  horizon. Charging after the deadline therefore earns nothing. A deadline that is relaxed
-  because it leaves no full slot after `charge_start_datetime` is not checked, so the credit is
-  then taken at the end of the control horizon, like the target.
+  horizon. Charging after the deadline therefore earns nothing, also inside the deadline's
+  slot: only the share of that slot before the deadline is credited. A deadline at or before
+  `charge_start_datetime` is relaxed and not checked, so the credit is then taken at the end of
+  the control horizon, like the target.
 
 The optimizer then charges beyond the target, up to `max_soc_percentage`, in slots where storing a
 kWh costs less than the value of the next kWh: a grid kWh costs the import price divided by the

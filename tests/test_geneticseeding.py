@@ -745,8 +745,10 @@ def _ev_stored_wh(optimizer: GeneticOptimization, ev_genes: list[int]) -> float:
 
 def _ev_shift_window(optimizer: GeneticOptimization) -> range:
     end = optimizer.control_end_slot - optimizer.fixed_eauto_hours
-    if optimizer._ev_soc_deadline_slot is not None:
-        end = min(end, optimizer._ev_soc_deadline_slot)
+    deadline_slot = optimizer._ev_soc_deadline_slot
+    if deadline_slot is not None:
+        # A deadline inside a slot: that slot counts with its share.
+        end = min(end, deadline_slot + (1 if optimizer._ev_soc_deadline_share > 0.0 else 0))
     return range(optimizer._control_start_slot(), end)
 
 
@@ -806,6 +808,28 @@ class TestEvSeedingAndShift:
         assert optimizer.simulation.ev is not None
         assert optimizer.simulation.ev.soc_wh == pytest.approx(stored_wh)
 
+    def test_ev_seed_counts_the_share_of_a_deadline_slot(self, config_eos: ConfigEOS) -> None:
+        """Departure 04:05: a third of the cheap slot 16 (04:00-04:15) lies before it.
+
+        The cheap slot is seeded first, but only 1/3 of its 1 kWh counts towards
+        the 5 kWh target, so the seed adds five expensive slots (not four) before it.
+        """
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(
+            _ev_seed_parameters(min_soc_deadline_datetime="2026-10-29T04:05:00")
+        )
+        assert (optimizer._ev_soc_deadline_slot, optimizer._ev_soc_deadline_share) == (
+            16,
+            pytest.approx(1 / 3),
+        )
+        schedule = optimizer._heuristic_ev_schedule(prefer_pv=False)
+        charging = [slot for slot, gene in enumerate(schedule) if gene != 0]
+        assert charging == [0, 1, 2, 3, 4, 16]
+        counted_wh = _ev_stored_wh(optimizer, schedule[:16]) + _ev_stored_wh(
+            optimizer, schedule[16:17]
+        ) / 3
+        assert counted_wh >= 5000.0
+
     def test_ev_mutation_falls_back_to_a_point_mutation(self, config_eos: ConfigEOS) -> None:
         """The shift share is a chance to try a shift; without planned charging
         there is nothing to shift and a point mutation changes the energy instead."""
@@ -859,16 +883,18 @@ class TestEvSeedingAndShift:
         assert charging == EV_SEED_CHEAP_SLOTS
         assert solution.result.ev_soc_per_hour[-1] >= 50.0
 
-    @pytest.mark.parametrize("deadline", [None, "2026-10-29T04:00:00"])
+    @pytest.mark.parametrize(
+        ("deadline", "window_end"),
+        [(None, EV_SEED_SLOTS), ("2026-10-29T04:00:00", 16), ("2026-10-29T04:05:00", 17)],
+    )
     def test_ev_shift_mutation_moves_charging_without_changing_its_energy(
-        self, config_eos: ConfigEOS, deadline: Any
+        self, config_eos: ConfigEOS, deadline: Any, window_end: int
     ) -> None:
         _configure_ev_seed_grid(config_eos)
         optimizer, _ = _run_ev_seed(_ev_seed_parameters(min_soc_deadline_datetime=deadline))
         n = optimizer.control_end_slot
         window = _ev_shift_window(optimizer)
-        if deadline is not None:
-            assert window.stop == 16
+        assert window.stop == window_end
 
         rng = random.Random(3)
         battery = [rng.randrange(optimizer._battery_state_layout().total_states) for _ in range(n)]

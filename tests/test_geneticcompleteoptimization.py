@@ -232,6 +232,16 @@ def test_ev_soc_penalty_reads_the_deadline_slot(config_eos: ConfigEOS):
     optimization._ev_soc_deadline_slot = 99
     assert optimization._ev_soc_at_deadline(simulation_result, 10) == 80.0
 
+    # A deadline inside a slot counts that slot's charge up to the deadline.
+    optimization._ev_soc_deadline_slot = 12
+    optimization._ev_soc_deadline_share = 0.25
+    assert optimization._ev_soc_at_deadline(simulation_result, 10) == pytest.approx(57.5)
+    # Inside the last slot: towards the final SoC.
+    optimization.simulation.ev.current_soc_percentage.return_value = 90.0
+    optimization._ev_soc_deadline_slot = 13
+    optimization._ev_soc_deadline_share = 0.5
+    assert optimization._ev_soc_at_deadline(simulation_result, 10) == pytest.approx(85.0)
+
 
 def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
     """The EV reaches its target before the deadline even when energy is cheaper later."""

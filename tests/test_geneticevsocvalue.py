@@ -496,6 +496,30 @@ def test_value_respects_the_earliest_charge_start(config_eos: ConfigEOS) -> None
     assert final_soc(solution) == pytest.approx(80.0)
 
 
+def test_value_counts_only_the_energy_charged_before_a_departure_inside_a_slot(
+    config_eos: ConfigEOS,
+) -> None:
+    """Hourly grid, arrival 01:07, departure 02:50: only 02:00-03:00 is usable, and only
+    its first 50 minutes count. The cheap hour 03:00-04:00 (below the value) lies after
+    the departure and earns nothing, so it is not used; the credit covers the
+    3.33 kWh stored by 02:50, not the 4 kWh of the whole hour."""
+    configure(config_eos, interval=3600)
+    prices = [EXPENSIVE] * 12 + [CHEAP] * 4 + [EXPENSIVE] * 8
+    params = parameters(
+        prices=prices,
+        initial_soc_percentage=20,
+        charge_start_datetime="2026-10-29T01:07:00",
+        min_soc_deadline_datetime="2026-10-29T02:50:00",
+        soc_value_steps=[[80, 0.3]],
+    )
+    optimizer, solution = run(params, ngen=20, individuals=30)
+    assert (optimizer._ev_first_charge_slot, optimizer._ev_soc_deadline_slot) == (2, 2)
+    assert charged_slots(solution) == [2]
+    soc = optimizer._ev_soc_at_deadline({"EAuto_SoC_pro_Stunde": solution.result.ev_soc_per_hour}, 0)
+    assert soc == pytest.approx(20.0 + 40.0 * 5 / 6)
+    assert optimizer._ev_soc_value_credit(soc) == pytest.approx((soc - 40.0) / 10.0 * 0.3)
+
+
 def test_exported_plan_matches_the_simulation_and_stops_at_the_maximum(
     config_eos: ConfigEOS,
 ) -> None:

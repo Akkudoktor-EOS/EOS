@@ -306,94 +306,182 @@ def test_charge_start_inside_the_current_slot_compares_with_now(
     assert optimizer._ev_charge_start_slot(parameters) == expected
 
 
+def kept_deadline(
+    optimizer: GeneticOptimization, parameters: GeneticOptimizationParameters
+) -> tuple[int, float]:
+    """Deadline slot and the share of it before the deadline; fails if relaxed."""
+    deadline = optimizer._ev_deadline(parameters)
+    assert deadline is not None
+    return deadline
+
+
 @pytest.mark.parametrize(
     "charge_start,deadline,expected_deadline",
     [
         # Departure after arrival: the deadline is kept.
-        ("2026-09-16T20:00:00+02:00", "2026-09-17T05:00:00+02:00", 19),
+        ("2026-09-16T20:00:00+02:00", "2026-09-17T05:00:00+02:00", (19, 0.0)),
         # Departure before arrival (e.g. the previous morning's departure was
-        # not updated yet): no slot can charge before it. The deadline is
+        # not updated yet): no plan can charge before it. The deadline is
         # relaxed and the target is required at the end of the horizon.
         ("2026-09-16T20:00:00+02:00", "2026-09-16T18:00:00+02:00", None),
         ("2026-09-16T20:00:00+02:00", "2026-09-16T08:00:00+02:00", None),
-        # Arrival and departure in the same slot: nothing can be charged.
-        ("2026-09-16T20:00:00+02:00", "2026-09-16T20:30:00+02:00", None),
         # Without a charge start a past deadline is still due right now.
-        (None, "2026-09-16T08:00:00+02:00", 0),
+        (None, "2026-09-16T08:00:00+02:00", (0, 0.0)),
         # A charge start and a later deadline that have both passed: the
         # target is due right now, too.
-        ("2026-09-16T07:00:00+02:00", "2026-09-16T08:00:00+02:00", 0),
+        ("2026-09-16T07:00:00+02:00", "2026-09-16T08:00:00+02:00", (0, 0.0)),
         # A deadline at or before the charge start stays relaxed after the
         # charge start was reached: no plan can meet it at any time.
         ("2026-09-16T08:00:00+02:00", "2026-09-16T08:00:00+02:00", None),
         ("2026-09-16T09:00:00+02:00", "2026-09-16T08:00:00+02:00", None),
-        # Charge start now, deadline inside the current slot: no full slot
-        # lies between them, as in a run before the charge start.
-        ("2026-09-16T10:00:00+02:00", "2026-09-16T10:30:00+02:00", None),
     ],
 )
 def test_deadline_before_charge_start_is_relaxed(
     config_eos: ConfigEOS,
     charge_start: str | None,
     deadline: str,
-    expected_deadline: int | None,
+    expected_deadline: tuple[int, float] | None,
 ) -> None:
     optimizer = configure_grid(config_eos, interval_sec=3600, hours=24, start="2026-09-16T10:00:00")
     parameters = ev_only_parameters(
         charge_start_datetime=charge_start, min_soc_deadline_datetime=deadline
     )
-    assert optimizer._ev_deadline_slot(parameters) == expected_deadline
+    assert optimizer._ev_deadline(parameters) == expected_deadline
+    expected_slot = None if expected_deadline is None else expected_deadline[0]
+    assert optimizer._ev_deadline_slot(parameters) == expected_slot
+
+
+@pytest.mark.parametrize(
+    "interval_sec,charge_start,deadline,expected_deadline",
+    [
+        # Arrival 01:07, departure 02:50. On the hourly grid 02:00-03:00 is the
+        # only slot after the charge start; its first 50 minutes lie before the
+        # departure, so 50/60 of its charge counts towards the target.
+        (3600, "01:07", "02:50", (2, 50 / 60)),
+        # The same window on the 15-minute grid: full slots plus a share of the last.
+        (900, "01:07", "02:50", (11, 5 / 15)),
+        # A departure on a slot boundary leaves no share of the next slot.
+        (3600, "01:07", "03:00", (3, 0.0)),
+        # Charge start on a slot boundary, departure inside that slot.
+        (3600, "01:00", "01:50", (1, 50 / 60)),
+        (900, "01:00", "01:05", (4, 5 / 15)),
+        # No time to charge: the deadline is still kept (and nothing is planned
+        # for the target), it does not move to the end of the horizon.
+        # Charge start and departure inside the same slot, which begins before
+        # the charge start and is therefore not used:
+        (3600, "01:07", "01:50", (1, 50 / 60)),
+        (900, "01:02", "01:12", (4, 12 / 15)),
+        # Departure on the boundary of the first usable slot:
+        (3600, "01:07", "02:00", (2, 0.0)),
+    ],
+)
+def test_deadline_inside_a_slot_counts_its_share(
+    config_eos: ConfigEOS,
+    set_other_timezone: Callable[[str], str],
+    interval_sec: int,
+    charge_start: str,
+    deadline: str,
+    expected_deadline: tuple[int, float],
+) -> None:
+    """A consistent pair of charge start and deadline never loses its deadline.
+
+    The target is checked at the deadline itself. The slot the deadline falls
+    in counts with the part of it before the deadline; the charge start keeps
+    its rule (a slot that begins before it is not used).
+    """
+    set_other_timezone("Europe/Berlin")
+    optimizer = configure_grid(
+        config_eos, interval_sec=interval_sec, hours=6, start="2026-09-16T00:00:00"
+    )
+    parameters = ev_only_parameters(
+        charge_start_datetime=f"2026-09-16T{charge_start}:00",
+        min_soc_deadline_datetime=f"2026-09-16T{deadline}:00",
+    )
+    deadline_slot, share = kept_deadline(optimizer, parameters)
+    assert deadline_slot == expected_deadline[0]
+    assert share == pytest.approx(expected_deadline[1])
+
+
+def test_deadline_without_time_to_charge_is_kept_with_a_warning(
+    config_eos: ConfigEOS, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Arrival 01:07, departure 01:50 on the hourly grid: the vehicle can not charge
+    before its departure (01:00-02:00 begins before the arrival). The warning names
+    the given moments, not slot times."""
+    optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T00:00:00")
+    parameters = ev_only_parameters(
+        charge_start_datetime="2026-09-16T01:07:00+02:00",
+        min_soc_deadline_datetime="2026-09-16T01:50:00+02:00",
+    )
+    with caplog.at_level("WARNING"):
+        assert optimizer._ev_deadline_slot(parameters) == 1
+    assert "01:07" in caplog.text and "01:50" in caplog.text
+    assert "can not charge before its deadline" in caplog.text
+
+
+def test_relaxation_warning_names_the_given_moments(
+    config_eos: ConfigEOS, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Departure 00:50 before arrival 01:07: the warning quotes both, not 00:00/02:00."""
+    optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T00:00:00")
+    parameters = ev_only_parameters(
+        charge_start_datetime="2026-09-16T01:07:00+02:00",
+        min_soc_deadline_datetime="2026-09-16T00:50:00+02:00",
+    )
+    with caplog.at_level("WARNING"):
+        assert optimizer._ev_deadline(parameters) is None
+    assert "00:50" in caplog.text and "01:07" in caplog.text
+    assert "is not after its charge start" in caplog.text
 
 
 @pytest.mark.parametrize(
     "charge_start,deadline,expected_deadline",
     [
         # Reached during the current slot: the vehicle can charge in slot 0,
-        # which ends before the deadline, so the deadline is kept.
-        ("2026-09-16T10:05:00+02:00", "2026-09-16T10:20:00+02:00", 1),
-        # Charge start still ahead in the current slot: slot 0 is not usable
-        # and no full slot lies before the deadline.
-        ("2026-09-16T10:10:00+02:00", "2026-09-16T10:20:00+02:00", None),
+        # and a third of slot 1 lies before the deadline.
+        ("2026-09-16T10:05:00+02:00", "2026-09-16T10:20:00+02:00", (1, 1 / 3)),
+        # Charge start still ahead in the current slot: slot 0 is not usable,
+        # the first third of slot 1 is.
+        ("2026-09-16T10:10:00+02:00", "2026-09-16T10:20:00+02:00", (1, 1 / 3)),
     ],
 )
 def test_deadline_with_a_charge_start_inside_the_current_slot(
-    config_eos: ConfigEOS, charge_start: str, deadline: str, expected_deadline: int | None
+    config_eos: ConfigEOS,
+    charge_start: str,
+    deadline: str,
+    expected_deadline: tuple[int, float],
 ) -> None:
     optimizer = configure_grid(config_eos, interval_sec=900, hours=24, start="2026-09-16T10:07:00")
     parameters = ev_only_parameters(
         charge_start_datetime=charge_start, min_soc_deadline_datetime=deadline
     )
-    assert optimizer._ev_deadline_slot(parameters) == expected_deadline
+    deadline_slot, share = kept_deadline(optimizer, parameters)
+    assert deadline_slot == expected_deadline[0]
+    assert share == pytest.approx(expected_deadline[1])
 
 
 @pytest.mark.parametrize(
-    "run_start,expected_deadline,expected_without_charge_start",
+    "run_start,expected_slot",
     [
-        # Before the charge start: 13:00-14:00 begins before 13:05 and
-        # 14:00-15:00 ends after 14:30, so no slot can meet the deadline.
-        ("2026-09-16T12:00:00", None, 2),
-        # Inside the charge start's slot, after it: the vehicle may charge at
-        # once, so 13:00-14:00 is usable and ends before 14:30.
-        ("2026-09-16T13:07:00", 1, 1),
-        # In the deadline's slot: 14:00-15:00 ends after 14:30 and no earlier
-        # slot was fully after the charge start, so it is relaxed again
-        # (without a charge start the target would be due right now).
-        ("2026-09-16T14:10:00", None, 0),
+        # Before the charge start: 13:00-14:00 begins before 13:05, the first
+        # half of 14:00-15:00 lies before the deadline.
+        ("2026-09-16T12:00:00", 2),
+        # Inside the charge start's slot, after it: 13:00-14:00 is usable now.
+        ("2026-09-16T13:07:00", 1),
+        # In the deadline's slot: the current slot is usable until 14:30.
+        ("2026-09-16T14:10:00", 0),
     ],
 )
-def test_relaxation_depends_on_whether_the_current_slot_is_usable(
+def test_deadline_inside_a_slot_is_kept_in_every_run(
     config_eos: ConfigEOS,
     set_other_timezone: Callable[[str], str],
     run_start: str,
-    expected_deadline: int | None,
-    expected_without_charge_start: int,
+    expected_slot: int,
 ) -> None:
     """Charge start 13:05, deadline 14:30 on an hourly grid, planned three times.
 
-    The deadline is relaxed when no slot the vehicle may charge in ends at or
-    before it. Only the current slot depends on the run: it becomes usable once
-    the charge start is reached, so the run at 13:07 keeps the deadline that the
-    runs at 12:00 and 14:10 relax.
+    Every run keeps the deadline, with or without the charge start: the half of
+    14:00-15:00 before the deadline counts towards the target in all of them.
     """
     set_other_timezone("Europe/Berlin")
     optimizer = configure_grid(config_eos, interval_sec=3600, hours=24, start=run_start)
@@ -401,9 +489,28 @@ def test_relaxation_depends_on_whether_the_current_slot_is_usable(
     parameters = ev_only_parameters(
         charge_start_datetime="2026-09-16T13:05:00+02:00", min_soc_deadline_datetime=deadline
     )
-    assert optimizer._ev_deadline_slot(parameters) == expected_deadline
     without = ev_only_parameters(min_soc_deadline_datetime=deadline)
-    assert optimizer._ev_deadline_slot(without) == expected_without_charge_start
+    for params in (parameters, without):
+        deadline_slot, share = kept_deadline(optimizer, params)
+        assert (deadline_slot, share) == (expected_slot, pytest.approx(0.5))
+
+
+def test_deadline_share_across_the_end_of_daylight_saving_time(
+    config_eos: ConfigEOS, set_other_timezone: Callable[[str], str]
+) -> None:
+    """25.10.2026, clocks go back at 03:00 CEST: 02:10 CEST and 02:40 CET lie 90
+    minutes apart. Slots count elapsed time, so the hourly slot 03:00 (the
+    second 02:00-03:00, CET) is usable and its first 40 minutes count."""
+    set_other_timezone("Europe/Berlin")
+    optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-10-25T00:00:00")
+    parameters = ev_only_parameters(
+        charge_start_datetime="2026-10-25T02:10:00+02:00",
+        min_soc_deadline_datetime="2026-10-25T02:40:00+01:00",
+    )
+    assert optimizer._ev_charge_start_slot(parameters) == 3
+    deadline_slot, share = kept_deadline(optimizer, parameters)
+    assert deadline_slot == 3
+    assert share == pytest.approx(40 / 60)
 
 
 # ---------------------------------------------------------------------------
@@ -474,7 +581,7 @@ def local_clock(request: pytest.FixtureRequest, set_other_timezone: Callable[[st
     return set_other_timezone(request.param)
 
 
-def configure_run(config: ConfigEOS, *, hours: int = 4) -> None:
+def configure_run(config: ConfigEOS, *, hours: int = 4, interval_sec: int = 900) -> None:
     config.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
@@ -483,7 +590,7 @@ def configure_run(config: ConfigEOS, *, hours: int = 4) -> None:
                 "genetic": {
                     "horizon_hours": hours,
                     "tail_horizon_hours": 0,
-                    "interval_sec": 900,
+                    "interval_sec": interval_sec,
                     "individuals": 12,
                     "generations": 10,
                     "terminal_value_mode": "FIXED",
@@ -715,19 +822,10 @@ def test_real_run_relaxes_a_deadline_before_charge_start(
 
 
 @pytest.mark.parametrize("run_start", ["2026-09-16T00:00:00", "2026-09-16T01:00:00"])
-@pytest.mark.parametrize(
-    "deadline",
-    [
-        # Departure before arrival.
-        "2026-09-16T00:30:00",
-        # Departure five minutes after arrival: no full quarter hour between.
-        "2026-09-16T01:05:00",
-    ],
-)
 def test_relaxed_deadline_stays_relaxed_once_the_charge_start_is_reached(
-    config_eos: ConfigEOS, local_clock: str, run_start: str, deadline: str
+    config_eos: ConfigEOS, local_clock: str, run_start: str
 ) -> None:
-    """Arrival 01:00 with a deadline no slot can meet, planned before and after it.
+    """Arrival 01:00 with a departure before it, planned before and after the arrival.
 
     The run at 01:00 must not turn the deadline into a target due right now
     (which no plan can meet, so nothing would be charged); like the run at
@@ -740,7 +838,7 @@ def test_relaxed_deadline_stays_relaxed_once_the_charge_start_is_reached(
         run_parameters(
             hours=5,
             charge_start_datetime="2026-09-16T01:00:00",
-            min_soc_deadline_datetime=deadline,
+            min_soc_deadline_datetime="2026-09-16T00:30:00",
         )
     )
     assert optimizer._ev_soc_deadline_slot is None
@@ -772,6 +870,99 @@ def test_real_run_keeps_a_deadline_after_charge_start(
     assert solution.result.ev_soc_per_hour[6] == 25.0
     assert solution.result.total_costs == pytest.approx(1.0)
     assert (optimizer._ev_first_charge_slot, optimizer._ev_soc_deadline_slot) == (4, 6)
+
+
+def ev_soc_at_deadline(optimizer: GeneticOptimization, solution: GeneticSolution) -> float:
+    """SoC the target was checked against (at the deadline, inside its slot)."""
+    return optimizer._ev_soc_at_deadline(
+        {"EAuto_SoC_pro_Stunde": solution.result.ev_soc_per_hour}, 0
+    )
+
+
+def test_real_run_on_the_hourly_grid_charges_before_a_departure_inside_a_slot(
+    config_eos: ConfigEOS, local_clock: str
+) -> None:
+    """Arrival 01:07, departure 02:50 on the hourly grid.
+
+    02:00-03:00 is the only hour after the arrival, and the vehicle leaves 50
+    minutes into it. The hour 03:00-04:00 is cheaper but after the departure:
+    the plan has to charge in 02:00-03:00, of which 5/6 count (4 kWh stored in
+    the hour, 3.33 kWh by 02:50).
+    """
+    configure_run(config_eos, interval_sec=3600)
+    params = run_parameters(
+        charge_start_datetime="2026-09-16T01:07:00",
+        min_soc_deadline_datetime="2026-09-16T02:50:00",
+    )
+    params.ems.electricity_price_per_wh[12:] = [0.00001] * 4
+    optimizer, solution = run(params)
+    assert optimizer._ev_first_charge_slot == 2
+    assert (optimizer._ev_soc_deadline_slot, optimizer._ev_soc_deadline_share) == (
+        2,
+        pytest.approx(5 / 6),
+    )
+    assert solution.ev_charge_hours_float == [0.0, 0.0, 1.0, 0.0]
+    assert ev_soc_at_deadline(optimizer, solution) == pytest.approx(100.0 * 5 / 6)
+
+
+def test_real_run_on_the_quarter_hour_grid_charges_before_a_departure_inside_a_slot(
+    config_eos: ConfigEOS, local_clock: str
+) -> None:
+    """The same window on the 15-minute grid: slots 5-10 and 5 minutes of slot 11."""
+    configure_run(config_eos)
+    params = run_parameters(
+        charge_start_datetime="2026-09-16T01:07:00",
+        min_soc_deadline_datetime="2026-09-16T02:50:00",
+    )
+    params.ems.electricity_price_per_wh[12:] = [0.00001] * 4
+    optimizer, solution = run(params)
+    assert (optimizer._ev_first_charge_slot, optimizer._ev_soc_deadline_slot) == (5, 11)
+    rates = solution.ev_charge_hours_float
+    assert rates is not None
+    assert sum(rates[:5]) == 0.0
+    assert sum(rates[12:]) == 0.0
+    assert ev_soc_at_deadline(optimizer, solution) >= 25.0
+
+
+def test_real_run_counts_the_minutes_before_a_departure_in_the_first_usable_slot(
+    config_eos: ConfigEOS, local_clock: str
+) -> None:
+    """Arrival 01:00, departure 01:05: only a third of slot 4 lies in between.
+
+    The target (25 %, one full quarter hour) can not be reached, but the five
+    minutes are used; the cheaper slots after the departure are not.
+    """
+    configure_run(config_eos)
+    params = run_parameters(
+        charge_start_datetime="2026-09-16T01:00:00",
+        min_soc_deadline_datetime="2026-09-16T01:05:00",
+    )
+    params.ems.electricity_price_per_wh[5:] = [0.0001] * 11
+    optimizer, solution = run(params)
+    assert (optimizer._ev_soc_deadline_slot, optimizer._ev_soc_deadline_share) == (
+        4,
+        pytest.approx(1 / 3),
+    )
+    assert solution.ev_charge_hours_float == [0.0] * 4 + [1.0] + [0.0] * 11
+    assert ev_soc_at_deadline(optimizer, solution) == pytest.approx(25.0 / 3)
+
+
+def test_real_run_without_time_to_charge_before_the_departure_plans_nothing(
+    config_eos: ConfigEOS, local_clock: str
+) -> None:
+    """Arrival 01:07, departure 01:50 on the hourly grid: 01:00-02:00 begins before
+    the arrival and is not used, so the vehicle can not charge before it leaves.
+    The deadline is kept; charging after the departure would earn nothing."""
+    configure_run(config_eos, interval_sec=3600)
+    params = run_parameters(
+        charge_start_datetime="2026-09-16T01:07:00",
+        min_soc_deadline_datetime="2026-09-16T01:50:00",
+    )
+    params.ems.electricity_price_per_wh[8:] = [0.00001] * 8
+    optimizer, solution = run(params)
+    assert optimizer._ev_soc_deadline_slot == 1
+    assert solution.ev_charge_hours_float == [0.0] * 4
+    assert solution.result.total_costs == 0.0
 
 
 def test_real_run_with_charge_start_after_the_horizon_plans_no_ev_charging(

@@ -240,10 +240,15 @@ def test_real_ev_does_not_credit_energy_delivered_after_departure(
     )
     optimizer, solution = run(params)
     assert optimizer._ev_soc_deadline_slot == 0
-    assert (
-        optimizer._ev_soc_at_deadline({"EAuto_SoC_pro_Stunde": solution.result.ev_soc_per_hour}, 0)
-        == 0.0
+    # A departure one minute into slot 0 credits that minute only: at most 1/15 of a
+    # full-power quarter hour (25 %), never the energy charged after it.
+    share = 1 / 15 if deadline.endswith("00:01:00") else 0.0
+    assert optimizer._ev_soc_deadline_share == pytest.approx(share)
+    soc_at_deadline = optimizer._ev_soc_at_deadline(
+        {"EAuto_SoC_pro_Stunde": solution.result.ev_soc_per_hour}, 0
     )
+    assert soc_at_deadline == pytest.approx(share * solution.result.ev_soc_per_hour[1])
+    assert soc_at_deadline <= 25.0 / 15 + 1e-9
 
 
 def test_real_ev_target_across_midnight_uses_elapsed_slots(config_eos: ConfigEOS) -> None:
