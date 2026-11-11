@@ -25,6 +25,18 @@ maintainable code, testability, and type safety.
   management.
 - Preserve compatibility with existing tests and supported integrations unless
   a change explicitly requires otherwise.
+- **Create, parse, convert and compare dates, times, durations and time zones
+  with `akkudoktoreos.utils.datetimeutil`** (`to_datetime`, `to_duration`,
+  `to_timezone`, `to_time`, `compare_datetimes`, `DateTime`, `Duration`). Do not call
+  `datetime`, `pendulum` or `dateutil` directly. Exceptions: `datetimeutil.py`
+  itself, and boundaries where a third-party API needs its own type (pandas,
+  NumPy, the standard library), converted right at the boundary. Applies to new
+  and changed code; migrate existing direct calls only where the change touches
+  them anyway.
+- **Optimization parameters are always valid**: their preparation never fails
+  and never cancels an optimization run. See the `energy-domain` skill.
+- Commits written or co-written by an agent end with the trailer
+  `Assisted-by: <tool> (<model id>)`, see the `commit-messages` skill.
 - Never use the workspace `.venv`: run `uv`, `make` and all Python tools in a
   virtual environment outside the workspace (`UV_PROJECT_ENVIRONMENT`), see
   `ai/skills/python-environment/SKILL.md`.
@@ -79,6 +91,62 @@ Load these only when the user asks for them by name:
 | `ai/skills/engineering/triage/SKILL.md` | Triage issues and external PRs |
 | `ai/skills/engineering/wayfinder/SKILL.md` | Plan large work as decision tickets |
 
+## Task plan and self-review
+
+- Before writing code for a task beyond a small fix, agree on a plan with the
+  user and write it to `.scratch/<branch>/plan.md` (the **task plan**, see
+  `GLOSSARY.md`). `.scratch/` is ignored by git; never commit it. Keep the plan
+  up to date when the user changes the task.
+- When the task is done, run the **self-review**: the `code-review` skill
+  against the base branch (usually `main`). The spec is the GitHub issue the
+  commits reference, if any, otherwise the task plan.
+- The coding standards for the review are `CONTRIBUTING.md`, this file and the
+  project skills in `ai/skills/` (not `ai/skills/engineering/`).
+- Fix every **hard violation** (breach of a documented project rule) yourself,
+  rerun the checks and the self-review. Report **judgement calls** (code
+  smells, possible scope creep) to the user without acting on them.
+- Write the pull request body to `.scratch/<branch>/pr.md` with the `pr` skill,
+  in the structure of `.github/pull_request_template.md`: the skill's
+  `## Summary`, `## Evidence` and `## Merge Danger` (with optional
+  **Breaking:** and **Security:** lines), then `## Checklist` with the
+  "AI-assisted" box ticked. It ends with a `## Self-review` section in
+  exactly this format. CI requires the `Reviewed:` line and notes problems
+  with the others, see `docs/develop/ai.md`:
+
+  ```markdown
+  ## Self-review
+
+  Reviewed: <full 40-character SHA of the reviewed HEAD commit>
+  Base: <base branch or commit>
+  Standards: <n> hard, <m> judgement
+  Spec: <k> open (source: <#issue | .scratch/<branch>/plan.md | none>)
+
+  - <one line per open finding or judgement call, and why it was left>
+
+  Assisted-by: <tool> (<model id>)
+  ```
+
+  Keep footers the tool adds itself below it, e.g. Claude Code's
+  `Generated with [Claude Code](https://claude.com/claude-code)`.
+
+- The self-review runs once at the end of the task, not before every commit.
+  Before every push (e.g. of fixes after review feedback), rerun the
+  self-review and rewrite the section in `.scratch/<branch>/pr.md`; never
+  just edit the SHA. The `Reviewed:` SHA must be the head of the pull
+  request. The pull request body is replaced right after the push.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub issues of the upstream repository `Akkudoktor-EOS/EOS`. See
+`docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repository root. See
+`docs/agents/domain.md`.
+
 ## Completion checklist
 
 Before considering a change complete:
@@ -91,3 +159,5 @@ Before considering a change complete:
 - [ ] Mypy checks pass where applicable.
 - [ ] Configuration and documentation updated when necessary.
 - [ ] No unrelated changes or unnecessary exceptions introduced.
+- [ ] Self-review done, hard violations fixed, judgement calls reported.
+- [ ] `.scratch/<branch>/pr.md` holds an up-to-date `## Self-review` section.

@@ -77,17 +77,24 @@ the skills, start the sandbox with `AI_SANDBOX_SKILLS_RW=1`.
 3. **Plan before larger changes.** For anything beyond a small fix, ask the agent for a short
    design note or plan first and agree on it before code is written. Claude Code has a plan mode
    (`Shift+Tab`) for this.
+   The agent writes the agreed plan to `.scratch/<branch>/plan.md` (the task plan, see
+   [](#ai-self-review)).
 4. **Let the agent verify its work.** The skills require the agent to add tests and to run
    pytest, ruff, mypy and the filename linter. Ask for the results if they are not reported.
+   At the end of the task the agent runs its self-review and writes the pull request body, see
+   [](#ai-self-review).
 5. **Watch and review.** Open the repository in your IDE on the host. You can follow the edits
    live, answer the agent's questions with full knowledge of the code, run the result yourself and
    change things by hand. Review the complete diff before you open or update a pull request, as
    described in [](#ai-review-checklist). You are the author of what goes upstream.
 6. **Commit in small steps.** Let the agent commit each logical step with a Conventional Commits
-   message (see the `commit-messages` skill), or commit yourself. Check the messages with
-   `make gitlint`.
+   message (see the `commit-messages` skill), or commit yourself. Agent-written commits end
+   with an `Assisted-by:` trailer. Check the messages with commitizen, which works on every
+   platform: `uv run --frozen cz check --rev-range main..HEAD`.
 7. **Push and open the pull request from the host.** Then the sandbox needs no GitHub
-   credentials at all. See [](#ai-sandbox-github) if you want the agent to push.
+   credentials at all. See [](#ai-sandbox-github) if you want the agent to push. Use the body the
+   agent wrote. Before every further push, let the agent rerun the self-review and rewrite the
+   body, and replace the body right after the push, see [](#ai-self-review).
 
 (ai-engineering-skills)=
 
@@ -144,6 +151,132 @@ the update needs `AI_SANDBOX_SKILLS_RW=1`, because `ai/skills` is read-only ther
 
 If you also installed the skills as an agent plugin, e.g. `mattpocock-skills` in Claude Code, the
 agent sees every skill twice. Use either the plugin or the copy in the repository.
+
+(ai-self-review)=
+
+## Self-review and the pull request check
+
+### Task plan
+
+For a task beyond a small fix, the agent writes the plan you agreed on to
+`.scratch/<branch>/plan.md`, e.g. `.scratch/feat/profile/plan.md`. `.scratch/` is ignored by git
+and outlives the session, so a later session can pick up the plan. The task plan is the spec the
+self-review checks the change against, unless the commits reference a GitHub issue: then the issue
+is the spec.
+
+### Self-review
+
+When the task is done, the agent reviews its own change with the `code-review` engineering skill
+against the base branch, usually `main`. The review has two separate parts:
+
+- **Standards**: does the change follow `CONTRIBUTING.md`, `AGENTS.md` and the project skills?
+- **Spec**: does it do what the task plan or the issue asked for, and nothing else?
+
+The agent fixes every **hard violation** (a breach of a documented project rule) itself, then
+reruns the checks and the self-review. It reports **judgement calls** (code smells, possible scope
+creep) to you and leaves the decision to you. The self-review is advisory: it catches cheap
+mistakes before you spend time on them. It does not replace your author review, and it is no
+security control, because a misled agent reviews its own change (see [](#ai-review-checklist)).
+
+### Pull request body
+
+The agent writes the pull request body to `.scratch/<branch>/pr.md` with the `pr` engineering
+skill. It follows `.github/pull_request_template.md`, which uses the skill's sections, so agents
+and people write the same structure:
+
+- `## Summary`: the smallest view that makes the change clear (pseudocode, a call or file tree, a
+  diff sketch or a diagram) with short text,
+- `## Evidence`: before and after, e.g. a failing and a passing test run,
+- `## Merge Danger`: whether the change is a one-way or two-way door, its blast radius, and
+  optional **Breaking:** and **Security:** lines,
+- `## Checklist`: the "AI-assisted" and author-review boxes,
+- `## Self-review`: the self-review declaration:
+
+```markdown
+## Self-review
+
+Reviewed: 3f2a9c1e5b7d4a6f8e0c2b4d6f8a0c2e4b6d8f0a
+Base: main
+Standards: 0 hard, 2 judgement
+Spec: 1 open (source: .scratch/feat/profile/plan.md)
+
+- judgement: possible Feature Envy in `geneticparams.py`, left as is because ...
+- spec: ...
+
+Assisted-by: Claude Code (claude-opus-5-5)
+```
+
+`Reviewed:` is the full SHA of the commit the review ran on. `Spec:` names the source of the spec:
+an issue (`#123`), the task plan, or `none`.
+
+Open the pull request from the host with that body. Before every further push, let the agent
+rerun the self-review and rewrite `pr.md`, not just edit the SHA; replace the body right after the
+push:
+
+```bash
+gh pr create --repo Akkudoktor-EOS/EOS --body-file .scratch/<branch>/pr.md ...
+gh pr edit <number> --repo Akkudoktor-EOS/EOS --body-file .scratch/<branch>/pr.md
+```
+
+Without `gh`, do it by hand on GitHub: paste the content of `pr.md` as the description when you
+open the pull request. To replace it later, open the "..." menu of the pull request description,
+choose "Edit", replace the whole text with the content of `pr.md` and click "Update comment".
+
+### The pull request check
+
+The CI workflow `ai-self-review` (`scripts/check_pr_self_review.py`) treats a pull request as
+agent-assisted when
+
+- any commit carries an `Assisted-by:` trailer (or Claude Code's
+  `Co-Authored-By: ... <noreply@anthropic.com>`),
+- the body carries an agent marker: an `Assisted-by:` line, or a footer an agent writes on its own,
+  such as Claude Code's `Generated with [Claude Code](https://claude.com/claude-code)` (the check
+  matches the Markdown text `Generated with [Claude Code]`), or
+- the "AI-assisted" box in the body is ticked.
+
+So a pull request that an agent opened is detected even when its commits were written by hand.
+Template comments (`<!-- ... -->`) never count. The check then fails only when
+
+- the body has no `## Self-review` section, or the section has no `Reviewed:` line,
+- `Reviewed:` is not the full 40-character lowercase SHA of the current head of the pull request.
+
+Everything else is only noted, without failing the check: as a warning in the log, in the job
+summary, and in the comment if the pull request already has one. A passing check never adds a new
+comment because of notes. Notes are given for:
+
+- a commit or the body carries an agent marker but the box is not ticked,
+- `Base:`, `Standards:` or `Spec:` is present but malformed: the counts must be numbers and
+  `Spec:` needs a source, as in the format above.
+
+Agents still write all four lines; the check requires only `Reviewed:`, because the SHA is what
+binds the declaration to the code. A missing optional line is not reported.
+
+Open findings do not fail the check. Dependabot and release pull requests are skipped.
+
+When the check fails, the workflow posts a comment on the pull request: what is wrong, how to fix
+it, and the expected format of the section. It keeps one such comment per pull request and updates
+it on every run, so pushes and body edits do not add new comments; once the check passes, the
+comment says so. The same report appears in the job summary of the run. Values taken from the
+pull request body or the commit messages appear in the comment only inside a code block, so they
+cannot mention anyone or inject Markdown. If the check script itself fails, the comment says that
+the check could not run and points to the log of the workflow run; the check then fails.
+
+Every push changes the head, so the check fails until the body names the new head. Therefore the
+self-review is rerun and `pr.md` rewritten before the push, and the body is replaced right after
+it. The check run started by the push sees the old body; the run started by the body edit cancels
+it if it is still running, and decides the result. This is deliberate: a declaration must not
+silently cover code pushed after the review.
+Rebases and squashes before the merge need a fresh declaration too.
+
+The check cannot tell a real review from a typed-in SHA, as no AI runs in CI. Like a sign-off, it
+makes forgetting impossible and a false claim deliberate. Your author review and the maintainers'
+review remain the controls. See the decision record
+[0001](../adr/0001-self-declared-sha-bound-review-gate.md).
+
+The workflow runs on `pull_request_target`: it uses the workflow and the script of the base
+branch, never the code of the pull request, so a pull request cannot weaken its own check. It runs
+only for pull requests into `main`, never on pushes to `main` or to other branches, and not for
+pull requests into other branches.
 
 ## The AI development sandbox
 
@@ -292,7 +425,7 @@ The usual commands work:
 | Pre-commit hooks on committed changes | `uv run --frozen pre-commit run --from-ref main --to-ref HEAD` |
 | Pre-commit hooks on changed files | `uv run --frozen pre-commit run --files <file> ...` |
 | Check file names | `uv run --frozen python scripts/lint_filenames.py` |
-| Check commit messages since `main` | `make gitlint` |
+| Check commit messages since `main` | `uv run --frozen cz check --rev-range main..HEAD` |
 | Generate the documentation | `make gen-docs` |
 | Start the EOS server for development | `make run-dev` (see [](#ai-sandbox-servers)) |
 | Start EOSdash for development | `make run-dash-dev` (see [](#ai-sandbox-servers)) |

@@ -41,7 +41,8 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = []
+# docs/agents/ holds instructions for coding agents, not user documentation.
+exclude_patterns = ["agents/**"]
 
 source_suffix = {
     ".rst": "restructuredtext",

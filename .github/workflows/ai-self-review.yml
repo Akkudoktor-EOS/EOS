@@ -1,0 +1,111 @@
+name: ai-self-review
+
+# Checks the self-review declaration of agent-assisted pull requests, see
+# docs/adr/0001-self-declared-sha-bound-review-gate.md and docs/develop/ai.md.
+#
+# pull_request_target runs the workflow and the check script of the base branch, so a pull
+# request cannot weaken its own check. The job never checks out or runs code of the pull
+# request; it reads the body and the commit messages through the API only.
+#
+# It runs only for pull requests into main, never on pushes to main or to other branches, and not
+# for pull requests into other branches.
+#
+# On failure it posts one comment that explains the fix, found again by its marker and updated in
+# place; once the check passes, the comment is updated to say so. Commenting needs
+# pull-requests: write, which is safe here because no pull request code runs.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  # Must equal COMMENT_MARKER in scripts/check_pr_self_review.py (checked by tests/test_ai.py).
+  COMMENT_MARKER: "<!-- ai-self-review -->"
+
+concurrency:
+  group: ai-self-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  self-review:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out the base branch (not the pull request)
+      uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event.pull_request.base.sha }}
+        persist-credentials: false
+    - uses: actions/setup-python@v7
+      with:
+        python-version-file: .python-version
+    - name: Fetch the pull request body and commit messages
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_BODY: ${{ github.event.pull_request.body }}
+        PR_URL: repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+      run: |
+        printf '%s' "$PR_BODY" > "$RUNNER_TEMP/body.md"
+        gh api --paginate "$PR_URL/commits" --jq '.[].commit.message | @json' \
+          > "$RUNNER_TEMP/commits.jsonl"
+    - name: Check the self-review declaration
+      id: check
+      env:
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      run: |
+        set +e
+        python scripts/check_pr_self_review.py \
+          --body-file "$RUNNER_TEMP/body.md" \
+          --commits-file "$RUNNER_TEMP/commits.jsonl" \
+          --head-sha "$PR_HEAD_SHA" \
+          --title "$PR_TITLE" \
+          --author "$PR_AUTHOR" \
+          --report-file "$RUNNER_TEMP/report.md"
+        status=$?
+        if [ ! -s "$RUNNER_TEMP/report.md" ]; then
+          # The script failed before it could write its report.
+          status=1
+          {
+            echo "$COMMENT_MARKER"
+            echo "### ❌ AI self-review check could not run"
+            echo
+            echo "The check script failed before it could check the declaration. This is a"
+            echo "problem of the check, not necessarily of the pull request; see the log of the"
+            echo "workflow run."
+          } > "$RUNNER_TEMP/report.md"
+        fi
+        echo "status=$status" >> "$GITHUB_OUTPUT"
+        cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+    - name: Comment on the pull request
+      # A failing comment must not change the result of the check.
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ github.token }}
+        STATUS: ${{ steps.check.outputs.status }}
+        ISSUE_URL: repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}
+        COMMENTS_URL: repos/${{ github.repository }}/issues/comments
+      run: |
+        comment_id=$(gh api --paginate "$ISSUE_URL/comments" --jq \
+          '.[] | select(.user.login == "github-actions[bot]")
+               | select(.body | startswith(env.COMMENT_MARKER)) | .id' | head -n 1)
+        if [ -n "$comment_id" ]; then
+          gh api --method PATCH "$COMMENTS_URL/$comment_id" -F "body=@$RUNNER_TEMP/report.md" \
+            > /dev/null
+        elif [ "$STATUS" != "0" ]; then
+          gh api --method POST "$ISSUE_URL/comments" -F "body=@$RUNNER_TEMP/report.md" > /dev/null
+        fi
+    - name: Report the result
+      if: always()
+      env:
+        STATUS: ${{ steps.check.outputs.status }}
+      run: |
+        if [ "${STATUS:-1}" != "0" ]; then
+          echo "::error::The self-review check failed; see the step summary or the pull request comment."
+        fi
+        exit "${STATUS:-1}"

@@ -269,3 +269,6 @@ tests/testdata/docs/
 
 # FastHTML session key
 .sesskey
+
+# Agent task plans and PR bodies (see docs/develop/ai.md)
+.scratch/
