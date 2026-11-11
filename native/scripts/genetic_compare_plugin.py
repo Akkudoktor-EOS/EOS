@@ -22,7 +22,8 @@ certified, because that is the question it answers.
 Tests that replace parts of the Python optimizer (``patch.object(opt, "optimize", ...)``,
 broken worker pools) differ by design; they are listed under ``patched``. A request the kernel
 does not support counts as ``unsupported``; any other native error (a panic, an invalid
-response) is listed under ``failed`` and fails the CI job like a difference.
+response) is listed under ``failed`` and fails the CI job like a difference, also in a patched
+test.
 ``tests/test_geneticnative.py`` runs the kernel itself and is left alone.
 """
 
@@ -101,7 +102,18 @@ def pytest_configure(config: Any) -> None:
 
 
 def summarize(reports: list[dict[str, Any]]) -> dict[str, Any]:
-    """Counts per outcome; ``different`` lists the unpatched runs that differ."""
+    """Count the runs per outcome.
+
+    A native failure other than an unsupported request counts as ``failed`` even in a test
+    that patches Python; only the differences of patched tests are expected.
+
+    Args:
+        reports: One entry per GENETIC run of the session, as recorded by the plugin.
+
+    Returns:
+        The counts per outcome plus the fingerprint and kernel version of the session;
+        ``different`` and ``failed`` list the entries themselves.
+    """
     summary: dict[str, Any] = {"runs": len(reports), "identical": 0, "unsupported": 0,
                                "patched": 0, "no_report": 0, "different": [], "failed": [],
                                **RUN_INFO}
@@ -111,12 +123,13 @@ def summarize(reports: list[dict[str, Any]]) -> dict[str, Any]:
             summary["no_report"] += 1
         elif report["identical"]:
             summary["identical"] += 1
+        elif report["native_error"] and not report["native_unsupported"]:
+            # A kernel failure is a defect, also where the test patches Python.
+            summary["failed"].append(entry)
         elif entry["patched"]:
             summary["patched"] += 1
-        elif report["native_error"] and report["native_unsupported"]:
-            summary["unsupported"] += 1
         elif report["native_error"]:
-            summary["failed"].append(entry)
+            summary["unsupported"] += 1
         else:
             summary["different"].append(entry)
     return summary

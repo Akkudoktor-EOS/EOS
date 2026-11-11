@@ -392,6 +392,56 @@ class TestConfiguration:
         assert config_eos.optimization.genetic.backend == GeneticBackend.PYTHON
 
 
+# --------------------------------------------------------------------------- compare plugin
+
+DIR_NATIVE_SCRIPTS = Path(__file__).parent.parent / "native" / "scripts"
+
+
+def _load_script(name: str) -> Any:
+    """Import a script of ``native/scripts`` as a module."""
+    spec = importlib.util.spec_from_file_location(name, DIR_NATIVE_SCRIPTS / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _plugin_entry(
+    *, patched: bool = False, identical: bool = False, error: str = "", unsupported: bool = False
+) -> dict[str, Any]:
+    return {
+        "test": "tests/test_x.py::test_y",
+        "patched": patched,
+        "report": {
+            "identical": identical,
+            "native_error": error,
+            "native_unsupported": unsupported,
+        },
+    }
+
+
+class TestComparePlugin:
+    """``native/scripts/genetic_compare_plugin.py``: the summary ``certify.py`` relies on."""
+
+    def test_native_failure_in_a_patched_test_is_a_failure(self):
+        """A kernel failure is no difference by design, even where Python is patched."""
+        plugin = _load_script("genetic_compare_plugin")
+        summary = plugin.summarize(
+            [
+                _plugin_entry(patched=True, error="kernel failed (panic): boom"),
+                _plugin_entry(patched=True),
+                _plugin_entry(patched=True, error="kernel rejected the run", unsupported=True),
+                _plugin_entry(identical=True),
+            ]
+        )
+        assert [entry["report"]["native_error"] for entry in summary["failed"]] == [
+            "kernel failed (panic): boom"
+        ]
+        assert summary["patched"] == 2
+        assert summary["identical"] == 1
+        assert summary["different"] == []
+
+
 # --------------------------------------------------------------------------- guard
 
 
