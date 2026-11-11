@@ -169,66 +169,81 @@ def _slot_values(values: Any) -> Any:
     return values
 
 
-def _partial_ev_slot_energy(
+def _split_ev_slot_energy(
     inverter: Inverter,
     battery: Optional[Battery],
-    battery_slot_state: Optional[tuple[float, float, float]],
     hour: int,
     energy_produced: float,
     consumption_without_ev_wh: float,
-    full_slot_consumption_wh: float,
+    ev_wh: float,
     ev_share: float,
     battery_grid_export_allowed: bool,
     battery_grid_export_factor: float,
 ) -> tuple[float, float, float, float, float]:
-    """Simulate a slot in which the EV charges only in its last ``ev_share``.
+    """Simulate a slot whose EV charging ``ev_wh`` falls into its last ``ev_share``.
 
-    The slot has a part without and a part with EV charging. Each part is
-    simulated as the whole slot at its power - without the EV, and with the
-    EV charging the whole slot (``full_slot_consumption_wh``) - from the
-    battery state before the slot, ``battery_slot_state``. The energy flows
-    and the battery state of the slot are the time-weighted sum of both, so
-    PV and the battery (released, or held with threshold peak shaving) cover
-    their share of the EV power in the part it charges.
+    The slot is simulated as two consecutive parts: first the part without
+    EV charging, then the part with it. Load and PV are spread evenly over
+    the slot; the power budgets of the inverter and the battery and the grid
+    import limit are scaled to the length of each part, so PV and the battery
+    (released, or held with threshold peak shaving) cover the EV power in the
+    part it charges in, within their power and stored energy.
 
     Returns:
-        tuple[float, float, float, float, float]: Feed-in, grid import, losses
-        and self-consumption of the slot [Wh], and the grid import with the
-        EV charging the whole slot [Wh], which is the one the grid import
-        limit applies to.
+        tuple[float, float, float, float, float]: Grid export, grid import,
+        losses and self-consumption of the slot [Wh], and the grid import of
+        the part with the EV scaled to the whole slot [Wh]: the one the grid
+        import limit of the slot applies to.
     """
-    flows: list[tuple[float, float, float, float]] = []
-    peak_shaving: list[float] = []
-    states: list[tuple[float, float, float]] = []
-    for consumption_wh in (consumption_without_ev_wh, full_slot_consumption_wh):
-        if battery is not None and battery_slot_state is not None:
-            battery.restore_slot_state(hour, battery_slot_state)
-        flows.append(
-            inverter.process_energy(
-                energy_produced,
-                consumption_wh,
+    slot_duration_h = inverter.slot_duration_h
+    max_power_wh = inverter.max_power_wh
+    max_grid_import_wh = inverter.max_grid_import_wh
+    battery_slot_duration_h = battery.slot_duration_h if battery is not None else 0.0
+    charge_limit_wh = battery._charge_limit_raw_wh_per_slot[hour] if battery is not None else 0.0
+    totals = [0.0, 0.0, 0.0, 0.0]
+    peak_shaving_ac_wh = 0.0
+    discharged_wh = charged_wh = 0.0
+    if battery is not None:
+        _, discharged_wh, charged_wh = battery.slot_state(hour)
+    part_import_wh = 0.0
+    try:
+        for part, ev_part_wh in ((1.0 - ev_share, 0.0), (ev_share, ev_wh)):
+            if part <= 0.0:
+                continue
+            inverter.slot_duration_h = slot_duration_h * part
+            inverter.max_power_wh = max_power_wh * part
+            if max_grid_import_wh is not None:
+                inverter.max_grid_import_wh = max_grid_import_wh * part
+            if battery is not None:
+                # Each part has its own power budget; the slot keeps the sum.
+                battery.slot_duration_h = battery_slot_duration_h * part
+                battery._charge_limit_raw_wh_per_slot[hour] = charge_limit_wh * part
+                battery.restore_slot_state(hour, (battery.soc_wh, 0.0, 0.0))
+            flows = inverter.process_energy(
+                energy_produced * part,
+                consumption_without_ev_wh * part + ev_part_wh,
                 hour,
                 battery_grid_export_allowed,
                 battery_grid_export_factor,
             )
-        )
-        peak_shaving.append(inverter.peak_shaving_ac_wh)
+            for index, value in enumerate(flows):
+                totals[index] += value
+            peak_shaving_ac_wh += inverter.peak_shaving_ac_wh
+            if battery is not None:
+                _, part_discharged_wh, part_charged_wh = battery.slot_state(hour)
+                discharged_wh += part_discharged_wh
+                charged_wh += part_charged_wh
+            part_import_wh = flows[1] / part
+    finally:
+        inverter.slot_duration_h = slot_duration_h
+        inverter.max_power_wh = max_power_wh
+        inverter.max_grid_import_wh = max_grid_import_wh
         if battery is not None:
-            states.append(battery.slot_state(hour))
-    weight_without, weight_with = 1.0 - ev_share, ev_share
-    without_ev, with_ev = flows
-    feed_in, grid_import, losses, self_consumption = (
-        weight_without * value_without + weight_with * value_with
-        for value_without, value_with in zip(without_ev, with_ev)
-    )
-    inverter.peak_shaving_ac_wh = weight_without * peak_shaving[0] + weight_with * peak_shaving[1]
-    if battery is not None:
-        soc_wh, discharged_wh, charged_wh = (
-            weight_without * value_without + weight_with * value_with
-            for value_without, value_with in zip(states[0], states[1])
-        )
-        battery.restore_slot_state(hour, (soc_wh, discharged_wh, charged_wh))
-    return feed_in, grid_import, losses, self_consumption, with_ev[1]
+            battery.slot_duration_h = battery_slot_duration_h
+            battery._charge_limit_raw_wh_per_slot[hour] = charge_limit_wh
+            battery.restore_slot_state(hour, (battery.soc_wh, discharged_wh, charged_wh))
+    inverter.peak_shaving_ac_wh = peak_shaving_ac_wh
+    return totals[0], totals[1], totals[2], totals[3], part_import_wh
 
 
 def _unpack_genes(packed: PackedGenes) -> list[int]:
@@ -831,7 +846,7 @@ class GeneticSimulation(PydanticBaseModel):
         # start, #1532), while load and PV fill the whole slot. The limit is a
         # power: the EV draws its slot 0 energy in that part, so slot 0 is
         # simulated as a part without and a part with the EV (see
-        # _partial_ev_slot_energy), and the limit applies to the latter.
+        # _split_ev_slot_energy), and the limit applies to the latter.
         ev_first_slot_extra = 0.0
         ev_first_slot_share = 1.0
         if max_grid_import_wh_fast is not None and ev_fast:
@@ -977,8 +992,6 @@ class GeneticSimulation(PydanticBaseModel):
                         battery_slot_state = battery_fast.slot_state(hour)
                 else:
                     ev_slot_state = None
-                if ev_import_extra > 0.0 and battery_fast and battery_slot_state is None:
-                    battery_slot_state = battery_fast.slot_state(hour)
                 if ev_import_extra > 0.0:
                     (
                         energy_feedin_grid_actual,
@@ -986,14 +999,13 @@ class GeneticSimulation(PydanticBaseModel):
                         losses,
                         eigenverbrauch,
                         limit_import_wh,
-                    ) = _partial_ev_slot_energy(
+                    ) = _split_ev_slot_energy(
                         inverter_fast,
                         battery_fast,
-                        battery_slot_state,
                         hour,
                         energy_produced,
                         consumption_without_ev,
-                        consumption + ev_import_extra,
+                        consumption - consumption_without_ev,
                         ev_first_slot_share,
                         battery_grid_export_allowed,
                         battery_grid_export_factor,
@@ -1049,14 +1061,13 @@ class GeneticSimulation(PydanticBaseModel):
                                 losses,
                                 eigenverbrauch,
                                 limit_import_wh,
-                            ) = _partial_ev_slot_energy(
+                            ) = _split_ev_slot_energy(
                                 inverter_fast,
                                 battery_fast,
-                                battery_slot_state,
                                 hour,
                                 energy_produced,
                                 consumption_without_ev,
-                                consumption + ev_import_extra,
+                                consumption - consumption_without_ev,
                                 ev_first_slot_share,
                                 battery_grid_export_allowed,
                                 battery_grid_export_factor,

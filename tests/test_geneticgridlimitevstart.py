@@ -43,12 +43,16 @@ LOAD_SLOT0_WH = 3000.0
 
 
 def _simulate_slot0(
-    first_slot_share: float, *, ac_factor: float = 0.0, battery_soc_percentage: int = 0
+    first_slot_share: float,
+    *,
+    ac_factor: float = 0.0,
+    battery_soc_percentage: int = 0,
+    battery_released: bool = False,
 ) -> tuple[dict[str, Any], Battery]:
     """Hourly, three slots, 8 kW limit; 3 kW house load in slot 0, EV asked at 7 kW.
 
-    The stationary battery (5 kW) is held. By default it is empty and cannot
-    shave the import.
+    The stationary battery (10 kWh, 5 kW) is held unless released in slot 0.
+    By default it is empty and cannot shave the import.
     """
     slots = 3
     ev_options: dict[str, Any] = {"first_slot_share": first_slot_share}
@@ -108,7 +112,7 @@ def _simulate_slot0(
     simulation.reset()
     simulation.ac_charge_hours = np.array([ac_factor, 0.0, 0.0])
     simulation.dc_charge_hours = np.ones(slots)
-    simulation.bat_discharge_hours = np.zeros(slots)
+    simulation.bat_discharge_hours = np.array([1.0 if battery_released else 0.0, 0.0, 0.0])
     simulation.ev_charge_hours = np.array([1.0, 1.0, 1.0])
     return simulation.simulate(0), ev
 
@@ -154,6 +158,23 @@ class TestFirstSlotShare:
         assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(
             LOAD_SLOT0_WH * (1.0 - share) + LIMIT_W * share
         )
+
+    @pytest.mark.parametrize("share", [1.0, 0.5])
+    def test_released_battery_runs_empty_in_the_part_with_the_ev(self, config_eos, share):
+        """A released battery with 4 kWh covers the load before and load plus EV in the EV part.
+
+        Both parts draw 5 kW at most from the battery. At half a slot ahead it
+        delivers 1.5 kWh before and its last 2.5 kWh in the part with the EV;
+        that part imports 3.5 + 1.5 - 2.5 = 2.5 kWh, within the 4 kWh limit
+        of the half hour.
+        """
+        result, _ = _simulate_slot0(share, battery_soc_percentage=40, battery_released=True)
+
+        load_wh = LOAD_SLOT0_WH + EV_POWER_W * share
+        battery_wh = min(4000.0, 5000.0 * share + LOAD_SLOT0_WH * (1.0 - share))
+        assert 0 not in result["ev_grid_limited_charge_factors"]
+        assert result["akku_soc_pro_stunde"][1] == pytest.approx((4000.0 - battery_wh) / 100)
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(load_wh - battery_wh)
 
     @pytest.mark.parametrize("share", [1.0, 0.25])
     def test_ac_charge_of_slot0_leaves_room_for_the_ev_power(self, config_eos, share):
