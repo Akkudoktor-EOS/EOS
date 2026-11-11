@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611101343251788"
+    "version": "v0.3.0.dev2611110878598843"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -10076,6 +10076,21 @@
             "type": "array",
             "title": "Electricity Price",
             "description": "Used Electricity Price, including predictions"
+          },
+          "peak_shaving_wh_per_hour": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peak Shaving Wh Per Hour",
+            "description": "AC energy in watt-hours per slot that the battery delivered in slots where the plan holds it (discharge_allowed = 0), to cover the grid import above the inverter's max_grid_import_power_w (threshold peak shaving). 0 where it shaved nothing, including released slots. None without a grid import limit."
           },
           "home_appliance_energy_wh": {
             "additionalProperties": {

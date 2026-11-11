@@ -941,7 +941,14 @@ class TestOptimization:
         assert never_binding.ac_charge == unlimited.ac_charge
         assert never_binding.discharge_allowed == unlimited.discharge_allowed
         assert never_binding.start_solution == unlimited.start_solution
-        assert never_binding.result.model_dump() == unlimited.result.model_dump()
+        # Only a limit reports the (here empty) peak shaving series.
+        assert never_binding.result.peak_shaving_wh_per_hour == [0.0] * len(
+            never_binding.result.grid_consumption_wh_per_hour
+        )
+        assert unlimited.result.peak_shaving_wh_per_hour is None
+        assert never_binding.result.model_dump(
+            exclude={"peak_shaving_wh_per_hour"}
+        ) == unlimited.result.model_dump(exclude={"peak_shaving_wh_per_hour"})
         assert never_binding.fitness_history == unlimited.fitness_history
 
 
@@ -1056,7 +1063,14 @@ class TestOptimizationWithEv:
         assert never_binding.ev_charge_hours_float == unlimited.ev_charge_hours_float
         assert never_binding.ac_charge == unlimited.ac_charge
         assert never_binding.start_solution == unlimited.start_solution
-        assert never_binding.result.model_dump() == unlimited.result.model_dump()
+        # Only a limit reports the (here empty) peak shaving series.
+        assert never_binding.result.peak_shaving_wh_per_hour == [0.0] * len(
+            never_binding.result.grid_consumption_wh_per_hour
+        )
+        assert unlimited.result.peak_shaving_wh_per_hour is None
+        assert never_binding.result.model_dump(
+            exclude={"peak_shaving_wh_per_hour"}
+        ) == unlimited.result.model_dump(exclude={"peak_shaving_wh_per_hour"})
         assert never_binding.fitness_history == unlimited.fitness_history
 
 

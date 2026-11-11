@@ -159,6 +159,18 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
         validation_alias=AliasChoices("electricity_price", "Electricity_price"),
         json_schema_extra={"description": "Used Electricity Price, including predictions"},
     )
+    peak_shaving_wh_per_hour: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "AC energy in watt-hours per slot that the battery delivered in slots "
+                "where the plan holds it (discharge_allowed = 0), to cover the grid "
+                "import above the inverter's max_grid_import_power_w (threshold peak "
+                "shaving). 0 where it shaved nothing, including released slots. None "
+                "without a grid import limit."
+            )
+        },
+    )
 
     # Computed fields for backward compatibility (deprecated German names)
     @computed_field(json_schema_extra={"deprecated": True})
@@ -243,6 +255,7 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
         "home_appliance_wh_per_hour",
         "electricity_price",
         "feed_in_tariff",
+        "peak_shaving_wh_per_hour",
         mode="before",
     )
     def convert_numpy(cls, field: Any) -> Any:
@@ -602,24 +615,31 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             return None
         return inverter.max_grid_import_power_w
 
-    def _slot_shaved_peak(self, result_idx: int, peak_shaving_threshold_w: Optional[float]) -> bool:
-        """Whether the simulated slot may have shaved a peak at the threshold.
+    def _slot_shaved_peak(self, result_idx: int) -> bool:
+        """Whether the battery shaved a peak at the grid import limit in the simulated slot.
 
-        A held battery shaves only where the import reaches the grid import
-        limit; it then stays exactly at the limit, or above it once the battery
-        has nothing left. Slots below the limit (most AC charging slots among
-        them) shaved nothing.
+        Read from the simulation's ``peak_shaving_wh_per_hour``: the energy a
+        held battery delivered for the import above the limit. An import at
+        the limit alone is no evidence (with a 0 W limit every slot without
+        import is at the limit). Without the series (no grid import limit) no
+        slot shaved.
+
+        Args:
+            result_idx: Slot index into the simulation result.
+
+        Returns:
+            bool: True if the battery delivered more than
+            ``GRID_IMPORT_LIMIT_TOLERANCE_WH`` for threshold peak shaving.
         """
-        if peak_shaving_threshold_w is None:
+        shaved = self.result.peak_shaving_wh_per_hour
+        if shaved is None or result_idx >= len(shaved):
             return False
-        imports = self.result.grid_consumption_wh_per_hour
-        if result_idx >= len(imports):
-            return False
-        slot_import_wh = imports[result_idx]
-        if slot_import_wh is None or not math.isfinite(slot_import_wh):
-            return False
-        limit_wh = peak_shaving_threshold_w * float(self.interval_seconds) / 3600.0
-        return slot_import_wh >= limit_wh - GRID_IMPORT_LIMIT_TOLERANCE_WH
+        shaved_wh = shaved[result_idx]
+        return (
+            shaved_wh is not None
+            and math.isfinite(shaved_wh)
+            and shaved_wh > GRID_IMPORT_LIMIT_TOLERANCE_WH
+        )
 
     def _soc_clamped_operation_factors(
         self,
@@ -644,9 +664,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             commanded factor would store in one optimization slot.  Set to 0 when full.
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
-          - With ``shaved_peak`` (the simulated slot reached the grid import
-            threshold) a held slot keeps its AC and DC charge factors
-            unclamped: the battery shaved a peak within the slot and may charge
+          - With ``shaved_peak`` (the battery shaved a peak at the grid import
+            threshold in the simulated slot) a held slot keeps its AC and DC
+            charge factors unclamped: the battery shaved a peak within the slot and may charge
             again, so the start-of-slot headroom does not bound what it takes.
             Held slots that shaved nothing are clamped as without a threshold.
           - Discharge: blocked when SOC is at or below min SOC.
@@ -788,7 +808,6 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     :n_points
                 ]  # result starts at start_day_slot
             ]
-            peak_shaving_threshold_w = self._peak_shaving_threshold_w()
             operation: dict[str, list[float]] = {
                 "genetic_ac_charge_factor": [],
                 "genetic_dc_charge_factor": [],
@@ -839,7 +858,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     discharge_allowed_hour,
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
-                    shaved_peak=self._slot_shaved_peak(result_idx, peak_shaving_threshold_w),
+                    shaved_peak=self._slot_shaved_peak(result_idx),
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac, eff_dc, eff_dis, eff_grid_export, battery_grid_export_factor_hour
@@ -1119,7 +1138,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     bool(self.discharge_allowed[hour_idx]),
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
-                    shaved_peak=self._slot_shaved_peak(result_idx, peak_shaving_threshold_w),
+                    shaved_peak=self._slot_shaved_peak(result_idx),
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac,

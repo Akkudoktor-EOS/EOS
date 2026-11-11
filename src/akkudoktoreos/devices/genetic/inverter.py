@@ -179,6 +179,10 @@ class Inverter:
             if self.parameters.max_grid_import_power_w is None
             else self.parameters.max_grid_import_power_w * self.slot_duration_h
         )
+        # AC energy [Wh] a held battery delivered in the slot last processed by
+        # process_energy() to cover the import above the grid import limit
+        # (threshold peak shaving). 0.0 where it shaved nothing.
+        self.peak_shaving_ac_wh = 0.0
 
     def dc_to_ac_efficiency_at(self, ac_wh: float) -> float:
         """Return the DC-to-AC efficiency of a conversion delivering ``ac_wh`` in one slot.
@@ -533,6 +537,12 @@ class Inverter:
                 rated discharge power [0.0 ... 1.0]. 1.0 exports as much as the
                 battery and the inverter allow, which is the behaviour when no
                 export rates are configured.
+
+        Returns:
+            tuple[float, float, float, float]: Grid export, grid import, losses
+            and self-consumption of the slot [Wh]. The AC energy a held battery
+            delivered for threshold peak shaving is left in
+            ``peak_shaving_ac_wh``.
         """
         # This method runs once per slot of every candidate plan. The bounds
         # below are written as conditional expressions instead of min()/max()
@@ -540,6 +550,7 @@ class Inverter:
         # "b if b < a else a" is exactly min(a, b), NaN and signed zero included.
         losses = 0.0
         grid_export = 0.0
+        self.peak_shaving_ac_wh = 0.0
         generation = float(generation)
         if generation < 0.0:
             generation = 0.0
@@ -604,6 +615,7 @@ class Inverter:
                     battery_discharge_ac, battery_discharge_losses = self._discharge_battery_to_ac(
                         requested_ac_wh, hour, ignore_hold=True
                     )
+                    self.peak_shaving_ac_wh = battery_discharge_ac
                     if battery_discharge_ac >= excess_wh * (1.0 - 1e-12):
                         # Shaved completely: the import is the limit, without a
                         # rounding residue that would read as AC charge headroom.

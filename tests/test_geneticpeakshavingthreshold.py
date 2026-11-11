@@ -185,6 +185,27 @@ class TestHeldBatteryShavesTheExcess:
 
         assert grid_import == pytest.approx(8000.0)
         assert battery.soc_wh == pytest.approx(10000.0)
+        assert inverter.peak_shaving_ac_wh == 0.0
+
+    def test_inverter_reports_the_shaved_energy_of_the_slot(self):
+        """4 kWh shaved in the peak slot; the next slot below the limit reports 0 again."""
+        inverter, _ = _devices()
+
+        inverter.process_energy(0.0, 12000.0, 0)
+        shaved_wh = inverter.peak_shaving_ac_wh
+        inverter.process_energy(0.0, 1000.0, 1)
+
+        assert shaved_wh == pytest.approx(4000.0)
+        assert inverter.peak_shaving_ac_wh == 0.0
+
+    def test_released_discharge_is_not_reported_as_shaving(self):
+        inverter, battery = _devices()
+        battery.discharge_array[0] = 1
+
+        inverter.process_energy(0.0, 12000.0, 0)
+
+        assert battery.discharged_energy_wh(0) > 0.0
+        assert inverter.peak_shaving_ac_wh == 0.0
 
     def test_without_a_limit_a_held_battery_stays_idle(self):
         inverter, battery = _devices(limit_w=None)
@@ -379,6 +400,23 @@ class TestSimulation:
 
         assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(11000.0)
         assert result["akku_soc_pro_stunde"][1] == pytest.approx(0.0)
+
+    def test_result_reports_the_shaved_energy_per_slot(self, config_eos):
+        """Only the held 9 kWh slot shaves: 1 kWh, the released slot discharges for its load."""
+        result, _ = _simulate(
+            config_eos,
+            load=[1000.0, 9000.0, 9000.0],
+            discharge=[0.0, 0.0, 1.0],
+            soc_percentage=50,
+        )
+
+        assert list(result["peak_shaving_wh_per_hour"]) == pytest.approx([0.0, 1000.0, 0.0])
+        assert result["Netzbezug_Wh_pro_Stunde"][2] == pytest.approx(5000.0)
+
+    def test_no_shaving_series_without_a_limit(self, config_eos):
+        result, _ = _simulate(config_eos, load=[12000.0], limit_w=None)
+
+        assert "peak_shaving_wh_per_hour" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -681,12 +719,12 @@ class TestExportedPlan:
                 ),
                 interval_seconds=3600,
                 result=SimpleNamespace(
-                    grid_consumption_wh_per_hour=list(result["Netzbezug_Wh_pro_Stunde"])
+                    peak_shaving_wh_per_hour=list(result["peak_shaving_wh_per_hour"])
                 ),
             ),
         )
-        # The slot shaved: its import is at the 2 kW limit.
-        shaved_peak = GeneticSolution._slot_shaved_peak(solution, 0, 2000.0)
+        # The slot shaved: the battery covered the import above the 2 kW limit.
+        shaved_peak = GeneticSolution._slot_shaved_peak(solution, 0)
         assert shaved_peak
 
         ac, dc, discharge, export = GeneticSolution._soc_clamped_operation_factors(
@@ -993,3 +1031,109 @@ class TestClampOfShavedSlots:
         ac, dc, discharge = (list(values) for values in zip(*table_controls))
 
         assert (ac, dc, discharge) == tuple(plan_controls)
+
+
+# ---------------------------------------------------------------------------
+# Whether a held slot shaved comes from the simulation, not from its import
+# ---------------------------------------------------------------------------
+
+
+def _optimize_full_battery_without_load(
+    config_eos: ConfigEOS, limit_w: Optional[float]
+) -> GeneticSolution:
+    """Hourly 4-slot run: battery at its 80 % maximum SoC, PV in two hours, no load.
+
+    Without load, holding and releasing the battery simulate alike, and the
+    full battery takes no PV. The run's controls are set to "held, PV
+    charging allowed" in every slot, which leaves the simulated result as it is.
+    """
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {
+                "algorithm": "GENETIC",
+                "genetic": {
+                    "horizon_hours": SLOTS,
+                    "tail_horizon_hours": 0,
+                    "interval_sec": 3600,
+                    "terminal_value_mode": "FIXED",
+                    "terminal_value_euro_per_kwh": 0.0,
+                },
+            },
+            "feedintariff": {"direct_marketing_enabled": False},
+        }
+    )
+    get_ems(init=True).set_start_datetime(to_datetime("2026-10-26T00:00:00"))
+    parameters = GeneticOptimizationParameters.model_validate(
+        {
+            "ems": {
+                "pv_forecast_wh": [3000.0, 3000.0, 0.0, 0.0],
+                "total_load": [0.0] * SLOTS,
+                "electricity_price_per_wh": [0.0003] * SLOTS,
+                "feed_in_tariff_per_wh": 0.0,
+                "price_per_wh_battery": 0.0,
+            },
+            "pv_battery": {
+                "device_id": "battery1",
+                "capacity_wh": 10000,
+                "max_charge_power_w": 5000,
+                "charging_efficiency": 1.0,
+                "discharging_efficiency": 1.0,
+                "initial_soc_percentage": 80,
+                "min_soc_percentage": 0,
+                "max_soc_percentage": 80,
+            },
+            "inverter": {
+                "device_id": "inverter1",
+                "max_power_wh": 10000,
+                "battery_id": "battery1",
+                "max_ac_charge_power_w": 0,
+                "max_grid_import_power_w": limit_w,
+            },
+            "ev": None,
+            "forecast_interval_seconds": 3600,
+        }
+    )
+    solution = GeneticOptimization(fixed_seed=1).optimize_ems(parameters, ngen=5, individuals=20)
+    solution.discharge_allowed = [0] * SLOTS
+    solution.dc_charge = [1.0] * SLOTS
+    return solution
+
+
+class TestShavedSlotsFromTheSimulation:
+    @pytest.mark.parametrize("limit_w", [None, 0.0])
+    def test_full_held_battery_without_shaving_idles(self, config_eos, limit_w):
+        """Limit 0 W: every slot without import sits at the limit but shaved nothing.
+
+        The battery stays full, so the plan must not allow PV charging above
+        the maximum SoC: IDLE as without a limit.
+        """
+        solution = _optimize_full_battery_without_load(config_eos, limit_w)
+        plan = solution.energy_management_plan()
+
+        assert list(solution.result.grid_consumption_wh_per_hour) == [0.0] * SLOTS
+        assert list(solution.result.battery_soc_per_hour) == pytest.approx([80.0] * SLOTS)
+        modes = [
+            str(instruction.operation_mode_id)
+            for instruction in plan.instructions
+            if isinstance(instruction, FRBCInstruction) and instruction.resource_id == "battery1"
+        ]
+        assert modes == ["IDLE"]
+
+    def test_solution_result_carries_the_shaving_series(self, config_eos):
+        solution = _optimize_scenario(config_eos, "two_peaks_small_battery")
+
+        shaved = solution.result.peak_shaving_wh_per_hour
+        assert shaved is not None
+        # Import above the limit is what the battery did not shave.
+        excess = np.maximum(np.asarray(solution.result.grid_consumption_wh_per_hour) - LIMIT_W, 0.0)
+        assert sum(shaved) > 0.0
+        assert all(value >= 0.0 for value in shaved)
+        assert np.all(excess == 0.0)
+
+    def test_no_shaving_series_without_a_limit(self, config_eos):
+        solution = _optimize_scenario(
+            config_eos, "cheap_peak_then_expensive_hours", with_limit=False
+        )
+
+        assert solution.result.peak_shaving_wh_per_hour is None

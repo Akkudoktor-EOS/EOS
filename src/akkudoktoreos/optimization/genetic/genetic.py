@@ -614,6 +614,9 @@ class GeneticSimulation(PydanticBaseModel):
         # AC energy drawn from the grid in slots whose AC charge the grid
         # import limit lowered, by slot index (see the break-even penalty).
         grid_limited_ac_charge_wh: Optional[dict[int, float]] = None
+        # AC energy a held battery delivered for threshold peak shaving, per
+        # slot; only with a grid import limit.
+        peak_shaving_wh_per_hour: Optional[list[float]] = None
 
         # Set initial state
         if battery_fast:
@@ -718,6 +721,7 @@ class GeneticSimulation(PydanticBaseModel):
         max_grid_import_wh_fast = inverter_fast.max_grid_import_wh if inverter_fast else None
         if max_grid_import_wh_fast is not None:
             grid_limited_ac_charge_wh = {}
+            peak_shaving_wh_per_hour = [0.0] * total_hours
         ac_charge_hours_fast = _slot_values(ac_charge_hours_fast)
         ev_charge_hours_fast = _slot_values(ev_charge_hours_fast)
         if battery_fast:
@@ -848,6 +852,8 @@ class GeneticSimulation(PydanticBaseModel):
                     battery_grid_export_allowed,
                     battery_grid_export_factor,
                 )
+                if peak_shaving_wh_per_hour is not None:
+                    peak_shaving_wh_per_hour[hour_idx] = inverter_fast.peak_shaving_ac_wh
             else:
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
 
@@ -969,6 +975,8 @@ class GeneticSimulation(PydanticBaseModel):
         }
         if grid_limited_ac_charge_wh is not None:
             result["grid_limited_ac_charge_wh"] = grid_limited_ac_charge_wh
+        if peak_shaving_wh_per_hour is not None:
+            result["peak_shaving_wh_per_hour"] = np.array(peak_shaving_wh_per_hour, dtype=float)
         return result
 
 
