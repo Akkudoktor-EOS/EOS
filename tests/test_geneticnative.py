@@ -726,6 +726,71 @@ class TestFallback:
         ) in logged
         assert not any("native backend not used" in message for _, message in logged)
 
+    @pytest.mark.parametrize(
+        ("penalty", "substituted"),
+        [
+            (10, False),
+            (2.5, False),
+            ("1e3", False),
+            (" 7 ", False),
+            ("inf", False),
+            (True, False),
+            (None, True),
+            (float("nan"), True),  # JSON null in the request
+            ("1_000", True),  # Python's float() reads it, Rust's parse::<f64>() does not
+            ("ten", True),
+            ([], True),
+        ],
+    )
+    def test_kernel_fallbacks_follow_the_request(self, penalty, substituted):
+        """The fallbacks come from the JSON the kernel reads, parsed as the kernel parses it."""
+        settings: dict[str, Any] = {"individuals": 60, "generations": 25, "penalties": {}}
+        if penalty is not None:
+            settings["penalties"]["ev_soc_miss"] = penalty
+        request = native._json_ready(
+            {
+                "settings": settings,
+                "parameters": {
+                    "ev": {
+                        "min_soc_percentage": 70,
+                        "initial_soc_percentage": 30,
+                        "charge_rates": [0.0, 1.0],
+                    }
+                },
+                "individuals": None,
+                "generations": None,
+                "fallback_ev_charge_rates": None,
+            }
+        )
+        expected = (
+            [("ERROR", "Penalty function parameter `ev_soc_miss` not configured, using 10.")]
+            if substituted
+            else []
+        )
+        assert native.kernel_fallbacks(request) == expected
+
+    def test_kernel_fallbacks_without_ev_and_with_configured_rates(self):
+        request: dict[str, Any] = {
+            "settings": {"individuals": None, "generations": None, "penalties": {}},
+            "parameters": {
+                "ev": {
+                    "min_soc_percentage": 0,
+                    "initial_soc_percentage": 30,
+                    "charge_rates": None,
+                }
+            },
+            "individuals": 50,
+            "generations": None,
+            "fallback_ev_charge_rates": [0.0, 1.0],
+        }
+        # Individuals given for the run, no EV target, rates from the configured EV.
+        assert native.kernel_fallbacks(request) == [
+            ("ERROR", "Generations not configured. Using 400.")
+        ]
+        request["parameters"]["ev"] = None
+        request["generations"] = 30
+        assert native.kernel_fallbacks(request) == []
+
     def test_unsynchronized_start_hour_still_raises(self, config_eos, monkeypatch):
         _configure(config_eos, backend="native")
         kernel = _fake_kernel(certified_fingerprints=(native.source_fingerprint(),))

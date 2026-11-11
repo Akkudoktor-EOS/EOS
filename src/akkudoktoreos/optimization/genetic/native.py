@@ -43,6 +43,7 @@ import io
 import json
 import math
 import random
+import re
 import struct
 import threading
 import time
@@ -572,6 +573,7 @@ class NativeRun:
     solution: GeneticSolution
     diagnostics: dict[str, Any]
     elapsed_s: float
+    fallbacks: list[tuple[str, str]] = field(default_factory=list)
 
 
 def run_native(
@@ -593,10 +595,12 @@ def run_native(
     if native is None:
         raise NativeUnsupported(f"package '{NATIVE_PACKAGE}' is not installed")
     _check_package(native)
-    request = build_request(optimization, parameters, worst_case, ngen, individuals, profile)
+    request = _json_ready(
+        build_request(optimization, parameters, worst_case, ngen, individuals, profile)
+    )
     started = time.perf_counter()
     try:
-        response = json.loads(native.run_genetic(json.dumps(_json_ready(request), allow_nan=False)))
+        response = json.loads(native.run_genetic(json.dumps(request, allow_nan=False)))
     except native.NativeRunError as exc:
         code, message = (exc.args + ("", ""))[:2] if exc.args else ("error", "")
         if code in UNSUPPORTED_CODES:
@@ -610,7 +614,7 @@ def run_native(
     except Exception as exc:  # noqa: BLE001 - any invalid response is a kernel defect
         raise NativeRunFailed(f"invalid kernel response: {type(exc).__name__}: {exc}") from exc
     _use_python_timezones(optimization, solution)
-    return NativeRun(solution, response.get("diagnostics", {}), elapsed)
+    return NativeRun(solution, response.get("diagnostics", {}), elapsed, kernel_fallbacks(request))
 
 
 def _use_python_timezones(optimization: GeneticOptimization, solution: GeneticSolution) -> None:
@@ -860,54 +864,60 @@ def compare_run(
 # --------------------------------------------------------------------------- dispatch
 
 
-def _penalty_is_number(value: Any) -> bool:
-    """Whether the kernel reads a penalty value as a number (``penalty_float`` in Rust)."""
+# ``str::parse::<f64>`` of Rust, after ``trim()``: no underscores, no inner spaces.
+_RUST_FLOAT = re.compile(r"[+-]?(inf|infinity|nan|(\d+\.?\d*|\.\d+)(e[+-]?\d+)?)", re.IGNORECASE)
+
+
+def _kernel_reads_number(value: Any) -> bool:
+    """Whether the kernel's ``penalty_float`` reads a JSON value of the request as a number.
+
+    Args:
+        value: A penalty value of the JSON-ready request (NaN is already ``None`` there).
+
+    Returns:
+        True for JSON numbers and booleans and for strings Rust parses as ``f64``.
+    """
     if isinstance(value, (bool, int, float)):
         return True
     if isinstance(value, str):
-        try:
-            float(value.strip())
-        except ValueError:
-            return False
-        return True
+        return _RUST_FLOAT.fullmatch(value.strip()) is not None
     return False
 
 
-def log_kernel_fallbacks(
-    optimization: GeneticOptimization,
-    parameters: GeneticOptimizationParameters,
-    ngen: Optional[int],
-    individuals: Optional[int],
-) -> None:
-    """Log the fallback values the kernel used, as the Python implementation logs them.
+def kernel_fallbacks(request: dict[str, Any]) -> list[tuple[str, str]]:
+    """The fallback values the kernel applies to a request, with Python's log messages.
 
     The kernel replaces missing inputs with the same substitutes as Python (300 individuals,
     400 generations, an ``ev_soc_miss`` penalty of 10, the default EV charge rates) but does
-    not log. A native run logs them here with Python's messages and levels, so the log does
-    not depend on the backend.
+    not log them. They are derived from the JSON-ready request the kernel reads, so they match
+    what the kernel used, also when the configuration changes during the run.
 
     Args:
-        optimization: The optimization whose configuration snapshot the kernel ran with.
-        parameters: The optimization parameters of the run.
-        ngen: Generations requested for the run, or None for the configured ones.
-        individuals: Individuals requested for the run, or None for the configured ones.
+        request: The request as sent to the kernel (after ``_json_ready``).
+
+    Returns:
+        ``(level, message)`` per fallback, with the level and message Python logs it with.
     """
-    settings = optimization._genetic_cfg
-    if individuals is None and settings.individuals is None:
-        logger.error("Individuals not configured. Using {}.", 300)
-    if ngen is None and settings.generations is None:
-        logger.error("Generations not configured. Using {}.", 400)
-    ev = parameters.ev
+    settings = request["settings"]
+    fallbacks: list[tuple[str, str]] = []
+    if request.get("individuals") is None and settings.get("individuals") is None:
+        fallbacks.append(("ERROR", "Individuals not configured. Using 300."))
+    if request.get("generations") is None and settings.get("generations") is None:
+        fallbacks.append(("ERROR", "Generations not configured. Using 400."))
+    ev = request["parameters"].get("ev")
     if ev is None:
-        return
-    if ev.min_soc_percentage > ev.initial_soc_percentage and not _penalty_is_number(
-        settings.penalties.get("ev_soc_miss")
+        return fallbacks
+    if ev["min_soc_percentage"] > ev["initial_soc_percentage"] and not _kernel_reads_number(
+        (settings.get("penalties") or {}).get("ev_soc_miss")
     ):
-        logger.error("Penalty function parameter `ev_soc_miss` not configured, using {}.", 10)
-    vehicles = optimization.config.devices.electric_vehicles
-    vehicle = next(iter(vehicles.values()), None) if vehicles else None
-    if ev.charge_rates is None and (vehicle is None or vehicle.charge_rates is None):
-        logger.warning("No charge rates provided for electric vehicle - using default.")
+        fallbacks.append(
+            ("ERROR", "Penalty function parameter `ev_soc_miss` not configured, using 10.")
+        )
+    if ev.get("charge_rates") is None and request.get("fallback_ev_charge_rates") is None:
+        fallbacks.append(
+            ("WARNING", "No charge rates provided for electric vehicle - using default.")
+        )
+    return fallbacks
 
 
 def optimize_ems(
@@ -943,7 +953,8 @@ def optimize_ems(
     except Exception as exc:  # noqa: BLE001 - every failure falls back to Python
         _log_fallback(str(exc) or type(exc).__name__)
         return python_run()
-    log_kernel_fallbacks(optimization, parameters, ngen, individuals)
+    for level, message in run.fallbacks:
+        logger.log(level, message)
     logger.info(
         "GENETIC native run ({} {}) took {:.2f} s.",
         NATIVE_PACKAGE,
