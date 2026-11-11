@@ -471,17 +471,20 @@ class GeneticSimulation(PydanticBaseModel):
         optimization_hours: int,
         prediction_hours: int,
         ev: Optional[Battery] = None,
+        *,
+        ev_charge_rates: Optional[list[float]] = None,
         home_appliance: Optional[HomeAppliance] = None,
         inverter: Optional[Inverter] = None,
         direct_marketing_enabled: bool = False,
         home_appliances: Optional[list[HomeAppliance]] = None,
-        ev_charge_rates: Optional[list[float]] = None,
     ) -> None:
         """Prepare simulation runs.
 
         Populate internal arrays and device references used during simulation.
         ``ev_charge_rates`` are the rates the EV charger accepts (see the field
-        of the same name); None uses the charge rates of ``ev``.
+        of the same name); None uses the charge rates of ``ev``. Arguments after
+        ``ev`` are keyword-only, so a call that passes them by position fails
+        instead of binding them to the wrong parameter.
         """
         self.home_appliance_start_hour = None
         self.optimization_hours = optimization_hours
@@ -2967,6 +2970,18 @@ class GeneticOptimization(OptimizationBase):
                 break
         return candidates
 
+    def _grid_import_limit_penalty_euro_per_wh(self) -> float:
+        """Penalty per Wh imported above the grid import limit [EUR/Wh].
+
+        Configured as ``penalties.grid_import_limit_excess`` in EUR/kWh and
+        validated by ``GeneticCommonSettings`` (finite, >= 0). A penalties dict
+        without the key uses the default.
+        """
+        penalty_euro_per_kwh = self._genetic_cfg.penalties.get(
+            "grid_import_limit_excess", GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH
+        )
+        return float(penalty_euro_per_kwh) / 1000.0
+
     def _grid_limit_ev_shift_candidates(
         self,
         individual: list[int],
@@ -3953,18 +3968,6 @@ class GeneticOptimization(OptimizationBase):
         reached = [value for value in reached if math.isfinite(value)]
         return max(reached) if reached else battery.current_soc_percentage()
 
-    def _grid_import_limit_penalty_euro_per_wh(self) -> float:
-        """Penalty per Wh imported above the grid import limit [EUR/Wh].
-
-        Configured as ``penalties.grid_import_limit_excess`` in EUR/kWh and
-        validated by ``GeneticCommonSettings`` (finite, >= 0). A penalties dict
-        without the key uses the default.
-        """
-        penalty_euro_per_kwh = self._genetic_cfg.penalties.get(
-            "grid_import_limit_excess", GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH
-        )
-        return float(penalty_euro_per_kwh) / 1000.0
-
     def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
         """EV state of charge the target is checked against [%].
 
@@ -4727,9 +4730,9 @@ class GeneticOptimization(OptimizationBase):
             prediction_hours=self.control_end_slot,
             inverter=inverter,  # battery is part of inverter
             ev=eauto,
+            ev_charge_rates=self.ev_possible_charge_values if eauto is not None else None,
             home_appliances=home_appliances,
             direct_marketing_enabled=direct_marketing_enabled,
-            ev_charge_rates=self.ev_possible_charge_values if eauto is not None else None,
         )
 
         self._validate_forecast_availability()
