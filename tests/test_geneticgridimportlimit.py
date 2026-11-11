@@ -17,6 +17,7 @@ The limit is a power. Per slot it is an energy of
 out by hand in the tests.
 """
 
+import math
 from types import SimpleNamespace
 from typing import Any, Optional, cast
 from unittest.mock import Mock, patch
@@ -777,15 +778,29 @@ class TestConfiguration:
         assert settings.to_genetic_param().max_grid_import_power_w is None
         assert InverterParameters(device_id="i", max_power_wh=1).max_grid_import_power_w is None
 
-    @pytest.mark.parametrize("value", [-1.0, float("nan")])
+    @pytest.mark.parametrize("value", [-1.0, float("nan"), True, False])
     def test_invalid_values_are_rejected(self, value):
+        """A boolean is no power: True must not be read as a 1 W limit."""
         with pytest.raises(ValidationError):
             InverterParameters(device_id="i", max_power_wh=1, max_grid_import_power_w=value)
         with pytest.raises(ValidationError):
             InverterCommonSettings(device_id="i", max_power_w=1, max_grid_import_power_w=value)
 
+    @pytest.mark.parametrize("value", [-0.0, "-0"])
+    def test_negative_zero_is_a_zero_limit(self, value):
+        parameters = InverterParameters(
+            device_id="i", max_power_wh=1, max_grid_import_power_w=value
+        )
+        settings = InverterCommonSettings(
+            device_id="i", max_power_w=1, max_grid_import_power_w=value
+        )
+
+        for limit in (parameters.max_grid_import_power_w, settings.max_grid_import_power_w):
+            assert limit == 0.0
+            assert math.copysign(1.0, cast(float, limit)) == 1.0
+
     @pytest.mark.parametrize(
-        "value", [-10.0, "-1", float("nan"), "nan", float("inf"), "inf", "ten"]
+        "value", [-10.0, "-1", float("nan"), "nan", float("inf"), "inf", "ten", True, False]
     )
     def test_invalid_penalty_is_rejected(self, value):
         with pytest.raises(ValidationError):

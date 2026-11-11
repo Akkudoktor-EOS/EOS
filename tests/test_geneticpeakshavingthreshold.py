@@ -14,6 +14,7 @@ All expected values are worked out by hand in the tests.
 """
 
 import json
+import math
 from types import SimpleNamespace
 from typing import Any, Optional, cast
 
@@ -458,7 +459,7 @@ class TestInstruction:
         assert isinstance(instruction, FRBCInstruction)
         assert instruction.peak_shaving_threshold_w == 8000.0
 
-    @pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
+    @pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf"), True])
     def test_invalid_threshold_is_rejected(self, value):
         with pytest.raises(ValidationError):
             FRBCInstruction(
@@ -469,6 +470,19 @@ class TestInstruction:
                 operation_mode_factor=1.0,
                 peak_shaving_threshold_w=value,
             )
+
+    def test_negative_zero_threshold_is_zero(self):
+        instruction = FRBCInstruction(
+            resource_id="battery1",
+            actuator_id="battery1",
+            execution_time=to_datetime("2026-10-26T00:00:00"),
+            operation_mode_id=BatteryOperationMode.IDLE,
+            operation_mode_factor=1.0,
+            peak_shaving_threshold_w=-0.0,
+        )
+
+        assert instruction.peak_shaving_threshold_w == 0.0
+        assert math.copysign(1.0, cast(float, instruction.peak_shaving_threshold_w)) == 1.0
 
 
 # ---------------------------------------------------------------------------

@@ -229,6 +229,17 @@ class GeneticCommonSettings(SettingsBaseModel):
         },
     )
 
+    @field_validator("penalties", mode="before")
+    @classmethod
+    def _reject_bool_penalty(cls, value: Any) -> Any:
+        """Reject a boolean grid import limit penalty before it is read as 1 or 0."""
+        if isinstance(value, dict) and isinstance(value.get("grid_import_limit_excess"), bool):
+            raise ValueError(
+                "penalties.grid_import_limit_excess must be a number, "
+                f"got {value['grid_import_limit_excess']!r}."
+            )
+        return value
+
     @field_validator("penalties")
     @classmethod
     def _validate_penalties(

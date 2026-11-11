@@ -12,12 +12,13 @@ import uuid
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import StrEnum
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from loguru import logger
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.devices.devicesabc import positive_zero, reject_bool_power_w
 from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_datetime
 
 # S2 Basic Data Types
@@ -1886,6 +1887,16 @@ class FRBCInstruction(BaseInstruction):
             "examples": [None, 8000],
         },
     )
+
+    @field_validator("peak_shaving_threshold_w", mode="before")
+    @classmethod
+    def _reject_bool_threshold(cls, value: Any) -> Any:
+        return reject_bool_power_w(value)
+
+    @field_validator("peak_shaving_threshold_w")
+    @classmethod
+    def _normalize_threshold(cls, value: Optional[float]) -> Optional[float]:
+        return positive_zero(value)
 
     def duration(self) -> Optional[Duration]:
         # Infinite, until next instruction

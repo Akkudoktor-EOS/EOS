@@ -1,11 +1,13 @@
 from bisect import bisect_left
-from typing import Optional
+from typing import Any, Optional
 
 from loguru import logger
 from pydantic import Field, field_validator
 
 from akkudoktoreos.devices.devicesabc import (
     interpolate_efficiency_curve,
+    positive_zero,
+    reject_bool_power_w,
     solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
@@ -136,6 +138,16 @@ class InverterParameters(DeviceParameters):
         cls, value: Optional[list[tuple[float, float]]]
     ) -> Optional[list[tuple[float, float]]]:
         return validate_efficiency_curve(value)
+
+    @field_validator("max_grid_import_power_w", mode="before")
+    @classmethod
+    def _reject_bool_grid_import_limit(cls, value: Any) -> Any:
+        return reject_bool_power_w(value)
+
+    @field_validator("max_grid_import_power_w")
+    @classmethod
+    def _normalize_grid_import_limit(cls, value: Optional[float]) -> Optional[float]:
+        return positive_zero(value)
 
 
 class Inverter:

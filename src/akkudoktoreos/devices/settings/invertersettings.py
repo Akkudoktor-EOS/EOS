@@ -1,11 +1,15 @@
 """Inverter device settings."""
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import ConfigScope
-from akkudoktoreos.devices.devicesabc import validate_efficiency_curve
+from akkudoktoreos.devices.devicesabc import (
+    positive_zero,
+    reject_bool_power_w,
+    validate_efficiency_curve,
+)
 from akkudoktoreos.devices.settings.devicebasesettings import (
     DevicesBaseSettings,
 )
@@ -410,6 +414,16 @@ class InverterCommonSettings(DevicesBaseSettings):
         cls, value: Optional[list[tuple[float, float]]]
     ) -> Optional[list[tuple[float, float]]]:
         return validate_efficiency_curve(value)
+
+    @field_validator("max_grid_import_power_w", mode="before")
+    @classmethod
+    def _reject_bool_grid_import_limit(cls, value: Any) -> Any:
+        return reject_bool_power_w(value)
+
+    @field_validator("max_grid_import_power_w")
+    @classmethod
+    def _normalize_grid_import_limit(cls, value: Optional[float]) -> Optional[float]:
+        return positive_zero(value)
 
     @model_validator(mode="after")
     def _validate_soc_factors(self) -> "InverterCommonSettings":
