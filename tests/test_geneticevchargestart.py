@@ -498,6 +498,18 @@ def test_deadline_inside_a_slot_is_kept_in_every_run(
         assert (deadline_slot, share) == (expected_slot, pytest.approx(expected_share))
 
 
+def test_duration_deadline_counts_from_the_run_start(
+    config_eos: ConfigEOS, set_other_timezone: Callable[[str], str]
+) -> None:
+    """Run at 02:55 on the hourly grid with a maximum duration of 30 minutes: the
+    target is due at 03:25, so 25 minutes of 03:00-04:00 count."""
+    set_other_timezone("Europe/Berlin")
+    optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T02:55:00")
+    deadline_slot, share = kept_deadline(optimizer, ev_only_parameters(min_soc_max_duration_h=0.5))
+    assert deadline_slot == 1
+    assert share == pytest.approx(25 / 60)
+
+
 @pytest.mark.parametrize("charge_start", [None, "2026-09-16T01:00:00+02:00"])
 def test_deadline_passed_inside_the_current_slot_is_due_now(
     config_eos: ConfigEOS, set_other_timezone: Callable[[str], str], charge_start: str | None

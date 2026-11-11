@@ -1272,6 +1272,14 @@ class GeneticOptimization(OptimizationBase):
 
         start_slot = self._control_start_slot()
         slot_seconds = self.slot_duration_h * 3600
+        # Now, in slots: the current slot has partly passed already.
+        now_position = float(start_slot)
+        if self._slot0_datetime is not None:
+            now_seconds = (
+                self.ems.observation_datetime.in_timezone(self._slot0_datetime.timezone)
+                - self._slot0_datetime
+            ).total_seconds()
+            now_position = max(now_position, now_seconds / slot_seconds)
         # (position in slots relative to slot 0, the moment) per given deadline.
         candidates: list[tuple[float, Any]] = []
 
@@ -1286,9 +1294,10 @@ class GeneticOptimization(OptimizationBase):
 
         duration_h = ev_parameters.min_soc_max_duration_h
         if duration_h is not None:
-            position = start_slot + duration_h * 3600 / slot_seconds
+            # Counted from the start of this run (now), not from its slot start.
+            position = now_position + duration_h * 3600 / slot_seconds
             moment = (
-                self._slot_datetime(start_slot).add(seconds=duration_h * 3600)
+                self.ems.observation_datetime.add(seconds=duration_h * 3600)
                 if self._slot0_datetime is not None
                 else position
             )
@@ -1316,14 +1325,6 @@ class GeneticOptimization(OptimizationBase):
             )
             return None
 
-        # Now, in slots: the current slot has partly passed already.
-        now_position = float(start_slot)
-        if self._slot0_datetime is not None:
-            now_seconds = (
-                self.ems.observation_datetime.in_timezone(self._slot0_datetime.timezone)
-                - self._slot0_datetime
-            ).total_seconds()
-            now_position = max(now_position, now_seconds / slot_seconds)
         if position < now_position + 1e-9:
             # A deadline in the past means the target is due right now.
             return start_slot, 0.0
