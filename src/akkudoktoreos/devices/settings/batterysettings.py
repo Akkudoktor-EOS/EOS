@@ -7,10 +7,15 @@ import re
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import numpy as np
+from loguru import logger
 from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import ConfigScope
+from akkudoktoreos.devices.devicesabc import (
+    soc_value_credit_is_finite,
+    validate_soc_value_steps,
+)
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.measurement.batterycapacity import (
     BatteryCapacityEstimate,
@@ -34,6 +39,23 @@ BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 
 
 
 BATTERY_DEFAULT_GRID_EXPORT_RATES: list[float] = [0.25, 0.5, 0.75, 1.0]
+
+
+EV_SOC_VALUE_STEPS_DESCRIPTION = (
+    "Electric vehicles only. Value of energy stored in the vehicle above "
+    "'min_soc_percentage', as steps [[soc_percentage, amount_per_kwh], ...] "
+    "with strictly ascending state of charge in ]0, 100] and finite, "
+    "non-negative amounts that do not rise with the state of charge. Every "
+    "kWh stored (SoC energy, after charging losses) between the previous step "
+    "- at first 'min_soc_percentage' - and a step's state of charge, at most "
+    "'max_soc_percentage', is credited with that step's amount at the moment "
+    "the target is checked: the deadline, or else the end of the control "
+    "horizon. The optimizer then charges beyond the target where that costs "
+    "less than the value, e.g. in a cheap night or from PV surplus. Energy "
+    "below the target earns nothing, so the target keeps its penalty. None or "
+    "an empty list: energy above the target earns no credit, as before. Used "
+    "by GENETIC."
+)
 
 
 class BatteriesCommonSettings(DevicesBaseSettings):
@@ -184,7 +206,9 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             "description": (
                 "Absolute moment by which 'min_soc_percentage' has to be "
                 "reached (departure time). A date time without timezone is read "
-                "as local time. None means end of the optimization horizon."
+                "as local time. None means end of the optimization horizon. GENETIC "
+                "treats a deadline that has passed like None, with a warning while "
+                "the target is not reached."
             ),
             "examples": [None, "2026-07-16T07:00:00+02:00"],
         },
@@ -204,7 +228,48 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         },
     )
 
-    @field_validator("min_soc_deadline_datetime", mode="before")
+    charge_start_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Earliest absolute moment from which the electric vehicle may "
+                "charge (electric vehicles only; ignored for stationary "
+                "batteries). 'min_soc_deadline_datetime' only sets when the target "
+                "state of charge has to be reached; charging may continue after "
+                "it. Use it for a vehicle that is not connected yet "
+                "(e.g. its expected arrival or plug-in time) or for a connected "
+                "vehicle that may only charge from a given time on. Before it "
+                "the vehicle neither charges nor discharges, and its state of "
+                "charge stays at the initial state of charge (for a vehicle that "
+                "is not connected yet: the state of charge expected at the "
+                "charge start). A slot that begins before this moment is not "
+                "used for charging. A date time without timezone is read as "
+                "local time. None means the vehicle can charge from the start of "
+                "the optimization."
+            ),
+            "examples": [None, "2026-07-15T20:00:00+02:00"],
+        },
+    )
+
+    soc_value_steps: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": EV_SOC_VALUE_STEPS_DESCRIPTION,
+            "examples": [None, [[80, 0.25]], [[60, 0.3], [80, 0.22]]],
+        },
+    )
+
+    @field_validator("soc_value_steps", mode="after")
+    @classmethod
+    def _validate_soc_value_steps(
+        cls, value: Optional[list[tuple[float, float]]]
+    ) -> Optional[list[tuple[float, float]]]:
+        """Ascending SoC, non-increasing finite amounts; an empty list means no value."""
+        return validate_soc_value_steps(value)
+
+    @field_validator("min_soc_deadline_datetime", "charge_start_datetime", mode="before")
     @classmethod
     def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
         """Accept the usual date time representations, naive input is local time."""
@@ -304,8 +369,25 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         )
 
     def to_genetic_ev_bat_param(self) -> "ElectricVehicleParameters":
-        """Return ElectricVehicleParameters for the GENETIC optimizer."""
+        """Return ElectricVehicleParameters for the GENETIC optimizer.
+
+        The preparation never fails on ``soc_value_steps``: steps whose credit
+        for the whole capacity is not a finite number (each amount alone is
+        finite) are replaced by the field's default None, logged as an error.
+        The settings keep the steps.
+        """
         from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
+
+        soc_value_steps = self.soc_value_steps
+        if not soc_value_credit_is_finite(soc_value_steps, self.capacity_wh):
+            logger.error(
+                "Electric vehicle '{}': soc_value_steps {} give an infinite credit for "
+                "capacity_wh {}; using None (no value above the target SoC) instead.",
+                self.device_id,
+                soc_value_steps,
+                self.capacity_wh,
+            )
+            soc_value_steps = None
 
         return ElectricVehicleParameters(
             device_id=self.device_id,
@@ -318,6 +400,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             max_soc_percentage=self.max_soc_percentage,
             min_soc_deadline_datetime=self.min_soc_deadline_datetime,
             min_soc_max_duration_h=self.min_soc_max_duration_h,
+            charge_start_datetime=self.charge_start_datetime,
+            soc_value_steps=soc_value_steps,
         )
 
     # ------------------------------------------------------------------

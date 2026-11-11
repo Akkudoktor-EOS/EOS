@@ -363,6 +363,103 @@ The inverter supports separate AC↔DC conversion efficiencies:
 }
 ```
 
+The GENETIC algorithm can delay EV charging until an earliest charge start and require the
+target state of charge by a deadline:
+
+- `charge_start_datetime`: earliest charge start. Use it for a vehicle that is not connected yet
+  (for example its expected arrival or plug-in time) or for a connected vehicle that may only
+  charge from a given time on. Before it the vehicle neither charges nor discharges, and its state
+  of charge stays at the initial state of charge. For a vehicle that is not connected yet, supply
+  the state of charge you expect at the charge start as initial state of charge (for
+  `POST /v1/optimize` in `soc`, since there is no fresh measurement while the vehicle is away).
+  A slot that begins before the charge start is not used; a charge start that has already passed
+  lets the vehicle charge at once. If the charge start lies after the control horizon, the vehicle
+  gets no charging plan in this run.
+- `min_soc_deadline_datetime`: deadline (for example the departure time) by which
+  `min_soc_percentage` has to be reached. The target is checked at the deadline itself. A
+  deadline inside a slot counts the part of that slot before it: the planned charge of a slot
+  is taken as spread evenly over the slot, so with a departure at 02:50 on the hourly grid 50 of
+  the 60 minutes of 02:00-03:00 count, and the charge after 02:50 does not. In the current slot
+  only the time from now to the deadline counts (see below).
+  Unlike the charge start, a partly used slot can count here: its charge is only checked at the
+  deadline, it is never placed before the moment the vehicle may charge. The deadline does not
+  end charging: the plan may still charge after it, for example at negative prices or in the
+  rest of the deadline's slot, so a client should not execute EV charging after the vehicle has
+  left.
+  A deadline at or before the charge start can not be met by any plan; it is then ignored with an
+  error and the target applies at the end of the horizon, also in runs after the charge start.
+  Every later deadline is kept. When the vehicle has no time to charge before it - charge start
+  and deadline inside one slot that begins before the charge start, for example 01:07 and 01:50
+  on the hourly grid - EOS warns and plans no charging for the target; once the charge start has
+  passed, the vehicle may charge in the current slot, so a run during that slot plans the
+  charging up to the deadline.
+  A deadline that has passed (at or before the start of the run) while the target is not
+  reached is relaxed as well, with a warning that names it: the target then applies at the end
+  of the horizon, so a vehicle that is still connected goes on charging in the cheapest slots
+  instead of stopping below its target; a `min_soc_max_duration_h` given as well still applies.
+  Remove the vehicle from the request, or set a new deadline, once it has left.
+
+A run that starts inside a slot (EOS rounds the start of the optimization down to the slot)
+charges the vehicle in that current slot only for the rest of it: a charge factor `f` stores
+`f` x charging power x the time left in the slot, not a whole slot's energy. The exported factor
+stays a share of the charging power, to be applied for the rest of the slot. A client that runs
+the optimization again every few minutes therefore gets the factor the remaining time needs,
+which rises towards the end of the slot when needed, instead of a smaller factor with every run.
+Only the vehicle is treated this way; load, PV and the stationary battery keep their whole-slot
+forecasts and controls in the current slot.
+
+A date time without timezone is read as local time. Without these settings, the vehicle can charge
+throughout the horizon and has to reach its target by the end of it.
+
+By default energy above `min_soc_percentage` has no value for GENETIC: it costs money and earns
+nothing, so the optimizer has no reason to charge beyond the target (it may still do so where the
+charge rates round up or prices are negative), and a vehicle that already reached its target gets
+no charging plan - even in a cheap night or with PV surplus that would otherwise be fed in. Energy
+above the target can be given a value:
+
+- `soc_value_steps`: `[[soc_percentage, amount_per_kwh], ...]` with strictly ascending state of
+  charge in ]0, 100] and finite, non-negative amounts that do not rise with the state of charge.
+  Every kWh stored in the vehicle (SoC energy, after charging losses) between the previous step -
+  at first `min_soc_percentage` - and a step's state of charge is credited with that step's
+  amount. Energy below the target, above the last step or above `max_soc_percentage` earns
+  nothing. The credit is taken where the target is checked: at the deadline
+  (`min_soc_deadline_datetime` or `min_soc_max_duration_h`), or else at the end of the control
+  horizon. Charging after the deadline therefore earns nothing, also inside the deadline's
+  slot: only the share of that slot before the deadline is credited. A deadline at or before
+  `charge_start_datetime`, or one that has passed, is relaxed and not checked, so the credit is
+  then taken at the end of the control horizon, like the target.
+
+The optimizer then charges beyond the target, up to `max_soc_percentage`, in slots where storing a
+kWh costs less than the value of the next kWh: a grid kWh costs the import price divided by the
+charging efficiency, PV surplus the feed-in tariff it no longer earns. Non-rising amounts make
+the value concave, so the first kWh above the target is worth the most. The target keeps its
+penalty and does not compete with the value: more energy only lowers the penalty and raises the
+credit. The value does compete with the other penalties of the fitness (for example a grid
+import limit), so amounts far above energy prices should be avoided.
+
+A vehicle that already reached its target is planned as long as it is below
+`max_soc_percentage` and a step with a positive amount ends above its state of charge (a step
+beyond `max_soc_percentage` counts up to the maximum). With a charge start, the vehicle
+can only charge after it. The plan never charges in a slot that begins at `max_soc_percentage`;
+inside a slot the vehicle may reach its maximum, and a client should stop charging there.
+
+What energy above the target is worth is up to the caller, typically what it saves later: for
+a commuter, the expected cost of charging that energy before the following trips; for PV
+surplus charging without a target (`min_soc_percentage` 0), a value just above the feed-in tariff
+divided by the charging efficiency, so that surplus is stored and grid energy is not. Without
+`soc_value_steps` (or with an empty list) plans are unchanged.
+
+```json
+{
+    "min_soc_percentage": 50,
+    "max_soc_percentage": 80,
+    "soc_value_steps": [[65, 0.31], [80, 0.27]]
+}
+```
+
+Here a car that has to reach 50 % by its departure is charged further where a stored kWh costs
+less than 0.31 (between 50 and 65 %) or 0.27 (between 65 and 80 %).
+
 #### Battery simulation configuration
 
 **Example:**

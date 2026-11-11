@@ -59,6 +59,26 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+- Optional earliest EV charge start for GENETIC: `charge_start_datetime` on an electric vehicle
+  is the earliest moment it may charge, next to the SoC deadline `min_soc_deadline_datetime`
+  (charging may continue after the deadline). It covers a vehicle that is not connected yet
+  (e.g. its expected arrival) as well as a connected vehicle that may only charge from a given
+  time on. Before it the vehicle neither charges nor discharges and keeps its initial SoC, so a
+  plan made ahead of time no longer charges a car that is not there or not yet allowed to
+  charge. Unset (default), plans are unchanged.
+- GENETIC checks the EV target SoC at the deadline itself: a deadline inside a slot counts the
+  part of that slot before it (departure 02:50 on the hourly grid: 50 minutes of 02:00-03:00)
+  instead of none of it. With a charge start, a deadline is only relaxed (target at the end of
+  the horizon, with an error naming both moments) when it lies at or before the charge start;
+  any later deadline is kept, also when no full slot lies in between, so the plan never moves
+  the target past the departure.
+- Optional value of EV energy above the target SoC for GENETIC: `soc_value_steps` on an electric
+  vehicle, `[[soc_percentage, amount_per_kwh], ...]`, credits every kWh stored between
+  `min_soc_percentage` and the steps (at most `max_soc_percentage`) where the target is checked
+  (deadline, else end of the control horizon). The planner then charges beyond the target where
+  that costs less than the value - in a cheap night ahead of later trips or from PV surplus - and
+  also plans a vehicle that already reached its target. The target keeps its penalty. Without the
+  field, plans are unchanged.
 - Parallel fitness evaluation for GENETIC: `optimization.genetic.workers` (unset = automatic:
   at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
   process as before) and `optimization.genetic.pin_workers` (workers pinned to the last
@@ -113,6 +133,19 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Updating a read-only computed configuration field, e.g. `adapter.homeassistant.eos_solution_entity_ids`
   via `PUT /v1/config/{path}`, now reports a read-only error instead of claiming the field does
   not exist ([#913](https://github.com/Akkudoktor-EOS/EOS/issues/913)).
+- GENETIC now seeds its initial population with EV charging plans. The EV seeding heuristic
+  read the vehicle's minimum SoC, which is always 0 %, instead of the requested target, so no
+  seed ever charged the vehicle. A new EV mutation moves planned charging in time without changing
+  its energy, so the cheapest slots before the deadline are found reliably.
+- GENETIC charges an EV in the current slot only for the time left in it. A run that started
+  inside a slot counted the whole slot as still ahead, so a client that re-plans every few
+  minutes got a smaller charge factor with every run and missed the target (a user report:
+  about 75 % instead of 80 % at the departure). The exported factor stays a share of the
+  charging power for the rest of the slot; load, PV and the stationary battery are unchanged.
+- An EV deadline that has passed with the target not reached no longer stops the vehicle below
+  its target: GENETIC requires the target at the end of the horizon instead (cheapest slots,
+  value of energy above the target as without a deadline) and logs a warning naming the passed
+  deadline.
 
 ## 0.3.0 (2026-03-17)
 

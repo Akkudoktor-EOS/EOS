@@ -178,6 +178,79 @@ def validate_efficiency_curve(
     return curve
 
 
+def validate_soc_value_steps(
+    steps: Optional[list[tuple[float, float]]],
+) -> Optional[list[tuple[float, float]]]:
+    """Validate the value steps of energy stored in an electric vehicle.
+
+    The steps are ``(soc_percentage, amount_per_kwh)`` points: every kWh stored
+    between the previous step (at first the vehicle's target SoC) and a step's
+    state of charge is worth the step's amount.
+
+    Rules:
+        - State of charge values are finite, within ]0, 100] and strictly
+          increasing (sorted, no duplicates).
+        - Amounts are finite, not negative and do not rise with the state of
+          charge, so the value of stored energy is concave.
+
+    Args:
+        steps: The steps, or None for no value.
+
+    Returns:
+        The steps as floats, or None for None or an empty list.
+
+    Raises:
+        ValueError: If the steps violate one of the rules.
+    """
+    if not steps:
+        return None
+    validated: list[tuple[float, float]] = []
+    for soc_percentage, amount in steps:
+        if not math.isfinite(soc_percentage) or not 0.0 < soc_percentage <= 100.0:
+            raise ValueError(
+                f"SoC value step state of charge {soc_percentage} is outside of ]0, 100]."
+            )
+        if not math.isfinite(amount) or amount < 0.0:
+            raise ValueError(f"SoC value step amount {amount} is negative or not finite.")
+        if validated:
+            previous_soc, previous_amount = validated[-1]
+            if soc_percentage <= previous_soc:
+                raise ValueError(
+                    "SoC value step states of charge must be strictly increasing "
+                    f"(sorted, no duplicates); got {soc_percentage} after {previous_soc}."
+                )
+            if amount > previous_amount:
+                raise ValueError(
+                    "SoC value step amounts must not rise with the state of charge; "
+                    f"got {amount} after {previous_amount}."
+                )
+        validated.append((float(soc_percentage), float(amount)))
+    return validated
+
+
+def soc_value_credit_is_finite(
+    steps: Optional[list[tuple[float, float]]], capacity_wh: float
+) -> bool:
+    """Return whether the SoC value credit of a whole vehicle stays a finite number.
+
+    Each amount is finite on its own (see ``validate_soc_value_steps``), but a
+    huge amount times the capacity can still overflow to infinity and turn every
+    fitness into -inf. The amounts do not rise with the state of charge, so the
+    first step bounds the credit per kWh.
+
+    Args:
+        steps: Validated value steps, or None for no value.
+        capacity_wh: Capacity of the vehicle [Wh].
+
+    Returns:
+        True without steps or when the first step's amount for the whole
+        capacity is finite.
+    """
+    if not steps:
+        return True
+    return math.isfinite(capacity_wh / 1000.0 * steps[0][1])
+
+
 def interpolate_efficiency_curve(curve: list[tuple[float, float]], load_fraction: float) -> float:
     """Return the efficiency of a curve at a load fraction.
 

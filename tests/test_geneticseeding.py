@@ -1,5 +1,7 @@
+import random
 import sys
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import numpy as np
@@ -18,6 +20,7 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
 
 
@@ -653,3 +656,333 @@ class TestWarmStartAlignment:
         assert compare_datetimes(
             parameters.start_solution_datetime, to_datetime("2026-09-14T07:45:00+02:00")
         ).equal
+
+
+# ---------------------------------------------------------------------------
+# EV charging: seeding heuristic and energy-preserving shift mutation
+# ---------------------------------------------------------------------------
+
+EV_SEED_HOURS = 6
+EV_SEED_SLOTS = EV_SEED_HOURS * 4
+EV_SEED_EXPENSIVE = 0.0004
+EV_SEED_CHEAP = 0.0001
+EV_SEED_CHEAP_SLOTS = list(range(16, 21))
+
+
+def _configure_ev_seed_grid(config: ConfigEOS) -> None:
+    config.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {
+                "algorithm": "GENETIC",
+                "genetic": {
+                    "horizon_hours": EV_SEED_HOURS,
+                    "tail_horizon_hours": 0,
+                    "interval_sec": 900,
+                    "terminal_value_mode": "FIXED",
+                },
+            },
+            "feedintariff": {"direct_marketing_enabled": False},
+        }
+    )
+    get_ems(init=True).set_start_datetime(to_datetime("2026-10-29T00:00:00"))
+
+
+def _ev_seed_parameters(**ev: Any) -> GeneticOptimizationParameters:
+    """Expensive grid except for five cheap slots late in the horizon.
+
+    The EV needs exactly five full-power slots (10 kWh to 50 %, 1 kWh per slot).
+    """
+    prices = [EV_SEED_EXPENSIVE] * EV_SEED_SLOTS
+    for slot in EV_SEED_CHEAP_SLOTS:
+        prices[slot] = EV_SEED_CHEAP
+    return GeneticOptimizationParameters.model_validate(
+        {
+            "ems": {
+                "pv_prognose_wh": [0.0] * EV_SEED_SLOTS,
+                "gesamtlast": [0.0] * EV_SEED_SLOTS,
+                "strompreis_euro_pro_wh": prices,
+                "einspeiseverguetung_euro_pro_wh": [0.0] * EV_SEED_SLOTS,
+                "preis_euro_pro_wh_akku": 0.0,
+            },
+            "inverter": {"device_id": "inv", "max_power_wh": 10000},
+            "forecast_interval_seconds": 900,
+            "pv_battery": None,
+            "ev": {
+                "device_id": "car",
+                "capacity_wh": 10000,
+                "initial_soc_percentage": 0,
+                "min_soc_percentage": 50,
+                "max_soc_percentage": 100,
+                "charging_efficiency": 1.0,
+                "max_charge_power_w": 4000,
+                "charge_rates": [0.0, 0.5, 1.0],
+                **ev,
+            },
+        }
+    )
+
+
+def _run_ev_seed(
+    params: GeneticOptimizationParameters,
+) -> tuple[GeneticOptimization, GeneticSolution]:
+    optimizer = GeneticOptimization(fixed_seed=7)
+    solution = optimizer.optimize_ems(params, ngen=1, individuals=12)
+    return optimizer, solution
+
+
+def _ev_stored_wh(optimizer: GeneticOptimization, ev_genes: list[int]) -> float:
+    ev = optimizer.simulation.ev
+    assert ev is not None
+    return sum(
+        optimizer.ev_possible_charge_values[gene]
+        * ev.max_charge_power_w
+        * optimizer.slot_duration_h
+        * ev.charging_efficiency
+        for gene in ev_genes
+    )
+
+
+def _ev_shift_window(optimizer: GeneticOptimization) -> range:
+    end = optimizer.control_end_slot - optimizer.fixed_eauto_hours
+    deadline_slot = optimizer._ev_soc_deadline_slot
+    if deadline_slot is not None:
+        # A deadline inside a slot: that slot counts with its share.
+        end = min(end, deadline_slot + (1 if optimizer._ev_soc_deadline_share > 0.0 else 0))
+    return range(optimizer._control_start_slot(), end)
+
+
+class TestEvSeedingAndShift:
+    """EV charging: seeding heuristic and energy-preserving shift mutation."""
+
+    def test_ev_seed_schedules_the_target_energy_in_the_cheapest_slots(
+        self, config_eos: ConfigEOS
+    ) -> None:
+        """The EV Battery has no minimum SoC; the seed must use the requested target."""
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(_ev_seed_parameters())
+        schedule = optimizer._heuristic_ev_schedule(prefer_pv=False)
+
+        assert len(schedule) == EV_SEED_SLOTS
+        assert _ev_stored_wh(optimizer, schedule) == pytest.approx(5000.0)
+        charging = [slot for slot, gene in enumerate(schedule) if gene != 0]
+        assert charging == EV_SEED_CHEAP_SLOTS
+
+    def test_ev_seed_caps_the_target_at_the_maximum_soc(self, config_eos: ConfigEOS) -> None:
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(
+            _ev_seed_parameters(min_soc_percentage=50, max_soc_percentage=30)
+        )
+        schedule = optimizer._heuristic_ev_schedule(prefer_pv=False)
+
+        assert _ev_stored_wh(optimizer, schedule) == pytest.approx(3000.0)
+
+    @pytest.mark.parametrize(
+        ("target", "maximum", "planned_wh", "stored_wh"),
+        [
+            # 3100 Wh needed; the charge rates move 500 Wh per slot (0.5 x 4 kW
+            # x 0.25 h), so the seed plans the next step above: 3500 Wh.
+            (31, 100, 3500.0, 3500.0),
+            # Target above the maximum: planned against 31 %, rounded up the
+            # same way; the vehicle stops charging at its maximum SoC.
+            (50, 31, 3500.0, 3100.0),
+        ],
+    )
+    def test_ev_seed_rounds_up_to_the_charge_rates(
+        self,
+        config_eos: ConfigEOS,
+        target: int,
+        maximum: int,
+        planned_wh: float,
+        stored_wh: float,
+    ) -> None:
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(
+            _ev_seed_parameters(min_soc_percentage=target, max_soc_percentage=maximum)
+        )
+        schedule = optimizer._heuristic_ev_schedule(prefer_pv=False)
+        assert _ev_stored_wh(optimizer, schedule) == pytest.approx(planned_wh)
+
+        n = optimizer.control_end_slot
+        optimizer.evaluate_inner(creator.Individual([0] * n + list(schedule)))
+        assert optimizer.simulation.ev is not None
+        assert optimizer.simulation.ev.soc_wh == pytest.approx(stored_wh)
+
+    def test_ev_seed_counts_the_share_of_a_deadline_slot(self, config_eos: ConfigEOS) -> None:
+        """Departure 04:05: a third of the cheap slot 16 (04:00-04:15) lies before it.
+
+        The cheap slot is seeded first, but only 1/3 of its 1 kWh counts towards
+        the 5 kWh target, so the seed adds five expensive slots (not four) before it.
+        """
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(
+            _ev_seed_parameters(min_soc_deadline_datetime="2026-10-29T04:05:00")
+        )
+        assert (optimizer._ev_soc_deadline_slot, optimizer._ev_soc_deadline_share) == (
+            16,
+            pytest.approx(1 / 3),
+        )
+        schedule = optimizer._heuristic_ev_schedule(prefer_pv=False)
+        charging = [slot for slot, gene in enumerate(schedule) if gene != 0]
+        assert charging == [0, 1, 2, 3, 4, 16]
+        counted_wh = _ev_stored_wh(optimizer, schedule[:16]) + _ev_stored_wh(
+            optimizer, schedule[16:17]
+        ) / 3
+        assert counted_wh >= 5000.0
+
+    def test_ev_mutation_falls_back_to_a_point_mutation(self, config_eos: ConfigEOS) -> None:
+        """The shift share is a chance to try a shift; without planned charging
+        there is nothing to shift and a point mutation changes the energy instead."""
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(_ev_seed_parameters())
+        optimizer.EV_SHIFT_MUTATION_PROBABILITY = 1.0
+        n = optimizer.control_end_slot
+
+        random.seed(5)
+        empty = creator.Individual([0] * (2 * n))
+        assert optimizer._mutate_ev_controls(empty)
+        assert any(gene != 0 for gene in empty[n:])
+
+        planned = creator.Individual([0] * n + [0] * 16 + [2] * 5 + [0] * (n - 21))
+        assert optimizer._mutate_ev_controls(planned)
+        # A shift only moves the planned charging: the energy stays the same.
+        assert sorted(planned[n:]) == sorted([0] * 16 + [2] * 5 + [0] * (n - 21))
+
+    def test_shift_mutation_finds_the_cheap_window_from_a_bad_start(
+        self, config_eos: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without a seed in the cheap window, the shift mutation moves charging there.
+
+        Every seed charges the five required slots at the start of the horizon,
+        where the grid is four times as expensive (2.00 EUR instead of 0.50 EUR).
+        A point mutation changes the charged energy, which the SoC penalty or the
+        price punishes; the shift keeps the energy and only moves it in time.
+        """
+        _configure_ev_seed_grid(config_eos)
+        expensive_start = [2] * 5 + [0] * (EV_SEED_SLOTS - 5)
+        monkeypatch.setattr(
+            GeneticOptimization,
+            "_heuristic_ev_schedule",
+            lambda self, *, prefer_pv: list(expensive_start),
+        )
+        optimizer = GeneticOptimization(fixed_seed=1)
+        solution = optimizer.optimize_ems(_ev_seed_parameters(), ngen=40, individuals=20)
+
+        assert solution.ev_charge_hours_float is not None
+        charging = [slot for slot, rate in enumerate(solution.ev_charge_hours_float) if rate > 0.0]
+        assert charging == EV_SEED_CHEAP_SLOTS
+        assert solution.result.total_costs == pytest.approx(0.5)
+
+    def test_small_run_charges_the_ev_only_in_the_cheap_slots(self, config_eos: ConfigEOS) -> None:
+        """With a working seed even a one-generation run finds the cheap window."""
+        _configure_ev_seed_grid(config_eos)
+        _, solution = _run_ev_seed(_ev_seed_parameters())
+
+        assert solution.ev_charge_hours_float is not None
+        charging = [slot for slot, rate in enumerate(solution.ev_charge_hours_float) if rate > 0.0]
+        assert charging == EV_SEED_CHEAP_SLOTS
+        assert solution.result.ev_soc_per_hour[-1] >= 50.0
+
+    @pytest.mark.parametrize(
+        ("deadline", "window_end"),
+        [(None, EV_SEED_SLOTS), ("2026-10-29T04:00:00", 16), ("2026-10-29T04:05:00", 17)],
+    )
+    def test_ev_shift_mutation_moves_charging_without_changing_its_energy(
+        self, config_eos: ConfigEOS, deadline: Any, window_end: int
+    ) -> None:
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(_ev_seed_parameters(min_soc_deadline_datetime=deadline))
+        n = optimizer.control_end_slot
+        window = _ev_shift_window(optimizer)
+        assert window.stop == window_end
+
+        rng = random.Random(3)
+        battery = [rng.randrange(optimizer._battery_state_layout().total_states) for _ in range(n)]
+        ev_genes = [rng.choice([0, 0, 0, 1, 2]) for _ in range(n)]
+        individual = creator.Individual(battery + ev_genes)
+
+        random.seed(11)
+        moved = 0
+        for _ in range(300):
+            before = list(individual)
+            if optimizer._mutate_ev_shift(individual):
+                moved += 1
+                assert individual != before
+            else:
+                assert individual == before
+            # The battery genes and the EV genes outside the window stay as they are.
+            assert individual[:n] == battery
+            outside = [slot for slot in range(n) if slot not in window]
+            assert [individual[n + slot] for slot in outside] == [
+                ev_genes[slot] for slot in outside
+            ]
+            # Only the order changes, so the planned energy stays the same.
+            assert sorted(individual[n + slot] for slot in window) == sorted(
+                ev_genes[slot] for slot in window
+            )
+        assert moved > 200
+
+    def test_ev_shift_mutation_without_planned_charging_changes_nothing(
+        self, config_eos: ConfigEOS
+    ) -> None:
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(_ev_seed_parameters())
+        n = optimizer.control_end_slot
+        individual = creator.Individual([0] * (2 * n))
+
+        assert not optimizer._mutate_ev_shift(individual)
+        assert individual == [0] * (2 * n)
+
+    def test_ev_shift_mutation_ignores_genes_outside_the_rate_list(
+        self, config_eos: ConfigEOS
+    ) -> None:
+        """A warm start from a run with more charge rates must not crash a mutation."""
+        _configure_ev_seed_grid(config_eos)
+        optimizer, _ = _run_ev_seed(_ev_seed_parameters())
+        n = optimizer.control_end_slot
+        individual = creator.Individual([0] * n + [10] * n)
+
+        random.seed(5)
+        assert not optimizer._mutate_ev_shift(individual)
+        assert individual == [0] * n + [10] * n
+        for _ in range(50):
+            optimizer._mutate_ev_controls(individual)
+
+    def test_out_of_range_warm_start_does_not_abort_the_run(self, config_eos: ConfigEOS) -> None:
+        _configure_ev_seed_grid(config_eos)
+        params = _ev_seed_parameters()
+        params.start_solution = [0.0] * EV_SEED_SLOTS + [10.0] * EV_SEED_SLOTS
+        _, solution = _run_ev_seed(params)
+
+        assert solution.ev_charge_hours_float is not None
+
+    def test_run_without_an_ev_uses_neither_the_ev_seed_nor_the_ev_mutations(
+        self, config_eos: ConfigEOS
+    ) -> None:
+        """Without an EV the seed plans no EV charging and the EV mutations (shift or
+        point) never run, so such runs draw no additional random numbers."""
+        _configure_ev_seed_grid(config_eos)
+        data = _ev_seed_parameters().model_dump(mode="json")
+        data["ev"] = None
+        params = GeneticOptimizationParameters.model_validate(data)
+        seeds: list[list[int]] = []
+        original = GeneticOptimization._heuristic_ev_schedule
+
+        def recording(self: GeneticOptimization, *, prefer_pv: bool) -> list[int]:
+            schedule = original(self, prefer_pv=prefer_pv)
+            seeds.append(list(schedule))
+            return schedule
+
+        def forbidden(self: GeneticOptimization, individual: list[int]) -> bool:
+            raise AssertionError("EV mutation in a run without an EV")
+
+        with (
+            patch.object(GeneticOptimization, "_heuristic_ev_schedule", recording),
+            patch.object(GeneticOptimization, "_mutate_ev_controls", forbidden),
+        ):
+            optimizer = GeneticOptimization(fixed_seed=7)
+            optimizer.optimize_ems(params, ngen=10, individuals=20)
+
+        assert optimizer.optimize_ev is False
+        assert seeds
+        assert all(gene == 0 for schedule in seeds for gene in schedule)

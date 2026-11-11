@@ -246,6 +246,9 @@ smaller values (e.g. `0.0`) disable the penalty entirely.
 - `initial_soc_percentage`: Current charge level (%)
 - `min_soc_percentage`: Minimum allowed SoC (%)
 - `max_soc_percentage`: Maximum allowed SoC (%)
+- `soc_value_steps`: Optional value of energy above `min_soc_percentage` as
+  `[[soc_percentage, amount_per_kwh], ...]` (GENETIC only, see the EV section of the automatic
+  optimization documentation)
 
 ### Temperature Forecast
 

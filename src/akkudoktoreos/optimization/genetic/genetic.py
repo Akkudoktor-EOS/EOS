@@ -437,6 +437,18 @@ class GeneticSimulation(PydanticBaseModel):
         default=None, json_schema_extra={"description": "TBD"}
     )
 
+    ev_charge_start_slot: int = Field(
+        default=0,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "First slot the electric vehicle may charge in (earliest charge "
+                "start). In earlier slots the vehicle neither charges nor "
+                "discharges."
+            )
+        },
+    )
+
     home_appliance_start_hour: Optional[int] = Field(default=None)
 
     @property
@@ -458,6 +470,7 @@ class GeneticSimulation(PydanticBaseModel):
         inverter: Optional[Inverter] = None,
         direct_marketing_enabled: bool = False,
         home_appliances: Optional[list[HomeAppliance]] = None,
+        ev_charge_start_slot: int = 0,
     ) -> None:
         """Prepare simulation runs.
 
@@ -467,6 +480,7 @@ class GeneticSimulation(PydanticBaseModel):
         self.optimization_hours = optimization_hours
         self.prediction_hours = prediction_hours
         self.direct_marketing_enabled = direct_marketing_enabled
+        self.ev_charge_start_slot = ev_charge_start_slot
 
         # Load arrays from provided EMS parameters
         self.load_energy_array = np.array(parameters.total_load, float)
@@ -672,10 +686,17 @@ class GeneticSimulation(PydanticBaseModel):
             # Fill the charge array of the ev
             ev_charge_hours_fast[0:start_hour] = 0
             ev_charge_hours_fast[end_hour:] = 0
-            ev_fast.charge_array = ev_charge_hours_fast
             # Fill the discharge array of the ev
             ev_discharge_hours_fast[0:start_hour] = 0
             ev_discharge_hours_fast[end_hour:] = 0
+            # Before its earliest charge start the vehicle may not charge (not
+            # connected yet, or charging not allowed yet). In place, like above:
+            # the reported plan is read back from these very arrays, so it
+            # matches what the simulation executed.
+            if self.ev_charge_start_slot > start_hour:
+                ev_charge_hours_fast[start_hour : self.ev_charge_start_slot] = 0
+                ev_discharge_hours_fast[start_hour : self.ev_charge_start_slot] = 0
+            ev_fast.charge_array = ev_charge_hours_fast
             ev_fast.discharge_array = ev_discharge_hours_fast
         else:
             # Default return if no electric vehicle is available
@@ -966,6 +987,12 @@ class GeneticOptimization(OptimizationBase):
     IMMIGRANT_PROTECTION_FRACTION = 0.25
     SOFT_RESTART_SURVIVOR_FRACTION = 0.20
     POINT_MUTATION_EXPECTED_GENES = 3.0
+    # Share of EV mutations that only shift charging in time (_mutate_ev_shift),
+    # and the longest segment such a shift moves at once. The length is counted
+    # in slots, so it is 2 h on a 15-minute grid and 8 h on an hourly grid; a
+    # segment never exceeds half of the slots the shift can use.
+    EV_SHIFT_MUTATION_PROBABILITY = 0.50
+    EV_SHIFT_MAX_SLOTS = 8
 
     # Per-run configuration snapshot. The optimization reads horizon, tail,
     # interval and prediction hours many times during a run. A client that
@@ -1082,10 +1109,28 @@ class GeneticOptimization(OptimizationBase):
         # Slot by which the EV has to reach its target SoC. None means the SoC is
         # only required at the end of the horizon (the behaviour without a deadline).
         self._ev_soc_deadline_slot: Optional[int] = None
+        # Part of the deadline slot that lies before the deadline (0.0 for a
+        # deadline at the start of its slot): that share of the slot's charge
+        # counts towards the target.
+        self._ev_soc_deadline_share: float = 0.0
+        # Part of slot 0 still ahead of the run start: the EV charges slot 0
+        # only for that part (1.0 for a run on a slot boundary).
+        self._ev_first_slot_share: float = 1.0
         # Slot by which a due periodic full charge of the stationary battery has
         # to have happened. None means no full charge is enforced in this run.
         self._full_charge_deadline_slot: Optional[int] = None
         self._full_charge_target_soc: Optional[int] = None
+        # First slot the EV may charge in (earliest charge start). The control
+        # start means no restriction (the behaviour without a charge start).
+        self._ev_first_charge_slot: int = 0
+        # Target SoC [%] the EV has to reach (parameters.ev.min_soc_percentage).
+        # The EV Battery itself always has a minimum SoC of 0 %, so the target
+        # has to be kept here for the seeding heuristic.
+        self._ev_target_soc_percentage: Optional[float] = None
+        # Value of EV energy above the target SoC as [(soc_percentage, amount/kWh)]
+        # steps (parameters.ev.soc_value_steps). None: energy above the target
+        # earns no credit.
+        self._ev_soc_value_steps: Optional[list[tuple[float, float]]] = None
         # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
@@ -1194,20 +1239,67 @@ class GeneticOptimization(OptimizationBase):
         horizon_slots = self._genetic_cfg.horizon_hours * self.slots_per_hour
         return min(self.control_end_slot, start_slot + horizon_slots)
 
-    def _ev_deadline_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
-        """Slot index by which the EV has to reach ``min_soc_percentage``.
+    def _now_position(self) -> float:
+        """Now (the observation time) in slots relative to slot 0, fractional.
+
+        Slot 0 begins at the start of the current slot, so a run at 14:10 on
+        the hourly grid is at 1/6. Without a run start timestamp it is the
+        control start.
+        """
+        start_slot = self._control_start_slot()
+        if self._slot0_datetime is None:
+            return float(start_slot)
+        now_seconds = (
+            self.ems.observation_datetime.in_timezone(self._slot0_datetime.timezone)
+            - self._slot0_datetime
+        ).total_seconds()
+        return max(float(start_slot), now_seconds / (self.slot_duration_h * 3600))
+
+    def _current_slot_share(self) -> float:
+        """Part of the current slot (slot 0) that is still ahead of now, in ]0, 1].
+
+        A run at 14:10 on the hourly grid has 50 of the 60 minutes left (5/6).
+        """
+        elapsed = self._now_position() - self._control_start_slot()
+        return min(max(1.0 - elapsed, 1e-6), 1.0)
+
+    def _ev_deadline(
+        self, parameters: GeneticOptimizationParameters
+    ) -> Optional[tuple[int, float]]:
+        """Slot by which the EV has to reach ``min_soc_percentage``, and its share.
 
         The deadline may be given as an absolute datetime, as a maximum duration
         from the start of the optimization, or both - then the earlier one wins.
-        The returned slot excludes charging intervals that finish after the
-        deadline; a departure inside a slot cannot credit that whole slot.
+        The target is checked at the deadline itself. A deadline inside a slot
+        (a departure at 02:50 on the hourly grid) counts the part of that slot
+        before it: the slot's charge is taken as spread evenly over the slot, so
+        only that share of it counts, never the charge after the departure. The
+        current slot is only charged from now on (see ``_current_slot_share``):
+        its share is the time from now to the deadline over the time from now
+        to the end of the slot.
+
+        A deadline at or before the charge start can not be met by any plan and
+        is relaxed: the target is required at the end of the horizon instead,
+        logged as an error (an inconsistent input replaced by a fallback). So is
+        a deadline that has passed (at or before now): a vehicle that is still
+        planned for is still connected, and a target due right now could not be
+        changed by any plan - the vehicle would stop charging below its target,
+        also in cheap slots after the departure. That is an operating state, not
+        an invalid input: a warning names the passed deadline when the target is
+        not reached; a maximum duration given as well still applies. Any
+        later deadline is kept, also when the vehicle has no time to charge
+        before it (charge start and deadline inside one slot that begins before
+        the charge start): moving a future target past the departure would plan
+        charging for a vehicle that has left.
 
         Args:
             parameters: Optimization parameters of this run.
 
         Returns:
-            Absolute slot index, or None when the target is only required at the
-            end of the horizon (no deadline, or one beyond the horizon).
+            Absolute slot index of the deadline and the share of that slot's
+            charge before the deadline in [0, 1), or None when the target is only
+            required at the end of the horizon (no deadline, one beyond the
+            horizon, or a relaxed one).
         """
         ev_parameters = parameters.ev
         if ev_parameters is None:
@@ -1215,7 +1307,10 @@ class GeneticOptimization(OptimizationBase):
 
         start_slot = self._control_start_slot()
         slot_seconds = self.slot_duration_h * 3600
-        candidates: list[int] = []
+        # Now, in slots: the current slot has partly passed already.
+        now_position = self._now_position()
+        # (position in slots relative to slot 0, the moment) per given deadline.
+        candidates: list[tuple[float, Any]] = []
 
         deadline = ev_parameters.min_soc_deadline_datetime
         if deadline is not None:
@@ -1224,21 +1319,164 @@ class GeneticOptimization(OptimizationBase):
             seconds = (
                 deadline.in_timezone(self._slot0_datetime.timezone) - self._slot0_datetime
             ).total_seconds()
-            candidates.append(math.floor(seconds / slot_seconds + 1e-9))
+            candidates.append((seconds / slot_seconds, deadline))
 
         duration_h = ev_parameters.min_soc_max_duration_h
         if duration_h is not None:
-            candidates.append(start_slot + math.floor(duration_h * 3600 / slot_seconds + 1e-9))
+            # Counted from the start of this run (now), not from its slot start.
+            position = now_position + duration_h * 3600 / slot_seconds
+            moment = (
+                self.ems.observation_datetime.add(seconds=duration_h * 3600)
+                if self._slot0_datetime is not None
+                else position
+            )
+            candidates.append((position, moment))
 
         if not candidates:
             return None
 
-        deadline_slot = min(candidates)
-        if deadline_slot >= self.control_end_slot:
+        # A given deadline that has passed does not drop a later one (a maximum
+        # duration counts from now, so it never has passed).
+        upcoming = [candidate for candidate in candidates if candidate[0] >= now_position + 1e-9]
+        if upcoming and len(upcoming) < len(candidates):
+            if ev_parameters.initial_soc_percentage < ev_parameters.min_soc_percentage:
+                logger.warning(
+                    "EV '{}': deadline {} has passed with the target SoC {} % not reached "
+                    "({} % now) - the maximum duration applies instead.",
+                    ev_parameters.device_id,
+                    ev_parameters.min_soc_deadline_datetime,
+                    ev_parameters.min_soc_percentage,
+                    ev_parameters.initial_soc_percentage,
+                )
+            candidates = upcoming
+        position, deadline_moment = min(candidates, key=lambda candidate: candidate[0])
+        if position >= self.control_end_slot - 1e-9:
             # Beyond the horizon: the end-of-horizon requirement already covers it.
             return None
-        # A deadline in the past means the target is due right now.
-        return max(deadline_slot, start_slot)
+
+        charge_start = ev_parameters.charge_start_datetime
+        charge_start_position = self._ev_charge_start_position(parameters)
+        if charge_start_position is not None and position <= charge_start_position + 1e-9:
+            # Compared as moments, not slots, so this does not depend on the run:
+            # the deadline stays relaxed after the charge start, too. The
+            # inconsistent pair is replaced by the end of the horizon, a fallback
+            # value, so it is an error (energy-domain skill).
+            logger.error(
+                "EV '{}': deadline {} is not after its charge start {} - the target "
+                "SoC is required at the end of the horizon instead.",
+                ev_parameters.device_id,
+                deadline_moment,
+                charge_start,
+            )
+            return None
+
+        if position < now_position + 1e-9:
+            # The deadline has passed while the vehicle is still planned for, so
+            # it is still connected. A target due right now could not be changed
+            # by any plan (the penalty would be a constant): the target is
+            # required at the end of the horizon instead, as without a deadline.
+            if ev_parameters.initial_soc_percentage < ev_parameters.min_soc_percentage:
+                logger.warning(
+                    "EV '{}': deadline {} has passed with the target SoC {} % not reached "
+                    "({} % now) - the target SoC is required at the end of the horizon "
+                    "instead.",
+                    ev_parameters.device_id,
+                    deadline_moment,
+                    ev_parameters.min_soc_percentage,
+                    ev_parameters.initial_soc_percentage,
+                )
+            return None
+        deadline_slot = math.floor(position + 1e-9)
+        # Only the time from the start of the deadline slot - or from now, in
+        # the current slot - until the deadline counts, as a share of the time
+        # the slot is charged: the whole slot, or the rest of the current slot.
+        charge_from = max(float(deadline_slot), now_position)
+        share = (position - charge_from) / (deadline_slot + 1.0 - charge_from)
+        if share < 1e-9:
+            share = 0.0
+
+        first_slot = self._ev_charge_start_slot(parameters)
+        if first_slot > deadline_slot or (first_slot == deadline_slot and share == 0.0):
+            logger.warning(
+                "EV '{}' can not charge before its deadline {}: its charge start {} lies "
+                "inside the slot {} - {}, which is not used for charging. The target "
+                "SoC can not be reached in time.",
+                ev_parameters.device_id,
+                deadline_moment,
+                charge_start,
+                self._slot_datetime(first_slot - 1),
+                self._slot_datetime(first_slot),
+            )
+        return deadline_slot, share
+
+    def _ev_deadline_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
+        """Slot of the EV deadline (see ``_ev_deadline``), without its share."""
+        deadline = self._ev_deadline(parameters)
+        return None if deadline is None else deadline[0]
+
+    def _slot_datetime(self, slot: int) -> Any:
+        """Start of a run-relative slot as a datetime (for messages)."""
+        if self._slot0_datetime is None:
+            return slot
+        return self._slot0_datetime.add(seconds=slot * self.slot_duration_h * 3600)
+
+    def _ev_charge_start_position(
+        self, parameters: GeneticOptimizationParameters
+    ) -> Optional[float]:
+        """EV charge start in slots relative to this run's slot 0 (fractional).
+
+        Not clamped to the control horizon or to now: a charge start in the past
+        gives a negative position. None without a charge start.
+        """
+        ev_parameters = parameters.ev
+        if ev_parameters is None or ev_parameters.charge_start_datetime is None:
+            return None
+        if self._slot0_datetime is None:
+            raise ValueError("EV charge start requires a run start timestamp.")
+        seconds = (
+            ev_parameters.charge_start_datetime.in_timezone(self._slot0_datetime.timezone)
+            - self._slot0_datetime
+        ).total_seconds()
+        return seconds / (self.slot_duration_h * 3600)
+
+    def _ev_charge_start_slot(self, parameters: GeneticOptimizationParameters) -> int:
+        """First slot in which the EV may charge (earliest charge start).
+
+        The charge start is the earliest moment the EV may charge; the deadline
+        only sets when its target SoC is due. It covers a vehicle that is not
+        connected yet (arrival or plug-in time) as well as a connected vehicle
+        that may only charge from a given time on.
+        A charge start inside a slot makes that slot unusable: the vehicle may
+        not charge for the whole slot, and a plan for it would charge before
+        the vehicle may. (A deadline inside a slot instead counts the part of
+        the slot before it, see ``_ev_deadline``: the simulated charge of a
+        slot is only checked at the deadline, never moved before it.) A charge
+        start that is already reached (at or before now) lets the vehicle charge
+        right away.
+
+        Args:
+            parameters: Optimization parameters of this run.
+
+        Returns:
+            Absolute slot index between the control start and the control end.
+            The control end means the vehicle may not charge within the control
+            horizon.
+        """
+        start_slot = self._control_start_slot()
+        charge_start_position = self._ev_charge_start_position(parameters)
+        ev_parameters = parameters.ev
+        if (
+            charge_start_position is None
+            or ev_parameters is None
+            or ev_parameters.charge_start_datetime is None
+        ):
+            return start_slot
+        charge_start = ev_parameters.charge_start_datetime
+        if charge_start.timestamp() <= self.ems.observation_datetime.timestamp():
+            return start_slot
+        # The first slot that begins at or after the charge start.
+        charge_start_slot = math.ceil(charge_start_position - 1e-9)
+        return min(max(charge_start_slot, start_slot), self.control_end_slot)
 
     def _full_charge_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
         """Slot by which the battery has to reach its full charge target once.
@@ -2246,33 +2484,100 @@ class GeneticOptimization(OptimizationBase):
             changed = True
 
         if self.optimize_ev and random.random() < 0.40:  # noqa: S311
-            ev_start = self.control_end_slot + start_slot
-            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
-            ev_part = list(individual[ev_start:ev_end])
-            ev_before = list(ev_part)
-            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
-            if ev_part == ev_before:
-                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
-            if ev_part != ev_before:
-                individual[ev_start:ev_end] = ev_part
-                changed = True
+            changed = self._mutate_ev_controls(individual) or changed
 
         return changed
+
+    def _mutate_ev_controls(self, individual: list[int]) -> bool:
+        """Mutate the EV charge genes: shift charging in time or change rates.
+
+        A share of EV_SHIFT_MUTATION_PROBABILITY of the moves only shifts
+        charging in time (see ``_mutate_ev_shift``); the others are point
+        mutations that change the charged energy.
+        """
+        try_shift = random.random() < self.EV_SHIFT_MUTATION_PROBABILITY  # noqa: S311
+        if try_shift and self._mutate_ev_shift(individual):
+            return True
+        ev_start = self.control_end_slot + self._ev_first_charge_gene_slot()
+        ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
+        ev_part = list(individual[ev_start:ev_end])
+        ev_before = list(ev_part)
+        (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
+        if ev_part == ev_before:
+            self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
+        if ev_part != ev_before:
+            individual[ev_start:ev_end] = ev_part
+            return True
+        return False
+
+    def _mutate_ev_shift(self, individual: list[int]) -> bool:
+        """Move EV charging to other slots without changing the charged energy.
+
+        A point mutation changes the energy charged in a slot and with it
+        whether the target SoC is reached: less energy is punished by the SoC
+        penalty, more energy is paid for. Such moves rarely move charging from
+        an expensive to a cheap slot. Swapping the charge rates of two equally
+        long segments keeps the planned energy and only moves it in time, so
+        the fitness compares the timing alone.
+
+        Only slots in which charging can still count towards the target take
+        part: from the control start (or the charge start) to the deadline
+        (or the control end), including a deadline slot with a share before
+        the deadline. A swap with such a deadline slot, or with the current
+        slot of a run that starts inside it (charged only for the rest of it),
+        changes the counted energy by that share; the fitness judges it like
+        any other move.
+
+        Returns:
+            Whether the genome was changed.
+        """
+        start_slot = self._ev_first_charge_gene_slot()
+        end_slot = self.control_end_slot - self.fixed_eauto_hours
+        deadline_end_slot = self._ev_deadline_end_slot()
+        if deadline_end_slot is not None:
+            end_slot = min(end_slot, deadline_end_slot)
+        span = end_slot - start_slot
+        if span < 2:
+            return False
+
+        offset = self.control_end_slot
+        rates = self.ev_possible_charge_values
+        # A warm start from a run with other charge rates may carry indices
+        # outside the current rate list. They are never looked up here and are
+        # not chosen as a source; a swap may still move them along.
+        charging = [
+            slot
+            for slot in range(start_slot, end_slot)
+            if 0 <= int(individual[offset + slot]) < len(rates)
+            and rates[int(individual[offset + slot])] > 0.0
+        ]
+        if not charging:
+            return False
+
+        length = random.randint(1, max(1, min(self.EV_SHIFT_MAX_SLOTS, span // 2)))  # noqa: S311
+        source = min(random.choice(charging), end_slot - length)  # noqa: S311
+        targets = [
+            slot
+            for slot in range(start_slot, end_slot - length + 1)
+            if slot + length <= source or slot >= source + length
+        ]
+        if not targets:
+            return False
+        target = random.choice(targets)  # noqa: S311
+
+        source_genes = individual[offset + source : offset + source + length]
+        target_genes = individual[offset + target : offset + target + length]
+        if source_genes == target_genes:
+            return False
+        individual[offset + source : offset + source + length] = target_genes
+        individual[offset + target : offset + target + length] = source_genes
+        return True
 
     def _mutate_flexible_controls(self, individual: list[int]) -> bool:
         """Mutate EV or appliance controls without disturbing a good battery schedule."""
         changed = False
         if self.optimize_ev:
-            ev_start = self.control_end_slot + self._control_start_slot()
-            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
-            ev_part = list(individual[ev_start:ev_end])
-            ev_before = list(ev_part)
-            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
-            if ev_part == ev_before:
-                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
-            if ev_part != ev_before:
-                individual[ev_start:ev_end] = ev_part
-                changed = True
+            changed = self._mutate_ev_controls(individual)
 
         n_appliance_genes = self.appliance_layout.n_genes
         if n_appliance_genes > 0:
@@ -2333,6 +2638,7 @@ class GeneticOptimization(OptimizationBase):
             ]
             if self.fixed_eauto_hours > 0:
                 ev_controls[-self.fixed_eauto_hours :] = [0] * self.fixed_eauto_hours
+            self._clear_ev_genes_before_charge_start(ev_controls)
             individual_components += ev_controls
 
         # Add one appliance start gene per scheduled run (index into that run's
@@ -2413,6 +2719,64 @@ class GeneticOptimization(OptimizationBase):
 
         return discharge_hours_bin, eautocharge_hours_index, appliance_gene_values
 
+    def _ev_first_charge_gene_slot(self) -> int:
+        """First slot whose EV gene can change the plan (control start or charge start)."""
+        return max(self._control_start_slot(), getattr(self, "_ev_first_charge_slot", 0))
+
+    def _ev_deadline_end_slot(self) -> Optional[int]:
+        """End (exclusive) of the slots whose EV charge counts at the deadline.
+
+        A deadline inside a slot includes that slot. None without a deadline.
+        """
+        deadline_slot = getattr(self, "_ev_soc_deadline_slot", None)
+        if deadline_slot is None:
+            return None
+        if getattr(self, "_ev_soc_deadline_share", 0.0) > 0.0:
+            return deadline_slot + 1
+        return deadline_slot
+
+    def _ev_counted_share(self, slot: int) -> float:
+        """Share of a slot's EV charge that counts at the deadline (1.0 before it)."""
+        if slot == getattr(self, "_ev_soc_deadline_slot", None):
+            return getattr(self, "_ev_soc_deadline_share", 0.0)
+        return 1.0
+
+    def _ev_slot_time_share(self, slot: int) -> float:
+        """Part of a slot the EV can charge in: the rest of slot 0, else 1.0."""
+        if slot == self._control_start_slot():
+            return getattr(self, "_ev_first_slot_share", 1.0)
+        return 1.0
+
+    def _clear_ev_genes_before_charge_start(self, ev_genes: Any) -> bool:
+        """Set the EV genes of the slots before the charge start to "no charge".
+
+        The simulation never charges the vehicle before its charge start. Keeping the
+        genes in line lets the reported genome (the next warm start) describe
+        the executed plan, and identical plans share one genome. Without a zero
+        charge rate there is no such gene; the simulation still does not charge.
+
+        Args:
+            ev_genes: EV block of a genome (charge rate indices per slot),
+                changed in place.
+
+        Returns:
+            Whether a gene was changed.
+        """
+        first_slot = getattr(self, "_ev_first_charge_slot", 0)
+        start_slot = self._control_start_slot()
+        if first_slot <= start_slot:
+            return False
+        rates = self.ev_possible_charge_values
+        zero_index = min(range(len(rates)), key=lambda index: abs(rates[index]))
+        if abs(rates[zero_index]) > 1e-12:
+            return False
+        changed = False
+        for slot in range(start_slot, min(first_slot, len(ev_genes))):
+            if ev_genes[slot] != zero_index:
+                ev_genes[slot] = zero_index
+                changed = True
+        return changed
+
     def _repair_ev_charge_at_full_soc(
         self,
         individual: list[int],
@@ -2468,7 +2832,12 @@ class GeneticOptimization(OptimizationBase):
         return changed
 
     def _heuristic_ev_schedule(self, *, prefer_pv: bool) -> list[int]:
-        """Build a low-cost EV schedule that reaches the configured minimum SoC."""
+        """Build a low-cost EV schedule that reaches the configured minimum SoC.
+
+        With SoC value steps it goes on charging, in the cheapest remaining
+        slots, as long as a slot's cost per stored kWh is below the value of
+        the next kWh and the maximum SoC is not reached.
+        """
         if not self.optimize_ev or not self.ev_possible_charge_values:
             return []
 
@@ -2481,19 +2850,27 @@ class GeneticOptimization(OptimizationBase):
         if ev is None:
             return schedule
 
+        # The target is the requested EV SoC, not ev.min_soc_wh: an EV Battery
+        # has no minimum SoC of its own (always 0 %).
+        target_soc = getattr(self, "_ev_target_soc_percentage", None)
+        if target_soc is None:
+            return schedule
+        target_soc = min(target_soc, ev.max_soc_percentage)
         required_stored_wh = max(
-            ev.min_soc_wh - ev.capacity_wh * ev.initial_soc_percentage / 100.0,
+            ev.capacity_wh * (target_soc - ev.initial_soc_percentage) / 100.0,
             0.0,
         )
-        if required_stored_wh <= 0.0:
+        value_steps = getattr(self, "_ev_soc_value_steps", None)
+        if required_stored_wh <= 0.0 and not value_steps:
             return schedule
 
         start_slot = self._control_start_slot()
         end_slot = max(start_slot, self.control_end_slot - self.fixed_eauto_hours)
-        deadline_slot = self._ev_soc_deadline_slot
-        if deadline_slot is not None:
-            # Charging after the deadline does not help to reach the target.
-            end_slot = max(start_slot, min(end_slot, deadline_slot))
+        deadline_end_slot = self._ev_deadline_end_slot()
+        if deadline_end_slot is not None:
+            # Charging after the deadline does not help to reach the target; of
+            # a deadline slot only the share before the deadline counts.
+            end_slot = max(start_slot, min(end_slot, deadline_end_slot))
         prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
         feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
         pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
@@ -2505,7 +2882,8 @@ class GeneticOptimization(OptimizationBase):
                 return (float(feed_in[slot]), -float(surplus))
             return (float(prices[slot]), -float(surplus))
 
-        candidates = sorted(range(start_slot, end_slot), key=marginal_cost)
+        # The vehicle can not charge before its earliest charge start.
+        candidates = sorted(range(self._ev_first_charge_gene_slot(), end_slot), key=marginal_cost)
         positive_rates = sorted(
             (
                 (rate, index)
@@ -2519,16 +2897,74 @@ class GeneticOptimization(OptimizationBase):
 
         max_stored_wh = ev.max_charge_power_w * self.slot_duration_h * ev.charging_efficiency
         remaining_wh = required_stored_wh
-        for slot in candidates:
-            required_rate = remaining_wh / max(max_stored_wh, 1e-9)
-            rate, rate_index = next(
-                (item for item in positive_rates if item[0] >= required_rate),
-                positive_rates[-1],
+        seeded_wh = 0.0
+        if remaining_wh > 0.0:
+            for slot in candidates:
+                counted_wh = (
+                    max_stored_wh * self._ev_slot_time_share(slot) * self._ev_counted_share(slot)
+                )
+                required_rate = remaining_wh / max(counted_wh, 1e-9)
+                rate, rate_index = next(
+                    (item for item in positive_rates if item[0] >= required_rate),
+                    positive_rates[-1],
+                )
+                schedule[slot] = rate_index
+                remaining_wh -= counted_wh * rate
+                seeded_wh += counted_wh * rate
+                if remaining_wh <= 1e-9:
+                    break
+        if value_steps:
+            # Beyond the target: full power in the cheapest free slots as long
+            # as a slot costs less per stored kWh than the next stored kWh is
+            # worth. The PV variant pays the feed-in tariff for the surplus it
+            # takes and the import price for the rest of the slot's energy.
+            # With direct marketing an export at a negative tariff is curtailed,
+            # so the surplus then costs nothing (and earns nothing either).
+            curtails_negative = bool(getattr(self.simulation, "direct_marketing_enabled", False))
+            full_rate, full_index = positive_rates[-1]
+            full_ac_wh = ev.max_charge_power_w * self.slot_duration_h * full_rate
+
+            def fill_cost_wh(slot: int) -> float:
+                # The current slot is only charged for the rest of it; its
+                # surplus forecast stays the whole slot's.
+                slot_ac_wh = full_ac_wh * self._ev_slot_time_share(slot)
+                surplus_wh = min(max(pv[slot] - load[slot], 0.0), slot_ac_wh) if prefer_pv else 0.0
+                surplus_price = max(feed_in[slot], 0.0) if curtails_negative else feed_in[slot]
+                return float(surplus_wh * surplus_price + (slot_ac_wh - surplus_wh) * prices[slot])
+
+            def fill_cost_per_counted_wh(slot: int) -> float:
+                # A deadline slot costs the whole slot but counts only its
+                # share; the current slot costs and stores only its rest. Both
+                # are scaled to a whole slot at full power.
+                counted = self._ev_counted_share(slot) * self._ev_slot_time_share(slot)
+                return fill_cost_wh(slot) / max(counted, 1e-9)
+
+            # Sorted by the cost per counted energy of a full-power slot (stable,
+            # so equal costs keep the order of the candidates); the value does
+            # not rise with the SoC, so the first slot that does not pay ends
+            # the fill.
+            free_slots = sorted(
+                (slot for slot in candidates if schedule[slot] == zero_index),
+                key=fill_cost_per_counted_wh,
             )
-            schedule[slot] = rate_index
-            remaining_wh -= max_stored_wh * rate
-            if remaining_wh <= 1e-9:
-                break
+            soc = ev.initial_soc_percentage + seeded_wh / ev.capacity_wh * 100.0
+            for slot in free_slots:
+                if soc >= ev.max_soc_percentage - 1e-9:
+                    break
+                value_per_wh = self._ev_soc_value_per_wh(max(soc, target_soc))
+                if (
+                    fill_cost_per_counted_wh(slot)
+                    >= value_per_wh * full_ac_wh * ev.charging_efficiency
+                ):
+                    break
+                schedule[slot] = full_index
+                counted_wh = (
+                    max_stored_wh
+                    * full_rate
+                    * self._ev_slot_time_share(slot)
+                    * self._ev_counted_share(slot)
+                )
+                soc += counted_wh / ev.capacity_wh * 100.0
         return schedule
 
     def _heuristic_appliance_genes(self) -> list[int]:
@@ -3467,6 +3903,10 @@ class GeneticOptimization(OptimizationBase):
         self.simulation.ac_charge_hours = ac_charge_hours
 
         if eautocharge_hours_index is not None:
+            if self._clear_ev_genes_before_charge_start(eautocharge_hours_index):
+                individual[self.control_end_slot : self.control_end_slot * 2] = (
+                    eautocharge_hours_index.tolist()
+                )
             eautocharge_hours_float = np.array(
                 [self.ev_possible_charge_values[i] for i in eautocharge_hours_index],
                 float,
@@ -3622,12 +4062,87 @@ class GeneticOptimization(OptimizationBase):
         reached = [value for value in reached if math.isfinite(value)]
         return max(reached) if reached else battery.current_soc_percentage()
 
+    @staticmethod
+    def _ev_soc_value_headroom(ev_parameters: Any) -> bool:
+        """Whether a positive SoC value step lies above the vehicle's SoC and target.
+
+        Args:
+            ev_parameters: The EV parameters of this run.
+
+        Returns:
+            True when charging beyond the target can earn a credit.
+        """
+        steps = ev_parameters.soc_value_steps
+        if not steps:
+            return False
+        floor = max(ev_parameters.initial_soc_percentage, ev_parameters.min_soc_percentage)
+        top = ev_parameters.max_soc_percentage
+        return any(amount > 0.0 and min(soc, top) > floor for soc, amount in steps)
+
+    def _ev_soc_value_credit(self, soc_percentage: float) -> float:
+        """Credit for the EV energy above the target SoC [amount].
+
+        Each kWh stored between the target (``min_soc_percentage``) and a
+        step's SoC earns that step's amount; energy below the target, above
+        the last step or above ``max_soc_percentage`` earns nothing. The
+        steps' amounts do not rise with the SoC, so the credit is concave:
+        the first kWh above the target is the most valuable one.
+
+        Args:
+            soc_percentage: EV state of charge at the deadline, or at the end
+                of the control horizon without one [%].
+
+        Returns:
+            The credit, 0.0 without value steps.
+        """
+        steps = getattr(self, "_ev_soc_value_steps", None)
+        ev = self.simulation.ev
+        if not steps or ev is None:
+            return 0.0
+        kwh_per_percent = ev.capacity_wh / 100.0 / 1000.0
+        lower = getattr(self, "_ev_target_soc_percentage", None) or 0.0
+        top = min(soc_percentage, float(ev.max_soc_percentage))
+        credit = 0.0
+        for step_soc, amount in steps:
+            if lower >= top:
+                break
+            upper = min(step_soc, top)
+            if upper > lower:
+                credit += (upper - lower) * kwh_per_percent * amount
+            lower = max(lower, step_soc)
+        return credit
+
+    def _ev_soc_value_per_wh(self, soc_percentage: float) -> float:
+        """Value of the next Wh stored in the EV at the given SoC [amount/Wh].
+
+        It is the amount of the first step above both the SoC and the target,
+        and 0.0 at or above ``max_soc_percentage``, above the last step or
+        without value steps.
+        """
+        steps = getattr(self, "_ev_soc_value_steps", None)
+        ev = self.simulation.ev
+        if not steps or ev is None or soc_percentage >= ev.max_soc_percentage:
+            return 0.0
+        target = getattr(self, "_ev_target_soc_percentage", None) or 0.0
+        return next(
+            (
+                amount / 1000.0
+                for step_soc, amount in steps
+                if step_soc > soc_percentage and step_soc > target
+            ),
+            0.0,
+        )
+
     def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
         """EV state of charge the target is checked against [%].
 
         Without a deadline this is the SoC after the last slot, which is what the
-        penalty always used. With a deadline it is the SoC at the beginning of
-        the deadline slot, i.e. after every charge that completes in time.
+        penalty always used. With a deadline it is the SoC at the deadline: at
+        the beginning of the deadline slot plus, for a deadline inside it, its
+        share of that slot's charge (charging spread evenly over the slot, or
+        over the rest of the current slot). Where the vehicle reaches its
+        maximum SoC inside that slot, this
+        underestimates the SoC at the deadline, it never overestimates it.
 
         Args:
             simulation_result: Result of the simulation run for this individual.
@@ -3649,7 +4164,17 @@ class GeneticOptimization(OptimizationBase):
         index = deadline_slot - start_slot
         if soc_per_slot is None or index >= len(soc_per_slot):
             return ev.current_soc_percentage()
-        return float(soc_per_slot[max(index, 0)])
+        soc = float(soc_per_slot[max(index, 0)])
+        share = getattr(self, "_ev_soc_deadline_share", 0.0)
+        if share > 0.0 and index >= 0:
+            # The SoC array holds the SoC at the start of each slot; after the
+            # last slot the vehicle holds its final SoC.
+            if index + 1 < len(soc_per_slot):
+                soc_after = float(soc_per_slot[index + 1])
+            else:
+                soc_after = ev.current_soc_percentage()
+            soc += share * (soc_after - soc)
+        return soc
 
     def _evaluate_uncached(
         self,
@@ -3887,6 +4412,10 @@ class GeneticOptimization(OptimizationBase):
             ev_soc_percentage = self._ev_soc_at_deadline(simulation_result, start_hour)
             if ev_soc_percentage < parameters.ev.min_soc_percentage:
                 gesamtbilanz += abs(parameters.ev.min_soc_percentage - ev_soc_percentage) * penalty
+            # Energy above the target is worth what the caller says it saves
+            # later (soc_value_steps), at the same moment the target is checked.
+            if getattr(self, "_ev_soc_value_steps", None):
+                gesamtbilanz -= self._ev_soc_value_credit(ev_soc_percentage)
 
         return (gesamtbilanz,)
 
@@ -4194,6 +4723,10 @@ class GeneticOptimization(OptimizationBase):
             )
         # Forecasts are trimmed to now; all genome/device indices are run-relative.
         start_slot = self._control_start_slot()
+        # Local datetime of slot 0 (the start of the current slot). It turns
+        # decoded start slots into absolute local timestamps, drives DAILY day
+        # grouping of the appliances and places the EV moments on the slots.
+        self._slot0_datetime = self.ems.start_datetime
 
         # Set the number of generations
         generations = ngen
@@ -4221,16 +4754,28 @@ class GeneticOptimization(OptimizationBase):
             akku.set_charge_per_hour(np.full(self.control_end_slot, 0))
 
         eauto: Optional[Battery] = None
+        # A run inside a slot can only charge the vehicle for the rest of it.
+        # Without this every run counted the whole current slot as still ahead,
+        # and a client that re-plans every few minutes got a lower factor each
+        # time and missed the target. Only the EV is scaled: load, PV and the
+        # house battery keep their whole-slot forecasts and controls.
+        self._ev_first_slot_share = self._current_slot_share()
         if parameters.ev:
             eauto = Battery(
                 parameters.ev,
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
+                first_slot_share=self._ev_first_slot_share,
             )
             eauto.set_charge_per_hour(np.full(self.control_end_slot, 1))
+            # A vehicle at its target is only planned when energy above the
+            # target has a value it can still gain.
             self.optimize_ev = (
                 parameters.ev.min_soc_percentage > parameters.ev.initial_soc_percentage
+                or self._ev_soc_value_headroom(parameters.ev)
             )
+            self._ev_target_soc_percentage = float(parameters.ev.min_soc_percentage)
+            self._ev_soc_value_steps = parameters.ev.soc_value_steps
             # electrical vehicle charge rates
             if parameters.ev.charge_rates is not None:
                 self.ev_possible_charge_values = parameters.ev.charge_rates
@@ -4261,6 +4806,8 @@ class GeneticOptimization(OptimizationBase):
                 ]
         else:
             self.optimize_ev = False
+            self._ev_target_soc_percentage = None
+            self._ev_soc_value_steps = None
 
         # Battery AC charge rates — use the battery's configured charge_rates so the
         # optimizer can select partial AC charge power (e.g. 10 %, 50 %, 100 %) instead
@@ -4306,9 +4853,7 @@ class GeneticOptimization(OptimizationBase):
             logger.debug("Battery grid export levels: {}", self.bat_possible_grid_export_values)
 
         # Initialize the flexible consumers (home appliances) and their genome
-        # layout. slot0_datetime (the run start) turns decoded start
-        # slots into absolute local timestamps and drives DAILY day grouping.
-        self._slot0_datetime = self.ems.start_datetime
+        # layout (see _slot0_datetime above).
         home_appliances = [
             HomeAppliance(
                 parameters=appliance_params,
@@ -4320,9 +4865,26 @@ class GeneticOptimization(OptimizationBase):
         ]
         self.appliance_layout = self._build_appliance_layout(home_appliances, self._slot0_datetime)
 
+        # Earliest EV charge start. Before it the vehicle neither charges nor
+        # discharges; the simulation, the genome operators and the seeding
+        # heuristic all read it.
+        self._ev_first_charge_slot = self._ev_charge_start_slot(parameters)
+        if self.optimize_ev and self._ev_first_charge_slot >= self.control_end_slot:
+            # The vehicle may only charge after the control horizon: there is
+            # nothing to plan, as for a vehicle that already reached its target.
+            logger.info(
+                "EV '{}' may only charge after the control horizon ({}): no EV charging "
+                "is planned.",
+                parameters.ev.device_id if parameters.ev else None,
+                parameters.ev.charge_start_datetime if parameters.ev else None,
+            )
+            self.optimize_ev = False
+
         # EV charging deadline (departure). Resolved once per run; the seeding
         # heuristic and the SoC penalty both read it.
-        self._ev_soc_deadline_slot = self._ev_deadline_slot(parameters)
+        ev_deadline = self._ev_deadline(parameters)
+        self._ev_soc_deadline_slot = None if ev_deadline is None else ev_deadline[0]
+        self._ev_soc_deadline_share = 0.0 if ev_deadline is None else ev_deadline[1]
         self._full_charge_deadline_slot = self._full_charge_slot(parameters)
         self._full_charge_target_soc = (
             parameters.pv_battery.full_charge_soc_percentage
@@ -4335,11 +4897,10 @@ class GeneticOptimization(OptimizationBase):
             )
         if self._ev_soc_deadline_slot is not None:
             logger.debug(
-                "EV target SoC required by slot {} ({}).",
+                "EV target SoC required by slot {} ({}), counting {:.0%} of that slot.",
                 self._ev_soc_deadline_slot,
-                self._slot0_datetime.add(
-                    seconds=self._ev_soc_deadline_slot * self.slot_duration_h * 3600
-                ),
+                self._slot_datetime(self._ev_soc_deadline_slot),
+                self._ev_soc_deadline_share,
             )
 
         # Initialize the inverter and energy management system. slot_duration_h
@@ -4361,6 +4922,7 @@ class GeneticOptimization(OptimizationBase):
             ev=eauto,
             home_appliances=home_appliances,
             direct_marketing_enabled=direct_marketing_enabled,
+            ev_charge_start_slot=self._ev_first_charge_slot,
         )
 
         self._validate_forecast_availability()

@@ -3,7 +3,14 @@ from typing import Any, Iterator, Optional
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
-from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
+from akkudoktoreos.devices.devicesabc import (
+    soc_value_credit_is_finite,
+    validate_soc_value_steps,
+)
+from akkudoktoreos.devices.settings.batterysettings import (
+    BATTERY_DEFAULT_CHARGE_RATES,
+    EV_SOC_VALUE_STEPS_DESCRIPTION,
+)
 from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
@@ -171,7 +178,9 @@ class ElectricVehicleParameters(BaseBatteryParameters):
             "description": (
                 "Absolute moment by which 'min_soc_percentage' has to be "
                 "reached (departure time). A date time without timezone is read "
-                "as local time. None means end of the optimization horizon."
+                "as local time. None means end of the optimization horizon. GENETIC "
+                "treats a deadline that has passed like None, with a warning while "
+                "the target is not reached."
             ),
             "examples": [None, "2026-07-16T07:00:00+02:00"],
         },
@@ -190,7 +199,52 @@ class ElectricVehicleParameters(BaseBatteryParameters):
         },
     )
 
-    @field_validator("min_soc_deadline_datetime", mode="before")
+    charge_start_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Earliest absolute moment from which the electric vehicle may "
+                "charge. 'min_soc_deadline_datetime' only sets when the target "
+                "state of charge has to be reached; charging may continue after "
+                "it. Use it for a vehicle that is not connected yet "
+                "(e.g. its expected arrival or plug-in time) or for a connected "
+                "vehicle that may only charge from a given time on. Before it "
+                "the vehicle neither charges nor discharges, and its state of "
+                "charge stays at 'initial_soc_percentage' (for a vehicle that is "
+                "not connected yet: the state of charge expected at the charge "
+                "start). A slot that begins before this moment is not used for "
+                "charging. A date time without timezone is read as local time. "
+                "None means the vehicle can charge from the start of the "
+                "optimization."
+            ),
+            "examples": [None, "2026-07-15T20:00:00+02:00"],
+        },
+    )
+
+    soc_value_steps: Optional[list[tuple[float, float]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": EV_SOC_VALUE_STEPS_DESCRIPTION,
+            "examples": [None, [[80, 0.25]], [[60, 0.3], [80, 0.22]]],
+        },
+    )
+
+    @field_validator("soc_value_steps", mode="after")
+    @classmethod
+    def _validate_soc_value_steps(
+        cls, value: Optional[list[tuple[float, float]]]
+    ) -> Optional[list[tuple[float, float]]]:
+        """Ascending SoC, non-increasing finite amounts; an empty list means no value."""
+        return validate_soc_value_steps(value)
+
+    @model_validator(mode="after")
+    def validate_soc_value_credit_is_finite(self) -> "ElectricVehicleParameters":
+        """The credit for a full vehicle must stay a finite number in the fitness."""
+        if not soc_value_credit_is_finite(self.soc_value_steps, self.capacity_wh):
+            raise ValueError("soc_value_steps amounts are too large for the vehicle capacity.")
+        return self
+
+    @field_validator("min_soc_deadline_datetime", "charge_start_datetime", mode="before")
     @classmethod
     def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
         """Accept the usual date time representations, naive input is local time."""
@@ -207,15 +261,22 @@ class Battery:
         parameters: BaseBatteryParameters,
         prediction_hours: int,
         slot_duration_h: float = 1.0,
+        first_slot_share: float = 1.0,
     ):
         # `prediction_hours` is the number of optimization slots, not hours. At
         # the default optimization interval of 3600 s, slot_duration_h is 1.0 and
         # the slot count equals the hour count, so existing callers are
         # unaffected. At 900 s (15 min) slot_duration_h is 0.25 and there are 4x
         # as many slots, each able to move a quarter of the hourly energy.
+        # `first_slot_share` is the part of slot 0 that is still ahead when the
+        # run starts inside it (0.5 at 14:30 on the hourly grid). It scales the
+        # charge power cap of slot 0 only; 1.0 keeps the whole slot.
+        if not 0.0 < first_slot_share <= 1.0:
+            raise ValueError(f"first_slot_share {first_slot_share} is outside of ]0, 1].")
         self.parameters = parameters
         self.prediction_hours = prediction_hours
         self.slot_duration_h = slot_duration_h
+        self.first_slot_share = first_slot_share
         self._setup()
 
     def _setup(self) -> None:
@@ -473,7 +534,8 @@ class Battery:
         Charging is constrained by:
 
         - Available SoC headroom (``max_soc_wh − soc_wh``)
-        - ``max_charge_power_w``
+        - ``max_charge_power_w`` over the slot; in slot 0 only over the part
+          of it that is still ahead (``first_slot_share``)
         - A slot limit set by ``limit_slot_charge()``, if any
         - ``charging_efficiency``
 
@@ -514,9 +576,13 @@ class Battery:
         soc_wh_fast = self.soc_wh
         # Scale the power cap [W] to a per-slot energy cap [Wh] (W x slot hours).
         # At slot_duration_h=1.0 (hourly) this equals the legacy power value.
+        # Slot 0 only has the part of it left that is still ahead of the run.
+        slot_duration_h = self.slot_duration_h
+        if hour == 0:
+            slot_duration_h *= self.first_slot_share
         max_charge_per_slot_wh_fast = max(
             min(
-                self.max_charge_power_w * self.slot_duration_h,
+                self.max_charge_power_w * slot_duration_h,
                 self._charge_limit_raw_wh_per_slot[hour],
             )
             - self._charged_raw_wh_per_slot[hour],

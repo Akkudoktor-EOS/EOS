@@ -195,9 +195,11 @@ def test_ev_deadline_slot_resolution(config_eos: ConfigEOS):
     parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.add(hours=100))
     assert optimization._ev_deadline_slot(parameters) is None
 
-    # In the past: due right now.
+    # In the past with the target not reached: the vehicle is still connected, so
+    # the target is required at the end of the horizon (no plan can change a
+    # target that is due right now).
     parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.subtract(hours=2))
-    assert optimization._ev_deadline_slot(parameters) == 0
+    assert optimization._ev_deadline_slot(parameters) is None
 
     # No deadline at all.
     assert optimization._ev_deadline_slot(_ev_deadline_parameters(48)) is None
@@ -232,6 +234,16 @@ def test_ev_soc_penalty_reads_the_deadline_slot(config_eos: ConfigEOS):
     optimization._ev_soc_deadline_slot = 99
     assert optimization._ev_soc_at_deadline(simulation_result, 10) == 80.0
 
+    # A deadline inside a slot counts that slot's charge up to the deadline.
+    optimization._ev_soc_deadline_slot = 12
+    optimization._ev_soc_deadline_share = 0.25
+    assert optimization._ev_soc_at_deadline(simulation_result, 10) == pytest.approx(57.5)
+    # Inside the last slot: towards the final SoC.
+    optimization.simulation.ev.current_soc_percentage.return_value = 90.0
+    optimization._ev_soc_deadline_slot = 13
+    optimization._ev_soc_deadline_share = 0.5
+    assert optimization._ev_soc_at_deadline(simulation_result, 10) == pytest.approx(85.0)
+
 
 def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
     """The EV reaches its target before the deadline even when energy is cheaper later."""
@@ -250,7 +262,9 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    # On the slot boundary: the deadline is the start of slot 6, and slot 0 is
+    # charged for the whole hour.
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
 
     parameters = _ev_deadline_parameters(hours, min_soc_max_duration_h=6)
