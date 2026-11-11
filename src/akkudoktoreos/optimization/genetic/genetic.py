@@ -2867,13 +2867,142 @@ class GeneticOptimization(OptimizationBase):
                 break
         return candidates
 
+    def _grid_limit_ev_shift_candidates(
+        self,
+        individual: list[int],
+        *,
+        max_sources: int = 6,
+    ) -> list[list[int]]:
+        """Build candidates that move EV charging out of slots above the grid import limit.
+
+        A full EV rate next to the house load can exceed
+        ``max_grid_import_power_w`` where a lower rate in more slots would
+        not. The genetic search removes such a slot only by chance; the
+        excess penalty alone leaves it in the plan after few generations.
+
+        For each slot whose simulated import exceeds the limit while the EV
+        charges (largest excess first), one candidate lowers the slot's EV rate
+        by one step and raises the rate in the cheapest slots whose import
+        leaves room for it, until the EV draws the removed energy again. Slots
+        before the EV deadline only take energy from slots before it. A
+        further candidate applies all these moves at once. The candidates are
+        fitness-checked by the local search, so a move that misses the EV
+        target or costs more than it saves is not taken.
+
+        Args:
+            individual: Genome of the incumbent.
+            max_sources: Maximum number of slots above the limit to move from.
+
+        Returns:
+            list[list[int]]: Candidate genomes, empty without a grid import
+            limit, without EV genes or when no slot exceeds the limit while
+            the EV charges.
+        """
+        inverter = self.simulation.inverter
+        max_grid_import_wh = inverter.max_grid_import_wh if inverter is not None else None
+        ev = self.simulation.ev
+        rates = getattr(self, "ev_possible_charge_values", None)
+        if max_grid_import_wh is None or ev is None or not self.optimize_ev or not rates:
+            return []
+        _, ev_genes, _ = self.split_individual(individual)
+        if ev_genes is None or not any(rates[int(index)] > 0.0 for index in ev_genes):
+            return []
+
+        # Simulate a copy: evaluate_inner may rewrite appliance genes in place.
+        imports = np.asarray(
+            self.evaluate_inner(list(individual))["Netzbezug_Wh_pro_Stunde"], dtype=float
+        )
+        start_slot = self._control_start_slot()
+        end_slot = min(self.control_end_slot, start_slot + imports.size)
+
+        def slot_import(slot: int) -> float:
+            return float(imports[slot - start_slot])
+
+        sources = [
+            slot
+            for slot in range(start_slot, end_slot)
+            if rates[int(ev_genes[slot])] > 0.0
+            and slot_import(slot) > max_grid_import_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH
+        ]
+        if not sources:
+            return []
+        sources.sort(key=lambda slot: (-slot_import(slot), slot))
+
+        # Rate indices in ascending order of the rate: one step down / up.
+        ordered = sorted(range(len(rates)), key=lambda index: rates[index])
+        position = {index: rank for rank, index in enumerate(ordered)}
+        # Grid energy the EV charger draws at a rate in one slot [Wh].
+        rated_wh = ev.max_charge_power_w * self.slot_duration_h
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        charge_end_slot = max(start_slot, end_slot - self.fixed_eauto_hours)
+        deadline_slot = self._ev_soc_deadline_slot
+
+        def move(ev_values: np.ndarray, room: dict[int, float], source: int) -> bool:
+            """Lower the source by one step and refill elsewhere; False if nothing moved."""
+            rank = position[int(ev_values[source])]
+            if rank == 0:
+                return False
+            lowered = ordered[rank - 1]
+            removed_wh = (rates[int(ev_values[source])] - rates[lowered]) * rated_wh
+            ev_values[source] = lowered
+            room[source] = room.get(source, max_grid_import_wh - slot_import(source)) + removed_wh
+            target_end = charge_end_slot
+            if deadline_slot is not None and source < deadline_slot:
+                target_end = min(target_end, deadline_slot)
+            targets = sorted(
+                (slot for slot in range(start_slot, target_end) if slot != source),
+                key=lambda slot: (float(prices[slot]), slot),
+            )
+            refilled_wh = 0.0
+            for target in targets:
+                if refilled_wh >= removed_wh - 1e-9:
+                    break
+                target_rank = position[int(ev_values[target])]
+                if target_rank + 1 >= len(ordered):
+                    continue
+                raised = ordered[target_rank + 1]
+                added_wh = (rates[raised] - rates[int(ev_values[target])]) * rated_wh
+                free_wh = room.get(target, max_grid_import_wh - slot_import(target))
+                if added_wh > free_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH:
+                    continue
+                ev_values[target] = raised
+                room[target] = free_wh - added_wh
+                refilled_wh += added_wh
+            return True
+
+        battery_genes, _, appliance_genes = self.split_individual(individual)
+        candidates: list[list[int]] = []
+        seen: set[tuple[int, ...]] = {tuple(int(value) for value in individual)}
+
+        def add(ev_values: np.ndarray) -> None:
+            candidate = self.merge_individual(battery_genes, ev_values, appliance_genes)
+            key = tuple(int(value) for value in candidate)
+            if key not in seen:
+                seen.add(key)
+                candidates.append(candidate)
+
+        combined = ev_genes.copy()
+        combined_room: dict[int, float] = {}
+        for source in sources[:max_sources]:
+            single = ev_genes.copy()
+            if move(single, {}, source):
+                add(single)
+            move(combined, combined_room, source)
+        add(combined)
+        return candidates
+
     def _locally_improve_grid_export(
         self,
         individual: list[int],
         *,
         max_evaluations: int,
     ) -> tuple[Any, int, int, float, float]:
-        """Improve the incumbent through bounded, fitness-checked energy shifts."""
+        """Improve the incumbent through bounded, fitness-checked energy shifts.
+
+        Candidates shift battery grid export into later self-consumption
+        (``_grid_export_shift_candidates``) and EV charging out of slots above
+        the grid import limit (``_grid_limit_ev_shift_candidates``).
+        """
         best = creator.Individual(individual)
         original_fitness = getattr(individual, "fitness", None)
         if original_fitness is not None and original_fitness.valid:
@@ -2892,7 +3021,9 @@ class GeneticOptimization(OptimizationBase):
         improvements = 0
         for _ in range(self.LOCAL_SEARCH_MAX_PASSES):
             pass_best = best
-            for genome in self._grid_export_shift_candidates(best):
+            candidates = self._grid_export_shift_candidates(best)
+            candidates += self._grid_limit_ev_shift_candidates(best)
+            for genome in candidates:
                 if evaluations >= max_evaluations:
                     break
                 candidate = creator.Individual(genome)

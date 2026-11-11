@@ -24,6 +24,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+from deap import creator
 from pydantic import ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS
@@ -1087,6 +1088,156 @@ class TestOptimizationWithEv:
             exclude={"peak_shaving_wh_per_hour"}
         ) == unlimited.result.model_dump(exclude={"peak_shaving_wh_per_hour"})
         assert never_binding.fitness_history == unlimited.fitness_history
+
+
+# ---------------------------------------------------------------------------
+# The local search moves EV charging out of slots above the limit
+# ---------------------------------------------------------------------------
+
+EV_SLOTS = 24
+EV_DEADLINE = 16
+EV_LIMIT_W = 9000.0
+EV_SLOT_LIMIT_WH = EV_LIMIT_W * 0.25
+EV_LOAD_WH = 250.0  # 1 kW house load per quarter hour
+EV_FULL_RATE_WH = 2750.0  # 11 kW per quarter hour, lossless charger
+EV_CHEAP_SLOTS = range(4, 12)  # 01:00-03:00
+
+
+def _ev_limit_optimizer(config_eos: ConfigEOS, limit_w: Optional[float]) -> GeneticOptimization:
+    """Short run of six quarter-hour hours; afterwards the optimizer holds the run's inputs.
+
+    EV 60 kWh, 11 kW with the rates 0 / 0.5 / 1, empty, 18 % (10.8 kWh) by
+    04:00 (slot 16); 1 kW house load; cheapest import 01:00-03:00. The
+    battery is at its minimum SoC and cannot shave. At a 9 kW limit only the
+    half rate (5.5 kW) fits next to the load.
+    """
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {
+                "algorithm": "GENETIC",
+                "genetic": {
+                    "horizon_hours": 6,
+                    "tail_horizon_hours": 0,
+                    "interval_sec": 900,
+                    "terminal_value_mode": "FIXED",
+                    "terminal_value_euro_per_kwh": 0.0,
+                },
+            },
+            "feedintariff": {"direct_marketing_enabled": False},
+        }
+    )
+    get_ems(init=True).set_start_datetime(to_datetime("2026-11-05T00:00:00"))
+    prices = [0.0003] * EV_SLOTS
+    for slot in EV_CHEAP_SLOTS:
+        prices[slot] = 0.00015
+    parameters = GeneticOptimizationParameters.model_validate(
+        {
+            "ems": {
+                "pv_forecast_wh": [0.0] * EV_SLOTS,
+                "total_load": [EV_LOAD_WH] * EV_SLOTS,
+                "electricity_price_per_wh": prices,
+                "feed_in_tariff_per_wh": 0.0,
+                "price_per_wh_battery": 0.0,
+            },
+            "pv_battery": {
+                "device_id": "battery1",
+                "capacity_wh": 5000,
+                "max_charge_power_w": 2500,
+                "initial_soc_percentage": 10,
+                "min_soc_percentage": 10,
+            },
+            "inverter": {
+                "device_id": "inverter1",
+                "max_power_wh": 10000,
+                "battery_id": "battery1",
+                "max_ac_charge_power_w": 0,
+                "max_grid_import_power_w": limit_w,
+            },
+            "ev": {
+                "device_id": "car",
+                "capacity_wh": 60000,
+                "initial_soc_percentage": 0,
+                "min_soc_percentage": 18,
+                "max_soc_percentage": 100,
+                "charging_efficiency": 1.0,
+                "max_charge_power_w": 11000,
+                "charge_rates": [0.0, 0.5, 1.0],
+                "min_soc_deadline_datetime": "2026-11-05T04:00:00",
+            },
+            "forecast_interval_seconds": 900,
+        }
+    )
+    optimizer = GeneticOptimization(fixed_seed=1)
+    optimizer.optimize_ems(parameters, ngen=1, individuals=10)
+    return optimizer
+
+
+def _full_rate_incumbent(optimizer: GeneticOptimization) -> list[int]:
+    """Battery idle, EV at the full rate in the first four cheap slots (11 kWh).
+
+    Each of them imports 12 kW, 3 kW above the 9 kW limit.
+    """
+    full_index = optimizer.ev_possible_charge_values.index(1.0)
+    ev_genes = np.zeros(optimizer.control_end_slot, dtype=np.int_)
+    for slot in range(4, 8):
+        ev_genes[slot] = full_index
+    return optimizer.merge_individual(
+        np.zeros(optimizer.control_end_slot, dtype=np.int_), ev_genes, None
+    )
+
+
+def _ev_rates(optimizer: GeneticOptimization, genome: list[int]) -> list[float]:
+    _, ev_genes, _ = optimizer.split_individual(genome)
+    assert ev_genes is not None
+    return [optimizer.ev_possible_charge_values[index] for index in ev_genes]
+
+
+class TestEvGridLimitLocalSearch:
+    def test_candidate_moves_half_a_slot_to_the_cheapest_slot_with_headroom(self, config_eos):
+        optimizer = _ev_limit_optimizer(config_eos, EV_LIMIT_W)
+        incumbent = _full_rate_incumbent(optimizer)
+
+        candidates = [
+            _ev_rates(optimizer, genome)
+            for genome in optimizer._grid_limit_ev_shift_candidates(incumbent)
+        ]
+
+        # Slot 4 down to the half rate, slot 8 (the first cheap slot with
+        # headroom: 250 + 1375 Wh <= 2250 Wh) up to it; the EV keeps 11 kWh.
+        expected = [0.0] * EV_SLOTS
+        for slot in range(5, 8):
+            expected[slot] = 1.0
+        expected[4] = 0.5
+        expected[8] = 0.5
+        assert expected in candidates
+        # Battery genes stay as they are.
+        for genome in optimizer._grid_limit_ev_shift_candidates(incumbent):
+            assert genome[: optimizer.control_end_slot] == incumbent[: optimizer.control_end_slot]
+
+    def test_local_search_removes_the_avoidable_excess(self, config_eos):
+        """Four full-rate slots become eight half-rate slots in the cheap hours."""
+        optimizer = _ev_limit_optimizer(config_eos, EV_LIMIT_W)
+        incumbent = creator.Individual(_full_rate_incumbent(optimizer))
+
+        best, _, improvements, initial, final = optimizer._locally_improve_grid_export(
+            incumbent, max_evaluations=96
+        )
+
+        result = optimizer.evaluate_inner(list(best))
+        assert improvements > 0
+        assert final < initial
+        assert max(result["Netzbezug_Wh_pro_Stunde"]) <= EV_SLOT_LIMIT_WH + 1e-6
+        assert result["EAuto_SoC_pro_Stunde"][EV_DEADLINE] >= 18.0 - 1e-6
+        rates = _ev_rates(optimizer, best)
+        assert [slot for slot, rate in enumerate(rates) if rate > 0.0] == list(EV_CHEAP_SLOTS)
+        assert set(rates) == {0.0, 0.5}
+
+    @pytest.mark.parametrize("limit_w", [None, 1e9])
+    def test_no_candidates_without_a_binding_limit(self, config_eos, limit_w):
+        optimizer = _ev_limit_optimizer(config_eos, limit_w)
+
+        assert optimizer._grid_limit_ev_shift_candidates(_full_rate_incumbent(optimizer)) == []
 
 
 # ---------------------------------------------------------------------------

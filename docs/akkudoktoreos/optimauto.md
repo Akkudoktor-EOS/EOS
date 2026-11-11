@@ -347,14 +347,17 @@ The inverter supports separate AC↔DC conversion efficiencies:
      kWh of that excess to the fitness.
 
   Household load, home appliances and EV charging all count towards the limit. The penalty
-  makes the optimizer keep reserve for peaks and charge earlier. Every battery instruction of
-  the energy management plan carries the limit as `peak_shaving_threshold_w`: a site
-  controller that follows the operation mode and shaves the grid import above that threshold
-  stays within the limit wherever the battery can, and reaches the simulated grid import and
-  state of charge. Where PV charges the battery in a slot whose planned AC factor, read as a
-  share of the rated charge power, fits the headroom, the factor keeps its meaning on `main`
-  (a share of the charge budget PV left), and such a controller may draw more grid charge than
-  simulated, still within the limit. A controller that ignores the field holds the battery in
+  makes the optimizer keep reserve for peaks and charge earlier. After the genetic run, a local
+  search tries to move EV charging out of slots above the limit into the cheapest slots with
+  room (a lower EV rate in more slots); it keeps a move only if the fitness improves, so the EV
+  target still takes precedence where it can not be reached within the limit. Every battery
+  instruction of the energy management plan carries the limit as `peak_shaving_threshold_w`: a
+  site controller that follows the operation mode and shaves the grid import above that
+  threshold stays within the limit wherever the battery can, and reaches the simulated grid
+  import and state of charge. Where PV charges the battery in a slot whose planned AC factor,
+  read as a share of the rated charge power, fits the headroom, the factor keeps its meaning on
+  `main` (a share of the charge budget PV left), and such a controller may draw more grid
+  charge than simulated, still within the limit. A controller that ignores the field holds the battery in
   held slots and imports the whole load where the simulation shaved a peak.
 
   The GENETIC solution itself (response of `POST /v1/optimize`) does not carry the threshold
