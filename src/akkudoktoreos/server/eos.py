@@ -56,6 +56,8 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
+from akkudoktoreos.optimization.fleet import FleetSolution
+from akkudoktoreos.optimization.fleetrequest import FleetConfigRequest
 from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
@@ -80,6 +82,7 @@ from akkudoktoreos.server.rest.error import (
     create_error_page,
     register_problem_handlers,
 )
+from akkudoktoreos.server.rest.fleet import router as fleet_router
 from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.server.rest.pvakkuadaptrest import router as pvadaptive_router
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
@@ -271,6 +274,7 @@ The genetic optimization API fields were renamed from German to English. For bac
 # ----------------------
 
 app.include_router(measurement_router)
+app.include_router(fleet_router)
 app.include_router(pvadaptive_router)
 
 register_problem_handlers(app)
@@ -1849,13 +1853,13 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
 @app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
 async def fastapi_energy_management_optimization_solution_algorithm_get(
     algorithm: OptimizationAlgorithm,
-) -> Union[GeneticSolution, Genetic0Solution]:
+) -> Union[GeneticSolution, Genetic0Solution, FleetSolution]:
     """Get the latest algorithm specific solution of the optimization.
 
     Args:
         algorithm: Optimization algorithm
     """
-    solution: Optional[Union[GeneticSolution, Genetic0Solution]] = None
+    solution: Optional[Union[GeneticSolution, Genetic0Solution, FleetSolution]] = None
 
     if algorithm not in get_config().optimization.algorithms:
         raise EOSProblem(
@@ -1868,6 +1872,8 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
         solution = get_ems().genetic_solution()
     elif algorithm == OptimizationAlgorithm.GENETIC0:
         solution = get_ems().genetic0_solution()
+    elif algorithm == OptimizationAlgorithm.FLEET:
+        solution = get_ems().fleet_solution()
 
     if solution is None:
         raise EOSProblem(
@@ -2227,16 +2233,18 @@ async def fastapi_pvforecast() -> ForecastResponse:
 @app.post("/v1/optimize", tags=["optimize"])
 async def fastapi_optimize_config(
     request: Request,
-    parameters: ConfigOptimizationRequest = Body(default_factory=ConfigOptimizationRequest),
-) -> GeneticSolution:
-    """Optimize GENETIC using configured devices and optional fresh runtime inputs.
+    parameters: ConfigOptimizationRequest | FleetConfigRequest = Body(
+        default_factory=ConfigOptimizationRequest
+    ),
+) -> GeneticSolution | FleetSolution:
+    """Optimize configured GENETIC or FLEET devices using fresh runtime inputs.
 
     Static settings belong in configuration; query overrides are rejected.
     Forecast arrays start at local
-    midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
+    midnight and contain Wh per configured algorithm slot; prices are currency/Wh.
     An empty body uses configured providers. Explicit SoC values take precedence over
-    fresh measured states of charge; missing usable measurements default to an assumed
-    initial SoC of 0% without blocking a plan.
+    fresh measured states of charge. GENETIC defaults missing measurements to 0%;
+    FLEET requires a fresh measurement or an explicit SoC for every device.
     The deprecated /optimize endpoint continues to run hourly GENETIC0.
     """
     if request.query_params:
@@ -2244,6 +2252,33 @@ async def fastapi_optimize_config(
             status_code=422,
             detail="Configure optimization settings; query overrides are not supported.",
         )
+    if get_config().optimization.algorithm == OptimizationAlgorithm.FLEET:
+        try:
+            fleet_parameters = FleetConfigRequest.model_validate(
+                parameters.model_dump(exclude_unset=True)
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        fleet_solution = await get_ems().run(
+            mode=EnergyManagementMode.OPTIMIZATION,
+            algorithm=OptimizationAlgorithm.FLEET,
+            fleet_parameters=fleet_parameters,
+        )
+        if fleet_solution is None:
+            raise EOSProblem(
+                status=503,
+                title="FLEET optimization failed",
+                detail="Check device settings, fresh SoC and forecast coverage.",
+            )
+        if not isinstance(fleet_solution, FleetSolution):
+            raise EOSProblem(
+                status=500,
+                title="Unexpected FLEET result",
+                detail="FLEET did not return its native solution type.",
+            )
+        return fleet_solution
+    if not isinstance(parameters, ConfigOptimizationRequest):
+        raise HTTPException(status_code=422, detail="Fleet runtime inputs require algorithm FLEET")
     solution = await get_ems().run(
         mode=EnergyManagementMode.OPTIMIZATION,
         algorithm=OptimizationAlgorithm.GENETIC,
@@ -2306,6 +2341,12 @@ async def fastapi_optimize(
         )
 
     # Create compatible solution.
+    if not isinstance(solution, (GeneticSolution, Genetic0Solution)):
+        raise EOSProblem(
+            status=500,
+            title="Unexpected legacy result",
+            detail="Expected a genetic optimization solution.",
+        )
     legacy_solution = Genetic0SolutionLegacy.model_validate(
         {
             "ac_charge": solution.ac_charge,

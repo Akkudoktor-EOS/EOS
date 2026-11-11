@@ -47,6 +47,7 @@ akkudoktoreos/configuration.md
 akkudoktoreos/configtimewindow.md
 akkudoktoreos/optimpost.md
 akkudoktoreos/optimauto.md
+akkudoktoreos/fleet_optimization.md
 akkudoktoreos/resource.md
 akkudoktoreos/prediction.md
 akkudoktoreos/pvakkuadapt.md

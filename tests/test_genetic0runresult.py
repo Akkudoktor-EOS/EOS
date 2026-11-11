@@ -38,6 +38,7 @@ def offline_ems(monkeypatch):
         "_optimization_solution",
         "_genetic_solution",
         "_genetic0_solution",
+        "_fleet_solution",
     ):
         monkeypatch.setattr(cls, name, None)
     monkeypatch.setattr(cls, "_stage", ems_module.EnergyManagementStage.IDLE)
@@ -51,6 +52,7 @@ def offline_ems(monkeypatch):
                 algorithm=OptimizationAlgorithm.GENETIC,
                 genetic=SimpleNamespace(generations=3, seed=17, interval_sec=3600, individuals=31),
                 genetic0=SimpleNamespace(generations=5, seed=29),
+                fleet=SimpleNamespace(interval_sec=900),
             ),
             server=SimpleNamespace(verbose=False),
         ),
@@ -84,7 +86,7 @@ async def test_implicit_genetic_start_uses_site_timezone(
     observed = ems_module.EnergyManagement._observation_datetime
     assert start is not None and observed is not None
     assert observed.timestamp() == now.timestamp()
-    if algorithm == OptimizationAlgorithm.GENETIC:
+    if algorithm in (OptimizationAlgorithm.GENETIC, OptimizationAlgorithm.FLEET):
         assert start.minute == 45
         assert start.hour == (22 if explicit_start else 0)
         assert start.day == (16 if explicit_start else 17)
@@ -97,11 +99,11 @@ async def test_implicit_genetic_start_uses_site_timezone(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("algorithm", list(OptimizationAlgorithm))
+@pytest.mark.parametrize("algorithm", [OptimizationAlgorithm.GENETIC, OptimizationAlgorithm.GENETIC0])
 @pytest.mark.parametrize("selection", ["configured", "explicit"])
 @pytest.mark.parametrize("supplied", [False, True])
 @pytest.mark.parametrize("timezone, expected_hour", [("UTC", 8), ("Europe/Berlin", 10)])
-async def test_optimization_routes_only_selected_algorithm(
+async def test_optimization_routes_only_selected_genetic_algorithm(
     monkeypatch, offline_ems, algorithm, selection, supplied, timezone, expected_hour
 ):
     """Configuration selection and explicit overrides retain isolated async paths."""

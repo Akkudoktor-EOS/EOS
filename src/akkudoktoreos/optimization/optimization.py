@@ -9,6 +9,7 @@ from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
 )
+from akkudoktoreos.optimization.fleetsettings import FleetCommonSettings
 from akkudoktoreos.optimization.genetic0.genetic0settings import Genetic0CommonSettings
 from akkudoktoreos.optimization.genetic.geneticsettings import (
     GeneticCommonSettings,
@@ -23,6 +24,7 @@ class OptimizationAlgorithm(StrEnum):
 
     GENETIC = "GENETIC"
     GENETIC0 = "GENETIC0"
+    FLEET = "FLEET"
 
 
 def optimization_default_algorithm() -> OptimizationAlgorithm:
@@ -32,6 +34,8 @@ def optimization_default_algorithm() -> OptimizationAlgorithm:
 
 class OptimizationCommonSettings(SettingsBaseModel):
     """General Optimization Configuration."""
+
+    fleet: FleetCommonSettings = Field(default_factory=FleetCommonSettings)
 
     @model_validator(mode="before")
     @classmethod
