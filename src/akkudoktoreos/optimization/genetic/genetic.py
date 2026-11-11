@@ -1280,12 +1280,13 @@ class GeneticOptimization(OptimizationBase):
 
         A deadline at or before the charge start can not be met by any plan and
         is relaxed: the target is required at the end of the horizon instead,
-        with a warning. So is a deadline that has passed (at or before now): a
-        vehicle that is still planned for is still connected, and a target due
-        right now could not be changed by any plan - the vehicle would stop
-        charging below its target, also in cheap slots after the departure. The
-        warning names the passed deadline when the target is not reached; a
-        maximum duration given as well still applies. Any
+        logged as an error (an inconsistent input replaced by a fallback). So is
+        a deadline that has passed (at or before now): a vehicle that is still
+        planned for is still connected, and a target due right now could not be
+        changed by any plan - the vehicle would stop charging below its target,
+        also in cheap slots after the departure. That is an operating state, not
+        an invalid input: a warning names the passed deadline when the target is
+        not reached; a maximum duration given as well still applies. Any
         later deadline is kept, also when the vehicle has no time to charge
         before it (charge start and deadline inside one slot that begins before
         the charge start): moving a future target past the departure would plan
@@ -1357,8 +1358,10 @@ class GeneticOptimization(OptimizationBase):
         charge_start_position = self._ev_charge_start_position(parameters)
         if charge_start_position is not None and position <= charge_start_position + 1e-9:
             # Compared as moments, not slots, so this does not depend on the run:
-            # the deadline stays relaxed after the charge start, too.
-            logger.warning(
+            # the deadline stays relaxed after the charge start, too. The
+            # inconsistent pair is replaced by the end of the horizon, a fallback
+            # value, so it is an error (energy-domain skill).
+            logger.error(
                 "EV '{}': deadline {} is not after its charge start {} - the target "
                 "SoC is required at the end of the horizon instead.",
                 ev_parameters.device_id,

@@ -420,10 +420,12 @@ def test_deadline_without_time_to_charge_is_kept_with_a_warning(
     assert "can not charge before its deadline" in caplog.text
 
 
-def test_relaxation_warning_names_the_given_moments(
+def test_relaxation_error_names_the_given_moments(
     config_eos: ConfigEOS, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Departure 00:50 before arrival 01:07: the warning quotes both, not 00:00/02:00."""
+    """Departure 00:50 before arrival 01:07: the inconsistent pair is replaced by
+    the end of the horizon, a fallback, so it is logged as an error that quotes
+    both moments (not 00:00/02:00) and the substitute."""
     optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T00:00:00")
     parameters = ev_only_parameters(
         charge_start_datetime="2026-09-16T01:07:00+02:00",
@@ -431,8 +433,13 @@ def test_relaxation_warning_names_the_given_moments(
     )
     with caplog.at_level("WARNING"):
         assert optimizer._ev_deadline(parameters) is None
-    assert "00:50" in caplog.text and "01:07" in caplog.text
-    assert "is not after its charge start" in caplog.text
+    relaxed = [
+        record for record in caplog.records if "is not after its charge start" in record.message
+    ]
+    # Loguru reaches caplog twice (its own sink and the standard logging bridge).
+    assert relaxed and {record.levelname for record in relaxed} == {"ERROR"}
+    assert "00:50" in relaxed[0].message and "01:07" in relaxed[0].message
+    assert "end of the horizon instead" in relaxed[0].message
 
 
 @pytest.mark.parametrize(

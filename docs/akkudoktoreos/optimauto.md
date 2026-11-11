@@ -386,8 +386,8 @@ target state of charge by a deadline:
   end charging: the plan may still charge after it, for example at negative prices or in the
   rest of the deadline's slot, so a client should not execute EV charging after the vehicle has
   left.
-  A deadline at or before the charge start can not be met by any plan; it is then ignored with a
-  warning and the target applies at the end of the horizon, also in runs after the charge start.
+  A deadline at or before the charge start can not be met by any plan; it is then ignored with an
+  error and the target applies at the end of the horizon, also in runs after the charge start.
   Every later deadline is kept. When the vehicle has no time to charge before it - charge start
   and deadline inside one slot that begins before the charge start, for example 01:07 and 01:50
   on the hourly grid - EOS warns and plans no charging for the target; once the charge start has

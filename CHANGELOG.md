@@ -69,7 +69,7 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - GENETIC checks the EV target SoC at the deadline itself: a deadline inside a slot counts the
   part of that slot before it (departure 02:50 on the hourly grid: 50 minutes of 02:00-03:00)
   instead of none of it. With a charge start, a deadline is only relaxed (target at the end of
-  the horizon, with a warning naming both moments) when it lies at or before the charge start;
+  the horizon, with an error naming both moments) when it lies at or before the charge start;
   any later deadline is kept, also when no full slot lies in between, so the plan never moves
   the target past the departure.
 - Optional value of EV energy above the target SoC for GENETIC: `soc_value_steps` on an electric
