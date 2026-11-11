@@ -1,0 +1,6 @@
+# Changes to the CI workflows and to the AI self-review check need a maintainer's review, see
+# docs/adr/0002-self-review-check-on-pull-request.md. This is enforced once the branch protection
+# of main requires a review from code owners.
+/.github/workflows/ @b0661 @NormannK
+/.github/CODEOWNERS @b0661 @NormannK
+/scripts/check_pr_self_review.py @b0661 @NormannK
