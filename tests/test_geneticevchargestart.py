@@ -536,11 +536,14 @@ def test_deadline_passed_inside_the_current_slot_is_relaxed_with_a_warning(
 
 
 def test_passed_deadline_leaves_a_maximum_duration_in_place(
-    config_eos: ConfigEOS, caplog: pytest.LogCaptureFixture
+    config_eos: ConfigEOS,
+    set_other_timezone: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Run at 02:55 with a departure at 02:50 that has passed and a maximum duration of
     two hours: the duration (due 04:55) still applies, the passed deadline does not
     drop it."""
+    set_other_timezone("Europe/Berlin")
     optimizer = configure_grid(config_eos, interval_sec=3600, hours=6, start="2026-09-16T02:55:00")
     parameters = ev_only_parameters(
         min_soc_deadline_datetime="2026-09-16T02:50:00+02:00", min_soc_max_duration_h=2.0
