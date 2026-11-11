@@ -1313,18 +1313,21 @@ class TestEvGridLimitLocalSearch:
         assert final < initial
         assert max(optimizer.evaluate_inner(list(best))["Netzbezug_Wh_pro_Stunde"]) <= 9000.0
 
-    def test_refill_does_not_overshoot_where_smaller_steps_fit(self, config_eos):
+    @pytest.mark.parametrize("prices", [[0.0003] * 3, [0.0001, 0.0001, 0.0004]])
+    def test_exact_and_cheapest_refills_are_both_candidates(self, config_eos, prices):
         """Rates 0 / .1 / .3 / 1, hourly: lowering .3 to .1 removes 2.2 kWh.
 
-        The next hour could take .3 (3.3 kWh, 1.1 kWh too much); one .1 step
-        in each of the two following hours replaces the energy exactly.
+        The next hour can take .3 (3.3 kWh, 1.1 kWh more than removed); one
+        .1 step in each of the two following hours replaces the energy
+        exactly. Which is better depends on the prices and the EV target, so
+        the fitness check gets both.
         """
         optimizer = _ev_limit_optimizer(
             config_eos,
             EV_LIMIT_W,
             interval_sec=3600,
             load=[5720.0, 1000.0, 1000.0],
-            prices=[0.0003] * 3,
+            prices=prices,
             charge_rates=[0.0, 0.1, 0.3, 1.0],
             deadline="2026-11-05T03:00:00",
         )
@@ -1336,6 +1339,7 @@ class TestEvGridLimitLocalSearch:
         ]
 
         assert [0.1, 0.1, 0.1] in candidates
+        assert [0.1, 0.3, 0.0] in candidates
 
     @pytest.mark.parametrize("limit_w", [None, 1e9])
     def test_no_candidates_without_a_binding_limit(self, config_eos, limit_w):
