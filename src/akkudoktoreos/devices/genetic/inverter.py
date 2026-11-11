@@ -119,9 +119,12 @@ class InverterParameters(DeviceParameters):
         json_schema_extra={
             "description": (
                 "Maximum power drawn from the grid in watts, e.g. the capacity limit "
-                "of a grid connection with interval metering. In every slot, AC "
-                "charging of the battery is reduced so that load plus charging stays "
-                "within the limit. Where the plan holds the battery, it still covers "
+                "of a grid connection with interval metering. In every slot, EV "
+                "charging is lowered to the highest EV charge rate that fits (with "
+                "the battery's share counted) and AC charging of the battery is "
+                "reduced so that load plus charging stays within the limit; an EV "
+                "target that does not fit is missed. Where the plan holds the "
+                "battery, it still covers "
                 "the import above the limit (threshold peak shaving); the exported "
                 "battery instructions carry the limit as peak_shaving_threshold_w. "
                 "Import the battery cannot cover adds the "

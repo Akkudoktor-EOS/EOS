@@ -133,8 +133,11 @@ class InverterCommonSettings(DevicesBaseSettings):
         json_schema_extra={
             "description": (
                 "Maximum power drawn from the grid [W], e.g. the capacity limit of a "
-                "grid connection with interval metering. The optimizer reduces AC "
-                "charging so that load plus charging stays within the limit. Where the "
+                "grid connection with interval metering. The optimizer lowers EV "
+                "charging (to the highest EV charge rate that fits, with the battery's "
+                "share counted) and reduces AC charging so that load plus charging "
+                "stays within the limit; an EV target that does not fit is missed. "
+                "Where the "
                 "plan holds the battery, it still covers the import above the limit "
                 "(threshold peak shaving); the battery instructions of the energy "
                 "management plan carry the limit as peak_shaving_threshold_w for the "

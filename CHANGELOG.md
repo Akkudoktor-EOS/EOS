@@ -47,8 +47,11 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   (W, unset = no limit). Plans reduce AC charging so that load plus charging stays within the
   limit. Each kWh imported above it costs
   `optimization.genetic.penalties.grid_import_limit_excess` (EUR/kWh, default 10) in the
-  fitness, so the optimizer releases the battery for peaks and keeps reserve for them; the local
-  search after the genetic run moves EV charging out of slots above the limit where that pays.
+  fitness, so the optimizer releases the battery for peaks and keeps reserve for them. EV
+  charging gives way to the limit: where it does not fit with the battery's share, it is
+  lowered to the highest EV charge rate that fits (reported as such), and an EV target that
+  cannot be reached within the limit is missed with the `ev_soc_miss` penalty. The local search
+  after the genetic run moves the EV energy the limit cut into slots with room where that pays.
   Unset (default), plans are unchanged.
 - Threshold peak shaving at the GENETIC grid import limit: where the plan holds the battery,
   it still covers the import above `max_grid_import_power_w`, as a site controller with a

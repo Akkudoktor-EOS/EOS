@@ -269,15 +269,18 @@ def _simulate(
     price: Optional[list[float]] = None,
     limit_w: Optional[float] = LIMIT_W,
     ev_power_w: float = 7000.0,
+    ev_charge_rates: Optional[list[float]] = None,
+    ev_soc: int = 0,
+    slot_duration_h: float = 1.0,
     **device_kwargs: Any,
 ) -> tuple[dict[str, Any], GeneticSimulation]:
     config_eos.merge_settings_from_dict(
         {"prediction": {"hours": 48}, "optimization": {"genetic": {"horizon_hours": 24}}}
     )
     slots = len(load)
-    inverter, battery = _devices(limit_w=limit_w, **device_kwargs)
-    battery = Battery(battery.parameters, prediction_hours=slots)
-    inverter = Inverter(inverter.parameters, battery=battery)
+    inverter, battery = _devices(limit_w=limit_w, slot_duration_h=slot_duration_h, **device_kwargs)
+    battery = Battery(battery.parameters, prediction_hours=slots, slot_duration_h=slot_duration_h)
+    inverter = Inverter(inverter.parameters, battery=battery, slot_duration_h=slot_duration_h)
     ev = None
     if ev_charge is not None:
         ev = Battery(
@@ -287,10 +290,12 @@ def _simulate(
                 charging_efficiency=1.0,
                 discharging_efficiency=1.0,
                 max_charge_power_w=ev_power_w,
-                initial_soc_percentage=0,
+                initial_soc_percentage=ev_soc,
                 min_soc_percentage=100,
+                charge_rates=ev_charge_rates,
             ),
             prediction_hours=slots,
+            slot_duration_h=slot_duration_h,
         )
     sim = GeneticSimulation()
     sim.prepare(
@@ -488,6 +493,128 @@ class TestGeneticSimulation:
         )
 
         assert result["Netzbezug_Wh_pro_Stunde"][1] == pytest.approx(9000.0 + 5000.0)
+
+
+class TestEvChargingWithinTheLimit:
+    """EV charging is lowered to the highest charge rate that keeps the slot within the limit.
+
+    PV, then the battery (released: for the whole load, held: for the import
+    above the limit), then the grid up to the limit supply the EV; what does not
+    fit is not charged. The EV rates are the default 0.0, 0.1, ... 1.0 of a 7 kW
+    charger unless a test sets others.
+    """
+
+    @pytest.mark.parametrize("soc_percentage", [0, 10])
+    def test_rate_is_lowered_to_the_highest_rate_within_the_limit(
+        self, config_eos, soc_percentage
+    ):
+        """2 kWh load + 7 kWh EV, empty battery (or one at its minimum SoC): 0.8 fits."""
+        result, sim = _simulate(
+            config_eos,
+            load=[2000.0, 0.0],
+            ev_charge=[1.0, 0.0],
+            soc_percentage=soc_percentage,
+            min_soc_percentage=soc_percentage,
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(7600.0)
+        assert result["EAuto_SoC_pro_Stunde"][1] == pytest.approx(5600 / 60000 * 100)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == pytest.approx(0.8)
+        assert result["ev_grid_limited_charge_factors"] == {0: pytest.approx(0.8)}
+
+    def test_held_battery_shaves_for_the_ev_up_to_the_limit(self, config_eos):
+        """7 kWh load + 7 kWh EV, full held battery (5 kW): 0.8 fits with 4.6 kWh shaved."""
+        result, sim = _simulate(config_eos, load=[7000.0, 0.0], ev_charge=[1.0, 0.0])
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(8000.0)
+        assert result["peak_shaving_wh_per_hour"][0] == pytest.approx(4600.0)
+        assert result["akku_soc_pro_stunde"][1] == pytest.approx(54.0)
+        assert result["EAuto_SoC_pro_Stunde"][1] == pytest.approx(5600 / 60000 * 100)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == pytest.approx(0.8)
+
+    def test_released_battery_covers_the_ev_with_the_load(self, config_eos):
+        """Released, the battery discharges its 5 kW for load and EV: 0.8 fits at 7.6 kWh."""
+        result, sim = _simulate(
+            config_eos, load=[7000.0, 0.0], ev_charge=[1.0, 0.0], discharge=[1.0, 0.0]
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(7600.0)
+        assert result["akku_soc_pro_stunde"][1] == pytest.approx(50.0)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == pytest.approx(0.8)
+
+    def test_full_rate_that_fits_with_the_battery_is_kept(self, config_eos):
+        """6 kWh load + 7 kWh EV: the held battery shaves 5 kWh, nothing is lowered."""
+        result, sim = _simulate(config_eos, load=[6000.0, 0.0], ev_charge=[1.0, 0.0])
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(8000.0)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == 1.0
+        assert result["ev_grid_limited_charge_factors"] == {}
+
+    def test_house_load_above_the_limit_stops_the_ev(self, config_eos):
+        """9 kWh load, empty battery: the EV charges nothing, the load's excess stays."""
+        result, sim = _simulate(
+            config_eos, load=[9000.0, 0.0], ev_charge=[1.0, 0.0], soc_percentage=0
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(9000.0)
+        assert result["EAuto_SoC_pro_Stunde"][1] == 0.0
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == 0.0
+
+    def test_ev_takes_the_headroom_before_ac_charging(self, config_eos):
+        """1 kWh load, AC 1.0 and EV 1.0 (7 kWh): the EV keeps its rate, AC gets 0 kWh left."""
+        result, sim = _simulate(
+            config_eos, load=[1000.0, 0.0], ac=[1.0, 0.0], ev_charge=[1.0, 0.0], soc_percentage=0
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(8000.0)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == 1.0
+        assert result["akku_soc_pro_stunde"][1] == pytest.approx(0.0)
+
+    def test_quarter_hour_slot_lowers_to_the_next_rate(self, config_eos):
+        """15 min, 11 kW EV with 0 / 0.5 / 1: 500 Wh load + 2750 Wh exceed 2000 Wh, 0.5 fits."""
+        result, sim = _simulate(
+            config_eos,
+            load=[500.0, 0.0],
+            ev_charge=[1.0, 0.0],
+            ev_power_w=11000.0,
+            ev_charge_rates=[0.0, 0.5, 1.0],
+            slot_duration_h=0.25,
+            soc_percentage=0,
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(1875.0)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == 0.5
+
+    def test_ev_that_fills_up_within_the_slot_is_not_lowered(self, config_eos):
+        """EV at 97 % (1.8 kWh room) with 6 kWh load: 7.8 kWh fit, the rate stays 1.0.
+
+        The limit is an energy per slot (interval metering); the EV draws only
+        what it has room for.
+        """
+        result, sim = _simulate(
+            config_eos, load=[6000.0, 0.0], ev_charge=[1.0, 0.0], soc_percentage=0, ev_soc=97
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(7800.0)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == 1.0
+
+    def test_without_limit_the_ev_keeps_its_rate(self, config_eos):
+        result, sim = _simulate(
+            config_eos, load=[7000.0, 0.0], ev_charge=[1.0, 0.0], soc_percentage=0, limit_w=None
+        )
+
+        assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(14000.0)
+        assert sim.ev_charge_hours is not None
+        assert sim.ev_charge_hours[0] == 1.0
+        assert "ev_grid_limited_charge_factors" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -1091,7 +1218,222 @@ class TestOptimizationWithEv:
 
 
 # ---------------------------------------------------------------------------
-# The local search moves EV charging out of slots above the limit
+# The limit wins against the EV target; the battery helps the EV
+# ---------------------------------------------------------------------------
+
+TARGET_LIMIT_W = 5000.0
+TARGET_LOAD_W = 1000.0
+TARGET_EV_POWER_W = 11000.0
+TARGET_EV_RATES = [0.0, 0.25, 0.5, 1.0]
+TARGET_BATTERY_WH = 10000
+TARGET_BATTERY_W = 5000.0
+TARGET_HOURS = 6
+TARGET_DEADLINE_HOURS = 4
+
+
+def _optimize_ev_target(
+    config_eos: ConfigEOS,
+    *,
+    target: int,
+    battery_soc: int,
+    interval_sec: int = 900,
+    limit_w: Optional[float] = TARGET_LIMIT_W,
+    seed: int = 3,
+) -> GeneticSolution:
+    """Six hours, 5 kW limit, 1 kW load, empty 60 kWh EV with an 11 kW charger.
+
+    EV rates 0 / 0.25 / 0.5 / 1, target by 04:00. Battery 10 kWh / 5 kW and
+    inverter lossless, no AC charging, no PV. Per 15-minute slot the limit
+    leaves 1000 Wh for the EV: 0.25 (687.5 Wh) fits from the grid alone, 0.5
+    (1375 Wh) only with 375 Wh from the battery, 1.0 (2750 Wh) not even with
+    the battery's 1250 Wh. Within the limit the EV reaches at most 22 kWh
+    (36.7 %) by the deadline, 11 kWh (18.3 %) without the battery.
+    """
+    slots_per_hour = 3600 // interval_sec
+    slots = TARGET_HOURS * slots_per_hour
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {
+                "algorithm": "GENETIC",
+                "genetic": {
+                    "horizon_hours": TARGET_HOURS,
+                    "tail_horizon_hours": 0,
+                    "interval_sec": interval_sec,
+                    "terminal_value_mode": "FIXED",
+                    "terminal_value_euro_per_kwh": 0.0,
+                },
+            },
+            "feedintariff": {"direct_marketing_enabled": False},
+        }
+    )
+    get_ems(init=True).set_start_datetime(to_datetime("2026-11-05T00:00:00"))
+    parameters = GeneticOptimizationParameters.model_validate(
+        {
+            "ems": {
+                "pv_forecast_wh": [0.0] * slots,
+                "total_load": [TARGET_LOAD_W / slots_per_hour] * slots,
+                "electricity_price_per_wh": [0.0003] * slots,
+                "feed_in_tariff_per_wh": 0.0,
+                "price_per_wh_battery": 0.0,
+            },
+            "pv_battery": {
+                "device_id": "battery1",
+                "capacity_wh": TARGET_BATTERY_WH,
+                "max_charge_power_w": TARGET_BATTERY_W,
+                "charging_efficiency": 1.0,
+                "discharging_efficiency": 1.0,
+                "initial_soc_percentage": battery_soc,
+                "min_soc_percentage": 0,
+            },
+            "inverter": {
+                "device_id": "inverter1",
+                "max_power_wh": 30000,
+                "battery_id": "battery1",
+                "ac_to_dc_efficiency": 1.0,
+                "dc_to_ac_efficiency": 1.0,
+                "max_ac_charge_power_w": 0,
+                "max_grid_import_power_w": limit_w,
+            },
+            "ev": {
+                "device_id": "car",
+                "capacity_wh": 60000,
+                "initial_soc_percentage": 0,
+                "min_soc_percentage": target,
+                "max_soc_percentage": 100,
+                "charging_efficiency": 1.0,
+                "max_charge_power_w": TARGET_EV_POWER_W,
+                "charge_rates": TARGET_EV_RATES,
+                "min_soc_deadline_datetime": "2026-11-05T04:00:00",
+            },
+            "forecast_interval_seconds": interval_sec,
+        }
+    )
+    return GeneticOptimization(fixed_seed=seed).optimize_ems(parameters, ngen=40, individuals=60)
+
+
+def _replay_ev_plan(
+    solution: GeneticSolution, *, battery_soc: int, interval_sec: int
+) -> list[float]:
+    """Grid import per slot of a site controller executing the exported plan.
+
+    Written independently of the EOS device code (lossless, no PV). The EV
+    charger draws its instruction's factor x 11 kW. The battery discharges for
+    load and EV in discharging modes and, with the instructions' threshold,
+    for the import above it in the other modes.
+    """
+    slot_h = interval_sec / 3600
+    slots = len(solution.result.grid_consumption_wh_per_hour)
+    start = get_ems().start_datetime
+    battery: dict[int, tuple[float, float, float]] = {}
+    thresholds: dict[int, Optional[float]] = {}
+    ev: dict[int, float] = {}
+    for instruction in solution.energy_management_plan().instructions:
+        assert isinstance(instruction, FRBCInstruction)
+        slot = int((instruction.execution_time - start).total_seconds() // interval_sec)
+        controls = _MODE_CONTROLS[str(instruction.operation_mode_id)](
+            float(instruction.operation_mode_factor)
+        )
+        if instruction.resource_id == "battery1":
+            battery[slot] = controls
+            thresholds[slot] = instruction.peak_shaving_threshold_w
+        elif instruction.resource_id == "car":
+            ev[slot] = controls[0]
+    soc_wh = TARGET_BATTERY_WH * battery_soc / 100.0
+    ev_wh = 0.0
+    discharge = ev_rate = 0.0
+    threshold: Optional[float] = None
+    grid = []
+    for slot in range(slots):
+        if slot in battery:
+            _, _, discharge = battery[slot]
+            threshold = thresholds[slot]
+        ev_rate = ev.get(slot, ev_rate)
+        ev_draw_wh = min(ev_rate * TARGET_EV_POWER_W * slot_h, 60000.0 - ev_wh)
+        ev_wh += ev_draw_wh
+        total_wh = TARGET_LOAD_W * slot_h + ev_draw_wh
+        power_wh = TARGET_BATTERY_W * slot_h
+        if discharge:
+            delivered_wh = min(total_wh, power_wh, soc_wh)
+        elif threshold is not None:
+            delivered_wh = min(max(total_wh - threshold * slot_h, 0.0), power_wh, soc_wh)
+        else:
+            delivered_wh = 0.0
+        soc_wh -= delivered_wh
+        grid.append(total_wh - delivered_wh)
+    return grid
+
+
+class TestEvTargetWithinTheLimit:
+    @pytest.mark.parametrize("interval_sec", [900, 3600])
+    def test_unreachable_target_is_missed_within_the_limit(self, config_eos, interval_sec):
+        """50 % by 04:00 needs more than the limit and the battery allow: the limit wins."""
+        solution = _optimize_ev_target(
+            config_eos, target=50, battery_soc=100, interval_sec=interval_sec
+        )
+
+        slot_limit_wh = TARGET_LIMIT_W * interval_sec / 3600
+        deadline_slot = TARGET_DEADLINE_HOURS * 3600 // interval_sec
+        reached = solution.result.ev_soc_per_hour[deadline_slot]
+        assert max(solution.result.grid_consumption_wh_per_hour) <= slot_limit_wh + 1e-6
+        assert reached < 50.0
+        # The EV still charges as much as the limit and the battery allow.
+        assert reached > 18.4
+        # The missed target is in the fitness (ev_soc_miss, 10 per point).
+        assert solution.fitness_history is not None
+        assert solution.fitness_history["min"][-1] >= (50.0 - reached) * 10.0
+
+    @pytest.mark.parametrize("interval_sec", [900, 3600])
+    def test_battery_helps_the_ev_to_its_target(self, config_eos, interval_sec):
+        """20 % (12 kWh) by 04:00: only with the battery's share above the grid's limit."""
+        solution = _optimize_ev_target(
+            config_eos, target=20, battery_soc=100, interval_sec=interval_sec
+        )
+
+        slot_limit_wh = TARGET_LIMIT_W * interval_sec / 3600
+        deadline_slot = TARGET_DEADLINE_HOURS * 3600 // interval_sec
+        assert max(solution.result.grid_consumption_wh_per_hour) <= slot_limit_wh + 1e-6
+        assert solution.result.ev_soc_per_hour[deadline_slot] >= 20.0 - 1e-6
+        assert solution.result.battery_soc_per_hour[deadline_slot] < 100.0
+        assert solution.ev_charge_hours_float is not None
+        assert set(solution.ev_charge_hours_float) <= set(TARGET_EV_RATES)
+
+    def test_empty_battery_leaves_the_ev_at_the_limit(self, config_eos):
+        """Same target, empty battery: 0.25 is the most that fits, 18.3 % by 04:00."""
+        solution = _optimize_ev_target(config_eos, target=20, battery_soc=0)
+
+        deadline_slot = TARGET_DEADLINE_HOURS * 4
+        assert max(solution.result.grid_consumption_wh_per_hour) <= 1250.0 + 1e-6
+        assert solution.result.ev_soc_per_hour[deadline_slot] < 20.0
+        assert solution.ev_charge_hours_float is not None
+        assert max(solution.ev_charge_hours_float) <= 0.25
+
+    @pytest.mark.parametrize("interval_sec", [900, 3600])
+    @pytest.mark.parametrize(("target", "battery_soc"), [(20, 100), (50, 100), (20, 0)])
+    def test_replayed_plan_stays_within_the_limit(
+        self, config_eos, interval_sec, target, battery_soc
+    ):
+        """A site controller executing the exported EV factors and battery instructions
+        imports what was simulated and never more than the limit."""
+        solution = _optimize_ev_target(
+            config_eos, target=target, battery_soc=battery_soc, interval_sec=interval_sec
+        )
+
+        grid = _replay_ev_plan(solution, battery_soc=battery_soc, interval_sec=interval_sec)
+
+        np.testing.assert_allclose(grid, solution.result.grid_consumption_wh_per_hour, atol=1e-6)
+        assert max(grid) <= TARGET_LIMIT_W * interval_sec / 3600 + 1e-6
+
+    def test_without_limit_the_target_is_reached_above_it(self, config_eos):
+        """Control: without the limit the plan reaches 50 % with imports above 5 kW."""
+        solution = _optimize_ev_target(config_eos, target=50, battery_soc=100, limit_w=None)
+
+        assert solution.result.ev_soc_per_hour[TARGET_DEADLINE_HOURS * 4] >= 50.0 - 1e-6
+        assert max(solution.result.grid_consumption_wh_per_hour) > 1250.0
+
+
+# ---------------------------------------------------------------------------
+# The local search moves EV charging the limit cut to slots with room
 # ---------------------------------------------------------------------------
 
 EV_SLOTS = 24
@@ -1199,9 +1541,10 @@ def _incumbent(optimizer: GeneticOptimization, ev_rates: list[float]) -> list[in
 
 
 def _full_rate_incumbent(optimizer: GeneticOptimization) -> list[int]:
-    """EV at the full rate in the first four cheap slots (11 kWh).
+    """EV at the full rate in the first four cheap slots (11 kWh asked).
 
-    Each of them imports 12 kW, 3 kW above the 9 kW limit.
+    Each of them would import 12 kW, 3 kW above the 9 kW limit; the simulation
+    lowers them to the half rate (5.5 kWh charged).
     """
     return _incumbent(optimizer, [1.0 if 4 <= slot < 8 else 0.0 for slot in range(EV_SLOTS)])
 
@@ -1234,10 +1577,15 @@ class TestEvGridLimitLocalSearch:
         for genome in optimizer._grid_limit_ev_shift_candidates(incumbent):
             assert genome[: optimizer.control_end_slot] == incumbent[: optimizer.control_end_slot]
 
-    def test_local_search_removes_the_avoidable_excess(self, config_eos):
+    def test_local_search_refills_the_energy_the_limit_cut(self, config_eos):
         """Four full-rate slots become eight half-rate slots in the cheap hours."""
         optimizer = _ev_limit_optimizer(config_eos, EV_LIMIT_W)
         incumbent = creator.Individual(_full_rate_incumbent(optimizer))
+        cut = optimizer.evaluate_inner(list(incumbent))
+        # The limit holds, the EV gets half of its 11 kWh and misses 18 %.
+        assert max(cut["Netzbezug_Wh_pro_Stunde"]) <= EV_SLOT_LIMIT_WH + 1e-6
+        assert cut["ev_grid_limited_charge_factors"] == {slot: 0.5 for slot in range(4, 8)}
+        assert cut["EAuto_SoC_pro_Stunde"][EV_DEADLINE] < 18.0
 
         best, _, improvements, initial, final = optimizer._locally_improve_grid_export(
             incumbent, max_evaluations=96
@@ -1255,8 +1603,9 @@ class TestEvGridLimitLocalSearch:
     def test_destination_keeps_rising_while_it_has_room(self, config_eos):
         """Rates 0 / .3 / .4 / .5 / .6, hourly: 8 kW and 1 kW load, EV at .3 in both hours.
 
-        Hour 0 imports 11.3 kW. Lowering it to 0 removes 3.3 kWh; hour 1
-        (4.3 kW) has room for all of it, three steps up to .6 (7.6 kW).
+        Hour 0 would import 11.3 kW; the limit cuts its EV charging to 0
+        (3.3 kWh). Hour 1 (4.3 kW) has room for all of it, three steps up to
+        .6 (7.6 kW).
         """
         rates = [0.0, 0.3, 0.4, 0.5, 0.6]
         optimizer = _ev_limit_optimizer(
@@ -1283,7 +1632,7 @@ class TestEvGridLimitLocalSearch:
         assert max(optimizer.evaluate_inner(list(best))["Netzbezug_Wh_pro_Stunde"]) <= 9000.0
 
     def test_pv_surplus_of_the_destination_counts_as_room(self, config_eos):
-        """Hourly, rates 0 / 1: the EV's 11 kWh move from a 12 kW hour into a PV hour.
+        """Hourly, rates 0 / 1: the EV's 11 kWh, cut in a 12 kW hour, move into a PV hour.
 
         Hour 1 has 1 kW load and 8 kW PV: 11 kW EV charging there imports
         about 4 kW, well within the 9 kW limit, although 11 kWh exceed the
@@ -1315,7 +1664,7 @@ class TestEvGridLimitLocalSearch:
 
     @pytest.mark.parametrize("prices", [[0.0003] * 3, [0.0001, 0.0001, 0.0004]])
     def test_exact_and_cheapest_refills_are_both_candidates(self, config_eos, prices):
-        """Rates 0 / .1 / .3 / 1, hourly: lowering .3 to .1 removes 2.2 kWh.
+        """Rates 0 / .1 / .3 / 1, hourly: the limit cuts .3 to .1, 2.2 kWh.
 
         The next hour can take .3 (3.3 kWh, 1.1 kWh more than removed); one
         .1 step in each of the two following hours replaces the energy
@@ -1340,6 +1689,32 @@ class TestEvGridLimitLocalSearch:
 
         assert [0.1, 0.1, 0.1] in candidates
         assert [0.1, 0.3, 0.0] in candidates
+
+    def test_source_gene_is_lowered_to_the_executed_rate(self, config_eos):
+        """Rates 0 / .25 / .5 / 1, 1 kWh load in slot 4: the limit cuts 1.0 to .25 there.
+
+        Every candidate sets the gene of slot 4 to .25 in one move, not one
+        step (.5) at a time, and refills the 2062.5 Wh cut elsewhere.
+        """
+        load = [EV_LOAD_WH] * EV_SLOTS
+        load[4] = 1000.0
+        optimizer = _ev_limit_optimizer(
+            config_eos, EV_LIMIT_W, load=load, charge_rates=[0.0, 0.25, 0.5, 1.0]
+        )
+        incumbent = _incumbent(optimizer, [1.0 if slot == 4 else 0.0 for slot in range(EV_SLOTS)])
+
+        assert optimizer.evaluate_inner(list(incumbent))["ev_grid_limited_charge_factors"] == {
+            4: 0.25
+        }
+        candidates = [
+            _ev_rates(optimizer, genome)
+            for genome in optimizer._grid_limit_ev_shift_candidates(incumbent)
+        ]
+        assert candidates
+        for rates in candidates:
+            assert rates[4] == 0.25
+            refilled = sum(rate for slot, rate in enumerate(rates) if slot != 4)
+            assert refilled * EV_FULL_RATE_WH >= 0.75 * EV_FULL_RATE_WH - 1e-6
 
     @pytest.mark.parametrize("limit_w", [None, 1e9])
     def test_no_candidates_without_a_binding_limit(self, config_eos, limit_w):

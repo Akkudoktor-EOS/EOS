@@ -337,6 +337,38 @@ class Battery:
             self._charge_limit_raw_wh_per_slot[hour], max(float(raw_wh), 0.0)
         )
 
+    def slot_state(self, hour: int) -> tuple[float, float, float]:
+        """Return the state that charging and discharging in one slot change.
+
+        Pass it to ``restore_slot_state()`` to undo what the slot did, e.g. to
+        simulate the slot again with another setpoint.
+
+        Args:
+            hour (int): Slot index.
+
+        Returns:
+            tuple[float, float, float]: State of charge [Wh] and the raw energy
+            [Wh] discharged and charged so far in the slot.
+        """
+        return (
+            self.soc_wh,
+            self._discharged_raw_wh_per_slot[hour],
+            self._charged_raw_wh_per_slot[hour],
+        )
+
+    def restore_slot_state(self, hour: int, state: tuple[float, float, float]) -> None:
+        """Restore the state of one slot saved by ``slot_state()``.
+
+        Args:
+            hour (int): Slot index.
+            state (tuple[float, float, float]): Value returned by ``slot_state(hour)``.
+        """
+        (
+            self.soc_wh,
+            self._discharged_raw_wh_per_slot[hour],
+            self._charged_raw_wh_per_slot[hour],
+        ) = state
+
     def rated_discharge_energy_wh(self) -> float:
         """Return the DC energy one full-power discharge slot delivers.
 
