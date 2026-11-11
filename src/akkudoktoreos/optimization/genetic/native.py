@@ -336,10 +336,27 @@ class SequentialDotNumpy:
         self._numpy = numpy_module
 
     def __getattr__(self, name: str) -> Any:
+        """Return every other NumPy attribute unchanged.
+
+        Args:
+            name: Attribute name.
+
+        Returns:
+            The attribute of the wrapped NumPy module.
+        """
         return getattr(self._numpy, name)
 
     @staticmethod
     def dot(a: Any, b: Any) -> float:
+        """Return the dot product summed in index order (:func:`sequential_dot`).
+
+        Args:
+            a: First vector.
+            b: Second vector of the same length.
+
+        Returns:
+            The sum of the products, rounded and added in index order.
+        """
         return sequential_dot(a, b)
 
 

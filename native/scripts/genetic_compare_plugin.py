@@ -40,6 +40,11 @@ RUN_INFO: dict[str, Any] = {}
 
 
 def pytest_configure(config: Any) -> None:
+    """Wrap ``GeneticOptimization._optimize_ems_run`` so every run is compared with the kernel.
+
+    Args:
+        config: The pytest configuration (unused).
+    """
     from unittest import mock
 
     from akkudoktoreos.optimization.genetic import genetic as genetic_module
@@ -136,6 +141,11 @@ def summarize(reports: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def pytest_unconfigure(config: Any) -> None:
+    """Write the reports to ``$GENETIC_COMPARE_OUT`` and print the summary.
+
+    Args:
+        config: The pytest configuration (unused).
+    """
     summary = summarize(REPORTS)
     out = os.environ.get("GENETIC_COMPARE_OUT")
     if out:
