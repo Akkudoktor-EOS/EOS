@@ -764,6 +764,16 @@ class GeneticSimulation(PydanticBaseModel):
             )
             # The array itself, for reporting the executed EV charge factors.
             ev_charge_hours_array = ev_fast.charge_array
+        # A run that starts inside slot 0 may charge the EV only in the part of
+        # the slot still ahead (``Battery.first_slot_share`` of the EV charge
+        # start, #1532), while load and PV fill the whole slot. The limit is a
+        # power: the EV draws its slot 0 energy in that part, so the limit
+        # checks of slot 0 count it as if the EV charged the whole slot.
+        ev_first_slot_extra = 0.0
+        if max_grid_import_wh_fast is not None and ev_fast:
+            ev_first_slot_share = float(getattr(ev_fast, "first_slot_share", 1.0))
+            if 0.0 < ev_first_slot_share < 1.0:
+                ev_first_slot_extra = 1.0 / ev_first_slot_share - 1.0
         ac_charge_hours_fast = _slot_values(ac_charge_hours_fast)
         ev_charge_hours_fast = _slot_values(ev_charge_hours_fast)
         if battery_fast:
@@ -830,6 +840,8 @@ class GeneticSimulation(PydanticBaseModel):
             # EV state before charging in this slot, kept only where a grid
             # import limit may lower the EV charging of the slot.
             ev_slot_state = None
+            # Import the EV would add if it charged all of slot 0 [Wh].
+            ev_import_extra = 0.0
             if ev_fast:
                 # save begin state
                 if ev_soc_direct:
@@ -848,6 +860,8 @@ class GeneticSimulation(PydanticBaseModel):
                     # not only the energy stored after charging losses.
                     consumption += stored_energy_ev + verluste_eauto
                     slot_losses += verluste_eauto
+                    if hour == 0:
+                        ev_import_extra = (stored_energy_ev + verluste_eauto) * ev_first_slot_extra
                     if stored_energy_ev + verluste_eauto <= 0.0:
                         # Nothing charged (EV full): nothing to lower.
                         ev_slot_state = None
@@ -894,7 +908,7 @@ class GeneticSimulation(PydanticBaseModel):
                 # The import never exceeds the load, so only a slot whose load
                 # exceeds the limit can need its EV charging lowered.
                 battery_slot_state = None
-                if ev_slot_state is not None and consumption > ev_limit_wh:
+                if ev_slot_state is not None and consumption + ev_import_extra > ev_limit_wh:
                     if battery_fast:
                         battery_slot_state = battery_fast.slot_state(hour)
                 else:
@@ -911,7 +925,10 @@ class GeneticSimulation(PydanticBaseModel):
                     battery_grid_export_allowed,
                     battery_grid_export_factor,
                 )
-                if ev_slot_state is not None and energy_consumption_grid_actual > ev_limit_wh:
+                if (
+                    ev_slot_state is not None
+                    and energy_consumption_grid_actual + ev_import_extra > ev_limit_wh
+                ):
                     # The grid import limit wins against EV charging. PV, the
                     # battery (released: for the whole load, held: for the
                     # import above the limit) and the grid up to the limit
@@ -929,12 +946,17 @@ class GeneticSimulation(PydanticBaseModel):
                         ev_charge_hours_array[hour] = ev_rate
                         consumption = consumption_without_ev
                         slot_losses = 0.0
+                        ev_import_extra = 0.0
                         if ev_rate > 0.0:
                             stored_energy_ev, verluste_eauto = ev_limited.charge_energy(
                                 wh=None, hour=hour, charge_factor=ev_rate
                             )
                             consumption += stored_energy_ev + verluste_eauto
                             slot_losses += verluste_eauto
+                            if hour == 0:
+                                ev_import_extra = (
+                                    stored_energy_ev + verluste_eauto
+                                ) * ev_first_slot_extra
                         (
                             energy_feedin_grid_actual,
                             energy_consumption_grid_actual,
@@ -947,7 +969,7 @@ class GeneticSimulation(PydanticBaseModel):
                             battery_grid_export_allowed,
                             battery_grid_export_factor,
                         )
-                        if energy_consumption_grid_actual <= ev_limit_wh:
+                        if energy_consumption_grid_actual + ev_import_extra <= ev_limit_wh:
                             break
                     if ev_grid_limited_charge_factors is not None:
                         ev_grid_limited_charge_factors[hour_idx] = float(
@@ -976,7 +998,7 @@ class GeneticSimulation(PydanticBaseModel):
                             ac_charge_losses,
                             executed_factor,
                         ) = inverter_fast.charge_battery_from_grid_executed(
-                            hour, ac_charge_factor, energy_consumption_grid_actual
+                            hour, ac_charge_factor, energy_consumption_grid_actual + ev_import_extra
                         )
                         if executed_factor < ac_charge_factor:
                             grid_limited = True
@@ -3078,6 +3100,16 @@ class GeneticOptimization(OptimizationBase):
         prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
         charge_end_slot = max(start_slot, end_slot - self.fixed_eauto_hours)
         deadline_slot = self._ev_soc_deadline_slot
+        # With the EV charge start of #1532 the vehicle charges neither before
+        # its charge start nor in the part of slot 0 that has passed: no
+        # energy moves before the charge start, and slot 0 takes none while
+        # part of it has passed (its import holds the EV over that part only).
+        first_target_slot = max(start_slot, int(getattr(self, "_ev_first_charge_slot", 0)))
+        first_slot_share = float(getattr(ev, "first_slot_share", 1.0))
+
+        def slot_energy_wh(slot: int) -> float:
+            # Energy the EV draws at the full rate in a slot [Wh].
+            return rated_wh * first_slot_share if slot == start_slot else rated_wh
 
         def move(
             ev_values: np.ndarray,
@@ -3092,14 +3124,20 @@ class GeneticOptimization(OptimizationBase):
                 return False
             # The simulated import of the source already holds the executed
             # rate: lowering the gene to it frees no room there.
-            removed_wh = (rates[int(ev_values[source])] - executed_rates[source]) * rated_wh
+            removed_wh = (rates[int(ev_values[source])] - executed_rates[source]) * slot_energy_wh(
+                source
+            )
             ev_values[source] = lowered
             room.setdefault(source, slot_room(source, pv_credit))
             target_end = charge_end_slot
             if deadline_slot is not None and source < deadline_slot:
                 target_end = min(target_end, deadline_slot)
             targets = sorted(
-                (slot for slot in range(start_slot, target_end) if slot != source),
+                (
+                    slot
+                    for slot in range(first_target_slot, target_end)
+                    if slot != source and not (slot == start_slot and first_slot_share < 1.0)
+                ),
                 key=lambda slot: (float(prices[slot]), slot),
             )
             refilled_wh = 0.0
