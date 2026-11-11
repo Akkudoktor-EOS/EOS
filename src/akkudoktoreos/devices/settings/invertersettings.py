@@ -1,11 +1,15 @@
 """Inverter device settings."""
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import ConfigScope
-from akkudoktoreos.devices.devicesabc import validate_efficiency_curve
+from akkudoktoreos.devices.devicesabc import (
+    positive_zero,
+    reject_bool_power_w,
+    validate_efficiency_curve,
+)
 from akkudoktoreos.devices.settings.devicebasesettings import (
     DevicesBaseSettings,
 )
@@ -119,6 +123,29 @@ class InverterCommonSettings(DevicesBaseSettings):
                 "ac_charge x max_charge_power_w on top."
             ),
             "examples": [False, True],
+            "x-scope": [str(ConfigScope.GENETIC)],
+        },
+    )
+    max_grid_import_power_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Maximum power drawn from the grid [W], e.g. the capacity limit of a "
+                "grid connection with interval metering. The optimizer lowers EV "
+                "charging (to the highest EV charge rate that fits, with the battery's "
+                "share counted) and reduces AC charging so that load plus charging "
+                "stays within the limit; an EV target that does not fit is missed. "
+                "Where the "
+                "plan holds the battery, it still covers the import above the limit "
+                "(threshold peak shaving); the battery instructions of the energy "
+                "management plan carry the limit as peak_shaving_threshold_w for the "
+                "site controller. Import the battery cannot cover is penalised with "
+                "optimization.genetic.penalties.grid_import_limit_excess, so the plan "
+                "keeps reserve for peaks. null means no limit. Default null."
+            ),
+            "examples": [None, 8000],
             "x-scope": [str(ConfigScope.GENETIC)],
         },
     )
@@ -391,6 +418,16 @@ class InverterCommonSettings(DevicesBaseSettings):
     ) -> Optional[list[tuple[float, float]]]:
         return validate_efficiency_curve(value)
 
+    @field_validator("max_grid_import_power_w", mode="before")
+    @classmethod
+    def _reject_bool_grid_import_limit(cls, value: Any) -> Any:
+        return reject_bool_power_w(value)
+
+    @field_validator("max_grid_import_power_w")
+    @classmethod
+    def _normalize_grid_import_limit(cls, value: Optional[float]) -> Optional[float]:
+        return positive_zero(value)
+
     @model_validator(mode="after")
     def _validate_soc_factors(self) -> "InverterCommonSettings":
         if self.battery_min_soc_factor >= self.battery_max_soc_factor:
@@ -421,6 +458,7 @@ class InverterCommonSettings(DevicesBaseSettings):
             ),
             max_ac_charge_power_w=self.max_ac_charge_power_w,
             ac_charge_limits_total_charge=self.ac_charge_limits_total_charge,
+            max_grid_import_power_w=self.max_grid_import_power_w,
         )
 
     # ------------------------------------------------------------------

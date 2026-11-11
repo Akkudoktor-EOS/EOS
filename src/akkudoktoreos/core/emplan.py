@@ -12,12 +12,13 @@ import uuid
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import StrEnum
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from loguru import logger
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.devices.devicesabc import positive_zero, reject_bool_power_w
 from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_datetime
 
 # S2 Basic Data Types
@@ -1870,6 +1871,32 @@ class FRBCInstruction(BaseInstruction):
         le=1,
         json_schema_extra={"description": "Factor for the operation mode configuration (0 to 1)."},
     )
+    peak_shaving_threshold_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Grid import power [W] the site should not exceed while this "
+                "instruction is active. Charging from the grid is reduced to stay "
+                "within it, and where the operation mode holds the battery, the "
+                "battery still discharges to cover the import above it (threshold "
+                "peak shaving). Where the mode already discharges for the local "
+                "load, it changes nothing. None means no threshold."
+            ),
+            "examples": [None, 8000],
+        },
+    )
+
+    @field_validator("peak_shaving_threshold_w", mode="before")
+    @classmethod
+    def _reject_bool_threshold(cls, value: Any) -> Any:
+        return reject_bool_power_w(value)
+
+    @field_validator("peak_shaving_threshold_w")
+    @classmethod
+    def _normalize_threshold(cls, value: Optional[float]) -> Optional[float]:
+        return positive_zero(value)
 
     def duration(self) -> Optional[Duration]:
         # Infinite, until next instruction

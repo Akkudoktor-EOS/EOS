@@ -1,5 +1,6 @@
 """Genetic algorithm optimisation solution."""
 
+import math
 from typing import Any, Optional, Union, cast
 
 import numpy as np
@@ -26,6 +27,7 @@ from akkudoktoreos.devices.devicesabc import (
     BatteryOperationMode,
 )
 from akkudoktoreos.devices.genetic.battery import Battery
+from akkudoktoreos.devices.genetic.inverter import GRID_IMPORT_LIMIT_TOLERANCE_WH
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
@@ -157,6 +159,18 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
         validation_alias=AliasChoices("electricity_price", "Electricity_price"),
         json_schema_extra={"description": "Used Electricity Price, including predictions"},
     )
+    peak_shaving_wh_per_hour: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "AC energy in watt-hours per slot that the battery delivered in slots "
+                "where the plan holds it (discharge_allowed = 0), to cover the grid "
+                "import above the inverter's max_grid_import_power_w (threshold peak "
+                "shaving). 0 where it shaved nothing, including released slots. None "
+                "without a grid import limit."
+            )
+        },
+    )
 
     # Computed fields for backward compatibility (deprecated German names)
     @computed_field(json_schema_extra={"deprecated": True})
@@ -241,6 +255,7 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
         "home_appliance_wh_per_hour",
         "electricity_price",
         "feed_in_tariff",
+        "peak_shaving_wh_per_hour",
         mode="before",
     )
     def convert_numpy(cls, field: Any) -> Any:
@@ -588,6 +603,44 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # Fallback → safe idle
         return BatteryOperationMode.IDLE, 1.0
 
+    def _peak_shaving_threshold_w(self) -> Optional[float]:
+        """Grid import limit of the optimized inverter [W], None without one.
+
+        With a limit, a battery the plan holds still covers the import above it
+        (threshold peak shaving), so the battery instructions carry it.
+        """
+        parameters = getattr(self, "parameters", None)
+        inverter = getattr(parameters, "inverter", None) if parameters is not None else None
+        if inverter is None:
+            return None
+        return inverter.max_grid_import_power_w
+
+    def _slot_shaved_peak(self, result_idx: int) -> bool:
+        """Whether the battery shaved a peak at the grid import limit in the simulated slot.
+
+        Read from the simulation's ``peak_shaving_wh_per_hour``: the energy a
+        held battery delivered for the import above the limit. An import at
+        the limit alone is no evidence (with a 0 W limit every slot without
+        import is at the limit). Without the series (no grid import limit) no
+        slot shaved.
+
+        Args:
+            result_idx: Slot index into the simulation result.
+
+        Returns:
+            bool: True if the battery delivered more than
+            ``GRID_IMPORT_LIMIT_TOLERANCE_WH`` for threshold peak shaving.
+        """
+        shaved = self.result.peak_shaving_wh_per_hour
+        if shaved is None or result_idx >= len(shaved):
+            return False
+        shaved_wh = shaved[result_idx]
+        return (
+            shaved_wh is not None
+            and math.isfinite(shaved_wh)
+            and shaved_wh > GRID_IMPORT_LIMIT_TOLERANCE_WH
+        )
+
     def _soc_clamped_operation_factors(
         self,
         ac_charge: float,
@@ -595,6 +648,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         discharge_allowed: bool,
         soc_pct: float,
         battery_grid_export_allowed: bool = False,
+        shaved_peak: bool = False,
     ) -> tuple[float, float, bool, bool]:
         """Clamp raw genetic gene values by the battery's actual SOC at that hour.
 
@@ -610,6 +664,11 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             commanded factor would store in one optimization slot.  Set to 0 when full.
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
+          - With ``shaved_peak`` (the battery shaved a peak at the grid import
+            threshold in the simulated slot) a held slot keeps its AC and DC
+            charge factors unclamped: the battery shaved a peak within the slot and may charge
+            again, so the start-of-slot headroom does not bound what it takes.
+            Held slots that shaved nothing are clamped as without a threshold.
           - Discharge: blocked when SOC is at or below min SOC.
           - Battery grid export: blocked when SOC is at or below min SOC.
         """
@@ -631,9 +690,14 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         ch_eff = float(bat.charging_efficiency)
         headroom_wh = max(0.0, (max_soc - soc_pct) / 100.0 * capacity_wh)
 
+        # A held battery that shaved a peak discharged within the slot and may
+        # charge again: its start-of-slot headroom is no bound for the charge
+        # controls, which keep the simulated values.
+        shaving_slot = shaved_peak and not discharge_allowed
+
         # --- AC charge: scale to available headroom ---
         effective_ac = ac_charge
-        if effective_ac > 0.0:
+        if effective_ac > 0.0 and not shaving_slot:
             if headroom_wh <= 0.0:
                 effective_ac = 0.0
             else:
@@ -661,7 +725,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
         # --- DC charge (PV): zero when battery is full ---
         effective_dc = dc_charge
-        if effective_dc > 0.0 and headroom_wh <= 0.0:
+        if effective_dc > 0.0 and headroom_wh <= 0.0 and not shaving_slot:
             effective_dc = 0.0
 
         # --- Discharge: block at min SOC ---
@@ -794,6 +858,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     discharge_allowed_hour,
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
+                    shaved_peak=self._slot_shaved_peak(result_idx),
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac, eff_dc, eff_dis, eff_grid_export, battery_grid_export_factor_hour
@@ -1044,6 +1109,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             last_operation_mode: Optional[str] = None
             last_operation_mode_factor: Optional[float] = None
             resource_id = self._battery_device_id()
+            # With a grid import limit, every battery instruction carries it as
+            # the threshold above which a held battery shaves the import.
+            peak_shaving_threshold_w = self._peak_shaving_threshold_w()
             # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
             logger.debug("BAT: {} - {}", resource_id, self.ac_charge[start_day_slot:])
             for hour_idx, rate in enumerate(self.ac_charge):
@@ -1070,6 +1138,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     bool(self.discharge_allowed[hour_idx]),
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
+                    shaved_peak=self._slot_shaved_peak(result_idx),
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac,
@@ -1098,6 +1167,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         actuator_id=resource_id,
                         operation_mode_id=operation_mode,
                         operation_mode_factor=operation_mode_factor,
+                        peak_shaving_threshold_w=peak_shaving_threshold_w,
                     )
                 )
 

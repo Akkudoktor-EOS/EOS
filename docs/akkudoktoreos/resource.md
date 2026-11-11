@@ -97,6 +97,12 @@ battery's nominal maximum charge or discharge power. A value of 1.0 corresponds 
 charging or discharging, while 0.0 indicates no power transfer. Intermediate values scale the power
 proportionally.
 
+The optional **peak shaving threshold** (`peak_shaving_threshold_w`, W) is set when the inverter
+has a grid import limit (`max_grid_import_power_w`). While the instruction is active, the site
+should keep its grid import at or below the threshold: charging from the grid is reduced, and
+where the operation mode holds the battery, the battery still discharges to cover the import
+above the threshold. Without a limit it is `null`.
+
 The **fill level** (0.0–1.0) specifies the normalized fill level relative to the
 battery's nominal maximum charge. A value of 1.0 corresponds to full while 0.0 indicates empty.
 Intermediate values scale the fill level proportionally.

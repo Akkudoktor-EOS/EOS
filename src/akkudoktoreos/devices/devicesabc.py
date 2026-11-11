@@ -2,7 +2,7 @@
 
 import math
 from enum import StrEnum
-from typing import Optional
+from typing import Any, Optional
 
 
 class BatteryOperationMode(StrEnum):
@@ -132,6 +132,44 @@ def validate_home_appliance_load_definition(
             )
         if value < 0:
             raise ValueError("load_profile_power_w must not contain negative values.")
+
+
+def reject_bool_power_w(value: Any) -> Any:
+    """Reject a boolean where a power in watts is expected.
+
+    Pydantic's lax mode reads ``True`` as 1.0 and ``False`` as 0.0. For a
+    power limit both are almost certainly a mistake: ``False`` meant as
+    "no limit" would become a 0 W limit. Use as a ``mode="before"`` validator.
+
+    Args:
+        value: The raw input of the field.
+
+    Returns:
+        The unchanged input.
+
+    Raises:
+        ValueError: If the input is a boolean.
+    """
+    if isinstance(value, bool):
+        raise ValueError(f"Expected a power in watts, got the boolean {value}.")
+    return value
+
+
+def positive_zero(value: Optional[float]) -> Optional[float]:
+    """Return ``value`` with a negative zero replaced by ``0.0``.
+
+    ``-0.0`` passes a ``ge=0`` check; normalising it keeps it from showing up
+    as a negative sign in serialised output. Use as a ``mode="after"`` validator.
+
+    Args:
+        value: The validated value, or None.
+
+    Returns:
+        ``0.0`` for a (negative) zero, otherwise the unchanged value.
+    """
+    if value == 0.0:
+        return 0.0
+    return value
 
 
 def validate_efficiency_curve(

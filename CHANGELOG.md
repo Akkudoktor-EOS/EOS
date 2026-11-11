@@ -43,6 +43,23 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
   models the lower DC-to-AC efficiency at low load. Without it the constant
   `dc_to_ac_efficiency` applies unchanged.
+- Optional grid import power limit for GENETIC: `max_grid_import_power_w` on the inverter
+  (W, unset = no limit). Plans reduce AC charging so that load plus charging stays within the
+  limit. Each kWh imported above it costs
+  `optimization.genetic.penalties.grid_import_limit_excess` (EUR/kWh, default 10) in the
+  fitness, so the optimizer releases the battery for peaks and keeps reserve for them. EV
+  charging gives way to the limit: where it does not fit with the battery's share, it is
+  lowered to the highest EV charge rate that fits (reported as such), and an EV target that
+  cannot be reached within the limit is missed with the `ev_soc_miss` penalty. The local search
+  after the genetic run moves the EV energy the limit cut into slots with room where that pays.
+  Unset (default), plans are unchanged.
+- Threshold peak shaving at the GENETIC grid import limit: where the plan holds the battery,
+  it still covers the import above `max_grid_import_power_w`, as a site controller with a
+  peak shaving threshold does. Battery instructions of the energy management plan carry the
+  limit in the new optional `FRBCInstruction.peak_shaving_threshold_w` (also as attribute or
+  key in the Home Assistant and Node-RED adapters). The simulation result reports the energy
+  the held battery shaved per slot in the new optional `peak_shaving_wh_per_hour`. Without a
+  limit both fields are `null` and plans are unchanged.
 - Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
   (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
   a run by up to ~150 MB on small devices without changing the plan.

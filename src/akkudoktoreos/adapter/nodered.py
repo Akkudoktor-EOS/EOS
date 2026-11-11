@@ -90,6 +90,13 @@ class NodeREDAdapter(AdapterProvider):
                     operation_mode_factor = instruction.operation_mode_factor
                 data[f"{resource_id}_op_mode"] = operation_mode_id
                 data[f"{resource_id}_op_factor"] = operation_mode_factor
+                if (
+                    isinstance(instruction, FRBCInstruction)
+                    and instruction.peak_shaving_threshold_w is not None
+                ):
+                    data[f"{resource_id}_peak_shaving_threshold_w"] = (
+                        instruction.peak_shaving_threshold_w
+                    )
         elif stage == EnergyManagementStage.DATA_ACQUISITION:
             data = {}
 

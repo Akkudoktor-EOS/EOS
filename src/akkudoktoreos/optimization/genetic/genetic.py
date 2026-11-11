@@ -27,10 +27,16 @@ from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
-from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.devices.genetic.inverter import (
+    GRID_IMPORT_LIMIT_TOLERANCE_WH,
+    Inverter,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticsettings import (
+    GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
@@ -161,6 +167,83 @@ def _slot_values(values: Any) -> Any:
     if isinstance(values, np.ndarray) and (values.dtype == np.float64 or values.dtype.kind in "iu"):
         return values.tolist()
     return values
+
+
+def _split_ev_slot_energy(
+    inverter: Inverter,
+    battery: Optional[Battery],
+    hour: int,
+    energy_produced: float,
+    consumption_without_ev_wh: float,
+    ev_wh: float,
+    ev_share: float,
+    battery_grid_export_allowed: bool,
+    battery_grid_export_factor: float,
+) -> tuple[float, float, float, float, float]:
+    """Simulate a slot whose EV charging ``ev_wh`` falls into its last ``ev_share``.
+
+    The slot is simulated as two consecutive parts: first the part without
+    EV charging, then the part with it. Load and PV are spread evenly over
+    the slot; the power budgets of the inverter and the battery and the grid
+    import limit are scaled to the length of each part, so PV and the battery
+    (released, or held with threshold peak shaving) cover the EV power in the
+    part it charges in, within their power and stored energy.
+
+    Returns:
+        tuple[float, float, float, float, float]: Grid export, grid import,
+        losses and self-consumption of the slot [Wh], and the grid import of
+        the part with the EV scaled to the whole slot [Wh]: the one the grid
+        import limit of the slot applies to.
+    """
+    slot_duration_h = inverter.slot_duration_h
+    max_power_wh = inverter.max_power_wh
+    max_grid_import_wh = inverter.max_grid_import_wh
+    battery_slot_duration_h = battery.slot_duration_h if battery is not None else 0.0
+    charge_limit_wh = battery._charge_limit_raw_wh_per_slot[hour] if battery is not None else 0.0
+    totals = [0.0, 0.0, 0.0, 0.0]
+    peak_shaving_ac_wh = 0.0
+    discharged_wh = charged_wh = 0.0
+    if battery is not None:
+        _, discharged_wh, charged_wh = battery.slot_state(hour)
+    part_import_wh = 0.0
+    try:
+        for part, ev_part_wh in ((1.0 - ev_share, 0.0), (ev_share, ev_wh)):
+            if part <= 0.0:
+                continue
+            inverter.slot_duration_h = slot_duration_h * part
+            inverter.max_power_wh = max_power_wh * part
+            if max_grid_import_wh is not None:
+                inverter.max_grid_import_wh = max_grid_import_wh * part
+            if battery is not None:
+                # Each part has its own power budget; the slot keeps the sum.
+                battery.slot_duration_h = battery_slot_duration_h * part
+                battery._charge_limit_raw_wh_per_slot[hour] = charge_limit_wh * part
+                battery.restore_slot_state(hour, (battery.soc_wh, 0.0, 0.0))
+            flows = inverter.process_energy(
+                energy_produced * part,
+                consumption_without_ev_wh * part + ev_part_wh,
+                hour,
+                battery_grid_export_allowed,
+                battery_grid_export_factor,
+            )
+            for index, value in enumerate(flows):
+                totals[index] += value
+            peak_shaving_ac_wh += inverter.peak_shaving_ac_wh
+            if battery is not None:
+                _, part_discharged_wh, part_charged_wh = battery.slot_state(hour)
+                discharged_wh += part_discharged_wh
+                charged_wh += part_charged_wh
+            part_import_wh = flows[1] / part
+    finally:
+        inverter.slot_duration_h = slot_duration_h
+        inverter.max_power_wh = max_power_wh
+        inverter.max_grid_import_wh = max_grid_import_wh
+        if battery is not None:
+            battery.slot_duration_h = battery_slot_duration_h
+            battery._charge_limit_raw_wh_per_slot[hour] = charge_limit_wh
+            battery.restore_slot_state(hour, (battery.soc_wh, discharged_wh, charged_wh))
+    inverter.peak_shaving_ac_wh = peak_shaving_ac_wh
+    return totals[0], totals[1], totals[2], totals[3], part_import_wh
 
 
 def _unpack_genes(packed: PackedGenes) -> list[int]:
@@ -436,6 +519,17 @@ class GeneticSimulation(PydanticBaseModel):
     ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
     )
+    ev_charge_rates: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Charge rates the EV charger accepts, as factors of its maximum "
+                "charging power. With a grid import limit, EV charging that does "
+                "not fit is lowered to the highest of these rates that fits. "
+                "None uses the charge rates of the EV."
+            )
+        },
+    )
 
     home_appliance_start_hour: Optional[int] = Field(default=None)
 
@@ -454,6 +548,8 @@ class GeneticSimulation(PydanticBaseModel):
         optimization_hours: int,
         prediction_hours: int,
         ev: Optional[Battery] = None,
+        *,
+        ev_charge_rates: Optional[list[float]] = None,
         home_appliance: Optional[HomeAppliance] = None,
         inverter: Optional[Inverter] = None,
         direct_marketing_enabled: bool = False,
@@ -462,6 +558,10 @@ class GeneticSimulation(PydanticBaseModel):
         """Prepare simulation runs.
 
         Populate internal arrays and device references used during simulation.
+        ``ev_charge_rates`` are the rates the EV charger accepts (see the field
+        of the same name); None uses the charge rates of ``ev``. Arguments after
+        ``ev`` are keyword-only, so a call that passes them by position fails
+        instead of binding them to the wrong parameter.
         """
         self.home_appliance_start_hour = None
         self.optimization_hours = optimization_hours
@@ -484,6 +584,7 @@ class GeneticSimulation(PydanticBaseModel):
         else:
             self.battery = None
         self.ev = ev
+        self.ev_charge_rates = None if ev_charge_rates is None else list(ev_charge_rates)
         if home_appliance is not None and home_appliances is not None:
             raise ValueError("Use home_appliance or home_appliances, not both.")
         self.home_appliances = home_appliances or (
@@ -605,6 +706,15 @@ class GeneticSimulation(PydanticBaseModel):
         soc_per_hour: Any
         soc_ev_per_hour: Any
         home_appliance_wh_per_hour: Any
+        # AC energy drawn from the grid in slots whose AC charge the grid
+        # import limit lowered, by slot index (see the break-even penalty).
+        grid_limited_ac_charge_wh: Optional[dict[int, float]] = None
+        # AC energy a held battery delivered for threshold peak shaving, per
+        # slot; only with a grid import limit.
+        peak_shaving_wh_per_hour: Optional[list[float]] = None
+        # EV charge factor executed in slots whose EV charging the grid import
+        # limit lowered, by slot index; only with a grid import limit and an EV.
+        ev_grid_limited_charge_factors: Optional[dict[int, float]] = None
 
         # Set initial state
         if battery_fast:
@@ -704,6 +814,45 @@ class GeneticSimulation(PydanticBaseModel):
         elect_price_hourly_fast = _slot_values(elect_price_hourly_fast)
         elect_revenue_per_hour_arr_fast = _slot_values(elect_revenue_per_hour_arr_fast)
         bat_grid_export_hours_fast = _slot_values(bat_grid_export_hours_fast)
+        # The array itself, for reporting AC charge factors a grid import limit lowers.
+        ac_charge_hours_array = ac_charge_hours_fast
+        max_grid_import_wh_fast = inverter_fast.max_grid_import_wh if inverter_fast else None
+        if max_grid_import_wh_fast is not None:
+            grid_limited_ac_charge_wh = {}
+            peak_shaving_wh_per_hour = [0.0] * total_hours
+        # With a grid import limit, EV charging gives way to it: a slot whose
+        # import exceeds the limit is simulated again at the next lower EV
+        # charge rate, down to no charging (see below).
+        ev_rates_desc: tuple[float, ...] = ()
+        # Import [Wh] above which EV charging is lowered (the limit plus its
+        # rounding tolerance).
+        ev_limit_wh = 0.0
+        if max_grid_import_wh_fast is not None and ev_fast:
+            ev_limited = ev_fast
+            ev_limit_wh = max_grid_import_wh_fast + GRID_IMPORT_LIMIT_TOLERANCE_WH
+            ev_grid_limited_charge_factors = {}
+            ev_charge_rates = (
+                self.ev_charge_rates if self.ev_charge_rates is not None else ev_fast.charge_rates
+            )
+            ev_rates_desc = tuple(
+                sorted(
+                    {0.0, *(float(rate) for rate in ev_charge_rates if rate > 0.0)}, reverse=True
+                )
+            )
+            # The array itself, for reporting the executed EV charge factors.
+            ev_charge_hours_array = ev_fast.charge_array
+        # A run that starts inside slot 0 may charge the EV only in the part of
+        # the slot still ahead (``Battery.first_slot_share`` of the EV charge
+        # start, #1532), while load and PV fill the whole slot. The limit is a
+        # power: the EV draws its slot 0 energy in that part, so slot 0 is
+        # simulated as a part without and a part with the EV (see
+        # _split_ev_slot_energy), and the limit applies to the latter.
+        ev_first_slot_extra = 0.0
+        ev_first_slot_share = 1.0
+        if max_grid_import_wh_fast is not None and ev_fast:
+            ev_first_slot_share = float(getattr(ev_fast, "first_slot_share", 1.0))
+            if 0.0 < ev_first_slot_share < 1.0:
+                ev_first_slot_extra = 1.0 / ev_first_slot_share - 1.0
         ac_charge_hours_fast = _slot_values(ac_charge_hours_fast)
         ev_charge_hours_fast = _slot_values(ev_charge_hours_fast)
         if battery_fast:
@@ -767,6 +916,11 @@ class GeneticSimulation(PydanticBaseModel):
                 home_appliance_wh_per_hour[hour_idx] = ha_load
 
             # E-Auto handling
+            # EV state before charging in this slot, kept only where a grid
+            # import limit may lower the EV charging of the slot.
+            ev_slot_state = None
+            # Import the EV would add if it charged all of slot 0 [Wh].
+            ev_import_extra = 0.0
             if ev_fast:
                 # save begin state
                 if ev_soc_direct:
@@ -775,6 +929,9 @@ class GeneticSimulation(PydanticBaseModel):
                     soc_ev_per_hour[hour_idx] = ev_fast.current_soc_percentage()
                 ev_charge_factor = ev_charge_hours_fast[hour]
                 if ev_charge_factor > 0:
+                    if ev_grid_limited_charge_factors is not None:
+                        ev_slot_state = ev_fast.slot_state(hour)
+                        consumption_without_ev = consumption
                     stored_energy_ev, verluste_eauto = ev_fast.charge_energy(
                         wh=None, hour=hour, charge_factor=ev_charge_factor
                     )
@@ -782,6 +939,11 @@ class GeneticSimulation(PydanticBaseModel):
                     # not only the energy stored after charging losses.
                     consumption += stored_energy_ev + verluste_eauto
                     slot_losses += verluste_eauto
+                    if hour == 0:
+                        ev_import_extra = (stored_energy_ev + verluste_eauto) * ev_first_slot_extra
+                    if stored_energy_ev + verluste_eauto <= 0.0:
+                        # Nothing charged (EV full): nothing to lower.
+                        ev_slot_state = None
 
             # Save battery SOC before inverter processing = true begin-of-interval state.
             # Must be recorded here (before DC charge/discharge) so the displayed SOC at
@@ -822,27 +984,147 @@ class GeneticSimulation(PydanticBaseModel):
                     and hourly_feed_in_tariff > 0.0
                     and battery_grid_export_factor > 0.0
                 )
-                (
-                    energy_feedin_grid_actual,
-                    energy_consumption_grid_actual,
-                    losses,
-                    eigenverbrauch,
-                ) = inverter_fast.process_energy(
-                    energy_produced,
-                    consumption,
-                    hour,
-                    battery_grid_export_allowed,
-                    battery_grid_export_factor,
-                )
+                # The import never exceeds the load, so only a slot whose load
+                # exceeds the limit can need its EV charging lowered.
+                battery_slot_state = None
+                if ev_slot_state is not None and consumption + ev_import_extra > ev_limit_wh:
+                    if battery_fast:
+                        battery_slot_state = battery_fast.slot_state(hour)
+                else:
+                    ev_slot_state = None
+                if ev_import_extra > 0.0:
+                    (
+                        energy_feedin_grid_actual,
+                        energy_consumption_grid_actual,
+                        losses,
+                        eigenverbrauch,
+                        limit_import_wh,
+                    ) = _split_ev_slot_energy(
+                        inverter_fast,
+                        battery_fast,
+                        hour,
+                        energy_produced,
+                        consumption_without_ev,
+                        consumption - consumption_without_ev,
+                        ev_first_slot_share,
+                        battery_grid_export_allowed,
+                        battery_grid_export_factor,
+                    )
+                else:
+                    (
+                        energy_feedin_grid_actual,
+                        energy_consumption_grid_actual,
+                        losses,
+                        eigenverbrauch,
+                    ) = inverter_fast.process_energy(
+                        energy_produced,
+                        consumption,
+                        hour,
+                        battery_grid_export_allowed,
+                        battery_grid_export_factor,
+                    )
+                    # Import the limit is checked against [Wh].
+                    limit_import_wh = energy_consumption_grid_actual
+                if ev_slot_state is not None and limit_import_wh > ev_limit_wh:
+                    # The grid import limit wins against EV charging. PV, the
+                    # battery (released: for the whole load, held: for the
+                    # import above the limit) and the grid up to the limit
+                    # supply the EV; the slot is simulated again at the next
+                    # lower charge rate until it fits, or without EV charging.
+                    # Only the house load can then exceed the limit. A
+                    # discrete rate keeps the reported factor equal to what
+                    # was simulated.
+                    for ev_rate in ev_rates_desc:
+                        if ev_rate >= ev_charge_factor:
+                            continue
+                        if battery_slot_state is not None and battery_fast is not None:
+                            battery_fast.restore_slot_state(hour, battery_slot_state)
+                        ev_limited.restore_slot_state(hour, ev_slot_state)
+                        ev_charge_hours_array[hour] = ev_rate
+                        consumption = consumption_without_ev
+                        slot_losses = 0.0
+                        ev_import_extra = 0.0
+                        if ev_rate > 0.0:
+                            stored_energy_ev, verluste_eauto = ev_limited.charge_energy(
+                                wh=None, hour=hour, charge_factor=ev_rate
+                            )
+                            consumption += stored_energy_ev + verluste_eauto
+                            slot_losses += verluste_eauto
+                            if hour == 0:
+                                ev_import_extra = (
+                                    stored_energy_ev + verluste_eauto
+                                ) * ev_first_slot_extra
+                        if ev_import_extra > 0.0:
+                            (
+                                energy_feedin_grid_actual,
+                                energy_consumption_grid_actual,
+                                losses,
+                                eigenverbrauch,
+                                limit_import_wh,
+                            ) = _split_ev_slot_energy(
+                                inverter_fast,
+                                battery_fast,
+                                hour,
+                                energy_produced,
+                                consumption_without_ev,
+                                consumption - consumption_without_ev,
+                                ev_first_slot_share,
+                                battery_grid_export_allowed,
+                                battery_grid_export_factor,
+                            )
+                        else:
+                            (
+                                energy_feedin_grid_actual,
+                                energy_consumption_grid_actual,
+                                losses,
+                                eigenverbrauch,
+                            ) = inverter_fast.process_energy(
+                                energy_produced,
+                                consumption,
+                                hour,
+                                battery_grid_export_allowed,
+                                battery_grid_export_factor,
+                            )
+                            limit_import_wh = energy_consumption_grid_actual
+                        if limit_import_wh <= ev_limit_wh:
+                            break
+                    if ev_grid_limited_charge_factors is not None:
+                        ev_grid_limited_charge_factors[hour_idx] = float(
+                            ev_charge_hours_array[hour]
+                        )
+                if peak_shaving_wh_per_hour is not None:
+                    peak_shaving_wh_per_hour[hour_idx] = inverter_fast.peak_shaving_ac_wh
             else:
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
 
             # AC PV Battery Charge
             if ac_charge_factor > 0.0 and battery_fast:
+                grid_limited = False
                 if inverter_fast:
-                    ac_energy, ac_charge_losses = inverter_fast.charge_battery_from_grid(
-                        hour, ac_charge_factor
-                    )
+                    if max_grid_import_wh_fast is None:
+                        ac_energy, ac_charge_losses = inverter_fast.charge_battery_from_grid(
+                            hour, ac_charge_factor
+                        )
+                    else:
+                        # With a grid import limit, the charge only fills what
+                        # the slot's import (load, EV) leaves of the limit. The
+                        # reported plan shows the factor a controller executes
+                        # to draw the simulated grid charge.
+                        (
+                            ac_energy,
+                            ac_charge_losses,
+                            executed_factor,
+                        ) = inverter_fast.charge_battery_from_grid_executed(
+                            hour, ac_charge_factor, limit_import_wh
+                        )
+                        if executed_factor < ac_charge_factor:
+                            grid_limited = True
+                            ac_charge_hours_array[hour] = executed_factor
+                            if executed_factor <= 0.0 and dc_charge_hours_fast[hour] == 0:
+                                # The AC state let PV charge the battery in this
+                                # slot (direct marketing gives it dc_charge = 0).
+                                # Without its AC charge, the plan keeps that as DC.
+                                dc_charge_hours_fast[hour] = 1
                 else:
                     # Without an inverter the grid charges the battery losslessly
                     # (AC-to-DC efficiency 1.0).
@@ -853,6 +1135,8 @@ class GeneticSimulation(PydanticBaseModel):
                 consumption += ac_energy
                 energy_consumption_grid_actual += ac_energy
                 slot_losses += ac_charge_losses
+                if grid_limited and grid_limited_ac_charge_wh is not None:
+                    grid_limited_ac_charge_wh[hour_idx] = ac_energy
 
             # Update hourly arrays
             if (
@@ -912,7 +1196,7 @@ class GeneticSimulation(PydanticBaseModel):
         total_revenue = np.nansum(revenue_per_hour)
 
         # Prepare output dictionary
-        return {
+        result = {
             "Last_Wh_pro_Stunde": loads_energy_per_hour,
             "Netzeinspeisung_Wh_pro_Stunde": feedin_energy_per_hour,
             "Netzbezug_Wh_pro_Stunde": consumption_energy_per_hour,
@@ -929,6 +1213,13 @@ class GeneticSimulation(PydanticBaseModel):
             "Electricity_price": electricity_price_per_hour,
             "Feed_in_tariff": feed_in_tariff_per_hour,
         }
+        if grid_limited_ac_charge_wh is not None:
+            result["grid_limited_ac_charge_wh"] = grid_limited_ac_charge_wh
+        if peak_shaving_wh_per_hour is not None:
+            result["peak_shaving_wh_per_hour"] = np.array(peak_shaving_wh_per_hour, dtype=float)
+        if ev_grid_limited_charge_factors is not None:
+            result["ev_grid_limited_charge_factors"] = ev_grid_limited_charge_factors
+        return result
 
 
 class GeneticOptimization(OptimizationBase):
@@ -1402,6 +1693,11 @@ class GeneticOptimization(OptimizationBase):
                 charge_rates=self.bat_possible_charge_values,
                 export_rates=self.bat_possible_grid_export_values,
                 direct_marketing=self.optimize_battery_grid_export,
+                grid_import_penalty_euro_per_wh=(
+                    self._grid_import_limit_penalty_euro_per_wh()
+                    if inverter.max_grid_import_wh is not None
+                    else 0.0
+                ),
             )
         if curve.energy_wh:
             self._terminal_value_reason = ""
@@ -2813,13 +3109,238 @@ class GeneticOptimization(OptimizationBase):
                 break
         return candidates
 
+    def _grid_import_limit_penalty_euro_per_wh(self) -> float:
+        """Penalty per Wh imported above the grid import limit [EUR/Wh].
+
+        Configured as ``penalties.grid_import_limit_excess`` in EUR/kWh and
+        validated by ``GeneticCommonSettings`` (finite, >= 0) when the penalties
+        are set as a whole. A penalties dict without the key uses the default.
+        Setting the single entry (``set_nested_value``) skips that validation, so
+        a value that is still not a finite number >= 0 is replaced by the
+        default here: the run goes on, an error names the value and the
+        substitute (once per value and optimizer), the configuration is kept.
+
+        Returns:
+            The penalty in EUR per Wh, finite and >= 0.
+        """
+        raw = self._genetic_cfg.penalties.get(
+            "grid_import_limit_excess", GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH
+        )
+        try:
+            penalty_euro_per_kwh = float(raw) if not isinstance(raw, bool) else math.nan
+        except (TypeError, ValueError):
+            penalty_euro_per_kwh = math.nan
+        if not math.isfinite(penalty_euro_per_kwh) or penalty_euro_per_kwh < 0.0:
+            reported = getattr(self, "_reported_grid_import_limit_penalty", None)
+            if reported != repr(raw):
+                self._reported_grid_import_limit_penalty = repr(raw)
+                logger.error(
+                    "Penalty function parameter `grid_import_limit_excess` {!r} is not a "
+                    "finite number >= 0, using the default {} EUR/kWh instead.",
+                    raw,
+                    GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH,
+                )
+            penalty_euro_per_kwh = GRID_IMPORT_LIMIT_EXCESS_PENALTY_EURO_PER_KWH
+        return penalty_euro_per_kwh / 1000.0
+
+    def _grid_limit_ev_shift_candidates(
+        self,
+        individual: list[int],
+        *,
+        max_sources: int = 6,
+    ) -> list[list[int]]:
+        """Build candidates that move EV charging the grid import limit cut to other slots.
+
+        The simulation lowers a full EV rate next to the house load to the
+        highest rate within ``max_grid_import_power_w`` (see
+        ``GeneticSimulation.simulate``); the energy it cuts is missing for the
+        EV target, where a lower rate in more slots would have fit. The
+        genetic search moves that energy only by chance; the EV target penalty
+        alone leaves the gap in the plan after few generations.
+
+        For each slot whose EV charging the limit lowered (largest cut first),
+        one candidate sets the slot's EV gene to the executed rate and raises
+        the rate in the cheapest slots whose import leaves room for it, until
+        the EV draws the cut energy again. Slots before the EV deadline only
+        take energy from slots before it. A further candidate applies all
+        these moves at once. Every candidate is built in four variants:
+        refilled exactly (steps that fit into the missing energy first) or in
+        the cheapest slots as far as they have room, each with and without
+        counting the PV a destination exports as room (an estimate of the PV
+        the EV can take). The battery's share is not counted as room. The
+        candidates are fitness-checked by the local search, so a move that
+        misses the EV target or costs more than it saves is not taken.
+
+        Args:
+            individual: Genome of the incumbent.
+            max_sources: Maximum number of slots with lowered EV charging to
+                move from.
+
+        Returns:
+            list[list[int]]: Candidate genomes, empty without a grid import
+            limit, without EV genes or when the limit lowered no EV charging.
+        """
+        inverter = self.simulation.inverter
+        max_grid_import_wh = inverter.max_grid_import_wh if inverter is not None else None
+        ev = self.simulation.ev
+        rates = getattr(self, "ev_possible_charge_values", None)
+        if max_grid_import_wh is None or ev is None or not self.optimize_ev or not rates:
+            return []
+        _, ev_genes, _ = self.split_individual(individual)
+        if ev_genes is None or not any(rates[int(index)] > 0.0 for index in ev_genes):
+            return []
+
+        # Simulate a copy: evaluate_inner may rewrite appliance genes in place.
+        simulated = self.evaluate_inner(list(individual))
+        imports = np.asarray(simulated["Netzbezug_Wh_pro_Stunde"], dtype=float)
+        exports = np.asarray(simulated["Netzeinspeisung_Wh_pro_Stunde"], dtype=float)
+        start_slot = self._control_start_slot()
+        end_slot = min(self.control_end_slot, start_slot + imports.size)
+
+        def slot_import(slot: int) -> float:
+            return float(imports[slot - start_slot])
+
+        def slot_room(slot: int, pv_credit: bool) -> float:
+            # Added EV charging first takes PV the slot exports, then the grid.
+            # Only an estimate (the PV model can import and export in one
+            # slot), so candidates are built with and without this credit.
+            room_wh = max_grid_import_wh - slot_import(slot)
+            if pv_credit:
+                room_wh += float(exports[slot - start_slot])
+            return room_wh
+
+        # Rate executed in each slot whose EV charging the limit lowered.
+        executed_rates = {
+            start_slot + int(offset): float(rate)
+            for offset, rate in (simulated.get("ev_grid_limited_charge_factors") or {}).items()
+        }
+        sources = [
+            slot
+            for slot in range(start_slot, end_slot)
+            if slot in executed_rates and rates[int(ev_genes[slot])] > executed_rates[slot]
+        ]
+        if not sources:
+            return []
+        sources.sort(key=lambda slot: (-(rates[int(ev_genes[slot])] - executed_rates[slot]), slot))
+
+        # Rate indices in ascending order of the rate: one step down / up.
+        ordered = sorted(range(len(rates)), key=lambda index: rates[index])
+        position = {index: rank for rank, index in enumerate(ordered)}
+
+        def executed_index(slot: int) -> int:
+            # The highest rate index not above the executed rate (the lowest
+            # rate if the rates have no 0.0: the simulation then still cuts).
+            executed = executed_rates[slot]
+            fitting = [index for index in ordered if rates[index] <= executed + 1e-12]
+            return fitting[-1] if fitting else ordered[0]
+
+        # Grid energy the EV charger draws at a rate in one slot [Wh].
+        rated_wh = ev.max_charge_power_w * self.slot_duration_h
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        charge_end_slot = max(start_slot, end_slot - self.fixed_eauto_hours)
+        deadline_slot = self._ev_soc_deadline_slot
+        # With the EV charge start of #1532 the vehicle charges neither before
+        # its charge start nor in the part of slot 0 that has passed: no
+        # energy moves before the charge start, and slot 0 takes none while
+        # part of it has passed (its import holds the EV over that part only).
+        first_target_slot = max(start_slot, int(getattr(self, "_ev_first_charge_slot", 0)))
+        first_slot_share = float(getattr(ev, "first_slot_share", 1.0))
+
+        def slot_energy_wh(slot: int) -> float:
+            # Energy the EV draws at the full rate in a slot [Wh].
+            return rated_wh * first_slot_share if slot == start_slot else rated_wh
+
+        def move(
+            ev_values: np.ndarray,
+            room: dict[int, float],
+            source: int,
+            pv_credit: bool,
+            exact: bool,
+        ) -> bool:
+            """Lower the source to its executed rate and refill elsewhere; False if nothing moved."""
+            lowered = executed_index(source)
+            if position[lowered] >= position[int(ev_values[source])]:
+                return False
+            # The simulated import of the source already holds the executed
+            # rate: lowering the gene to it frees no room there.
+            removed_wh = (rates[int(ev_values[source])] - executed_rates[source]) * slot_energy_wh(
+                source
+            )
+            ev_values[source] = lowered
+            room.setdefault(source, slot_room(source, pv_credit))
+            target_end = charge_end_slot
+            if deadline_slot is not None and source < deadline_slot:
+                target_end = min(target_end, deadline_slot)
+            targets = sorted(
+                (
+                    slot
+                    for slot in range(first_target_slot, target_end)
+                    if slot != source and not (slot == start_slot and first_slot_share < 1.0)
+                ),
+                key=lambda slot: (float(prices[slot]), slot),
+            )
+            refilled_wh = 0.0
+            # Charge rates need not be evenly spaced. "exact" first takes only
+            # steps that fit into the energy still missing and, if some is
+            # still missing, one larger step; otherwise the cheapest slots are
+            # raised as far as they have room, even beyond the missing energy.
+            for overshoot in (False, True) if exact else (True,):
+                for target in targets:
+                    while refilled_wh < removed_wh - 1e-9:
+                        target_rank = position[int(ev_values[target])]
+                        if target_rank + 1 >= len(ordered):
+                            break
+                        raised = ordered[target_rank + 1]
+                        added_wh = (rates[raised] - rates[int(ev_values[target])]) * rated_wh
+                        if not overshoot and added_wh > removed_wh - refilled_wh + 1e-9:
+                            break
+                        free_wh = room.get(target, slot_room(target, pv_credit))
+                        if added_wh > free_wh + GRID_IMPORT_LIMIT_TOLERANCE_WH:
+                            break
+                        ev_values[target] = raised
+                        room[target] = free_wh - added_wh
+                        refilled_wh += added_wh
+                        if overshoot and exact:
+                            break
+                    if refilled_wh >= removed_wh - 1e-9:
+                        return True
+            return True
+
+        battery_genes, _, appliance_genes = self.split_individual(individual)
+        candidates: list[list[int]] = []
+        seen: set[tuple[int, ...]] = {tuple(int(value) for value in individual)}
+
+        def add(ev_values: np.ndarray) -> None:
+            candidate = self.merge_individual(battery_genes, ev_values, appliance_genes)
+            key = tuple(int(value) for value in candidate)
+            if key not in seen:
+                seen.add(key)
+                candidates.append(candidate)
+
+        for pv_credit in (True, False):
+            for exact in (True, False):
+                combined = ev_genes.copy()
+                combined_room: dict[int, float] = {}
+                for source in sources[:max_sources]:
+                    single = ev_genes.copy()
+                    if move(single, {}, source, pv_credit, exact):
+                        add(single)
+                    move(combined, combined_room, source, pv_credit, exact)
+                add(combined)
+        return candidates
+
     def _locally_improve_grid_export(
         self,
         individual: list[int],
         *,
         max_evaluations: int,
     ) -> tuple[Any, int, int, float, float]:
-        """Improve the incumbent through bounded, fitness-checked energy shifts."""
+        """Improve the incumbent through bounded, fitness-checked energy shifts.
+
+        Candidates shift battery grid export into later self-consumption
+        (``_grid_export_shift_candidates``) and EV charging the grid import
+        limit cut into slots with room (``_grid_limit_ev_shift_candidates``).
+        """
         best = creator.Individual(individual)
         original_fitness = getattr(individual, "fitness", None)
         if original_fitness is not None and original_fitness.valid:
@@ -2838,7 +3359,9 @@ class GeneticOptimization(OptimizationBase):
         improvements = 0
         for _ in range(self.LOCAL_SEARCH_MAX_PASSES):
             pass_best = best
-            for genome in self._grid_export_shift_candidates(best):
+            candidates = self._grid_export_shift_candidates(best)
+            candidates += self._grid_limit_ev_shift_candidates(best)
+            for genome in candidates:
                 if evaluations >= max_evaluations:
                     break
                 candidate = creator.Individual(genome)
@@ -3825,6 +4348,7 @@ class GeneticOptimization(OptimizationBase):
                     best_prices = self._ac_break_even_prices(prices_arr, load_arr, free_ac_wh)
                     self._ac_break_even_best_prices = best_prices
 
+                grid_limited_ac_charge_wh = simulation_result.get("grid_limited_ac_charge_wh") or {}
                 for hour in range(start_hour, min(len(ac_charge_arr), n)):
                     ac_factor = ac_charge_arr[hour]
                     if ac_factor <= 0.0:
@@ -3851,8 +4375,14 @@ class GeneticOptimization(OptimizationBase):
                         # Penalty = excess cost per Wh × DC energy requested this slot.
                         # max_charge_power_w is a power [W]; the energy movable in
                         # one slot is power × slot_duration_h (¼ at 15 min).
-                        dc_wh = bat.max_charge_power_w * self.slot_duration_h * ac_factor
-                        ac_wh = dc_wh / max(inv.ac_to_dc_efficiency, 1e-9)
+                        if hour - start_hour in grid_limited_ac_charge_wh:
+                            # The grid import limit lowered this slot's charge;
+                            # its factor may even hold PV only (total-charge
+                            # setpoint). Use the energy drawn from the grid.
+                            ac_wh = grid_limited_ac_charge_wh[hour - start_hour]
+                        else:
+                            dc_wh = bat.max_charge_power_w * self.slot_duration_h * ac_factor
+                            ac_wh = dc_wh / max(inv.ac_to_dc_efficiency, 1e-9)
                         excess_cost_per_wh = break_even_price - best_uncovered_price
                         gesamtbilanz += ac_wh * excess_cost_per_wh * ac_penalty_factor
 
@@ -3874,6 +4404,24 @@ class GeneticOptimization(OptimizationBase):
                 except Exception:
                     full_charge_penalty = 10.0
                 gesamtbilanz += (target - reached) * full_charge_penalty
+
+        # --- Grid import limit penalty ---
+        # Import above max_grid_import_power_w is what is left after the battery
+        # discharged: for the whole load where the plan releases it, for the
+        # excess (threshold peak shaving) where the plan holds it. The penalty
+        # per kWh of the rest makes the optimizer keep reserve for peaks and
+        # charge earlier. It is computed from the simulated import, i.e. from
+        # what the battery actually delivered.
+        max_grid_import_wh = getattr(self.simulation.inverter, "max_grid_import_wh", None)
+        if max_grid_import_wh is not None:
+            excess = (
+                np.asarray(simulation_result["Netzbezug_Wh_pro_Stunde"], dtype=float)
+                - max_grid_import_wh
+            )
+            # Rounding of a slot filled up to the limit is no excess.
+            excess_wh = float(np.sum(excess[excess > GRID_IMPORT_LIMIT_TOLERANCE_WH]))
+            if excess_wh > 0.0:
+                gesamtbilanz += excess_wh * self._grid_import_limit_penalty_euro_per_wh()
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
@@ -4359,6 +4907,7 @@ class GeneticOptimization(OptimizationBase):
             prediction_hours=self.control_end_slot,
             inverter=inverter,  # battery is part of inverter
             ev=eauto,
+            ev_charge_rates=self.ev_possible_charge_values if eauto is not None else None,
             home_appliances=home_appliances,
             direct_marketing_enabled=direct_marketing_enabled,
         )

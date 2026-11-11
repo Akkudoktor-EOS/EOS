@@ -218,6 +218,15 @@ The behavior of the genetic algorithm can be customized using the following conf
   Applies a penalty per percent the battery stays below its target when a periodic full
   charge is due and enforced (see [Periodic full charge](#periodic-full-charge)).
   Default: `10`.
+
+- `grid_import_limit_excess`:
+  Penalty in €/kWh for energy imported above the inverter's `max_grid_import_power_w`.
+  Only applies when that limit is set. The default `10.0` is far above any energy price, so
+  the optimizer keeps reserve for peaks and charges earlier wherever the battery can avoid
+  the excess. `0.0` disables the penalty; the value must be finite and not
+  negative. The tail lookahead uses the same penalty. EV charging never causes this penalty:
+  the simulation lowers it to the limit (see `max_grid_import_power_w`), so the limit wins
+  against the EV target and a target that does not fit is missed with the `ev_soc_miss` penalty.
 :::
 
 #### Value Formats
@@ -246,7 +255,8 @@ The behavior of the genetic algorithm can be customized using the following conf
             "seed": null,
             "penalties": {
                 "ev_soc_miss": 10,
-                "ac_charge_break_even": 1.0
+                "ac_charge_break_even": 1.0,
+                "grid_import_limit_excess": 10.0
             }
         }
     }
@@ -318,6 +328,58 @@ The inverter supports separate AC↔DC conversion efficiencies:
   where stored energy is valued without a specific discharge, e.g. the energy left in the
   battery at the end of the horizon and the AC charge break-even. Choose the typical load
   the battery serves. Only used with `dc_to_ac_efficiency_curve`. Default `0.06`.
+- `max_grid_import_power_w`: Maximum power drawn from the grid in watts, e.g. the capacity
+  limit of a commercial grid connection with interval metering. Default `null` (no limit,
+  unchanged behaviour). The limit is a power; per slot the grid may supply
+  `max_grid_import_power_w × slot duration` (2 kWh per 15-minute slot at 8 kW). In every slot
+  the simulation:
+
+  1. lowers EV charging where the import would exceed the limit even with what the battery
+     covers in step 3, to the highest of the EV's charge rates that fits, down to no charging
+     (see below),
+  2. reduces AC (grid) charging of the battery so that load plus charging stays within the
+     limit. Wherever the planned factor read as a share of the battery's rated charge power
+     (`max_charge_power_w`) would exceed the limit, the reported `ac_charge` of the slot is the
+     simulated grid charge as a share of the rated charge power, so a controller draws exactly
+     that, also when PV charges the battery in the same slot (with
+     `ac_charge_limits_total_charge`: the reduced total charge cap, PV included),
+  3. where the plan releases the battery (`discharge_allowed`), discharges it for the load as
+     without a limit; where the plan holds it, discharges it only for the import above the
+     limit (threshold peak shaving), within its power, its minimum SoC and the efficiencies,
+  4. imports what is still above the limit and adds `penalties.grid_import_limit_excess` per
+     kWh of that excess to the fitness.
+
+  Household load, home appliances and EV charging all count towards the limit. The limit wins
+  against the EV target, but the battery helps: in a slot the EV takes PV first, then the
+  battery (released: for the whole load, held: for the import above the limit), then the grid
+  up to the limit. Where its planned rate does not fit, the slot is simulated again at the next
+  lower rate, so the EV may charge with the grid at the limit plus the battery's share, and
+  where even that does not suffice it charges less or not at all. A target that cannot be
+  reached within the limit is missed and penalised with `ev_soc_miss`. The reported
+  `ev_charge_hours_float` (and the EV instructions of the energy management plan) carry the
+  lowered rate, one of the EV's `charge_rates`, so the charger never draws more than
+  simulated; the energy between two rates stays unused by the EV. Only the household load and
+  home appliances can still exceed the limit; they are not lowered. The penalty makes the
+  optimizer keep reserve for peaks and charge earlier. After the genetic run, a local search
+  moves the EV energy the limit cut into the cheapest slots with room (a lower EV rate in more
+  slots); it keeps a move only if the fitness improves. Every battery
+  instruction of the energy management plan carries the limit as `peak_shaving_threshold_w`: a
+  site controller that follows the operation mode and shaves the grid import above that
+  threshold stays within the limit wherever the battery can, and reaches the simulated grid
+  import and state of charge. Where PV charges the battery in a slot whose planned AC factor,
+  read as a share of the rated charge power, fits the headroom, the factor keeps its meaning on
+  `main` (a share of the charge budget PV left), and such a controller may draw more grid
+  charge than simulated, still within the limit. A controller that ignores the field holds the battery in
+  held slots and imports the whole load where the simulation shaved a peak, also where the
+  EV's rate relies on that shaving.
+
+  The GENETIC solution itself (response of `POST /v1/optimize`) does not carry the threshold
+  in its control arrays: a slot with `discharge_allowed = 0` may still contain simulated
+  peak-shaving discharge. `result.peak_shaving_wh_per_hour` reports that energy per slot (AC
+  side, `0` where the battery shaved nothing, `null` without a limit); the threshold is the
+  configured `max_grid_import_power_w`. A client that executes the control arrays instead of
+  the energy management plan has to shave the import above that threshold itself, otherwise
+  its grid import and state of charge deviate from the simulation in those slots.
 
 **Example with an efficiency curve:**
 
