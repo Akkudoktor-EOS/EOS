@@ -39,11 +39,12 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
             "description": (
                 "Mapping of EOS config keys to Home Assistant entity IDs.\n"
                 "The config key has to be given by a ‘/’-separated path\n"
-                "e.g. devices/batteries/0/capacity_wh"
+                "e.g. devices/batteries/battery1/capacity_wh\n"
+                "Devices are addressed by their device_id. The setting must exist."
             ),
             "examples": [
                 {
-                    "devices/batteries/0/capacity_wh": "sensor.battery1_capacity",
+                    "devices/batteries/battery1/capacity_wh": "sensor.battery1_capacity",
                 }
             ],
         },
@@ -484,8 +485,21 @@ class HomeAssistantAdapter(AdapterProvider):
                         state = self.get_entity_state(entity_id)
                         logger.debug(f"Entity {entity_id}: {state}")
                         value = self._convert_entity_state(state)
-                        if value:
-                            self.config.set_nested_value(config_key, value)
+                        if value is None:
+                            # Entity unavailable or unknown: keep the configured value.
+                            # 0 and False are values and are applied.
+                            continue
+                        try:
+                            # Only update an existing setting. Setting a path that names
+                            # no setting, e.g. a device that is not configured, would
+                            # silently add a new device.
+                            self.config.get_nested_value(config_key)
+                        except (AttributeError, IndexError, KeyError) as e:
+                            raise ValueError(
+                                f"Config key '{config_key}' of entity '{entity_id}' is not "
+                                f"an existing setting: {e}"
+                            ) from e
+                        self.config.set_nested_value(config_key, value)
                     except Exception as e:
                         logger.error(f"{e}")
 
