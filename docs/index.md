@@ -28,6 +28,7 @@ develop/getting_started.md
 
 develop/CONTRIBUTING.md
 develop/install.md
+akkudoktoreos/setup.md
 akkudoktoreos/configuration.md
 develop/update.md
 akkudoktoreos/upgrade-genetic.md
