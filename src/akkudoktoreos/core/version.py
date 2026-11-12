@@ -34,6 +34,15 @@ VERSION_DEV_HASH_PRECISION = 8
 # File to hold the date of the latest commit.
 VERSION_DATE_FILE = Path(__file__).parent / "_version_date.py"
 
+# Format of VERSION_DATE in VERSION_DATE_FILE (UTC)
+VERSION_DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+# Format of the date digits in dev versions; dev versions resolve the date to the hour
+VERSION_DATE_DEV_FORMAT = "%y%m%d%H"
+
+# Assignment of VERSION_DATE in VERSION_DATE_FILE
+VERSION_DATE_PATTERN = re.compile(r'^VERSION_DATE\s*=\s*"(?P<date>[^"]+)"', re.MULTILINE)
+
 # Hashing configuration
 DIR_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 ALLOWED_SUFFIXES: set[str] = {".py", ".md", ".json"}
@@ -197,6 +206,67 @@ def hash_tree(
     return digest, files
 
 
+# ------------------------
+# Version date file format
+# ------------------------
+
+
+def version_date_utc(version_date: datetime) -> datetime:
+    """Return a version date in UTC.
+
+    Args:
+        version_date: Version date; a naive datetime is taken as UTC, not converted.
+
+    Returns:
+        The version date in UTC.
+    """
+    if version_date.tzinfo is None:
+        version_date = version_date.replace(tzinfo=timezone.utc)
+    return version_date.astimezone(timezone.utc)
+
+
+def version_date_digits(version_date: datetime) -> str:
+    """Return the date digits a version date gives in a dev version.
+
+    Args:
+        version_date: Version date; a naive datetime is taken as UTC.
+
+    Returns:
+        The UTC date in VERSION_DATE_DEV_FORMAT, e.g. ``"26111214"``.
+    """
+    return version_date_utc(version_date).strftime(VERSION_DATE_DEV_FORMAT)
+
+
+def format_version_date_file(version_date: datetime) -> str:
+    """Return the content of VERSION_DATE_FILE for a version date.
+
+    Args:
+        version_date: Version date; a naive datetime is taken as UTC.
+
+    Returns:
+        The file content: one line, e.g. ``VERSION_DATE = "2026-11-12T14:28:49Z"``.
+    """
+    return f'VERSION_DATE = "{version_date_utc(version_date).strftime(VERSION_DATE_FORMAT)}"\n'
+
+
+def parse_version_date_file(content: str) -> Optional[datetime]:
+    """Return the version date stored in the content of VERSION_DATE_FILE.
+
+    Args:
+        content: Content of a version date file.
+
+    Returns:
+        The stored date in UTC, or None if the content holds no valid date.
+    """
+    match = VERSION_DATE_PATTERN.search(content)
+    if match is None:
+        return None
+    try:
+        return version_date_utc(datetime.fromisoformat(match.group("date")))
+    except ValueError:
+        return None
+
+
 def newest_commit_or_dirty_datetime(files: list[Path]) -> datetime:
     """Return the newest relevant datetime for the given files in UTC.
 
@@ -249,16 +319,11 @@ def newest_commit_or_dirty_datetime(files: list[Path]) -> datetime:
     # Fallback to VERSION_DATE_FILE
     if VERSION_DATE_FILE.exists():
         try:
-            ns: dict[str, str] = {}
-            exec(VERSION_DATE_FILE.read_text(), {}, ns)  # noqa: S102
-            date_str = ns.get("VERSION_DATE")
-            if date_str:
-                dt = datetime.fromisoformat(date_str)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)  # treat naive as UTC, don't convert
-                return dt.astimezone(timezone.utc)
-        except Exception:  # noqa: S110
-            pass
+            stored_date = parse_version_date_file(VERSION_DATE_FILE.read_text(encoding="utf-8"))
+        except OSError:
+            stored_date = None
+        if stored_date is not None:
+            return stored_date
 
     raise RuntimeError("This should not happen - No version date info available")
 
@@ -312,7 +377,7 @@ def _version_calculate() -> str:
         hash_digits = str(hash_value % (10**VERSION_DEV_HASH_PRECISION)).zfill(
             VERSION_DEV_HASH_PRECISION
         )
-        date_digits = version_date.strftime("%y%m%d%H") if version_date else "00000000"
+        date_digits = version_date_digits(version_date) if version_date else "00000000"
         return f"{VERSION_BASE}{date_digits}{hash_digits}"
     else:
         # Release version - use base as-is
