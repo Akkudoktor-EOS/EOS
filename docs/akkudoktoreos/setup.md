@@ -54,7 +54,9 @@ save the configuration in the last step of the assistant. See the
 5. **Weather**: the weather forecast provider.
 6. **Prices and fees**: the electricity price, the fees added to it and the feed-in tariff.
 7. **Load**: the forecast of your consumption.
-8. **Devices**: batteries, inverters, electric vehicles and home appliances.
+8. **Devices**: batteries, inverters, electric vehicles and home appliances, and the size of each
+   unit. See [battery configuration](resource.md#battery-configuration) and
+   [inverter profiles](#inverter-profiles).
 9. **Measurements**: how the current state of charge and the meter readings get to EOS, and the
    choice of the adapter. See [measurements](#measurement-page) and the
    [Node-RED adapter](#adapter-nodered-page).
@@ -73,6 +75,12 @@ Assistant** step if you do not use Home Assistant, and set up only the devices y
   still setting up the forecasts.
 - **Market prices come without fees.** The market price providers deliver the raw price. Add your
   fees per kWh and the VAT with the electricity fee provider in the step **Prices and fees**.
+- **The packaged device profiles know no size.** Batteries, electric vehicles and inverters take
+  their technical data from a profile (`generic-lfp`, `generic-hybrid` by default), which the
+  **Profiles** page of EOSdash shows and edits. These generic profiles have no capacity and no
+  nominal power, so set `profile_adjustment.nominal_capacity_wh` for each battery and electric
+  vehicle and `profile_adjustment.nominal_power_w` for each inverter. The step **Devices** reports
+  a unit without a size.
 - **The state of charge is a factor.** The measurement `<device_id>-soc-factor` of a battery or an
   electric vehicle goes from `0.0` (empty) to `1.0` (full), not from 0 to 100.
 - **The state of charge must be fresh.** The GENETIC optimization does not use a state of charge
