@@ -1,0 +1,127 @@
+name: Native GENETIC kernel
+
+# Builds the optional akkudoktoreos-native wheels and compares the native GENETIC optimizer
+# with the Python one. A difference makes this workflow fail, not the Python tests: the port
+# follows Python (see native/README.md). The native backend stays disabled for GENETIC sources
+# that are not certified, so a red run here never changes what EOS users get.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - "native/**"
+      - "src/akkudoktoreos/optimization/genetic/**"
+      - "src/akkudoktoreos/devices/**"
+      - "src/akkudoktoreos/prediction/interpolator.py"
+      - "src/akkudoktoreos/utils/gridinterpolator.py"
+      - "src/akkudoktoreos/data/regular_grid_interpolator.pkl"
+      - "tests/test_genetic*.py"
+      - ".github/workflows/native.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - name: Test and lint the kernel
+        working-directory: native
+        run: |
+          cargo test -p eos-genetic
+          cargo clippy --all-targets -- -D warnings
+
+  wheels:
+    needs: rust
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-latest, target: x86_64, manylinux: "2014" }
+          - { runner: ubuntu-latest, target: x86_64, manylinux: musllinux_1_2 }
+          - { runner: ubuntu-24.04-arm, target: aarch64, manylinux: "2014" }
+          - { runner: ubuntu-24.04-arm, target: aarch64, manylinux: musllinux_1_2 }
+          - { runner: ubuntu-latest, target: armv7, manylinux: "2014" }
+          - { runner: ubuntu-latest, target: armv7, manylinux: musllinux_1_2 }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: native/akkudoktoreos-native
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheel-${{ matrix.target }}-${{ matrix.manylinux }}
+          path: native/akkudoktoreos-native/dist/*.whl
+
+  compare:
+    needs: wheels
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-latest, wheel: wheel-x86_64-2014 }
+          - { runner: ubuntu-24.04-arm, wheel: wheel-aarch64-2014 }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.15"
+      - name: Install uv
+        run: pip install uv
+      - name: Sync environment with uv
+        run: uv sync --extra dev
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.wheel }}
+          path: wheels
+      - name: Install the native package
+        run: uv pip install wheels/*.whl
+      - name: Native kernel tests
+        run: uv run --no-sync pytest tests/test_geneticnative.py --finalize -v
+      - name: Compare every GENETIC run of the test suite
+        env:
+          PYTHONPATH: native/scripts
+          GENETIC_COMPARE_DOT: sequential
+          GENETIC_COMPARE_OUT: compare.json
+        run: |
+          uv run --no-sync pytest -p genetic_compare_plugin -q tests/test_genetic*.py
+          uv run --no-sync python - <<'EOF'
+          import json, sys
+          summary = json.load(open("compare.json"))["summary"]
+          print(json.dumps({k: v for k, v in summary.items() if k not in ("different", "failed")}, indent=1))
+          for entry in summary["different"]:
+              print("::error::native differs:", entry["test"], entry["report"]["first"][:3])
+          for entry in summary["failed"]:
+              print("::error::native failed:", entry["test"], entry["report"]["native_error"][:200])
+          sys.exit(1 if summary["different"] or summary["failed"] else 0)
+          EOF
+      - name: Certification status of these sources
+        if: always()
+        run: |
+          uv run --no-sync python - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import akkudoktoreos_native as kernel
+          from akkudoktoreos.optimization.genetic.native import source_fingerprint
+          fingerprint = source_fingerprint()
+          certified = kernel.is_certified(fingerprint)
+          print(f"GENETIC sources `{fingerprint}`: {'certified' if certified else 'NOT certified'}"
+                " for akkudoktoreos-native " + kernel.__version__)
+          if not certified:
+              print("\nIf the compare step is green, certify with "
+                    "`python native/scripts/certify.py compare.json`.")
+          EOF
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: compare-${{ matrix.wheel }}
+          path: compare.json

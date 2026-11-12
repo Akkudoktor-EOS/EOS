@@ -33,6 +33,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "backend": "python",
                "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
@@ -75,6 +76,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "backend": "python",
                "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
@@ -182,6 +184,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| backend | `<enum 'GeneticBackend'>` | `rw` | `python` | Implementation that runs the optimization [python | native | compare]. 'python' (default) is the Python implementation. 'native' uses the optional package akkudoktoreos-native (Rust) and falls back to 'python' when it is missing or does not support the run. 'compare' runs both, returns the Python result and logs the differences. |
 | fitness_cache_max_entries | `Optional[int]` | `rw` | `None` | Maximum number of keys in the per-run fitness cache. None = unbounded (default), 0 = cache disabled, N > 0 = keep at most N keys and evict the oldest first. Every cached evaluation takes one or two keys. The cache only saves repeated evaluations; the result for a fixed seed is the same with any value. Limit it to cap memory on small devices. |
 | generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
 | horizon | `int` | `ro` | `N/A` | Number of optimization steps. |
@@ -216,6 +219,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "backend": "python",
                "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,
@@ -247,6 +251,7 @@
                "seed": null,
                "fitness_cache_max_entries": null,
                "workers": null,
+               "backend": "python",
                "pin_workers": true,
                "measurement_max_age_seconds": 300,
                "tail_horizon_hours": 48,

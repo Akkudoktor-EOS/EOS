@@ -9831,6 +9831,16 @@
         "title": "Genetic0SolutionLegacy",
         "description": "GENETIC0 solution legacy dataset."
       },
+      "GeneticBackend": {
+        "type": "string",
+        "enum": [
+          "python",
+          "native",
+          "compare"
+        ],
+        "title": "GeneticBackend",
+        "description": "Implementation that runs the GENETIC optimization.\n\nBackends\n--------\n- PYTHON:\n    The Python implementation in this package (the reference).\n\n- NATIVE:\n    The native (Rust) implementation of the optional package\n    ``akkudoktoreos-native``. Falls back to PYTHON, with a log message, when\n    the package is missing, was not verified against these GENETIC sources,\n    or rejects the request. Plans use a fixed numerical profile, so the same\n    input and seed give the same plan on every CPU.\n\n- COMPARE:\n    Runs both, returns the PYTHON result and logs every difference. For\n    verification, e.g. in CI or before switching a device to NATIVE. Like\n    NATIVE it needs a package that is installed and verified against these\n    sources; otherwise it runs PYTHON only, with the same log message.\n    Sources that are not verified yet are compared with the pytest plugin\n    ``native/scripts/genetic_compare_plugin.py``."
+      },
       "GeneticCommonSettings-Input": {
         "properties": {
           "interval_sec": {
@@ -9942,6 +9952,16 @@
               null,
               1,
               2
+            ]
+          },
+          "backend": {
+            "$ref": "#/components/schemas/GeneticBackend",
+            "description": "Implementation that runs the optimization [python | native | compare]. 'python' (default) is the Python implementation. 'native' uses the optional package akkudoktoreos-native (Rust) and falls back to 'python' when it is missing or does not support the run. 'compare' runs both, returns the Python result and logs the differences.",
+            "default": "python",
+            "examples": [
+              "python",
+              "native",
+              "compare"
             ]
           },
           "pin_workers": {
@@ -10136,6 +10156,16 @@
               null,
               1,
               2
+            ]
+          },
+          "backend": {
+            "$ref": "#/components/schemas/GeneticBackend",
+            "description": "Implementation that runs the optimization [python | native | compare]. 'python' (default) is the Python implementation. 'native' uses the optional package akkudoktoreos-native (Rust) and falls back to 'python' when it is missing or does not support the run. 'compare' runs both, returns the Python result and logs the differences.",
+            "default": "python",
+            "examples": [
+              "python",
+              "native",
+              "compare"
             ]
           },
           "pin_workers": {

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "akkudoktoreos-native"
+version = "0.1.0"
+description = "Optional native (Rust) kernels for Akkudoktor-EOS: the GENETIC optimizer"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[tool.maturin]
+python-source = "python"
+module-name = "akkudoktoreos_native._core"
+features = ["pyo3/extension-module"]
+include = [{ path = "python/akkudoktoreos_native/certified.json", format = ["sdist", "wheel"] }]
