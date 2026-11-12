@@ -10,9 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 This update brings the complete GENETIC energy planner to the current EOS interfaces.
 It can plan in 15-minute steps, consider battery export, schedule EV charging before
-departure and fit flexible household loads into their allowed time windows. New
-measurement tools make missing data, energy use and battery-capacity estimates easier
-to inspect. The Akkudoktor PV provider also gains an optional local, calibratable model.
+departure and fit flexible household loads into their allowed time windows. Batteries and
+inverters are now described by **device profiles**: the technical data of a model (limits over
+temperature and state of charge, efficiency curves) comes from a profile, and the settings of a
+device only hold how the installed unit differs from it. New measurement tools make missing
+data, energy use and battery-capacity estimates easier to inspect. New providers add
+electricity prices, feed-in tariffs and PV forecasts, including a local, calibratable PV
+model. EOSdash gains a plan page, a setup assistant and a profile editor.
 
 **Existing installations need an integration check before upgrading.** Device settings
 now use stable IDs instead of list positions. The new `POST /v1/optimize` takes hardware
@@ -21,12 +25,17 @@ forecasts and a previous plan. The legacy `POST /optimize` remains available wit
 changing that URL alone does not migrate an integration to the new planner.
 
 Automatic configuration migration handles supported old settings, but cannot rewrite
-Home Assistant automations, Node-RED flows or custom scripts. Back up configuration and
-stored data, then check device IDs, tariff units, fresh battery measurements and the
-resulting plans. Read the [upgrade guide](docs/akkudoktoreos/upgrade-genetic.md) for the
-compatibility changes and a short test procedure. These changes are not yet a tagged release.
+Home Assistant automations, Node-RED flows or custom scripts. It moves battery and inverter
+settings into the profile adjustment and **drops the configured efficiencies**: the profile
+efficiencies apply instead, which can change plans. The configuration is now saved to the
+configuration file automatically. Back up configuration and stored data, then check device IDs,
+battery and inverter profiles, tariff units, battery measurements and the resulting plans. Read the
+[upgrade guide](docs/akkudoktoreos/upgrade-genetic.md) for the compatibility changes and a short
+test procedure. These changes are not yet a tagged release.
 
 ### Added
+
+#### Energy planning
 
 - Complete GENETIC planning at 15- or 60-minute intervals, timestamp-aligned reuse of
   previous plans, explicitly enabled battery export, EV deadlines and flexible consumers.
@@ -36,54 +45,133 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - Optional `ems.notify_url`: EOS sends an HTTP POST with a small JSON event after every
   completed optimization, so a client can fetch the new plan right away instead of polling.
 - Configuration-driven `POST /v1/optimize` and a PDF report of the stored GENETIC result.
-- Measurement sample, energy, household-balance and battery-capacity APIs with data-quality
-  and coverage information. A capacity estimate does not overwrite configured capacity.
-- Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
-  backend remains the default.
-- Optional load-dependent inverter efficiency for GENETIC: `dc_to_ac_efficiency_curve`
-  models the lower DC-to-AC efficiency at low load. Without it the constant
-  `dc_to_ac_efficiency` applies unchanged.
+- Optional periodic full charge of a stationary battery for GENETIC, e.g. to recalibrate an LFP
+  battery: `full_charge_soc_percentage` and `full_charge_allow_grid` of the battery, and the
+  interval and detection threshold from the battery profile or its `profile_adjustment`
+  (`full_charge_interval_days`, unset = off; `full_charge_detect_percentage`). The last full
+  charge is taken from the measured state of charge.
 - Optional size limit for the GENETIC fitness cache: `optimization.genetic.fitness_cache_max_entries`
   (`null` = unbounded, the default; `0` = off; N = at most N keys). Bounding it lowers peak memory of
   a run by up to ~150 MB on small devices without changing the plan.
-- Optional periodic full charge of a stationary battery for GENETIC, e.g. to recalibrate an LFP
-  battery: `full_charge_interval_days` (unset = off, the default), `full_charge_soc_percentage`,
-  `full_charge_detect_percentage`, `full_charge_allow_grid` and the informational
-  `cell_chemistry`. The last full charge is taken from the measured state of charge.
-- Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
-  instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
-- `GET /v1/health` reports `started_at`, the start time of the server process, so a client
-  notices a restart also in a container (where the pid is always 1).
-- New PV forecast providers giving operators more cloud forecast sources to choose from in
-  addition to Akkudoktor, VRM and Import:
-  - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
-  - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
-  - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
 - Parallel fitness evaluation for GENETIC: `optimization.genetic.workers` (unset = automatic:
   at most two worker processes, one CPU core and a container CPU limit stay free; `1` = one
   process as before) and `optimization.genetic.pin_workers` (workers pinned to the last
   cores, default on). For a fixed seed the plan is identical to a single-process run.
-- EOSdash setup assistant: the new **Setup** page explains the basic settings step by step,
+- Time windows (e.g. for flexible loads and fixed prices) accept `month` (1–12) and an explicit
+  `end_time`. A wall-clock `end_time` stays correct across DST changes, unlike a fixed `duration`,
+  which becomes optional.
+
+#### Devices
+
+- Battery profiles: a profile describes a battery model, with charge and discharge limit maps
+  over temperature and state of charge, efficiency curves over the C-rate, technical SoC bounds,
+  hard temperature cutoffs and, for a model, its nominal capacity and power limits. A battery or
+  electric vehicle selects it by `battery_profile` (default: the packaged `generic-lfp`) and
+  sets the differences of the installed unit in `profile_adjustment` (capacity, power limits of
+  the installation, periodic full charge). The effective values are resolved at the measured
+  temperature, SoC and power and shown as `effective_*` fields. GENETIC simulates the battery
+  with the limits and efficiencies of the profile over the SoC.
+- Inverter profiles: nominal AC power, DC→AC and AC→DC efficiency curves over the load, the AC
+  charge power limit of the model and an optional power derating over the ambient temperature
+  (measurement key `<device_id>-temperature-degc`). An inverter selects it by `inverter_profile`
+  (default: the packaged `generic-hybrid`) and sets `nominal_power_w`, `max_power_w` and
+  `max_ac_charge_power_w` in `profile_adjustment`; an AC charge limit of 0 disables AC charging.
+  GENETIC uses the load-dependent efficiency of the profile.
+- User profiles are stored in the user data directory and override packaged profiles of the
+  same name. The REST API `/v1/profile` lists, reads (document and JSON schema), saves and
+  deletes profiles; saved profiles apply at once.
+- A missing, unreadable or invalid profile never cancels an optimization run: the packaged
+  generic profile, and the former defaults if that is not usable either, are used and an error
+  is logged.
+
+#### Predictions and providers
+
+- Electricity price provider `ElecPriceTibber`.
+- Feed-in tariff providers: `FeedInTariffEnergyCharts` (day-ahead market price, extended by an
+  ETS forecast beyond the published period), `FeedInTariffSMARD`, `FeedInTariffAkkudoktor`,
+  `FeedInTariffTibber` and `FeedInTariffDvhubOnline`.
+- Electricity fee framework (`elecfee`) with the providers `ElecFeeFixed` and `ElecFeeImport`:
+  fees per Wh and percentage surcharges (e.g. grid fees, VAT) on consumed energy, and deductions
+  from the feed-in tariff. It replaces the former `elecprice.charges_kwh` / `vat_rate` fields.
+- PV forecast providers giving operators more forecast sources to choose from in addition to
+  Akkudoktor, VRM and Import:
+  - `PVForecastPVLib` — forecast from a pvlib system model and the EOS weather forecast, with
+    module and inverter model databases (from pvlib and SAM) offered by new endpoints.
+  - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
+  - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
+  - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+  - `PVForecastHomeAssistant` — reads a forecast from a Home Assistant entity attribute, as
+    provided by common Home Assistant PV forecast integrations.
+  - `PVForecastAdaptiveAkkudoktor` (opt-in) — learns per plane from measured PV power: daily
+    energy and shape calibration, weather-model weighting and corrections relative to
+    reference arrays, with the fitted parameters and errors in the status API.
+- Optional local, calibratable forecasting within `PVForecastAkkudoktor`; the remote
+  backend remains the default. It can model snow on the modules
+  (`pvforecast.akkudoktor.snow_enabled`), corrected by the measured PV production.
+- Measurement sample, energy, household-balance and battery-capacity APIs with data-quality
+  and coverage information. A capacity estimate does not overwrite configured capacity.
+
+#### Server and EOSdash
+
+- Optional `general.timezone_override`: an IANA timezone name used as `general.timezone`
+  instead of the lookup from latitude/longitude. Unset (default), the lookup is unchanged.
+- `GET /v1/health` reports `started_at`, the start time of the server process, so a client
+  notices a restart also in a container (where the pid is always 1).
+- EOSdash can be reached through an external reverse proxy (`server.eosdash_public_url`).
+- EOSdash **Plan** page: the energy management plan as a timeline per device, the plan table,
+  and a reworked solution chart (KPI row, totals, units menu, value axes for the displayed
+  columns); the page settings are kept in the configuration.
+- EOSdash **Setup** page: a setup assistant explains the basic settings step by step,
   gives examples, reports what is still missing and shows the configuration cards of the
   current step: location, horizons and energy management, PV system, weather, prices and fees,
-  load, devices, measurements, Home Assistant, save the configuration.
+  load, devices, measurements, Home Assistant (what EOS reads and writes, with a template sensor
+  and an automation as example), save the configuration.
+- EOSdash **Profiles** page: lists the user and packaged battery and inverter profiles, edits
+  them as JSON (preview without saving, save, save as, delete, revert to the packaged profile)
+  and shows the limit maps as heat maps and the efficiency and derating curves.
+- A guide for running EOS on small devices (memory and CPU settings).
 
 ### Changed / compatibility
 
 - Device collections are maps keyed by device ID. Old list-based configuration migrates,
   but integrations using paths such as `devices.batteries.0` must use the actual device ID.
   GENETIC and GENETIC0 have separate algorithm settings.
-- GENETIC rejects missing, stale or invalid battery state and incomplete control forecasts
-  instead of inventing usable inputs. Unsupported device counts and inconsistent battery
-  links also fail explicitly. The default measurement age limit is five minutes.
+- Battery and inverter settings migrate to the device profiles: `capacity_wh` becomes
+  `profile_adjustment.nominal_capacity_wh`, the battery power limits and the full charge interval
+  and threshold move into `profile_adjustment`, an inverter's `max_power_w` becomes
+  `profile_adjustment.nominal_power_w` and `max_ac_charge_power_w` moves into
+  `profile_adjustment`. The battery and inverter efficiencies (including
+  `dc_to_ac_efficiency_curve`), `ac_charge_limits_total_charge` and `cell_chemistry` are dropped
+  with an error log: the profile values apply. A generic profile without own power limits is
+  limited to the former default of 5000 W. Home Assistant configuration paths follow.
+- GENETIC0 no longer replaces configured devices by demo devices; a device that cannot be
+  prepared is left out of the run.
+- GENETIC rejects incomplete control forecasts instead of inventing usable inputs. Unsupported
+  device counts and inconsistent battery links also fail explicitly. A missing, future, invalid
+  or stale state of charge no longer cancels the run: an explicit SoC in the request takes
+  precedence, otherwise the latest fresh measurement is used, otherwise 0 % is assumed for that
+  battery or EV and logged. The measurement age limit (`measurement_max_age_seconds`) defaults to
+  five minutes.
 - Imported sale prices, including zero and negative prices, are preserved. Corrected
   battery/inverter limits, losses and wear costs can change the chosen plan and its costs.
 - The electricity-fee framework replaces old `elecprice.charges_kwh` / `vat_rate` fields.
   Those old fields are dropped during migration: configure and verify fees explicitly.
+- Without PV or price predictions, the GENETIC0 parameter preparation falls back to demo
+  providers that need no internet service: `PVForecastPVLib` and `ElecPriceFixed`.
+- The configuration is saved to the configuration file automatically by default.
 - Quarter-hour clients must use the returned timestamps and interval, not assume 24 hourly
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
-- Runtime configuration changes now take priority over environment and file values for
-  explicitly updated keys; command-line settings retain higher priority.
+- The optimization API uses English field names, e.g. `pv_battery` (`pv_akku`), `ev` (`eauto`),
+  `ev_charge_hours_float` (`eautocharge_hours_float`). The German names are still accepted on
+  input and returned as deprecated fields. The legacy endpoints `/strompreis`, `/gesamtlast` and
+  `/gesamtlast_simple` are deprecated.
+- Configuration source priority: command line, environment variables, dotenv, configuration
+  file, defaults. Runtime configuration changes take priority over environment and file values
+  for explicitly updated keys; command-line settings retain higher priority.
+- Time windows: date, weekday and month restrictions apply to the start of a window, so an
+  overnight window (e.g. Friday 22:00 to Saturday 06:00) belongs to the day it starts.
+- The Docker image is built in stages with uv; EOSdash binds to `0.0.0.0` in the image, so the
+  Home Assistant ingress reaches it.
 - Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
   bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
   data are imported on first use instead of at server start. Results are unchanged.
@@ -91,32 +179,71 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   With `numpy` the self-consumption probability tables are evaluated without SciPy, so a
   GENETIC run no longer loads SciPy (about 35 MB less memory). Results are bit-identical to
   SciPy's Linux builds. The tables are read without SciPy in both cases.
-- Lower idle memory: matplotlib (PDF reports), statsmodels (price fallback forecast), pvlib,
-  bs4/lxml, scipy (self-consumption table), the GENETIC0 optimizer and the timezone lookup
-  data are imported on first use instead of at server start. Results are unchanged.
 - Faster GENETIC runs with unchanged plans (about 60 % less run time on a Raspberry Pi 4):
   table lookups, the appliance starts and the battery state decoding are worked out once per
   run instead of once per candidate, the slot simulation and the battery bookkeeping work on
   plain numbers instead of single NumPy elements, the terminal value report is built for the
   final solution only, offspring are created without `deepcopy`, and identical genomes of a
   generation are evaluated once also when the fitness cache is off.
+- Data management (predictions, measurements, database) runs asynchronously.
 
 ### Fixed
 
 - Failed optimization requests no longer return a previous successful result as if it
   belonged to the failed run; successful results and plans are published together.
+- The optimization no longer fails after a server restart.
+- The device IDs in the solution follow the configuration.
 - Restored JSON measurements retain their timestamps and values.
 - Configuration updates made at runtime, e.g. by `PUT /v1/config`, are no longer discarded when the
   same configuration key is set in the EOS configuration file or in the environment
   ([#1303](https://github.com/Akkudoktor-EOS/EOS/issues/1303)).
 - Environment variables are applied to the configuration on server startup instead of taking effect
-  only after the first configuration change.
+  only after the first configuration change, and are no longer overridden by default server
+  settings.
 - GENETIC reads its horizon, interval and prediction settings once at the start of a run. A
   configuration change during a run (for example a client adapting the control horizon) no
   longer fails the run with an out-of-bounds error; it applies to the next run.
 - Updating a read-only computed configuration field, e.g. `adapter.homeassistant.eos_solution_entity_ids`
   via `PUT /v1/config/{path}`, now reports a read-only error instead of claiming the field does
   not exist ([#913](https://github.com/Akkudoktor-EOS/EOS/issues/913)).
+- Configuration migration keeps map entries with `/` in their keys; prediction providers are
+  validated before the prediction exists.
+- Planning: the AC setpoint caps the total charge where the inverter does; EVs can finish
+  charging within the final slot; full SoC targets are accepted; energy below the minimum state
+  of charge is preserved; GENETIC battery discharge is limited by the discharge power.
+- DST: GENETIC0 parameter arrays stay aligned with the start hour; time windows and appliance
+  scheduling honor DST boundaries; Tibber prices with mixed UTC offsets around a DST change are
+  read correctly; naive date/time strings are parsed in local time.
+- Energy-Charts prices and feed-in tariffs honor the interval coverage and cadence of the source.
+- Price interpolation, Akkudoktor API requests and Forecast.Solar power resampling.
+- `PVForecastPVLib` applies the inverter AC limit (`inverter_paco`) and the system loss.
+- DVhub feed-in tariff update failures are reported instead of being silent.
+- A failed prediction update no longer crashes the server.
+- Database: records persist and reload, compaction runs, `delete_by_datetime(None, None)` wipes
+  all data, and NaN values are dropped when reading series.
+- The file cache (`cache_in_file`) keys stay the same across restarts, so the cache keeps hitting.
+- Parallel GENETIC evaluation workers stop reliably at the end of a run; fitness-cache memory is
+  released after each run.
+- Home Assistant adapter: config entities with the state `0` or `off` are applied, unknown
+  configuration paths are reported instead of adding a device, legacy measurement keys are
+  resolved, and device states are stamped with the run time.
+- EOSdash: shows the Home Assistant add-on version, links the API docs with a reachable host,
+  renders predictions without provider-specific load statistics, keeps the scroll position after
+  actions and shows no horizontal scrollbar.
+- Dropping root privileges no longer fails on non-Unix systems.
+
+### Security
+
+- Unexpected errors no longer expose exception details in API problem responses.
+- A URL redirection from a remote source was removed (code scanning alert 6).
+
+### Development
+
+- Filename linter and coding guidelines for AI agents (`AGENTS.md`, `ai/skills/`), an AI
+  development sandbox, and agent self-review with a CI check for agent-assisted pull requests.
+- Browser tests of EOSdash in headless Chromium (`pytest --browser-test`).
+- Tests and documentation generators no longer touch the developer's configuration files.
+- Development setup with uv.
 
 ## 0.3.0 (2026-03-17)
 
