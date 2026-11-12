@@ -1,8 +1,11 @@
 # tests/test_version.py
+import importlib.util
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
+from types import ModuleType
 from typing import Optional, Union
 
 import pytest
@@ -345,6 +348,134 @@ def test_update_version_multiple_formats(tmp_path):
     assert f'__version__ = "{new_version}"' in py_file.read_text()
     assert yaml.safe_load(yaml_file.read_text())["version"] == new_version
     assert f'"version": "{new_version}"' in json_file.read_text()
+
+
+@pytest.fixture
+def update_version() -> ModuleType:
+    """Load scripts/update_version.py as a module."""
+    spec = importlib.util.spec_from_file_location("update_version", UPDATE_SCRIPT)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load {UPDATE_SCRIPT}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestWriteVersionDate:
+    """Tests for writing VERSION_DATE with update_version.py."""
+
+    def test_writes_utc_z_format(self, update_version: ModuleType, tmp_path: Path) -> None:
+        """A new file gets the date in UTC with a Z suffix, without microseconds."""
+        date_file = tmp_path / "_version_date.py"
+        version_date = to_datetime("2026-11-12T15:30:45.123456+01:00")
+
+        assert update_version.write_version_date(version_date, date_file) is True
+        assert date_file.read_text(encoding="utf-8") == 'VERSION_DATE = "2026-11-12T14:30:45Z"\n'
+
+    def test_same_hour_is_not_written(self, update_version: ModuleType, tmp_path: Path) -> None:
+        """A date in the same hour gives the same dev version, so the file stays as it is."""
+        date_file = write_file(tmp_path / "_version_date.py", 'VERSION_DATE = "2026-11-12T14:00:00Z"\n')
+
+        written = update_version.write_version_date(to_datetime("2026-11-12T14:59:59Z"), date_file)
+
+        assert written is False
+        assert date_file.read_text(encoding="utf-8") == 'VERSION_DATE = "2026-11-12T14:00:00Z"\n'
+
+    def test_same_hour_in_other_format_is_written(
+        self, update_version: ModuleType, tmp_path: Path
+    ) -> None:
+        """A stored date in the same hour but not in the Z format is rewritten in the Z format."""
+        date_file = write_file(tmp_path / "_version_date.py", 'VERSION_DATE = "2026-11-12T14:00:00+00:00"\n')
+
+        written = update_version.write_version_date(to_datetime("2026-11-12T14:59:59Z"), date_file)
+
+        assert written is True
+        assert date_file.read_text(encoding="utf-8") == 'VERSION_DATE = "2026-11-12T14:59:59Z"\n'
+
+    def test_other_hour_is_written(self, update_version: ModuleType, tmp_path: Path) -> None:
+        """A date in another hour replaces the stored date."""
+        date_file = write_file(tmp_path / "_version_date.py", 'VERSION_DATE = "2026-02-24T16:58:00Z"\n')
+
+        written = update_version.write_version_date(to_datetime("2026-11-12T15:00:00Z"), date_file)
+
+        assert written is True
+        assert date_file.read_text(encoding="utf-8") == 'VERSION_DATE = "2026-11-12T15:00:00Z"\n'
+
+    def test_naive_date_is_taken_as_utc(self, update_version: ModuleType, tmp_path: Path) -> None:
+        """A date without time zone is written as UTC, not converted from local time."""
+        date_file = tmp_path / "_version_date.py"
+
+        # Stdlib datetime on purpose: to_datetime always adds a time zone.
+        written = update_version.write_version_date(datetime(2026, 11, 12, 15, 0, 0), date_file)
+
+        assert written is True
+        assert date_file.read_text(encoding="utf-8") == 'VERSION_DATE = "2026-11-12T15:00:00Z"\n'
+
+    def test_invalid_stored_date_is_replaced(
+        self, update_version: ModuleType, tmp_path: Path
+    ) -> None:
+        """A file without a valid date is rewritten."""
+        date_file = write_file(tmp_path / "_version_date.py", 'VERSION_DATE = "not a date"\n')
+
+        written = update_version.write_version_date(to_datetime("2026-11-12T15:00:00Z"), date_file)
+
+        assert written is True
+        assert date_file.read_text(encoding="utf-8") == 'VERSION_DATE = "2026-11-12T15:00:00Z"\n'
+
+    def test_written_date_is_read_by_version_fallback(
+        self, update_version: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The written file is understood by the fallback in newest_commit_or_dirty_datetime."""
+        import akkudoktoreos.core.version as version_module
+
+        date_file = tmp_path / "_version_date.py"
+        update_version.write_version_date(to_datetime("2026-11-12T15:30:00Z"), date_file)
+
+        monkeypatch.setattr(version_module, "IS_GITHUB_ACTIONS", True)
+        monkeypatch.setattr(version_module, "VERSION_DATE_FILE", date_file)
+
+        result = version_module.newest_commit_or_dirty_datetime([])
+
+        assert result == to_datetime("2026-11-12T15:30:00Z")
+
+
+class TestUpdateVersionMain:
+    """Tests for when update_version.py main() regenerates the version date file."""
+
+    @pytest.mark.parametrize(
+        "is_version_file, via_symlink, old_version, expected_calls",
+        [
+            (True, False, "0.1.0", 1),
+            (True, False, "0.2.0", 0),
+            (False, False, "0.1.0", 0),
+            (True, True, "0.1.0", 1),
+        ],
+        ids=["new-version", "same-version", "other-file", "symlinked-version-file"],
+    )
+    def test_date_updated_only_for_new_version_in_version_file(
+        self,
+        update_version: ModuleType,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        is_version_file: bool,
+        via_symlink: bool,
+        old_version: str,
+        expected_calls: int,
+    ) -> None:
+        """main() regenerates the version date only if a project version file gets a new version."""
+        config_file = write_file(tmp_path / "config.yaml", f'version: "{old_version}"\n')
+        version_file = tmp_path / "linked-config.yaml" if via_symlink else config_file
+        if via_symlink:
+            version_file.symlink_to(config_file)
+        calls: list[bool] = []
+        monkeypatch.setattr(
+            update_version, "DEFAULT_VERSION_FILES", [version_file] if is_version_file else []
+        )
+        monkeypatch.setattr(update_version, "update_version_date_file", lambda: calls.append(True))
+
+        update_version.main("0.2.0", [str(config_file)])
+
+        assert len(calls) == expected_calls
 
 
 # --- 3️⃣ Test bump_dev_version.py ---

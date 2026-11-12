@@ -1,19 +1,30 @@
-#!.venv/bin/python
+#!/usr/bin/env python3
 """General version replacement script.
 
 Usage:
-    python scripts/update_version.py <version> <file1> [file2 ...]
+    python scripts/update_version.py <version> [<file1> [file2 ...]]
+
+Without files, the version is replaced in DEFAULT_VERSION_FILES.
+
+If the version string changed in one of the project's version files
+(DEFAULT_VERSION_FILES), a new version was created and
+``src/akkudoktoreos/core/_version_date.py`` is regenerated. Its
+VERSION_DATE is the date ``_version_date_hash()`` computes: the date of the
+last commit touching package files, or the current UTC time if package files
+have uncommitted changes (a commit is expected soon).
 """
 
-#!/usr/bin/env python3
+from __future__ import annotations
+
 import re
 import sys
-from datetime import timezone
 from pathlib import Path
-from typing import List
+from typing import TYPE_CHECKING, List
+
+if TYPE_CHECKING:
+    from datetime import datetime  # type of the dates of akkudoktoreos.core.version
 
 PROJECT_ROOT = Path(__file__).parent.parent
-PACKAGE_DIR = PROJECT_ROOT / "src" / "akkudoktoreos"
 
 # Add the src directory to sys.path so import akkudoktoreos works in all cases
 SRC_DIR = PROJECT_ROOT / "src"
@@ -103,25 +114,65 @@ def update_version_in_file(file_path: Path, new_version: str) -> bool:
     return file_would_be_updated
 
 
-def update_version_date_file() -> str:
-    """Write current version date to _version_date.py, only if changed."""
+def write_version_date(version_date: datetime, date_file: Path) -> bool:
+    """Write VERSION_DATE to a version date file if the version date changes.
+
+    The file is left untouched when it already holds a date in the
+    VERSION_DATE_FORMAT that gives the same dev version date digits (the same
+    hour) as ``version_date``.
+
+    Args:
+        version_date: Version date to write; naive datetimes are taken as UTC.
+        date_file: Path of the version date file.
+
+    Returns:
+        True if the file was written.
+    """
+    from akkudoktoreos.core.version import (
+        format_version_date_file,
+        parse_version_date_file,
+        version_date_digits,
+    )
+
+    if date_file.exists():
+        stored_content = date_file.read_text(encoding="utf-8")
+        stored_date = parse_version_date_file(stored_content)
+        if (
+            stored_date is not None
+            and stored_content == format_version_date_file(stored_date)
+            and version_date_digits(stored_date) == version_date_digits(version_date)
+        ):
+            return False
+
+    with date_file.open("w", encoding="utf-8", newline="\n") as file:
+        file.write(format_version_date_file(version_date))
+    return True
+
+
+def update_version_date_file() -> None:
+    """Write the current version date to _version_date.py if it changes."""
     from akkudoktoreos.core.version import VERSION_DATE_FILE, _version_date_hash
+
     version_date, _ = _version_date_hash()
-    version_date_utc = version_date.astimezone(timezone.utc)
-    version_date_str = version_date_utc.isoformat()
-    new_content = f'VERSION_DATE = "{version_date_str}"\n'
-
-    if VERSION_DATE_FILE.exists() and VERSION_DATE_FILE.read_text(encoding="utf-8") == new_content:
+    if write_version_date(version_date, VERSION_DATE_FILE):
+        print(f"Updated {VERSION_DATE_FILE}: {VERSION_DATE_FILE.read_text(encoding='utf-8').strip()}")
+    else:
         print(f"No change to {VERSION_DATE_FILE}")
-        return str(VERSION_DATE_FILE)
-
-    with VERSION_DATE_FILE.open("w", encoding="utf-8", newline="\n") as file:
-        file.write(new_content)
-    print(f"Updated {VERSION_DATE_FILE} with UTC date {version_date_str}")
-    return str(VERSION_DATE_FILE)
 
 
-def main(version: str, files: List[str]):
+def main(version: str, files: List[str]) -> None:
+    """Replace the version string in the given files.
+
+    If the version string changed in one of the project's version files
+    (DEFAULT_VERSION_FILES), the version date file is regenerated as well.
+
+    Args:
+        version: New version string.
+        files: Files to update.
+
+    Raises:
+        ValueError: If no version or no files are given.
+    """
     if not version:
         raise ValueError("No version provided")
     if not files:
@@ -138,16 +189,9 @@ def main(version: str, files: List[str]):
 
     if updated_files:
         print(f"Updated files: {', '.join(updated_files)}")
-
-        # Only update VERSION_DATE_FILE if a real package file was touched
-        # Exclude VERSION_DATE_FILE itself to avoid a self-referencing loop
-        from akkudoktoreos.core.version import VERSION_DATE_FILE
-        package_files_updated = any(
-            str(PACKAGE_DIR) in f and Path(f).resolve() != VERSION_DATE_FILE.resolve()
-            for f in updated_files
-        )
-        if package_files_updated:
-            updated_files.append(update_version_date_file())
+        version_files = {path.resolve() for path in DEFAULT_VERSION_FILES}
+        if any(Path(f).resolve() in version_files for f in updated_files):
+            update_version_date_file()
     else:
         print("No files updated.")
 
