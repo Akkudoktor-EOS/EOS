@@ -65,7 +65,8 @@ compatibility changes and a short test procedure. These changes are not yet a ta
   cores, default on). For a fixed seed the plan is identical to a single-process run.
 - EOSdash setup assistant: the new **Setup** page explains the basic settings step by step,
   gives examples, reports what is still missing and shows the configuration cards of the
-  current step. First steps: location, horizons and energy management, save the configuration.
+  current step: location, horizons and energy management, PV system, weather, prices and fees,
+  load, devices, measurements, Home Assistant, save the configuration.
 
 ### Changed / compatibility
 
