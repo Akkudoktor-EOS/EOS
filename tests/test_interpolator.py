@@ -2,7 +2,10 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
-from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
+from akkudoktoreos.prediction.interpolator import (
+    fixed_order_dot,
+    get_eos_load_interpolator,
+)
 
 
 def test_quarter_hour_energy_is_converted_back_to_same_mean_power():
@@ -133,3 +136,37 @@ def test_expected_direct_consumption_cache_is_bounded(monkeypatch):
     assert interpolator.calculate_expected_direct_consumption(
         800.0, 500.0
     ) == interpolator._expected_direct_consumption(800.0, 500.0)
+
+
+def test_fixed_order_dot_sums_in_index_order():
+    """The sum runs from the first product to the last, whatever BLAS would do."""
+    ones = np.ones(3)
+    # 1e16 + 1 rounds back to 1e16, so the order decides whether the 1 survives.
+    assert fixed_order_dot(np.array([1e16, 1.0, -1e16]), ones) == 0.0
+    assert fixed_order_dot(np.array([1e16, -1e16, 1.0]), ones) == 1.0
+
+    rng = np.random.default_rng(7)
+    a, b = rng.random(97), rng.random(97) * 5000.0
+    expected = 0.0
+    for x, y in zip(a.tolist(), b.tolist()):
+        expected += x * y
+    assert fixed_order_dot(a, b) == expected
+    assert fixed_order_dot(a, b) == pytest.approx(float(np.dot(a, b)))
+
+
+def test_expected_direct_consumption_does_not_use_blas(monkeypatch):
+    """The expected direct consumption must not depend on the CPU's BLAS kernel."""
+    interpolator = get_eos_load_interpolator()
+    load_levels_w, probabilities = interpolator._load_distribution(800.0)
+    modeled_mean_load_w = 0.0
+    for p, level in zip(probabilities.tolist(), load_levels_w.tolist()):
+        modeled_mean_load_w += p * level
+    expected = 0.0
+    for p, level in zip(probabilities.tolist(), load_levels_w.tolist()):
+        expected += p * min(level * (800.0 / modeled_mean_load_w), 1200.0)
+
+    def no_blas(*args, **kwargs):
+        raise AssertionError("np.dot must not be used: its rounding depends on the CPU")
+
+    monkeypatch.setattr(np, "dot", no_blas)
+    assert interpolator._expected_direct_consumption(800.0, 1200.0) == min(expected, 800.0)

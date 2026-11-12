@@ -127,3 +127,27 @@ def test_trailing_window_takes_the_end_of_the_horizon():
     # A window longer than the horizon yields what there is.
     assert list(trailing_window(values, end_slot=2, window_slots=5)) == [0.0, 1.0]
     assert list(trailing_window(None, end_slot=8, window_slots=3)) == []
+
+
+def test_equal_prices_keep_their_slot_order():
+    """Slots with the same price fill the curve in slot order, on every platform.
+
+    The capacity cuts the curve inside the equal-price slots, so their order decides the
+    breakpoints; NumPy's default sort leaves it to the platform (SIMD kernels on x86-64).
+    """
+    prices = np.array([0.0003] * 40 + [0.0004] + [0.0003] * 40)
+    load = np.array([100.0 + slot for slot in range(81)])
+    curve = _curve(
+        prices_euro_per_wh=prices,
+        load_wh=load,
+        pv_wh=np.zeros(81),
+        feed_in_euro_per_wh=np.zeros(81),
+        max_energy_wh=1000.0,
+    )
+
+    # The 0.40 slot (index 40, 140 Wh) first, then the 0.30 slots from index 0 on.
+    expected = [0.0, 140.0]
+    for slot in range(81):
+        if slot != 40 and expected[-1] < 1000.0:
+            expected.append(min(expected[-1] + 100.0 + slot, 1000.0))
+    assert curve.energy_wh == pytest.approx(expected)
