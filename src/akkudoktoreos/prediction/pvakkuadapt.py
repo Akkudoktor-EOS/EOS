@@ -24,6 +24,7 @@ from akkudoktoreos.prediction.pvakkuadaptquality import (
     select_corrections,
 )
 from akkudoktoreos.prediction.pvakkuadaptresponse import (
+    RESPONSE_VERSION,
     fit_solar_response,
     fit_weather_response,
     lead_bucket,
@@ -770,6 +771,7 @@ class PVForecastAdaptiveAkkudoktor(
         identity = [
             signature,
             models["fitted_at"],
+            RESPONSE_VERSION,
             settings.solar_response_enabled,
             settings.weather_response_enabled,
             settings.min_validation_days,
@@ -814,7 +816,7 @@ class PVForecastAdaptiveAkkudoktor(
                     dict(
                         base=calibrated[key],
                         actual=observed[key].where(observed[key + "_eligible"]),
-                        common=(common_actual / common_base).where(common_base > 100),
+                        common=(common_actual / common_base).where(common_base > 0),
                         available_at=available,
                     )
                 )
@@ -852,7 +854,12 @@ class PVForecastAdaptiveAkkudoktor(
         selection = {}
         for group, group_keys in self._groups().items():
             validation = paired_rows(
-                validation_rows, observed, group_keys, issue, self.config.general.timezone
+                validation_rows,
+                observed,
+                group_keys,
+                issue,
+                self.config.general.timezone,
+                response_version=RESPONSE_VERSION,
             )
             selection[group] = select_responses(
                 validation,
@@ -870,7 +877,7 @@ class PVForecastAdaptiveAkkudoktor(
             weather=weather,
             selection=selection,
             validation_source="issued_candidates",
-            response_version=1,
+            response_version=RESPONSE_VERSION,
             message="Empirical angular response, not a measured horizon; new candidates remain shadowed until validated.",
         )
         store.metadata("response_models", saved)
@@ -1388,6 +1395,7 @@ class PVForecastAdaptiveAkkudoktor(
                         planes=plane_candidates,
                         members=member_values,
                         weather_digest=weather_digest,
+                        response_version=RESPONSE_VERSION,
                     ),
                 )
             )

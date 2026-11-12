@@ -442,7 +442,7 @@ class PVLearningStore:
                         signature,
                         bucket,
                         target,
-                        self.dump({**payload, "issued_ms": issued, "response_version": 1}),
+                        self.dump({"response_version": 1, **payload, "issued_ms": issued}),
                     ),
                 )
 

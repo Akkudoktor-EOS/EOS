@@ -358,7 +358,72 @@ Normal prediction keys additionally include
 The candidate curves are diagnostic; optimization consumes `pvforecast_ac_power`,
 which includes only selected corrections. These keys can be queried in Grafana
 without enlarging an existing dashboard. Status distinguishes the established
-short-term algorithm version from long-response version 1. Hourly immutable
+short-term algorithm version from the separately versioned long response. Hourly immutable
 snapshots bound long-horizon storage; repeated polling cannot create extra evidence.
 The last received weather inputs and all candidates are retained for the configured
 archive retention period. Disabling either response switch prevents its activation.
+
+### Portable response learning (version 2)
+
+Weather learning normalizes errors by clear-sky power and gives each completed
+day equal weight. Numerically equivalent member curves share a family weight;
+adding a duplicate member cannot create an additional independent vote. Identity
+regularization uses prior days rather than a fixed power sum. The equal-family
+prior decreases with the number of observed days. Regime corrections remain at
+identity until their own minimum day count is met. No provider name or plant
+capacity receives special treatment.
+
+The angular basis covers the full azimuth circle with periodic distances, including
+north crossings and southern latitudes. Solar fitting uses relative power support;
+angular knots without enough distinct training days retain their identity prior.
+This is still an empirical differential response, not an identified shading horizon
+or an independent irradiance measurement.
+
+Activation additionally requires a positive conservative day-block error margin
+(mean improvement minus two standard errors), positive recent improvement, and the
+existing matched-energy and winning-day guards. This margin is not a calibrated
+confidence interval for correlated weather days. It reduces premature activation;
+it cannot guarantee improvement at every site or weather regime.
+
+Existing member forecasts can seed weather fitting, but only genuinely issued
+version-2 candidates can validate version-2 activation. Upgrading invalidates the
+response cache without deleting measurements or earlier issued forecasts. During
+the new validation period the long horizon uses calibration; short-horizon
+corrections are unaffected. Status includes member groups, regime day counts,
+prior days and selection evidence. Missing members retain the existing solar
+fallback rather than renormalizing weights against unvalidated inputs.
+
+### Compact Grafana learning and quality table
+
+[`pvlearning.sql`](pvlearning.sql) is a read-only MariaDB 10.6+ query for a Grafana
+Table panel. It uses an existing telemetry collector table
+`eos_pv_learning_status(observed_ms BIGINT, status_json LONGTEXT)`, populated from
+`GET /v1/prediction/pv-adaptive/status`. EOS itself does not create this external
+table. Use a unique/indexed `observed_ms`, poll at least every five minutes, and
+retain the complete JSON response. Configure your own MySQL datasource; no plant
+names, coordinates, datasource credentials or dashboard layout are supplied.
+
+Use table format, small cell height, and **No value = —**. An optional collapsed
+detail row keeps the overview compact without moving existing panels. All scopes
+and the three long horizons are derived from status; there is no fixed string
+count. Columns show the selected method, completed comparison days/minimum days,
+sample count, and the solar/weather error change against calibration. Negative
+`ΔMAE %` and `ΔkWh` mean less error. The latter is a difference of mean absolute
+daily energy errors, not energy production or signed energy bias. Each method is
+compared on matched archived forecasts and observations within its scope/horizon.
+Do not sum the reference and plane rows: references can overlap plant inputs.
+
+`validated` means sufficient evidence, **not release**: only the selected `method`
+establishes which candidate is enabled. Three days alone never guarantee release.
+The candidate comparison is validation evidence, not a separate post-release
+performance study. The latest selection is independent of the dashboard time
+picker; it changes at the daily refit. Older telemetry is marked stale after
+15 minutes and its error deltas are suppressed. Missing evidence and a zero
+baseline MAE produce missing percentage values, never invented zero improvement.
+This query intentionally displays version-2 evidence only; update it together
+with the versioned status contract for later response versions.
+
+For reproducible offline weather-learner comparisons, use
+`scripts/pvforecast_response_replay.py --help`. Its paired CSV inputs contain
+already-issued physical/member curves; it does not reconstruct the entire
+physical provider or constitute a multi-site accuracy benchmark.
