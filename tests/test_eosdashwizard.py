@@ -260,8 +260,59 @@ class TestWizardChecks:
         for kind in ("batteries", "electric_vehicles", "home_appliances"):
             set_value(config_details, f"devices.{kind}", None)
         assert len(check_devices(config_details)) == 1
-        set_value(config_details, "devices.batteries", {"battery1": {"device_id": "battery1"}})
+        set_value(
+            config_details,
+            "devices.batteries",
+            {"battery1": {"device_id": "battery1", "effective_nominal_capacity_wh": 10000}},
+        )
         assert check_devices(config_details) == []
+
+    def test_devices_without_size(self, config_details):
+        """The packaged profiles are generic: each unit needs its size."""
+        set_value(
+            config_details,
+            "devices.batteries",
+            {"battery1": {"device_id": "battery1", "effective_nominal_capacity_wh": None}},
+        )
+        set_value(
+            config_details,
+            "devices.electric_vehicles",
+            {"ev1": {"device_id": "ev1", "effective_nominal_capacity_wh": 60000}},
+        )
+        set_value(
+            config_details,
+            "devices.inverters",
+            {"inverter1": {"device_id": "inverter1", "effective_nominal_power_w": None}},
+        )
+        todo = check_devices(config_details)
+        assert len(todo) == 2
+        assert "battery1 has no nominal_capacity_wh" in todo[0]
+        assert "profile_adjustment.nominal_capacity_wh" in todo[0]
+        assert "inverter1 has no nominal_power_w" in todo[1]
+
+    def test_devices_size_of_a_configured_device(self, config_eos):
+        """The check reads the effective size as the EOS server reports it."""
+        config_eos.merge_settings_from_dict(
+            {
+                "devices": {
+                    "max_batteries": 1,
+                    "max_inverters": 1,
+                    "batteries": {"battery1": {"device_id": "battery1"}},
+                    "inverters": {
+                        "inverter1": {
+                            "device_id": "inverter1",
+                            "profile_adjustment": {"nominal_power_w": 10000},
+                        }
+                    },
+                }
+            }
+        )
+        details = create_config_details(
+            type(config_eos), json.loads(config_eos.model_dump_json())
+        )
+        todo = check_devices(details)
+        assert len(todo) == 1
+        assert todo[0].startswith("battery1 has no nominal_capacity_wh")
 
     def test_measurements(self, config_details):
         set_value(config_details, "devices.batteries", {"battery1": {}})
@@ -420,6 +471,30 @@ class TestWizardPage:
         html = to_xml(Wizard("localhost", 8503, {"wizard_step": "devices"}))
         for device_type in ("Battery", "Inverter", "Electric vehicle", "Home appliance"):
             assert f"<strong>{device_type}</strong>" in html
+
+    def test_devices_step_names_existing_settings(self, eos):
+        """The device settings the step names exist (they moved into profiles before)."""
+        from akkudoktoreos.devices.settings.batterysettings import (
+            BatteriesCommonSettings,
+            BatteryProfileAdjustment,
+        )
+        from akkudoktoreos.devices.settings.invertersettings import (
+            InverterCommonSettings,
+            InverterProfileAdjustment,
+        )
+
+        html = to_xml(Wizard("localhost", 8503, {"wizard_step": "devices"}))
+        for model, names in (
+            (BatteriesCommonSettings, ("battery_profile", "min_soc_percentage")),
+            (BatteryProfileAdjustment, ("nominal_capacity_wh", "max_charge_power_w")),
+            (InverterCommonSettings, ("inverter_profile", "battery_id")),
+            (InverterProfileAdjustment, ("nominal_power_w",)),
+        ):
+            for name in names:
+                assert name in model.model_fields
+                assert f"<code>{name}</code>" in html or f"profile_adjustment.{name}" in html
+        for stale in ("<code>capacity_wh</code>", "<code>charging_efficiency</code>", "<code>max_power_w</code>"):
+            assert stale not in html
 
     def test_homeassistant_step_example_renders_yaml(self, eos):
         html = to_xml(Wizard("localhost", 8503, {"wizard_step": "homeassistant"}))

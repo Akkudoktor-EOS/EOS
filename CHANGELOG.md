@@ -66,7 +66,7 @@ compatibility changes and a short test procedure. These changes are not yet a ta
 - EOSdash setup assistant: the new **Setup** page explains the basic settings step by step,
   gives examples, reports what is still missing and shows the configuration cards of the
   current step: location, horizons and energy management, PV system, weather, prices and fees,
-  load, devices, measurements, save the configuration.
+  load, devices, measurements, Home Assistant, save the configuration.
 
 ### Changed / compatibility
 

@@ -299,7 +299,21 @@ def check_devices(config_details: dict[str, dict]) -> list[str]:
             "No battery, electric vehicle or home appliance is configured, so there is "
             "nothing EOS can schedule."
         ]
-    return []
+    # The packaged profiles are generic: the unit has to give its size
+    todo = []
+    for kind, setting in (
+        ("batteries", "nominal_capacity_wh"),
+        ("electric_vehicles", "nominal_capacity_wh"),
+        ("inverters", "nominal_power_w"),
+    ):
+        devices = config_value(config_details, f"devices.{kind}") or {}
+        for device_id, device in devices.items():
+            if isinstance(device, dict) and device.get(f"effective_{setting}") is None:
+                todo.append(
+                    f"{device_id} has no {setting}: its profile does not give one. Set "
+                    f"profile_adjustment.{setting}, or select a profile that has it."
+                )
+    return todo
 
 
 def check_measurements(config_details: dict[str, dict]) -> list[str]:
@@ -685,24 +699,34 @@ device or to change one.
 Every device has a `device_id`. Choose a short name and keep it: EOS names the measurements
 of the device after it, e.g. `battery1-soc-factor` for the state of charge of `battery1`.
 
-The most important settings of a battery:
+Batteries, electric vehicles and inverters take their technical data from a **profile**:
+`battery_profile` (default `generic-lfp`) and `inverter_profile` (default `generic-hybrid`).
+A profile holds the efficiency curves and the power limits of a model; the **Profiles** page
+shows and edits them. Whatever differs for your unit goes into `profile_adjustment`. The
+packaged profiles are generic and know no size, so set it there:
 
-- `capacity_wh` - capacity in Wh.
-- `max_charge_power_w` - maximum charge power in W.
-- `min_soc_percentage`, `max_soc_percentage` - the range of the state of charge EOS may use.
-- `charging_efficiency`, `discharging_efficiency` - as a factor, `0.95` for 95 %.
+- battery and electric vehicle: `profile_adjustment.nominal_capacity_wh` - capacity in Wh,
+  and optionally `profile_adjustment.max_charge_power_w` /
+  `profile_adjustment.max_discharge_power_w` - the limits of your installation in W.
+- inverter: `profile_adjustment.nominal_power_w` - nominal AC power in W.
+
+Also important for a battery: `min_soc_percentage` and `max_soc_percentage` - the range of
+the state of charge EOS may use.
 """,
         example="""
 **Battery** - a 10 kWh battery that charges with up to 5 kW and shall never go below 10 %:
-add a battery with `device_id` = `battery1`, `capacity_wh` = `10000`,
-`max_charge_power_w` = `5000`, `min_soc_percentage` = `10` and `max_soc_percentage` = `100`.
+add a battery with `device_id` = `battery1`, in `profile_adjustment`
+`nominal_capacity_wh` = `10000` and `max_charge_power_w` = `5000`, and
+`min_soc_percentage` = `10`, `max_soc_percentage` = `100`.
 
 **Inverter** - a 10 kW inverter the battery is connected to: add an inverter with
-`device_id` = `inverter1`, `max_power_w` = `10000` and `battery_id` = `battery1`.
+`device_id` = `inverter1`, `profile_adjustment.nominal_power_w` = `10000` and
+`battery_id` = `battery1`.
 
 **Electric vehicle** - a car with a 60 kWh battery at an 11 kW wallbox that shall be charged
-to 80 % by 7 o'clock in the morning: add an electric vehicle with `device_id` = `ev1`,
-`capacity_wh` = `60000`, `max_charge_power_w` = `11000`, `min_soc_percentage` = `80` (for
+to 80 % by 7 o'clock in the morning: add an electric vehicle with `device_id` = `ev1`, in
+`profile_adjustment` `nominal_capacity_wh` = `60000` and `max_charge_power_w` = `11000`, and
+`min_soc_percentage` = `80` (for
 an electric vehicle this is the state of charge to reach) and
 `min_soc_deadline_datetime` = `2026-07-16T07:00:00` (the departure).
 
@@ -790,7 +814,8 @@ management run EOS then **reads** from Home Assistant:
   measurement keys and adds them to `measurement.*_emr_keys` on its own.
 - `config_entity_ids` - optional: configuration values taken from entities, e.g. a battery
   capacity an integration reports. The key is the path of the setting with `/`, and devices
-  are addressed by their `device_id`: `devices/batteries/battery1/capacity_wh`.
+  are addressed by their `device_id`:
+  `devices/batteries/battery1/profile_adjustment/nominal_capacity_wh`.
 
 After each run EOS **writes** to Home Assistant:
 
