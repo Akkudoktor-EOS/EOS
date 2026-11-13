@@ -79,6 +79,10 @@ linearly approximated. Storing values between optimization intervals is generall
 
 The EOS measurement store automatically sums all given loads to create a total load value series
 for specified intervals, usually one hour. This aggregated data can be used for load predictions.
+An interval that the meters do not fully cover (before the first or after the last reading, a meter
+reset, or a gap longer than the channel's `max_gap_seconds`) has no value instead of zero load; with
+several load meters, all of them must cover it. Without `max_gap_seconds` a gap between two readings
+is spread evenly over it. The `LoadAkkudoktorAdjusted` provider skips hours without a value.
 
 :::{admonition} Warning
 :class: warning

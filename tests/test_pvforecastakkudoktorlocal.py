@@ -12,6 +12,7 @@ import pytest_asyncio
 import requests
 
 from akkudoktoreos.core.coreabc import get_ems, get_measurement, get_prediction
+from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     PVForecastAkkudoktorLocal,
@@ -103,6 +104,8 @@ async def pvforecast_instance(config_eos):
     get_ems().set_start_datetime(START)
     await provider.delete_by_datetime()
     await get_measurement().delete_by_datetime()
+    # Warn-once state lives on the shared singleton; start each test fresh.
+    get_measurement()._reported_warnings.clear()
     yield provider
     await provider.delete_by_datetime()
     await get_measurement().delete_by_datetime()
@@ -402,6 +405,30 @@ async def test_calibration_uses_real_quarter_hour_measurements(pvforecast_instan
     global_factor, _ = calibration
     assert global_factor == pytest.approx(0.8, abs=0.03)
     assert "15-minute measurement resolution" in caplog.text or "15-minute intervals" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_meter_resolution_counts_valid_readings_only(pvforecast_instance):
+    """Invalid intrahour readings must not make an hourly meter look quarter-hourly.
+
+    Fitting native slots on such a meter would interpolate within each hour and
+    invent a flat intrahour profile.
+    """
+    key = "pv_hourly_valid_emr"
+    pvforecast_instance.config.measurement.pv_production_emr_keys = [key]
+    start = START.subtract(days=3)
+    samples = []
+    for slot in range(3 * 24 * 4):
+        stamp = start.add(minutes=15 * slot)
+        quality = (
+            SampleQuality(status="measured") if slot % 4 == 0 else SampleQuality(status="invalid")
+        )
+        samples.append(
+            MeasurementSample(date_time=stamp, key=key, value=float(slot), quality=quality)
+        )
+    await get_measurement().import_samples(samples)
+
+    assert await pvforecast_instance._calibration_interval_minutes(start, START) == 60
 
 
 @pytest.mark.asyncio
@@ -1059,3 +1086,76 @@ async def test_snow_feedback_window_is_on_the_slot_grid(pvforecast_instance, rec
     assert end.timestamp() % 900 == 0
     assert compare_datetimes(end, pv_window.last).le
     assert compare_datetimes(end.add(minutes=15), pv_window.last).gt
+
+
+@pytest.mark.asyncio
+async def test_calibration_falls_back_when_the_meter_conversion_fails(
+    pvforecast_instance, monkeypatch, caplog
+):
+    """A broken PV meter history disables calibration instead of the forecast."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings(snow_enabled=True)
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_broken_emr": meter})
+
+    async def failing_production_total_kwh(self, start_datetime, end_datetime, interval):
+        raise ValueError("Overlapping source energy intervals.")
+
+    monkeypatch.setattr(
+        PVForecastAkkudoktorLocal, "_pv_production_total_kwh", failing_production_total_kwh
+    )
+
+    with caplog.at_level("ERROR"):
+        forecast = await pvforecast_instance._forecast_frame(synthetic_openmeteo())
+        calibration = await _fit(pvforecast_instance, frame)
+
+    assert calibration is None
+    np.testing.assert_allclose(forecast["ac_power"], frame["ac_power"])
+    assert "calibration: PV meter energy conversion failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_calibration_warns_about_a_stale_common_meter_period(pvforecast_instance, caplog):
+    """A PV meter that stopped reporting holds the fit on old data - say so."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings()
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_stale_emr": meter})
+
+    def stale_warnings() -> int:
+        return sum(
+            record.levelname == "WARNING"
+            and "meter 'pv_stale_emr' last reported at" in record.getMessage()
+            for record in caplog.records
+        )
+
+    with caplog.at_level("WARNING"):
+        get_ems().set_start_datetime(START.add(hours=12))
+        await _fit(pvforecast_instance, frame)
+        fresh = stale_warnings()
+        get_ems().set_start_datetime(START.add(days=3))
+        calibration = await _fit(pvforecast_instance, frame)
+        first_stale_run = stale_warnings()
+        await _fit(pvforecast_instance, frame)
+
+    _assert_fitted_bias(calibration, 0.8)
+    assert fresh == 0
+    assert first_stale_run > 0
+    # Once per stale period, not on every run.
+    assert stale_warnings() == first_stale_run
+
+
+@pytest.mark.asyncio
+async def test_pv_meter_window_skips_readings_that_vanish_between_scans(
+    pvforecast_instance, monkeypatch
+):
+    """Readings removed between the first and last scan give no window, not an error."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings()
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_vanishing_emr": meter})
+    monkeypatch.setattr(
+        type(get_measurement()), "keys_last_datetime", AsyncMock(return_value={})
+    )
+
+    assert await pvforecast_instance._pv_measurement_window() is None

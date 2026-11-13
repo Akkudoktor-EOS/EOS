@@ -390,9 +390,39 @@ async def test_stale_meter_readings_are_reported(snow_instance, caplog):
     await feed_meter("stale", fixture, local("2026-02-20 09:00"))
     get_ems().set_start_datetime(local("2026-02-20 15:00"))
 
-    await snow_instance._forecast_frame(fixture["openmeteo"])
+    def stale_levels() -> set[str]:
+        return {
+            record.levelname for record in caplog.records if "older than 3 h" in record.getMessage()
+        }
 
-    assert "older than 3 h" in caplog.text
+    with caplog.at_level("DEBUG"):
+        await snow_instance._forecast_frame(fixture["openmeteo"])
+        assert stale_levels() == {"WARNING"}
+        caplog.clear()
+        # Reported once per stale reading, not on every forecast run.
+        await snow_instance._forecast_frame(fixture["openmeteo"])
+        assert stale_levels() == {"DEBUG"}
+
+
+@pytest.mark.asyncio
+async def test_missing_meter_period_is_warned_once(snow_instance, caplog):
+    """Without a PV meter period only the meter lookup warns, once, not snow feedback."""
+    fixture = load_fixture()
+    get_measurement()._reported_warnings.clear()
+    snow_instance.config.measurement.pv_production_emr_keys = ["silent"]
+    get_ems().set_start_datetime(local("2026-02-20 15:00"))
+
+    def warnings() -> set[str]:
+        return {r.getMessage() for r in caplog.records if r.levelname == "WARNING"}
+
+    with caplog.at_level("DEBUG"):
+        await snow_instance._forecast_frame(fixture["openmeteo"])
+        (message,) = warnings()
+        assert "'silent'" in message and "no valid readings" in message
+        caplog.clear()
+        # The lasting condition is not warned about again on the next forecast run.
+        await snow_instance._forecast_frame(fixture["openmeteo"])
+        assert warnings() == set()
 
 
 # ---------------------------------------------------------------- calibration
