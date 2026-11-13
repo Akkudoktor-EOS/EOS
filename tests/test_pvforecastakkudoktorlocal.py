@@ -16,6 +16,7 @@ from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     PVForecastAkkudoktorLocal,
     PVForecastAkkudoktorLocalCommonSettings,
 )
+from akkudoktoreos.utils.datetimeutil import compare_datetimes
 
 LATITUDE = 52.52
 LONGITUDE = 13.405
@@ -724,3 +725,64 @@ def test_file_migration_rejects_invalid_local_settings(config_eos, invalid):
                 }
             }
         )
+
+
+async def _feed_unaligned_five_minute_measurements(
+    instance: PVForecastAkkudoktorLocal,
+    frame: pd.DataFrame,
+    bias: float,
+    key: str,
+    first: pendulum.DateTime,
+) -> None:
+    """Write a real-world-like meter: ~5-minute cadence, jittered, unaligned stamps.
+
+    Home Assistant style meters report whenever they change, so neither the first
+    reading nor any later reading falls on a quarter-hour boundary.
+    """
+    instance.config.measurement.pv_production_emr_keys = [key]
+    measurement = get_measurement()
+    power = frame["ac_power"]
+    # Cumulative energy at every native slot boundary, interpolated to arbitrary stamps.
+    cumulative = (power * 0.25 * bias / 1000.0).cumsum().shift(1, fill_value=0.0)
+    seconds = (cumulative.index - cumulative.index[0]).total_seconds().to_numpy()
+    jitter = [0, 21, 47, 13, 34]
+    timestamp = first
+    step = 0
+    while compare_datetimes(timestamp, START).lt:
+        offset = pd.Timestamp(timestamp.in_timezone("UTC").isoformat()) - cumulative.index[0]
+        value = float(np.interp(offset.total_seconds(), seconds, cumulative.to_numpy()))
+        await measurement.update_value(timestamp, key, round(value, 3))
+        timestamp = timestamp.add(minutes=5, seconds=jitter[step % len(jitter)])
+        step += 1
+
+
+@pytest.mark.asyncio
+async def test_calibration_with_short_unaligned_meter_history(pvforecast_instance, caplog):
+    """A PV meter younger than the lookback window must still be fitted.
+
+    Regression: the window start was taken from the first PV reading (e.g. 00:04:50)
+    without snapping it to the slot grid, so the model grid (00:19:50, 00:34:50, ...)
+    never hit a resampled model row and every interval was discarded as NaN.
+    """
+    pvforecast_instance.config.pvforecast.akkudoktor = PVForecastAkkudoktorLocalCommonSettings(
+        calibration_enabled=True,
+        calibration_days=30,
+        calibration_reference_days=30,
+        calibration_azimuth_bin_degrees=0,
+    )
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    await _feed_unaligned_five_minute_measurements(
+        pvforecast_instance,
+        frame,
+        bias=0.8,
+        key="pv_unaligned_emr",
+        first=pendulum.datetime(2025, 6, 9, 0, 4, 50, tz="UTC"),
+    )
+
+    with caplog.at_level("INFO"):
+        calibration = await pvforecast_instance._fit_calibration(frame)
+
+    assert "usable 15-minute intervals" not in caplog.text
+    assert calibration is not None
+    global_factor, _ = calibration
+    assert global_factor == pytest.approx(0.8, abs=0.03)
