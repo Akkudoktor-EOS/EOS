@@ -1144,24 +1144,20 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             The common period, or None when a PV meter has no readings or the meters
             share no period.
         """
-        common_first: Optional[DateTime] = None
-        common_last: Optional[DateTime] = None
         keys = self.config.measurement.pv_production_emr_keys or []
-        key_ranges = await self.measurement.keys_datetime_range(keys)
-        for key in keys:
-            key_range = key_ranges[key]
-            if key_range is None:
-                logger.info(
-                    f"PVForecastAkkudoktorLocal: PV production meter '{key}' has no readings "
-                    "yet - calibration and snow feedback wait for it."
-                )
-                return None
-            if common_first is None or compare_datetimes(key_range[0], common_first).gt:
-                common_first = key_range[0]
-            if common_last is None or compare_datetimes(key_range[1], common_last).lt:
-                common_last = key_range[1]
-        if common_first is None or common_last is None:
+        if not keys:
             return None
+        firsts = await self.measurement.keys_first_datetime(keys)
+        silent = [key for key in keys if key not in firsts]
+        if silent:
+            logger.info(
+                f"PVForecastAkkudoktorLocal: PV production meter(s) {silent} have no readings "
+                "yet - calibration and snow feedback wait for them."
+            )
+            return None
+        lasts = await self.measurement.keys_last_datetime(keys)
+        common_first = max(firsts.values(), key=lambda moment: moment.timestamp())
+        common_last = min(lasts.values(), key=lambda moment: moment.timestamp())
         if not compare_datetimes(common_first, common_last).lt:
             logger.info(
                 "PVForecastAkkudoktorLocal: the PV production meters share no measurement "

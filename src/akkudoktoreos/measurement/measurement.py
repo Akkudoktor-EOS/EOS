@@ -9,6 +9,7 @@ The measurements can be added programmatically or imported from a file or JSON s
 import json
 import math
 from bisect import bisect_left, bisect_right
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Literal, Optional
@@ -41,9 +42,6 @@ from akkudoktoreos.utils.datetimeutil import (
 # Limits of one quality-aware energy query (`Measurement.energy_intervals`).
 ENERGY_QUERY_MAX_SECONDS = 31 * 86400
 ENERGY_QUERY_MAX_INTERVALS = 10000
-
-# Load meters already reported as silent; warned once until they report again.
-_SILENT_LOAD_METERS_REPORTED: set[str] = set()
 
 
 class MeasurementChannelSettings(SettingsBaseModel):
@@ -218,6 +216,19 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             return
         super().__init__(*args, **kwargs)
 
+    @property
+    def _silent_load_meters_reported(self) -> set[str]:
+        """Load meters already reported as silent; warned once until they report again.
+
+        Created lazily and cached on the instance, like the record locks.
+        """
+        try:
+            return object.__getattribute__(self, "_silent_load_meters_reported_instance")
+        except AttributeError:
+            reported: set[str] = set()
+            object.__setattr__(self, "_silent_load_meters_reported_instance", reported)
+            return reported
+
     def _measurement_file_path(self) -> Optional[Path]:
         """Path to measurements file (may be used optional to database)."""
         try:
@@ -318,7 +329,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         if any(dt.tzinfo is None or dt.utcoffset() is None for dt in (start, end)):
             raise ValueError("Explicit timezone required.")
         if end.timestamp() <= start.timestamp():
-            raise ValueError("Energy queries require a positive range of at most 31 days.")
+            raise ValueError("Energy queries require a positive range.")
         channels = {key: self._energy_channel(key) for key in keys}
         context = self.config.measurement.energy_context_seconds
         records = [
@@ -359,8 +370,6 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         def convert(
             key: str, left: datetime, right: datetime, interval_seconds: int
         ) -> list[EnergyInterval]:
-            if type(interval_seconds) is not int or interval_seconds <= 0:
-                raise ValueError("Positive integer interval_seconds required.")
             lo = max(0, bisect_left(timestamps[key], left.timestamp()) - 1)
             hi = bisect_right(timestamps[key], right.timestamp()) + 1
             return energy_intervals(
@@ -467,78 +476,96 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             for key in keys
         }
 
-    async def keys_datetime_range(
-        self, keys: list[str]
-    ) -> dict[str, Optional[tuple[DateTime, DateTime]]]:
-        """First and last stamp with a valid reading, per key, in one pass each way.
+    def _valid_reading_keys(self, record: MeasurementDataRecord, keys: Iterable[str]) -> list[str]:
+        """Keys of ``record`` that carry a valid reading.
 
-        Scans forward from the oldest record and backward from the newest in windows
-        that double in size, and stops once every key is found, instead of reading
-        the keys' whole history. A reading counts when it is a finite number whose
-        sample quality is neither invalid nor unavailable, as for the energy
-        conversion.
+        A reading counts when it is a finite number whose sample quality is neither
+        invalid nor unavailable, as for the energy conversion.
+        """
+        if record.date_time is None:
+            return []
+        found = []
+        for key in keys:
+            value = record.configured_data.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            if not math.isfinite(value):
+                continue
+            quality = record.sample_quality.get(key)
+            if quality is not None and quality.status in ("invalid", "unavailable"):
+                continue
+            found.append(key)
+        return found
+
+    async def keys_first_datetime(self, keys: list[str]) -> dict[str, DateTime]:
+        """First stamp with a valid reading per key, in one forward pass.
+
+        Scans forward from the oldest record in windows that double in size and stops
+        once every key is found, instead of reading the keys' whole history.
 
         Args:
             keys: Record keys, e.g. meter reading keys.
 
         Returns:
-            (first, last) stamp per key, or None for a key without a valid reading.
+            First stamp per key; keys without a valid reading are missing.
         """
-        ranges: dict[str, Optional[tuple[DateTime, DateTime]]] = {key: None for key in keys}
+        wanted = set(keys)
+        firsts: dict[str, DateTime] = {}
         oldest = await self.min_datetime()
         newest = await self.max_datetime()
-        if not keys or oldest is None or newest is None:
-            return ranges
+        if not wanted or oldest is None or newest is None:
+            return firsts
         end_of_store = newest.add(seconds=1)
-
-        def valid_keys(record: MeasurementDataRecord) -> list[str]:
-            if record.date_time is None:
-                return []
-            found = []
-            for key in keys:
-                value = record.configured_data.get(key)
-                if isinstance(value, bool) or not isinstance(value, (int, float)):
-                    continue
-                if not math.isfinite(value):
-                    continue
-                quality = record.sample_quality.get(key)
-                if quality is not None and quality.status in ("invalid", "unavailable"):
-                    continue
-                found.append(key)
-            return found
-
-        firsts: dict[str, DateTime] = {}
         step_seconds = 86400
         window_start = oldest
-        while len(firsts) < len(keys) and compare_datetimes(window_start, end_of_store).lt:
+        while len(firsts) < len(wanted) and compare_datetimes(window_start, end_of_store).lt:
             window_end = window_start.add(seconds=step_seconds)
             async for record in self.db_iterate_records(
                 DatabaseTimestamp.from_datetime(window_start),
                 DatabaseTimestamp.from_datetime(window_end),
             ):
-                for key in valid_keys(record):
+                for key in self._valid_reading_keys(record, wanted):
                     firsts.setdefault(key, to_datetime(record.date_time))
             window_start = window_end
             step_seconds *= 2
+        return firsts
 
+    async def keys_last_datetime(self, keys: list[str]) -> dict[str, DateTime]:
+        """Last stamp with a valid reading per key, in one backward pass.
+
+        Scans backward from the newest record in windows that double in size and
+        stops once every key is found.
+
+        Args:
+            keys: Record keys, e.g. meter reading keys.
+
+        Returns:
+            Last stamp per key; keys without a valid reading are missing.
+        """
+        wanted = set(keys)
         lasts: dict[str, DateTime] = {}
+        oldest = await self.min_datetime()
+        newest = await self.max_datetime()
+        if not wanted or oldest is None or newest is None:
+            return lasts
         step_seconds = 86400
-        window_end = end_of_store
-        while len(lasts) < len(firsts) and compare_datetimes(window_end, oldest).gt:
+        window_end = newest.add(seconds=1)
+        while len(lasts) < len(wanted) and compare_datetimes(window_end, oldest).gt:
             window_start = window_end.subtract(seconds=step_seconds)
+            # Newest valid reading per key in this window; keys found in a newer
+            # window keep their stamp.
+            window_lasts: dict[str, DateTime] = {}
             async for record in self.db_iterate_records(
                 DatabaseTimestamp.from_datetime(window_start),
                 DatabaseTimestamp.from_datetime(window_end),
             ):
-                for key in valid_keys(record):
-                    if key in firsts:
-                        lasts[key] = to_datetime(record.date_time)
+                for key in self._valid_reading_keys(record, wanted):
+                    window_lasts[key] = to_datetime(record.date_time)
+            for key, stamp in window_lasts.items():
+                lasts.setdefault(key, stamp)
             window_end = window_start
             step_seconds *= 2
-
-        for key, first in firsts.items():
-            ranges[key] = (first, lasts.get(key, first))
-        return ranges
+        return lasts
 
     async def estimate_battery_capacity(
         self, battery_id: str, request: BatteryCapacityRequest
@@ -648,13 +675,13 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                     f"Load meter '{key}' has no readings covering {start_datetime} .. "
                     f"{end_datetime}: the total load of this period is unknown."
                 )
-                if key in _SILENT_LOAD_METERS_REPORTED:
+                if key in self._silent_load_meters_reported:
                     logger.debug(message)
                 else:
-                    _SILENT_LOAD_METERS_REPORTED.add(key)
+                    self._silent_load_meters_reported.add(key)
                     logger.warning(message)
             else:
-                _SILENT_LOAD_METERS_REPORTED.discard(key)
+                self._silent_load_meters_reported.discard(key)
             load_total_kwh_array += meter_kwh
         logger.debug(f"Total load calculation: {load_total_kwh_array}")
         return load_total_kwh_array

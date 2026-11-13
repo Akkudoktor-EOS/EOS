@@ -321,25 +321,33 @@ class TestMeasurement:
                 duration(hours=-1),
             )
 
-    async def test_keys_datetime_range(self, measurement_eos):
-        """First and last valid reading per key, also when other keys reach further."""
-        await measurement_eos.update_value(to_datetime("2023-01-03T00:00:00"), "load1_mr", 900)
-        # A trailing non-finite value is no reading.
+    async def test_keys_first_and_last_datetime(self, measurement_eos):
+        """First and last valid reading per key, each key on its own.
+
+        load1_mr reports two days longer than load0_mr, so the backward scan finds the
+        two last readings in different windows; a trailing non-finite value of
+        load0_mr is no reading.
+        """
+        for hour in range(6, 54):
+            await measurement_eos.update_value(
+                to_datetime("2023-01-01T00:00:00").add(hours=hour), "load1_mr", 450 + hour
+            )
         await measurement_eos.update_value(
-            to_datetime("2023-01-04T00:00:00"), "load0_mr", float("nan")
+            to_datetime("2023-01-03T12:00:00"), "load0_mr", float("nan")
         )
+        keys = ["load0_mr", "load1_mr", "load1_mr", "load2_mr"]
 
-        ranges = await measurement_eos.keys_datetime_range(["load0_mr", "load1_mr", "load2_mr"])
+        firsts = await measurement_eos.keys_first_datetime(keys)
+        lasts = await measurement_eos.keys_last_datetime(keys)
 
-        assert ranges["load0_mr"] == (
-            to_datetime("2023-01-01T00:00:00"),
-            to_datetime("2023-01-01T05:00:00"),
-        )
-        assert ranges["load1_mr"] == (
-            to_datetime("2023-01-01T00:00:00"),
-            to_datetime("2023-01-03T00:00:00"),
-        )
-        assert ranges["load2_mr"] is None
+        assert firsts == {
+            "load0_mr": to_datetime("2023-01-01T00:00:00"),
+            "load1_mr": to_datetime("2023-01-01T00:00:00"),
+        }
+        assert lasts == {
+            "load0_mr": to_datetime("2023-01-01T05:00:00"),
+            "load1_mr": to_datetime("2023-01-03T05:00:00"),
+        }
 
     async def test_load_total_kwh_warns_once_about_a_silent_meter(self, measurement_eos, caplog):
         """A configured meter that never reports is a warning once, not on every run."""
