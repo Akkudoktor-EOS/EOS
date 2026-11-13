@@ -269,6 +269,8 @@ async def empty_measurement(config_eos):
     """Own, empty measurement store (the singleton is shared between tests)."""
     measurement = get_measurement()
     await measurement.delete_by_datetime(None, None)
+    # Warn-once state lives on the shared singleton; start each test fresh.
+    measurement._reported_warnings.clear()
     config_eos.merge_settings_from_dict(
         {"devices": {"max_batteries": 1, "batteries": {"storage": {"profile_adjustment": {"nominal_capacity_wh": 2000}}}}}
     )

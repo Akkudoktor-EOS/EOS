@@ -187,6 +187,8 @@ class TestMeasurement:
         config_eos.measurement.load_emr_keys = ["load0_mr", "load1_mr", "load2_mr", "load3_mr"]
         measurement = get_measurement()
         await measurement.delete_by_datetime(None, None)
+        # Warn-once state lives on the shared singleton; start each test fresh.
+        measurement._reported_warnings.clear()
         record0 = MeasurementDataRecord(
             date_time=datetime(2023, 1, 1, hour=0),
             load0_mr=100,
@@ -631,3 +633,49 @@ class TestMeasurementChannels:
             measurement.records = previous_records
             config_eos.measurement = previous_settings
             config_eos.general.data_folder_path = previous_folder
+
+
+@pytest.mark.asyncio
+class TestMeasurementCommonPeriod:
+    """Common period of a meter group and its warnings."""
+
+    @pytest_asyncio.fixture
+    async def measurement(self, config_eos):
+        config_eos.measurement.load_emr_keys = ["meter_a_mr", "meter_b_mr"]
+        measurement = get_measurement()
+        await measurement.delete_by_datetime(None, None)
+        measurement._reported_warnings.clear()
+        yield measurement
+        await measurement.delete_by_datetime(None, None)
+        measurement._reported_warnings.clear()
+
+    @staticmethod
+    def warnings(caplog, text: str) -> int:
+        return sum(
+            record.levelname == "WARNING" and text in record.getMessage()
+            for record in caplog.records
+        )
+
+    async def test_silent_group_is_warned_again_after_it_reported(self, measurement, caplog):
+        keys = ["meter_a_mr", "meter_b_mr"]
+        start = to_datetime("2024-01-01T00:00:00Z")
+        with caplog.at_level("WARNING"):
+            assert await measurement.keys_common_period(keys, "test") is None
+            first = self.warnings(caplog, "have no valid readings")
+            for hour in range(3):
+                for key in keys:
+                    await measurement.update_value(start.add(hours=hour), key, 10.0 + hour)
+            assert await measurement.keys_common_period(keys, "test") is not None
+            await measurement.delete_by_datetime(None, None)
+            assert await measurement.keys_common_period(keys, "test") is None
+
+        assert first > 0
+        assert self.warnings(caplog, "have no valid readings") > first
+
+    async def test_single_reading_is_no_replaced_meter(self, measurement, caplog):
+        await measurement.update_value(to_datetime("2024-01-01T00:00:00Z"), "meter_a_mr", 10.0)
+
+        with caplog.at_level("WARNING"):
+            assert await measurement.keys_common_period(["meter_a_mr"], "test") is None
+
+        assert self.warnings(caplog, "share no period") == 0

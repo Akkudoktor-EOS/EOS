@@ -626,11 +626,18 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         for key in firsts:
             self._clear_warning(f"meter-silent:{key}")
         if silent:
-            self._warn_once(
-                "meter-silent:" + ",".join(silent),
+            message = (
                 f"{consumer}: meter(s) {silent} have no valid readings (check the keys) - "
-                "waiting for them.",
+                "waiting for them."
             )
+            new_silent = [
+                key for key in silent if f"meter-silent:{key}" not in self._reported_warnings
+            ]
+            if new_silent:
+                self._reported_warnings.update(f"meter-silent:{key}" for key in silent)
+                logger.warning(message)
+            else:
+                logger.debug(message)
             return None
         lasts = await self.keys_last_datetime(keys)
         if any(key not in lasts for key in keys):
@@ -644,13 +651,19 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             if compare_datetimes(lasts[key], lasts[last_key]).lt:
                 last_key = key
         first, last = firsts[first_key], lasts[last_key]
-        if not compare_datetimes(first, last).lt:
+        comparison = compare_datetimes(first, last)
+        if comparison.gt:
             # E.g. a replaced meter that is still configured.
             self._warn_once(
-                f"meter-no-period:{last_key}:{last}",
+                f"meter-no-period:{last_key}",
                 f"{consumer}: meter '{last_key}' last reported at {last}, before meter "
                 f"'{first_key}' started at {first} - the meters share no period.",
             )
+            return None
+        for key in keys:
+            self._clear_warning(f"meter-no-period:{key}")
+        if not comparison.lt:
+            logger.info(f"{consumer}: the meters {keys} have no period yet ({first}) - waiting.")
             return None
         return MeterPeriod(first=first, last=last, last_key=last_key)
 
