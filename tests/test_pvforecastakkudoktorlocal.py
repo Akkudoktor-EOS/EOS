@@ -69,6 +69,14 @@ def synthetic_openmeteo(resolution_minutes: int = 15, models: list[str] | None =
     return data
 
 
+
+async def _fit(
+    instance: PVForecastAkkudoktorLocal, frame: pd.DataFrame
+) -> Optional[tuple[float, np.ndarray]]:
+    """Fit the calibration as a forecast run does: read the PV meter window, then fit."""
+    return await instance._fit_calibration(frame, await instance._pv_measurement_window())
+
+
 @pytest_asyncio.fixture
 async def pvforecast_instance(config_eos):
     config_eos.merge_settings_from_dict(
@@ -290,7 +298,7 @@ async def _feed_native_quarter_hour_measurements(
 @pytest.mark.asyncio
 async def test_calibration_is_off_by_default(pvforecast_instance):
     frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
-    assert await pvforecast_instance._fit_calibration(frame) is None
+    assert await _fit(pvforecast_instance, frame) is None
 
 
 @pytest.mark.asyncio
@@ -299,7 +307,7 @@ async def test_calibration_skips_without_measurement_keys(pvforecast_instance):
         calibration_enabled=True
     )
     frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
-    assert await pvforecast_instance._fit_calibration(frame) is None
+    assert await _fit(pvforecast_instance, frame) is None
 
 
 @pytest.mark.asyncio
@@ -314,7 +322,7 @@ async def test_calibration_recovers_a_systematic_bias(pvforecast_instance):
     frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
     await _feed_measurements(pvforecast_instance, frame, bias=0.8, key="pv_bias_emr")
 
-    calibration = await pvforecast_instance._fit_calibration(frame)
+    calibration = await _fit(pvforecast_instance, frame)
     assert calibration is not None
     global_factor, factors = calibration
     assert global_factor == pytest.approx(0.8, abs=0.03)
@@ -346,7 +354,7 @@ async def test_calibration_excludes_recent_demand_limited_outage(pvforecast_inst
     )
 
     with caplog.at_level("INFO"):
-        calibration = await pvforecast_instance._fit_calibration(frame)
+        calibration = await _fit(pvforecast_instance, frame)
 
     assert calibration is not None
     global_factor, factors = calibration
@@ -387,7 +395,7 @@ async def test_calibration_uses_real_quarter_hour_measurements(pvforecast_instan
         == 15
     )
     with caplog.at_level("INFO"):
-        calibration = await pvforecast_instance._fit_calibration(frame)
+        calibration = await _fit(pvforecast_instance, frame)
 
     assert calibration is not None
     global_factor, _ = calibration
@@ -409,7 +417,7 @@ async def test_calibration_factor_is_clamped(pvforecast_instance):
     frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
     await _feed_measurements(pvforecast_instance, frame, bias=0.2, key="pv_clamp_emr")
 
-    calibration = await pvforecast_instance._fit_calibration(frame)
+    calibration = await _fit(pvforecast_instance, frame)
     assert calibration is not None
     global_factor, _ = calibration
     assert global_factor == pytest.approx(0.9)
@@ -947,7 +955,7 @@ async def test_calibration_with_short_unaligned_meter_history(
     )
     await _feed_meters(pvforecast_instance, {f"pv_unaligned_emr_{cadence_minutes}": meter})
 
-    calibration = await pvforecast_instance._fit_calibration(frame)
+    calibration = await _fit(pvforecast_instance, frame)
 
     _assert_fitted_bias(calibration, 0.8, cadence_minutes)
     start, end = recorded_windows[0]
@@ -973,6 +981,55 @@ async def test_calibration_bins_interval_end_labels_by_interval_start(pvforecast
     )
     await _feed_meters(pvforecast_instance, {"pv_end_labels_emr": meter})
 
-    calibration = await pvforecast_instance._fit_calibration(frame)
+    calibration = await _fit(pvforecast_instance, frame)
 
     _assert_fitted_bias(calibration, 0.8)
+
+
+@pytest.mark.asyncio
+async def test_calibration_window_is_common_to_all_pv_meters(
+    pvforecast_instance, recorded_windows
+):
+    """Every PV meter must cover the window; one meter alone does not count.
+
+    Meter A runs the whole period, meter B starts later and stops earlier. The fit
+    may only use the period both report, which is also where their sum is the plant.
+    """
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings()
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter_a = _unaligned_meter_series(frame, 0.4, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    meter_b = _unaligned_meter_series(
+        frame, 0.4, to_datetime("2025-06-11T03:02:10Z"), to_datetime("2025-06-13T20:00:00Z"), 5
+    )
+    await _feed_meters(pvforecast_instance, {"pv_common_a_emr": meter_a, "pv_common_b_emr": meter_b})
+
+    calibration = await _fit(pvforecast_instance, frame)
+
+    _assert_fitted_bias(calibration, 0.8)
+    start, end = recorded_windows[0]
+    assert compare_datetimes(start, to_datetime("2025-06-11T03:15:00Z")).equal
+    assert compare_datetimes(end, to_datetime("2025-06-13T19:45:00Z")).equal
+
+
+@pytest.mark.asyncio
+async def test_forecast_reads_the_pv_meter_window_once(pvforecast_instance, monkeypatch):
+    """Calibration and snow feedback share one scan of the PV meter readings."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings(snow_enabled=True)
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_read_once_emr": meter})
+    reads = 0
+    measurement_window = PVForecastAkkudoktorLocal._pv_measurement_window
+
+    async def counting_measurement_window(self):
+        nonlocal reads
+        reads += 1
+        return await measurement_window(self)
+
+    monkeypatch.setattr(
+        PVForecastAkkudoktorLocal, "_pv_measurement_window", counting_measurement_window
+    )
+
+    await pvforecast_instance._forecast_frame(synthetic_openmeteo())
+
+    assert reads == 1
