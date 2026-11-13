@@ -1146,8 +1146,10 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         """
         common_first: Optional[DateTime] = None
         common_last: Optional[DateTime] = None
-        for key in self.config.measurement.pv_production_emr_keys or []:
-            key_range = await self.measurement.key_datetime_range(key)
+        keys = self.config.measurement.pv_production_emr_keys or []
+        key_ranges = await self.measurement.keys_datetime_range(keys)
+        for key in keys:
+            key_range = key_ranges[key]
             if key_range is None:
                 logger.info(
                     f"PVForecastAkkudoktorLocal: PV production meter '{key}' has no readings "
@@ -1350,12 +1352,16 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             return None
         start, end = window.start_datetime, window.end_datetime
 
-        measured_kwh = np.asarray(
-            await self._pv_production_total_kwh(
+        try:
+            measured_kwh = await self._pv_production_total_kwh(
                 start_datetime=start, end_datetime=end, interval=interval
-            ),
-            dtype=float,
-        )
+            )
+        except ValueError as exc:
+            logger.error(
+                "PVForecastAkkudoktorLocal calibration: PV meter energy conversion failed - "
+                f"using the uncalibrated model: {exc}"
+            )
+            return None
         if measured_kwh.size == 0 or not np.isfinite(measured_kwh).any():
             logger.info(
                 "PVForecastAkkudoktorLocal calibration: no usable PV measurements - skipping."
@@ -1821,14 +1827,18 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             return [], None
         start = window.start
 
-        measured = np.asarray(
-            await self._pv_production_total_kwh(
+        try:
+            measured = await self._pv_production_total_kwh(
                 start_datetime=window.start_datetime,
                 end_datetime=window.end_datetime,
                 interval=to_duration(f"{interval_minutes} minutes"),
-            ),
-            dtype=float,
-        )
+            )
+        except ValueError as exc:
+            logger.error(
+                "PVForecastAkkudoktorLocal snow feedback: PV meter energy conversion failed - "
+                f"using the weather-only snow model: {exc}"
+            )
+            return [], None
         interval_hours = interval_minutes / 60.0
         # A meter jump (reset, a sub-meter dropping out of a sum) shows up as an
         # impossible yield. Drop it rather than learn snow - or its absence - from it.

@@ -1059,3 +1059,29 @@ async def test_snow_feedback_window_is_on_the_slot_grid(pvforecast_instance, rec
     assert end.timestamp() % 900 == 0
     assert compare_datetimes(end, pv_window.last).le
     assert compare_datetimes(end.add(minutes=15), pv_window.last).gt
+
+
+@pytest.mark.asyncio
+async def test_calibration_falls_back_when_the_meter_conversion_fails(
+    pvforecast_instance, monkeypatch, caplog
+):
+    """A broken PV meter history disables calibration instead of the forecast."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings(snow_enabled=True)
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_broken_emr": meter})
+
+    async def failing_production_total_kwh(self, start_datetime, end_datetime, interval):
+        raise ValueError("Overlapping source energy intervals.")
+
+    monkeypatch.setattr(
+        PVForecastAkkudoktorLocal, "_pv_production_total_kwh", failing_production_total_kwh
+    )
+
+    with caplog.at_level("ERROR"):
+        forecast = await pvforecast_instance._forecast_frame(synthetic_openmeteo())
+        calibration = await _fit(pvforecast_instance, frame)
+
+    assert calibration is None
+    np.testing.assert_allclose(forecast["ac_power"], frame["ac_power"])
+    assert "calibration: PV meter energy conversion failed" in caplog.text

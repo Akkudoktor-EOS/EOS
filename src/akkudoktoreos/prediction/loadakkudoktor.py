@@ -134,11 +134,17 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
             return (weekday_adjust, weekend_adjust)
         compare_interval = to_duration("1 hour")
 
-        load_total_kwh_array = await self.measurement.load_total_kwh(
-            start_datetime=compare_start,
-            end_datetime=compare_end,
-            interval=compare_interval,
-        )
+        try:
+            load_total_kwh_array = await self.measurement.load_total_kwh(
+                start_datetime=compare_start,
+                end_datetime=compare_end,
+                interval=compare_interval,
+            )
+        except ValueError as exc:
+            logger.error(
+                f"Load adjustment: load meter energy conversion failed - no adjustment: {exc}"
+            )
+            return (weekday_adjust, weekend_adjust)
         missing_hours = int(np.isnan(load_total_kwh_array).sum())
         if missing_hours:
             logger.debug(

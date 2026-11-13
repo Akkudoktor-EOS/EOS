@@ -321,19 +321,49 @@ class TestMeasurement:
                 duration(hours=-1),
             )
 
-    async def test_key_datetime_range(self, measurement_eos):
-        """First and last stamp per key, also when other keys reach further."""
+    async def test_keys_datetime_range(self, measurement_eos):
+        """First and last valid reading per key, also when other keys reach further."""
         await measurement_eos.update_value(to_datetime("2023-01-03T00:00:00"), "load1_mr", 900)
+        # A trailing non-finite value is no reading.
+        await measurement_eos.update_value(
+            to_datetime("2023-01-04T00:00:00"), "load0_mr", float("nan")
+        )
 
-        assert await measurement_eos.key_datetime_range("load0_mr") == (
+        ranges = await measurement_eos.keys_datetime_range(["load0_mr", "load1_mr", "load2_mr"])
+
+        assert ranges["load0_mr"] == (
             to_datetime("2023-01-01T00:00:00"),
             to_datetime("2023-01-01T05:00:00"),
         )
-        assert await measurement_eos.key_datetime_range("load1_mr") == (
+        assert ranges["load1_mr"] == (
             to_datetime("2023-01-01T00:00:00"),
             to_datetime("2023-01-03T00:00:00"),
         )
-        assert await measurement_eos.key_datetime_range("load2_mr") is None
+        assert ranges["load2_mr"] is None
+
+    async def test_load_total_kwh_warns_once_about_a_silent_meter(self, measurement_eos, caplog):
+        """A configured meter that never reports is a warning once, not on every run."""
+        measurement_eos.config.measurement.load_emr_keys = ["load0_mr", "load_silent_mr"]
+        period = {
+            "start_datetime": to_datetime("2023-01-01T00:00:00"),
+            "end_datetime": to_datetime("2023-01-01T03:00:00"),
+            "interval": duration(hours=1),
+        }
+
+        def silent_meter_warnings() -> int:
+            return sum(
+                record.levelname == "WARNING"
+                and "'load_silent_mr' has no readings" in record.getMessage()
+                for record in caplog.records
+            )
+
+        with caplog.at_level("WARNING"):
+            await measurement_eos.load_total_kwh(**period)
+            first_run = silent_meter_warnings()
+            await measurement_eos.load_total_kwh(**period)
+
+        assert first_run > 0
+        assert silent_meter_warnings() == first_run
 
     async def test_load_total_kwh_empty_store_without_period(self, measurement_eos):
         """No data and no period yields an empty result, not an error."""

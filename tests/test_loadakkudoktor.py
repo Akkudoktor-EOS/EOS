@@ -341,3 +341,23 @@ async def test_adjustment_skips_hours_without_load_meter_coverage(
     assert np.isfinite(weekday).all() and np.isfinite(weekend).all()
     assert (weekday[:12] != 0.0).all()
     assert (weekday[12:] == 0.0).all()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_falls_back_when_the_meter_conversion_fails(
+    loadakkudoktoradjusted, empty_measurement
+):
+    """A broken meter history disables the adjustment instead of the load prediction."""
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(25):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+    with patch.object(
+        type(empty_measurement),
+        "load_total_kwh",
+        side_effect=ValueError("Overlapping source energy intervals."),
+    ):
+        weekday, weekend = await loadakkudoktoradjusted._calculate_adjustment(
+            np.random.rand(365, 2, 24)
+        )
+
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
