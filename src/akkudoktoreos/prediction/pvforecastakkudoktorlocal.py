@@ -109,16 +109,49 @@ class PVMeterWindow:
 def _utc_timestamp(moment: DateTime | pd.Timestamp) -> pd.Timestamp:
     """Convert a moment to a UTC pandas timestamp.
 
+    This is the one conversion from EOS datetimes to pandas in this module, so every
+    window bound carries the same UTC timezone object.
+
     Args:
-        moment: A DateTime or a timezone-aware pandas timestamp, e.g. a row label of
-            the UTC model frame.
+        moment: A DateTime or a pandas timestamp, e.g. a row label of the UTC model
+            frame. A timezone-naive pandas timestamp is taken as UTC, the zone of the
+            model frame.
 
     Returns:
         The same instant as a UTC pandas timestamp.
     """
-    if isinstance(moment, pd.Timestamp):
-        return moment.tz_convert("UTC")
-    return pd.Timestamp(moment.in_timezone("UTC").isoformat())
+    timestamp = moment if isinstance(moment, pd.Timestamp) else pd.Timestamp(moment.isoformat())
+    if timestamp.tzinfo is None:
+        return timestamp.tz_localize("UTC")
+    return timestamp.tz_convert("UTC")
+
+
+def _utc_datetime(timestamp: pd.Timestamp) -> DateTime:
+    """Convert a UTC pandas timestamp back to a UTC DateTime."""
+    return to_datetime(timestamp.to_pydatetime(), in_timezone="UTC")
+
+
+@dataclass(frozen=True)
+class SlotWindow:
+    """Whole slots of the UTC epoch grid that a fit compares.
+
+    Attributes:
+        start: Start of the first slot, UTC.
+        end: End of the last slot, UTC.
+    """
+
+    start: pd.Timestamp
+    end: pd.Timestamp
+
+    @property
+    def start_datetime(self) -> DateTime:
+        """Start of the first slot as a UTC DateTime."""
+        return _utc_datetime(self.start)
+
+    @property
+    def end_datetime(self) -> DateTime:
+        """End of the last slot as a UTC DateTime."""
+        return _utc_datetime(self.end)
 
 
 def _slot_window(
@@ -126,35 +159,31 @@ def _slot_window(
     lookback_start: DateTime,
     last: DateTime,
     earliest: Iterable[DateTime | pd.Timestamp],
-) -> Optional[tuple[pd.Timestamp, pd.Timestamp]]:
+) -> Optional[SlotWindow]:
     """Measurement window that holds whole slots of the UTC epoch grid.
 
     Meter readings arrive at arbitrary stamps (e.g. 00:04:50). A window bound off
     the slot grid shifts every comparison slot off the rows of the UTC model frame
     resampled to the slot length, which then reindex to NaN. Both bounds are
     therefore snapped to the same UTC grid, also in zones with a :30 or :45 offset.
+    The window never reaches outside the lookback or the data.
 
     Args:
         interval_minutes: Slot length in minutes.
-        lookback_start: Earliest start the lookback allows; rounded down.
+        lookback_start: Earliest start the lookback allows; rounded up to the grid.
         last: Latest moment with data; rounded down to give the window end.
         earliest: First moments that carry data (meter, model rows); each is
             rounded up, so the window starts at the first slot they fully cover.
 
     Returns:
-        ``(start, end)`` as UTC timestamps, or None when no whole slot fits.
+        The window, or None when no whole slot fits.
     """
     freq = f"{interval_minutes}min"
-    start = max(
-        [
-            _utc_timestamp(lookback_start).floor(freq),
-            *(_utc_timestamp(moment).ceil(freq) for moment in earliest),
-        ]
-    )
+    start = max(_utc_timestamp(moment).ceil(freq) for moment in (lookback_start, *earliest))
     end = _utc_timestamp(last).floor(freq)
     if start >= end:
         return None
-    return start, end
+    return SlotWindow(start=start, end=end)
 
 
 def normalize_akkudoktor_settings(data: Any) -> Any:
@@ -1343,11 +1372,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                 "PVForecastAkkudoktorLocal calibration: measurement window too short - skipping."
             )
             return None
-        grid_start, grid_end = window
-        # Keep the zone of the measurements, as the bounds had before the snapping.
-        measurement_zone = reference_end.timezone_name
-        start = to_datetime(grid_start.to_pydatetime(), in_timezone=measurement_zone)
-        end = to_datetime(grid_end.to_pydatetime(), in_timezone=measurement_zone)
+        start, end = window.start_datetime, window.end_datetime
 
         measured_kwh = np.asarray(
             await self._pv_production_total_kwh(
@@ -1370,7 +1395,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             .mean()
         )
         grid = pd.date_range(
-            start=grid_start,
+            start=window.start,
             periods=len(measured_kwh),
             freq=f"{interval_minutes}min",
         )
@@ -1426,11 +1451,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             .tz_convert(self.config.general.timezone)
             .normalize()
         )
-        fit_start = pd.Timestamp(
-            end.subtract(days=settings.calibration_days)
-            .in_timezone(self.config.general.timezone)
-            .isoformat()
-        ).normalize()
+        # Count the fit days in the configured zone, where the outage filter's days are.
+        timezone = self.config.general.timezone
+        fit_start = (
+            _utc_timestamp(end.in_timezone(timezone).subtract(days=settings.calibration_days))
+            .tz_convert(timezone)
+            .normalize()
+        )
 
         if settings.calibration_outage_filter_enabled and usable.any():
             samples = pd.DataFrame(
@@ -1816,12 +1843,12 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         window = _slot_window(interval_minutes, lookback_start, pv_last, (pv_first, row_start[0]))
         if window is None:
             return [], None
-        start, end = window
+        start = window.start
 
         measured = np.asarray(
             await self._pv_production_total_kwh(
-                start_datetime=to_datetime(start.to_pydatetime()),
-                end_datetime=to_datetime(end.to_pydatetime()),
+                start_datetime=window.start_datetime,
+                end_datetime=window.end_datetime,
                 interval=to_duration(f"{interval_minutes} minutes"),
             ),
             dtype=float,
@@ -1894,7 +1921,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         frame["snow_coverage"] = plant_coverage
 
         if plant_coverage.max() > 0.0 or corrections:
-            now = pd.Timestamp(self.ems_start_datetime.in_timezone("UTC").isoformat())
+            now = _utc_timestamp(self.ems_start_datetime)
             position = int(pd.DatetimeIndex(frame.index).searchsorted(now))
             current = float(plant_coverage[min(position, len(plant_coverage) - 1)])
             logger.info(

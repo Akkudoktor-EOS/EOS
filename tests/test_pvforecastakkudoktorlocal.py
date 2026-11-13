@@ -16,6 +16,7 @@ from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     PVForecastAkkudoktorLocal,
     PVForecastAkkudoktorLocalCommonSettings,
+    SlotWindow,
     _slot_window,
     _utc_timestamp,
 )
@@ -762,16 +763,16 @@ def test_file_migration_rejects_invalid_local_settings(config_eos, invalid):
             "2025-06-01T00:07:00Z",
             "2025-06-02T00:00:00Z",
             ["2025-05-01T00:04:50Z", pd.Timestamp("2025-05-31T23:45:00Z")],
-            ("2025-06-01T00:00:00Z", "2025-06-02T00:00:00Z"),
-            id="lookback-limited",
+            ("2025-06-01T00:15:00Z", "2025-06-02T00:00:00Z"),
+            id="lookback-limited-rounds-up-into-the-lookback",
         ),
         pytest.param(
             60,
             "2025-06-01T06:00:00+05:45",
             "2025-06-02T06:00:00+05:45",
-            [],
-            ("2025-06-01T00:00:00Z", "2025-06-02T00:00:00Z"),
-            id="quarter-hour-offset-zone-on-utc-grid",
+            [pd.Timestamp("2025-05-31T23:45:00")],
+            ("2025-06-01T01:00:00Z", "2025-06-02T00:00:00Z"),
+            id="quarter-hour-offset-zone-on-utc-grid-naive-model-stamp-is-utc",
         ),
     ],
 )
@@ -789,8 +790,9 @@ def test_slot_window_bounds_share_the_utc_slot_grid(
         [value if isinstance(value, pd.Timestamp) else to_datetime(value) for value in earliest],
     )
 
-    assert window is not None
-    assert window == (pd.Timestamp(expected[0]), pd.Timestamp(expected[1]))
+    assert window == SlotWindow(start=pd.Timestamp(expected[0]), end=pd.Timestamp(expected[1]))
+    assert window.start_datetime.timezone_name == "UTC"
+    assert compare_datetimes(window.start_datetime, to_datetime(expected[0])).equal
 
 
 def test_slot_window_without_a_whole_slot_is_none() -> None:
@@ -1033,3 +1035,27 @@ async def test_forecast_reads_the_pv_meter_window_once(pvforecast_instance, monk
     await pvforecast_instance._forecast_frame(synthetic_openmeteo())
 
     assert reads == 1
+
+
+@pytest.mark.asyncio
+async def test_snow_feedback_window_is_on_the_slot_grid(pvforecast_instance, recorded_windows):
+    """Snow feedback compares the same whole UTC slots as the calibration fit."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings(
+        calibration_enabled=False, snow_lookback_days=7
+    )
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_snow_window_emr": meter})
+    pv_window = await pvforecast_instance._pv_measurement_window()
+    assert pv_window is not None
+
+    observations, interval_hours = await pvforecast_instance._snow_observations(frame, pv_window)
+
+    assert interval_hours == 0.25
+    assert observations
+    start, end = recorded_windows[0]
+    assert compare_datetimes(start, to_datetime("2025-06-09T00:15:00Z")).equal
+    # The end is the last slot boundary before the last reading.
+    assert end.timestamp() % 900 == 0
+    assert compare_datetimes(end, pv_window.last).le
+    assert compare_datetimes(end.add(minutes=15), pv_window.last).gt
