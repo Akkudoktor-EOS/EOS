@@ -541,3 +541,77 @@ def test_battery_discharge_limit_caps_load_and_grid_export():
     assert initial_soc_wh - battery.soc_wh == pytest.approx(1000.0)
     assert grid_import == pytest.approx(500.0)
     assert grid_export == 0.0
+
+
+class TestFirstSlotFraction:
+    """A run within slot 0 simulates only the remaining part of that slot."""
+
+    @staticmethod
+    def _inverter(first_slot_fraction=0.25, battery=None, **parameters):
+        predictor = Mock()
+        predictor.calculate_expected_direct_consumption.side_effect = min
+        with patch(
+            "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+            return_value=predictor,
+        ):
+            inverter = Inverter(
+                InverterParameters(
+                    device_id="inverter1",
+                    max_power_wh=4000.0,
+                    battery_id=battery.parameters.device_id if battery else None,
+                    **parameters,
+                ),
+                battery=battery,
+                first_slot_fraction=first_slot_fraction,
+            )
+        return inverter, predictor
+
+    def test_slot_0_moves_only_the_remaining_part(self):
+        inverter, _ = self._inverter()
+        grid_export, _, losses, _ = inverter.process_energy(5000.0, 0.0, hour=0)
+        assert grid_export == pytest.approx(1000.0)
+        assert losses == pytest.approx(4000.0)
+        grid_export, _, losses, _ = inverter.process_energy(5000.0, 0.0, hour=1)
+        assert grid_export == pytest.approx(4000.0)
+        assert losses == pytest.approx(1000.0)
+
+    def test_self_consumption_table_gets_the_power_of_the_remaining_part(self):
+        """250 Wh in 15 min is 1000 W, not 250 W."""
+        inverter, predictor = self._inverter()
+        inverter.process_energy(500.0, 250.0, hour=0)
+        predictor.calculate_expected_direct_consumption.assert_called_with(1000.0, 2000.0)
+
+    def test_efficiency_curve_is_read_at_the_power_of_the_remaining_part(self):
+        inverter, _ = self._inverter(
+            dc_to_ac_efficiency_curve=[(0.0, 0.97), (0.25, 0.97), (1.0, 0.90)]
+        )
+        # 1000 Wh in 15 min is the full 4000 W.
+        assert inverter.dc_to_ac_efficiency_at(1000.0, 0.25) == pytest.approx(0.90)
+        assert inverter.dc_to_ac_efficiency_at(1000.0) == pytest.approx(0.97)
+
+    def test_ac_charge_in_slot_0_uses_the_remaining_part(self):
+        battery = Battery(
+            SolarPanelBatteryParameters(
+                device_id="battery1",
+                capacity_wh=40_000,
+                initial_soc_percentage=0,
+                min_soc_percentage=0,
+                max_charge_power_w=8_000,
+                charging_efficiency=1.0,
+            ),
+            prediction_hours=2,
+            first_slot_fraction=0.25,
+        )
+        battery.set_charge_per_hour(np.ones(2))
+        inverter, _ = self._inverter(
+            battery=battery, ac_to_dc_efficiency=1.0, ac_charge_limits_total_charge=True
+        )
+        inverter.begin_ac_charge_slot(0, 0.5)
+        ac_wh, _ = inverter.charge_battery_from_grid(0, 0.5)
+        # Half the charge power for 15 min.
+        assert ac_wh == pytest.approx(1000.0)
+
+    @pytest.mark.parametrize("fraction", [0.0, 1.01])
+    def test_invalid_fraction_is_rejected(self, fraction):
+        with pytest.raises(ValueError, match="first_slot_fraction"):
+            self._inverter(first_slot_fraction=fraction)

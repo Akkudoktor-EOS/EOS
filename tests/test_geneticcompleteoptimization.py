@@ -90,7 +90,7 @@ def test_grid_export_rates_reach_the_solution(config_eos: ConfigEOS):
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
 
     hours = 24
@@ -172,7 +172,7 @@ def test_ev_deadline_slot_resolution(config_eos: ConfigEOS):
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0, second=0, microsecond=0))
     optimization = GeneticOptimization(fixed_seed=1)
     optimization._slot0_datetime = optimization.ems.start_datetime
     slot0 = optimization._slot0_datetime
@@ -213,7 +213,7 @@ def test_ev_soc_penalty_reads_the_deadline_slot(config_eos: ConfigEOS):
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0, second=0, microsecond=0))
     optimization = GeneticOptimization(fixed_seed=1)
     simulation_result = {"EAuto_SoC_pro_Stunde": [20.0, 35.0, 50.0, 80.0]}
 
@@ -250,7 +250,7 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
 
     parameters = _ev_deadline_parameters(hours, min_soc_max_duration_h=6)
@@ -289,7 +289,7 @@ def _terminal_value_run(
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
 
     if prices is None:

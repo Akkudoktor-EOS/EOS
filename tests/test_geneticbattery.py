@@ -760,3 +760,88 @@ class TestPowerCurves:
     def test_invalid_curves_are_rejected(self, field, value):
         with pytest.raises(ValidationError):
             SolarPanelBatteryParameters(device_id="battery1", capacity_wh=10_000, **{field: value})
+
+
+class TestFirstSlotFraction:
+    """A run within slot 0 simulates only the remaining part of that slot."""
+
+    @staticmethod
+    def _battery(first_slot_fraction=1.0, soc=50, **curves):
+        params = SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=40_000,
+            initial_soc_percentage=soc,
+            min_soc_percentage=0,
+            max_soc_percentage=100,
+            max_charge_power_w=8_000,
+            max_discharge_power_w=4_000,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            **curves,
+        )
+        battery = Battery(
+            params, prediction_hours=4, slot_duration_h=1.0, first_slot_fraction=first_slot_fraction
+        )
+        battery.set_charge_per_hour(np.ones(4))
+        battery.set_discharge_per_hour(np.ones(4))
+        return battery
+
+    def test_slot_0_charges_only_the_remaining_part(self):
+        battery = self._battery(first_slot_fraction=0.25)
+        stored, _ = battery.charge_energy(None, 0, charge_factor=1.0)
+        assert stored == pytest.approx(2_000.0)
+        # Mode 1 (a PV surplus) is capped the same way.
+        assert battery.charge_energy(5_000.0, 0) == pytest.approx((0.0, 0.0))
+        # Slot 1 is a full slot again.
+        stored, _ = battery.charge_energy(None, 1, charge_factor=1.0)
+        assert stored == pytest.approx(8_000.0)
+
+    def test_slot_0_discharges_only_the_remaining_part(self):
+        battery = self._battery(first_slot_fraction=0.25)
+        assert battery.remaining_discharge_energy_wh(0) == pytest.approx(1_000.0)
+        assert battery.rated_discharge_energy_wh(0) == pytest.approx(1_000.0)
+        assert battery.rated_discharge_energy_wh(1) == pytest.approx(4_000.0)
+        assert battery.rated_discharge_energy_wh() == pytest.approx(4_000.0)
+        delivered, _ = battery.discharge_energy(9_000.0, 0)
+        assert delivered == pytest.approx(1_000.0)
+        delivered, _ = battery.discharge_energy(9_000.0, 1)
+        assert delivered == pytest.approx(4_000.0)
+
+    def test_full_fraction_is_the_plain_slot(self):
+        partial = self._battery(first_slot_fraction=1.0)
+        plain = Battery(partial.parameters, prediction_hours=4, slot_duration_h=1.0)
+        plain.set_charge_per_hour(np.ones(4))
+        assert partial.charge_energy(None, 0, charge_factor=1.0) == plain.charge_energy(
+            None, 0, charge_factor=1.0
+        )
+
+    def test_soc_power_limit_scales_with_the_remaining_part(self):
+        battery = self._battery(
+            first_slot_fraction=0.5,
+            charge_power_limit_w_by_soc=[6_000.0] * 101,
+            discharge_power_limit_w_by_soc=[2_000.0] * 101,
+        )
+        stored, _ = battery.charge_energy(None, 0, charge_factor=1.0)
+        assert stored == pytest.approx(3_000.0)
+        delivered, _ = battery.discharge_energy(9_000.0, 0)
+        assert delivered == pytest.approx(1_000.0)
+
+    def test_efficiency_curve_is_read_at_the_power_not_the_energy(self):
+        """Full power for 15 min has the efficiency of full power, not of 25 %."""
+        curve = [(0.0, 0.95), (0.25, 0.95), (1.0, 0.80)]
+        battery = self._battery(
+            first_slot_fraction=0.25,
+            charging_efficiency_curve=curve,
+            discharging_efficiency_curve=curve,
+        )
+        stored, losses = battery.charge_energy(None, 0, charge_factor=1.0)
+        assert stored + losses == pytest.approx(2_000.0)
+        assert stored == pytest.approx(2_000.0 * 0.80)
+        delivered, losses = battery.discharge_energy(9_000.0, 0)
+        assert delivered + losses == pytest.approx(1_000.0)
+        assert delivered == pytest.approx(1_000.0 * 0.80)
+
+    @pytest.mark.parametrize("fraction", [0.0, -0.1, 1.5])
+    def test_invalid_fraction_is_rejected(self, fraction):
+        with pytest.raises(ValueError, match="first_slot_fraction"):
+            self._battery(first_slot_fraction=fraction)

@@ -74,7 +74,7 @@ def _parameters(
             },
         }
     )
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
     return GeneticOptimizationParameters.model_validate(
         dict(
