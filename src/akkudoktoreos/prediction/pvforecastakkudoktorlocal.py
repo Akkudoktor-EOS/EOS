@@ -50,6 +50,7 @@ from akkudoktoreos.prediction.pvforecastabc import (
 )
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
+    Duration,
     compare_datetimes,
     to_datetime,
     to_duration,
@@ -80,6 +81,9 @@ MAX_FORECAST_DAYS = 16
 MAX_PAST_DAYS = 92
 
 TRANSPOSITION_MODELS = ("isotropic", "klucher", "haydavies", "reindl", "king", "perez")
+
+# The measurement store converts energy for at most 31 days per query.
+ENERGY_QUERY_MAX_DAYS = 30
 
 # pvlib SAPM cell temperature parameter set per EOS `mountingplace`.
 MOUNTING_TEMPERATURE_MODEL = {
@@ -1186,16 +1190,48 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         return factors
 
     async def _pv_production_total_kwh(
-        self, start_datetime: Any, end_datetime: Any, interval: Any
+        self, start_datetime: DateTime, end_datetime: DateTime, interval: Duration
     ) -> np.ndarray:
-        """Sum configured cumulative PV meters using main's async energy conversion."""
-        totals = None
-        for key in self.config.measurement.pv_production_emr_keys or []:
-            values = await self.measurement._energy_from_meter_readings(
-                key, start_datetime, end_datetime, interval
-            )
-            totals = values if totals is None else totals + values
-        return np.asarray([] if totals is None else totals, dtype=float)
+        """Sum the configured cumulative PV meters per interval of [start, end).
+
+        Uses the quality-aware energy conversion of the measurement store: each meter
+        is interpolated at the slot boundaries, so a meter reporting at arbitrary
+        stamps still yields the energy of exactly that slot. A slot a meter does not
+        fully cover (gap, reset, before its first or after its last reading) is NaN,
+        never zero, so it cannot pull a fitted factor down.
+
+        Args:
+            start_datetime: Start of the first slot, on the slot grid.
+            end_datetime: End of the last slot, on the slot grid.
+            interval: Slot length.
+
+        Returns:
+            Energy in kWh per slot, NaN where any meter lacks full coverage; empty when
+            no PV meter is configured.
+        """
+        keys = self.config.measurement.pv_production_emr_keys or []
+        if not keys:
+            return np.asarray([], dtype=float)
+        interval_seconds = int(interval.total_seconds())
+        totals: Optional[np.ndarray] = None
+        for key in keys:
+            values: list[float] = []
+            chunk_start = start_datetime
+            while compare_datetimes(chunk_start, end_datetime).lt:
+                chunk_end = chunk_start.add(days=ENERGY_QUERY_MAX_DAYS)
+                if compare_datetimes(chunk_end, end_datetime).gt:
+                    chunk_end = end_datetime
+                intervals = await self.measurement.energy_intervals(
+                    key, chunk_start, chunk_end, interval_seconds
+                )
+                values.extend(
+                    np.nan if slot.energy_wh is None else slot.energy_wh / 1000.0
+                    for slot in intervals
+                )
+                chunk_start = chunk_end
+            meter_kwh = np.asarray(values, dtype=float)
+            totals = meter_kwh if totals is None else totals + meter_kwh
+        return np.asarray(totals, dtype=float)
 
     async def _fit_calibration(self, frame: pd.DataFrame) -> Optional[tuple[float, np.ndarray]]:
         """Fit correction factors from measured PV production against the model.

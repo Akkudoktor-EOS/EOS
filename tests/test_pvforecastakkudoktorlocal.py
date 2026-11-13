@@ -1,5 +1,6 @@
 """Tests for the native (pvlib) PV forecast provider."""
 
+from typing import Any, Optional
 from unittest.mock import AsyncMock, Mock, patch
 
 import numpy as np
@@ -795,35 +796,98 @@ def test_slot_window_without_a_whole_slot_is_none() -> None:
     assert window is None
 
 
-async def _feed_unaligned_measurements(
-    instance: PVForecastAkkudoktorLocal,
+def _unaligned_meter_series(
     frame: pd.DataFrame,
     bias: float,
-    key: str,
     first: DateTime,
+    until: DateTime,
     cadence_minutes: int,
-) -> None:
-    """Write a real-world-like meter: jittered cadence, unaligned stamps.
+    timezone: str = "UTC",
+    interval_start_labels: bool = True,
+) -> pd.Series:
+    """Cumulative readings of a real-world-like meter: jittered cadence, unaligned stamps.
 
     Home Assistant style meters report whenever they change, so neither the first
-    reading nor any later reading falls on a slot boundary.
+    reading nor any later reading falls on a slot boundary. The meter measures
+    ``bias`` times the modelled power; the stamps carry ``timezone``.
     """
-    instance.config.measurement.pv_production_emr_keys = [key]
-    measurement = get_measurement()
-    power = frame["ac_power"]
-    row_hours = (frame.index[1] - frame.index[0]).total_seconds() / 3600.0
-    # Cumulative energy at every native slot boundary, interpolated to arbitrary stamps.
-    cumulative = (power * row_hours * bias / 1000.0).cumsum().shift(1, fill_value=0.0)
-    seconds = (cumulative.index - cumulative.index[0]).total_seconds().to_numpy()
+    row_start = pd.DatetimeIndex(frame.index)
+    row_length = row_start[1] - row_start[0]
+    if not interval_start_labels:
+        row_start = row_start - row_length
+    epoch = pd.Timestamp(0, tz="UTC")
+    energy_kwh = frame["ac_power"].to_numpy(dtype=float) * row_length.total_seconds() / 3600.0
+    # Cumulative energy at every row boundary, interpolated to the meter stamps.
+    boundaries = pd.DatetimeIndex([*row_start, row_start[-1] + row_length]) - epoch
+    cumulative = np.concatenate([[0.0], np.cumsum(energy_kwh * bias / 1000.0)])
     jitter = [0, 21, 47, 13, 34]
-    timestamp = first
-    step = 0
-    while compare_datetimes(timestamp, START).lt:
-        offset = _utc_timestamp(timestamp) - cumulative.index[0]
-        value = float(np.interp(offset.total_seconds(), seconds, cumulative.to_numpy()))
-        await measurement.update_value(timestamp, key, round(value, 3))
-        timestamp = timestamp.add(minutes=cadence_minutes, seconds=jitter[step % len(jitter)])
-        step += 1
+    stamps = []
+    stamp = _utc_timestamp(first)
+    end = _utc_timestamp(until)
+    while stamp < end:
+        stamps.append(stamp)
+        stamp += pd.Timedelta(minutes=cadence_minutes, seconds=jitter[len(stamps) % len(jitter)])
+    index = pd.DatetimeIndex(stamps)
+    values = np.interp(
+        (index - epoch).total_seconds(), boundaries.total_seconds(), cumulative
+    ).round(3)
+    return pd.Series(values, index=index.tz_convert(timezone))
+
+
+async def _feed_meters(instance: PVForecastAkkudoktorLocal, meters: dict[str, pd.Series]) -> None:
+    """Configure ``meters`` as the PV production meters and store their readings."""
+    instance.config.measurement.pv_production_emr_keys = list(meters)
+    measurement = get_measurement()
+    for key, series in meters.items():
+        await measurement.key_from_series(key, series)
+
+
+@pytest.fixture
+def recorded_windows(monkeypatch) -> list[tuple[DateTime, DateTime]]:
+    """Record the (start, end) of every PV production energy query."""
+    windows: list[tuple[DateTime, DateTime]] = []
+    production_total_kwh = PVForecastAkkudoktorLocal._pv_production_total_kwh
+
+    async def recording_production_total_kwh(self, start_datetime, end_datetime, interval):
+        windows.append((start_datetime, end_datetime))
+        return await production_total_kwh(self, start_datetime, end_datetime, interval)
+
+    monkeypatch.setattr(
+        PVForecastAkkudoktorLocal, "_pv_production_total_kwh", recording_production_total_kwh
+    )
+    return windows
+
+
+def _calibration_settings(**overrides: Any) -> PVForecastAkkudoktorLocalCommonSettings:
+    """Calibration over 30 days with 45-degree azimuth bins.
+
+    The bins expose a slot shift between measured and modelled energy: on a clear-sky
+    day a shift lowers the morning bins and raises the evening ones (or the reverse),
+    while the global factor barely moves.
+    """
+    settings: dict[str, Any] = {
+        "calibration_enabled": True,
+        "calibration_days": 30,
+        "calibration_reference_days": 30,
+        "calibration_azimuth_bin_degrees": 45,
+        **overrides,
+    }
+    return PVForecastAkkudoktorLocalCommonSettings(**settings)
+
+
+def _assert_fitted_bias(
+    calibration: Optional[tuple[float, np.ndarray]], bias: float, cadence_minutes: int = 5
+) -> None:
+    """The global factor and every azimuth-bin factor recover the meter bias.
+
+    An hourly meter is interpolated linearly across the curved dawn and dusk
+    production, which moves those bins by a few percent in the same direction;
+    a slot shift would move east and west bins in opposite directions.
+    """
+    assert calibration is not None
+    global_factor, factors = calibration
+    assert global_factor == pytest.approx(bias, abs=0.01)
+    np.testing.assert_allclose(factors, bias, atol=0.02 if cadence_minutes <= 15 else 0.05)
 
 
 @pytest.mark.asyncio
@@ -856,7 +920,7 @@ async def _feed_unaligned_measurements(
 )
 async def test_calibration_with_short_unaligned_meter_history(
     pvforecast_instance,
-    monkeypatch,
+    recorded_windows,
     timezone: str,
     first: str,
     cadence_minutes: int,
@@ -869,44 +933,24 @@ async def test_calibration_with_short_unaligned_meter_history(
     without snapping it to the slot grid, so the model grid (00:19:50, 00:34:50, ...)
     never hit a resampled model row and every interval was discarded as NaN. The
     window must start at the first slot the readings fully cover and hold whole
-    slots on the UTC grid, also in zones with a quarter-hour offset.
+    slots on the UTC grid, also in zones with a quarter-hour offset, and measured
+    and modelled energy must line up slot by slot.
     """
     pvforecast_instance.config.merge_settings_from_dict(
         {"general": {"timezone_override": timezone}}
     )
     assert pvforecast_instance.config.general.timezone == timezone
-    pvforecast_instance.config.pvforecast.akkudoktor = PVForecastAkkudoktorLocalCommonSettings(
-        calibration_enabled=True,
-        calibration_days=30,
-        calibration_reference_days=30,
-        calibration_azimuth_bin_degrees=0,
-    )
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings()
     frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
-    await _feed_unaligned_measurements(
-        pvforecast_instance,
-        frame,
-        bias=0.8,
-        key=f"pv_unaligned_emr_{cadence_minutes}",
-        first=to_datetime(first),
-        cadence_minutes=cadence_minutes,
+    meter = _unaligned_meter_series(
+        frame, 0.8, to_datetime(first), START, cadence_minutes, timezone=timezone
     )
-    windows: list[tuple[DateTime, DateTime]] = []
-    production_total_kwh = PVForecastAkkudoktorLocal._pv_production_total_kwh
-
-    async def recording_production_total_kwh(self, start_datetime, end_datetime, interval):
-        windows.append((start_datetime, end_datetime))
-        return await production_total_kwh(self, start_datetime, end_datetime, interval)
-
-    monkeypatch.setattr(
-        PVForecastAkkudoktorLocal, "_pv_production_total_kwh", recording_production_total_kwh
-    )
+    await _feed_meters(pvforecast_instance, {f"pv_unaligned_emr_{cadence_minutes}": meter})
 
     calibration = await pvforecast_instance._fit_calibration(frame)
 
-    assert calibration is not None
-    global_factor, _ = calibration
-    assert global_factor == pytest.approx(0.8, abs=0.03)
-    start, end = windows[0]
+    _assert_fitted_bias(calibration, 0.8, cadence_minutes)
+    start, end = recorded_windows[0]
     assert compare_datetimes(start, to_datetime(expected_start)).equal
     slot_seconds = interval_minutes * 60
     assert start.timestamp() % slot_seconds == 0
