@@ -33,6 +33,7 @@ import asyncio
 import math
 import time
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from typing import Any, Literal, Optional, Self
 
 import numpy as np
@@ -40,15 +41,22 @@ import pandas as pd
 import pendulum
 import requests
 from loguru import logger
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, PrivateAttr, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
+from akkudoktoreos.measurement.measurement import MeterPeriod
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecordT,
     PVForecastProvider,
 )
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    compare_datetimes,
+    to_datetime,
+    to_duration,
+)
 
 OPENMETEO_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -70,6 +78,9 @@ OPENMETEO_SNOW_VARIABLES = ("snowfall", "snow_depth")
 # Snow feedback warns when the newest PV meter reading is older than this.
 SNOW_FEEDBACK_STALE_HOURS = 3
 
+# Calibration warns when the common PV meter period ended longer ago than this.
+CALIBRATION_STALE_HOURS = 24
+
 # Open-Meteo hard limits for a single forecast request.
 MAX_FORECAST_DAYS = 16
 MAX_PAST_DAYS = 92
@@ -81,6 +92,86 @@ MOUNTING_TEMPERATURE_MODEL = {
     "free": "open_rack_glass_glass",
     "building": "close_mount_glass_glass",
 }
+
+
+def _utc_timestamp(moment: DateTime | pd.Timestamp) -> pd.Timestamp:
+    """Convert a moment to a UTC pandas timestamp.
+
+    This is the one conversion from EOS datetimes to pandas in this module, so every
+    window bound carries the same UTC timezone object.
+
+    Args:
+        moment: A DateTime or a pandas timestamp, e.g. a row label of the UTC model
+            frame. A timezone-naive pandas timestamp is taken as UTC, the zone of the
+            model frame.
+
+    Returns:
+        The same instant as a UTC pandas timestamp.
+    """
+    timestamp = moment if isinstance(moment, pd.Timestamp) else pd.Timestamp(moment.isoformat())
+    if timestamp.tzinfo is None:
+        return timestamp.tz_localize("UTC")
+    return timestamp.tz_convert("UTC")
+
+
+def _utc_datetime(timestamp: pd.Timestamp) -> DateTime:
+    """Convert a UTC pandas timestamp back to a UTC DateTime."""
+    return to_datetime(timestamp.to_pydatetime(), in_timezone="UTC")
+
+
+@dataclass(frozen=True)
+class SlotWindow:
+    """Whole slots of the UTC epoch grid that a fit compares.
+
+    Attributes:
+        start: Start of the first slot, UTC.
+        end: End of the last slot, UTC.
+    """
+
+    start: pd.Timestamp
+    end: pd.Timestamp
+
+    @property
+    def start_datetime(self) -> DateTime:
+        """Start of the first slot as a UTC DateTime."""
+        return _utc_datetime(self.start)
+
+    @property
+    def end_datetime(self) -> DateTime:
+        """End of the last slot as a UTC DateTime."""
+        return _utc_datetime(self.end)
+
+
+def _slot_window(
+    interval_minutes: int,
+    lookback_start: DateTime,
+    last: DateTime,
+    earliest: Iterable[DateTime | pd.Timestamp],
+) -> Optional[SlotWindow]:
+    """Measurement window that holds whole slots of the UTC epoch grid.
+
+    Meter readings arrive at arbitrary stamps (e.g. 00:04:50). A window bound off
+    the slot grid shifts every comparison slot off the rows of the UTC model frame
+    resampled to the slot length, which then reindex to NaN. Both bounds are
+    therefore snapped to the same UTC grid, also in zones with a :30 or :45 offset.
+    The window never reaches outside the lookback or the data.
+
+    Args:
+        interval_minutes: Slot length in minutes.
+        lookback_start: Earliest start the lookback allows; rounded up to the grid.
+        last: Latest moment with data; rounded down to give the window end.
+        earliest: First moments that carry data (meter, model rows); each is
+            rounded up, so the window starts at the first slot they fully cover.
+
+    Returns:
+        The window, or None when no whole slot fits.
+    """
+    freq = f"{interval_minutes}min"
+    start = max(_utc_timestamp(moment).ceil(freq) for moment in (lookback_start, *earliest))
+    end = _utc_timestamp(last).floor(freq)
+    if start >= end:
+        return None
+    return SlotWindow(start=start, end=end)
 
 
 def normalize_akkudoktor_settings(data: Any) -> Any:
@@ -485,6 +576,9 @@ class PVForecastAkkudoktorLocalCommonSettings(SettingsBaseModel):
 
 class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
     """Compute the PV forecast locally from Open-Meteo irradiance using pvlib."""
+
+    # End of the common PV meter period last warned about as stale (warned once).
+    _stale_calibration_reported_end: Optional[DateTime] = PrivateAttr(default=None)
 
     @classmethod
     def provider_id(cls) -> str:
@@ -951,9 +1045,20 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             frame.index = pd.DatetimeIndex(frame.index) - interval
 
         raw_ac = frame["ac_power"].to_numpy(dtype=float).copy()
+        # Calibration and snow feedback share one scan of the PV meter readings.
+        pv_window: Optional[MeterPeriod] = None
+        if (
+            calibrate
+            and self.config.measurement.pv_production_emr_keys
+            and (
+                settings.calibration_enabled
+                or (settings.snow_enabled and settings.snow_feedback_enabled)
+            )
+        ):
+            pv_window = await self._pv_measurement_window()
         if calibrate:
             # The fit needs the raw model to compare against, which is exactly `frame`.
-            calibration = await self._fit_calibration(frame)
+            calibration = await self._fit_calibration(frame, pv_window)
             if calibration is not None:
                 global_factor, factors = calibration
                 frame = self._apply_calibration(
@@ -971,6 +1076,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                 np.vstack(plane_ac),
                 np.vstack(plane_poa),
                 np.vstack(plane_tilt),
+                pv_window,
             )
         return frame
 
@@ -1006,37 +1112,35 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                 total += min(limits)
         return total
 
-    async def _pv_measurement_window(self) -> Optional[tuple[Any, Any]]:
-        """First and last timestamp that actually carries PV production readings.
+    def _row_start_index(self, frame: pd.DataFrame) -> pd.DatetimeIndex:
+        """Start of the interval each forecast row covers.
+
+        Rows carry interval-start stamps unless ``shift_to_interval_start`` is off; then
+        they keep Open-Meteo's interval-end stamps and each row covers the interval
+        before its label.
+        """
+        row_start = pd.DatetimeIndex(frame.index)
+        if not self._settings.shift_to_interval_start:
+            row_start = row_start - pd.Timedelta(minutes=self._settings.resolution_minutes)
+        return row_start
+
+    async def _pv_measurement_window(self) -> Optional[MeterPeriod]:
+        """Period that every configured PV production meter covers with readings.
 
         The measurement store holds every meter, not just the PV ones. Load meters
         routinely reach further than the PV meter in both directions, so deriving
         the calibration window from the store as a whole would place it where no
         PV reading exists - which silently skips calibration or downgrades it to
-        hourly fitting.
+        hourly fitting. With several PV meters only their common period counts:
+        outside it the summed meters are not the plant.
+
+        Returns:
+            The common period, or None when a PV meter has no readings or the meters
+            share no period.
         """
-        measurement = self.measurement
-        first = await measurement.min_datetime()
-        last = await measurement.max_datetime()
-        if first is None or last is None:
-            return None
-        earliest: Any = None
-        latest: Any = None
-        for key in self.config.measurement.pv_production_emr_keys or []:
-            dates, _ = await measurement.key_to_lists(
-                key=key,
-                start_datetime=first,
-                end_datetime=last.add(minutes=1),
-            )
-            if not dates:
-                continue
-            if earliest is None or compare_datetimes(dates[0], earliest).lt:
-                earliest = dates[0]
-            if latest is None or compare_datetimes(dates[-1], latest).gt:
-                latest = dates[-1]
-        if earliest is None or latest is None:
-            return None
-        return earliest, latest
+        return await self.measurement.keys_common_period(
+            self.config.measurement.pv_production_emr_keys or [], "PVForecastAkkudoktorLocal"
+        )
 
     async def _calibration_interval_minutes(self, start: Any, end: Any) -> int:
         """Use native forecast slots only when every PV meter resolves them.
@@ -1130,18 +1234,36 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         return factors
 
     async def _pv_production_total_kwh(
-        self, start_datetime: Any, end_datetime: Any, interval: Any
+        self, start_datetime: DateTime, end_datetime: DateTime, interval: Duration
     ) -> np.ndarray:
-        """Sum configured cumulative PV meters using main's async energy conversion."""
-        totals = None
-        for key in self.config.measurement.pv_production_emr_keys or []:
-            values = await self.measurement._energy_from_meter_readings(
-                key, start_datetime, end_datetime, interval
-            )
-            totals = values if totals is None else totals + values
-        return np.asarray([] if totals is None else totals, dtype=float)
+        """Sum the configured cumulative PV meters per interval of [start, end).
 
-    async def _fit_calibration(self, frame: pd.DataFrame) -> Optional[tuple[float, np.ndarray]]:
+        Uses the quality-aware energy conversion of the measurement store: each meter
+        is interpolated at the slot boundaries, so a meter reporting at arbitrary
+        stamps still yields the energy of exactly that slot. A slot a meter does not
+        fully cover (gap, reset, before its first or after its last reading) is NaN,
+        never zero, so it cannot pull a fitted factor down.
+
+        Args:
+            start_datetime: Start of the first slot, on the slot grid.
+            end_datetime: End of the last slot, on the slot grid.
+            interval: Slot length.
+
+        Returns:
+            Energy in kWh per slot, NaN where any meter lacks full coverage; empty when
+            no PV meter is configured.
+        """
+        keys = self.config.measurement.pv_production_emr_keys or []
+        if not keys:
+            return np.asarray([], dtype=float)
+        meters_kwh = await self.measurement.meter_energy_kwh(
+            keys, start_datetime, end_datetime, interval
+        )
+        return np.asarray(sum(meters_kwh.values()), dtype=float)
+
+    async def _fit_calibration(
+        self, frame: pd.DataFrame, pv_window: Optional[MeterPeriod]
+    ) -> Optional[tuple[float, np.ndarray]]:
         """Fit correction factors from measured PV production against the model.
 
         The comparison runs on past intervals, where the Open-Meteo rows are analysed
@@ -1149,6 +1271,10 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         *PV model* (wrong kWp, soiling, degradation, shading the horizon profile misses)
         from the error of the *weather forecast*, and only the former is systematic
         enough to correct.
+
+        Args:
+            frame: Raw model frame of the forecast run.
+            pv_window: Common period of the PV meters, read once per forecast run.
 
         Returns:
             (global_factor, per_azimuth_bin_factors) or None when there is not enough
@@ -1164,43 +1290,63 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             )
             return None
 
-        pv_window = await self._pv_measurement_window()
         if pv_window is None:
             logger.info("PVForecastAkkudoktorLocal calibration: no PV measurements yet - skipping.")
             return None
-        pv_min_datetime, reference_end = pv_window
+        pv_min_datetime, reference_end = pv_window.first, pv_window.last
+        if compare_datetimes(
+            reference_end.add(hours=CALIBRATION_STALE_HOURS), self.ems_start_datetime
+        ).lt:
+            message = (
+                f"PVForecastAkkudoktorLocal calibration: PV production meter "
+                f"'{pv_window.last_key}' last reported at {reference_end}, more than "
+                f"{CALIBRATION_STALE_HOURS} h ago - calibration can only use data up to then."
+            )
+            if self._stale_calibration_reported_end == reference_end:
+                logger.debug(message)
+            else:
+                self._stale_calibration_reported_end = reference_end
+                logger.warning(message)
 
         lookback_days = settings.calibration_days
         if settings.calibration_outage_filter_enabled:
             lookback_days = max(lookback_days, settings.calibration_reference_days)
         reference_start = reference_end.subtract(days=lookback_days)
-        interval_minutes = await self._calibration_interval_minutes(reference_start, reference_end)
+        # Judge the meter resolution only where every PV meter reports.
+        resolution_start = (
+            pv_min_datetime
+            if compare_datetimes(pv_min_datetime, reference_start).gt
+            else reference_start
+        )
+        interval_minutes = await self._calibration_interval_minutes(resolution_start, reference_end)
         interval_hours = interval_minutes / 60.0
         interval = to_duration(f"{interval_minutes} minutes")
-        end = reference_end.start_of("hour")
-        if interval_minutes < 60:
-            end = reference_end.start_of("minute").set(
-                minute=(reference_end.minute // interval_minutes) * interval_minutes
-            )
-        start = end.subtract(days=lookback_days)
-        if compare_datetimes(start, pv_min_datetime).lt:
-            start = pv_min_datetime.start_of("minute").add(minutes=interval_minutes)
+        # Bin the model rows by the interval they cover, like the meter slots.
+        model_frame = frame.set_axis(self._row_start_index(frame))
         # The model side only exists for the weather window that was requested.
-        model_start = to_datetime(frame.index[0].to_pydatetime())
-        if compare_datetimes(start, model_start).lt:
-            start = model_start.start_of("minute").add(minutes=interval_minutes)
-        if compare_datetimes(start, end).ge:
+        window = _slot_window(
+            interval_minutes,
+            reference_start,
+            reference_end,
+            (pv_min_datetime, model_frame.index[0]),
+        )
+        if window is None:
             logger.info(
                 "PVForecastAkkudoktorLocal calibration: measurement window too short - skipping."
             )
             return None
+        start, end = window.start_datetime, window.end_datetime
 
-        measured_kwh = np.asarray(
-            await self._pv_production_total_kwh(
+        try:
+            measured_kwh = await self._pv_production_total_kwh(
                 start_datetime=start, end_datetime=end, interval=interval
-            ),
-            dtype=float,
-        )
+            )
+        except ValueError as exc:
+            logger.error(
+                "PVForecastAkkudoktorLocal calibration: PV meter energy conversion failed - "
+                f"using the uncalibrated model: {exc}"
+            )
+            return None
         if measured_kwh.size == 0 or not np.isfinite(measured_kwh).any():
             logger.info(
                 "PVForecastAkkudoktorLocal calibration: no usable PV measurements - skipping."
@@ -1211,10 +1357,12 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         # interval energy below; hourly meters stay hourly and native 15-minute meters
         # retain the shape that matters to the EMS.
         samples_frame = (
-            frame[["ac_power", "solar_azimuth"]].resample(f"{interval_minutes}min").mean()
+            model_frame[["ac_power", "solar_azimuth"]]
+            .resample(f"{interval_minutes}min", origin="epoch")
+            .mean()
         )
         grid = pd.date_range(
-            start=pd.Timestamp(start.in_timezone("UTC").isoformat()),
+            start=window.start,
             periods=len(measured_kwh),
             freq=f"{interval_minutes}min",
         )
@@ -1222,14 +1370,14 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         modelled_kwh = samples_frame["ac_power"].to_numpy(dtype=float) / 1000.0 * interval_hours
         azimuth = samples_frame["solar_azimuth"].to_numpy(dtype=float)
         snow_possible = np.zeros(len(samples_frame), dtype=bool)
-        if "snow_possible" in frame.columns:
+        if "snow_possible" in model_frame.columns:
             # Snow on the modules is a transient loss, not a model error. The day-level
             # outage filter catches fully covered days, but partly covered ones would
             # still drag the factor down.
             snow_possible = (
-                frame["snow_possible"]
+                model_frame["snow_possible"]
                 .astype(float)
-                .resample(f"{interval_minutes}min")
+                .resample(f"{interval_minutes}min", origin="epoch")
                 .max()
                 .reindex(grid)
                 .fillna(0.0)
@@ -1270,11 +1418,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             .tz_convert(self.config.general.timezone)
             .normalize()
         )
-        fit_start = pd.Timestamp(
-            end.subtract(days=settings.calibration_days)
-            .in_timezone(self.config.general.timezone)
-            .isoformat()
-        ).normalize()
+        # Count the fit days in the configured zone, where the outage filter's days are.
+        timezone = self.config.general.timezone
+        fit_start = (
+            _utc_timestamp(end.in_timezone(timezone).subtract(days=settings.calibration_days))
+            .tz_convert(timezone)
+            .normalize()
+        )
 
         if settings.calibration_outage_filter_enabled and usable.any():
             samples = pd.DataFrame(
@@ -1616,9 +1766,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         return coverage, corrections
 
     async def _snow_observations(
-        self, frame: pd.DataFrame
+        self, frame: pd.DataFrame, pv_window: Optional[MeterPeriod]
     ) -> tuple[list[tuple[int, int, float]], Optional[float]]:
         """Measured PV energy per meter interval, mapped onto forecast rows.
+
+        Args:
+            frame: Model frame of the forecast run.
+            pv_window: Common period of the PV meters, read once per forecast run.
 
         Returns:
             (observations, interval_hours): (first_row, end_row_exclusive, kWh) per
@@ -1627,14 +1781,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         settings = self._settings
         if not settings.snow_feedback_enabled or not self.config.measurement.pv_production_emr_keys:
             return [], None
-        pv_window = await self._pv_measurement_window()
         if pv_window is None:
             logger.warning(
-                "PVForecastAkkudoktorLocal snow feedback: no PV production readings - "
-                "using the weather-only snow model."
+                "PVForecastAkkudoktorLocal snow feedback: no period that every PV production "
+                "meter covers - using the weather-only snow model."
             )
             return [], None
-        pv_first, pv_last = pv_window
+        pv_first, pv_last = pv_window.first, pv_window.last
         if compare_datetimes(
             pv_last.add(hours=SNOW_FEEDBACK_STALE_HOURS), self.ems_start_datetime
         ).lt:
@@ -1645,34 +1798,32 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             )
 
         resolution = pd.Timedelta(minutes=settings.resolution_minutes)
-        row_start = pd.DatetimeIndex(frame.index)
-        if not settings.shift_to_interval_start:
-            row_start = row_start - resolution
+        row_start = self._row_start_index(frame)
 
         lookback_start = pv_last.subtract(days=settings.snow_lookback_days)
-        interval_minutes = await self._calibration_interval_minutes(lookback_start, pv_last)
+        resolution_start = (
+            pv_first if compare_datetimes(pv_first, lookback_start).gt else lookback_start
+        )
+        interval_minutes = await self._calibration_interval_minutes(resolution_start, pv_last)
         interval = pd.Timedelta(minutes=interval_minutes)
 
-        def floor_to_interval(value: pd.Timestamp) -> pd.Timestamp:
-            return value.floor(f"{interval_minutes}min")
-
-        start = max(
-            floor_to_interval(pd.Timestamp(lookback_start.in_timezone("UTC").isoformat())),
-            pd.Timestamp(pv_first.in_timezone("UTC").isoformat()).ceil(f"{interval_minutes}min"),
-            row_start[0].tz_convert("UTC").ceil(f"{interval_minutes}min"),
-        )
-        end = floor_to_interval(pd.Timestamp(pv_last.in_timezone("UTC").isoformat()))
-        if start >= end:
+        window = _slot_window(interval_minutes, lookback_start, pv_last, (pv_first, row_start[0]))
+        if window is None:
             return [], None
+        start = window.start
 
-        measured = np.asarray(
-            await self._pv_production_total_kwh(
-                start_datetime=to_datetime(start.to_pydatetime()),
-                end_datetime=to_datetime(end.to_pydatetime()),
+        try:
+            measured = await self._pv_production_total_kwh(
+                start_datetime=window.start_datetime,
+                end_datetime=window.end_datetime,
                 interval=to_duration(f"{interval_minutes} minutes"),
-            ),
-            dtype=float,
-        )
+            )
+        except ValueError as exc:
+            logger.error(
+                "PVForecastAkkudoktorLocal snow feedback: PV meter energy conversion failed - "
+                f"using the weather-only snow model: {exc}"
+            )
+            return [], None
         interval_hours = interval_minutes / 60.0
         # A meter jump (reset, a sub-meter dropping out of a sum) shows up as an
         # impossible yield. Drop it rather than learn snow - or its absence - from it.
@@ -1699,6 +1850,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         plane_ac: np.ndarray,
         plane_poa: np.ndarray,
         plane_tilt: np.ndarray,
+        pv_window: Optional[MeterPeriod],
     ) -> pd.DataFrame:
         """Reduce the forecast by the (measurement-corrected) snow coverage."""
         settings = self._settings
@@ -1708,7 +1860,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             scale = np.where(raw_ac > 0.0, calibrated_ac / raw_ac, 1.0)
         clear_ac = plane_ac * scale[np.newaxis, :]
 
-        observations, _ = await self._snow_observations(frame)
+        observations, _ = await self._snow_observations(frame, pv_window)
         coverage, corrections = self._simulate_snow_coverage(
             snowfall_cm=weather["snowfall_cm"].to_numpy(dtype=float),
             snow_depth_cm=weather["snow_depth_cm"].to_numpy(dtype=float),
@@ -1740,7 +1892,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         frame["snow_coverage"] = plant_coverage
 
         if plant_coverage.max() > 0.0 or corrections:
-            now = pd.Timestamp(self.ems_start_datetime.in_timezone("UTC").isoformat())
+            now = _utc_timestamp(self.ems_start_datetime)
             position = int(pd.DatetimeIndex(frame.index).searchsorted(now))
             current = float(plant_coverage[min(position, len(plant_coverage) - 1)])
             logger.info(

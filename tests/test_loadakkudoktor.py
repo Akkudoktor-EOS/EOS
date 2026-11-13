@@ -49,7 +49,12 @@ def loadakkudoktoradjusted(config_eos):
     config_eos.merge_settings_from_dict(settings)
     assert config_eos.load.provider == "LoadAkkudoktorAdjusted"
     assert config_eos.load.loadakkudoktor.loadakkudoktor_year_energy_kwh == 1000
-    return LoadAkkudoktorAdjusted()
+    # The adjustment ignores stale meter periods; run the tests next to their data.
+    ems_class = type(get_ems())
+    previous_start = ems_class._start_datetime
+    get_ems().set_start_datetime(to_datetime("2024-01-02T00:00:00"))
+    yield LoadAkkudoktorAdjusted()
+    ems_class._start_datetime = previous_start
 
 @pytest_asyncio.fixture
 async def measurement_eos():
@@ -264,6 +269,8 @@ async def empty_measurement(config_eos):
     """Own, empty measurement store (the singleton is shared between tests)."""
     measurement = get_measurement()
     await measurement.delete_by_datetime(None, None)
+    # Warn-once state lives on the shared singleton; start each test fresh.
+    measurement._reported_warnings.clear()
     config_eos.merge_settings_from_dict(
         {"devices": {"max_batteries": 1, "batteries": {"storage": {"profile_adjustment": {"nominal_capacity_wh": 2000}}}}}
     )
@@ -290,6 +297,7 @@ async def _adjustment_window(adjusted, measurement):
 @pytest.mark.asyncio
 async def test_adjustment_buckets_stay_on_full_hours(loadakkudoktoradjusted, empty_measurement):
     """A newer off-hour record (e.g. a device SoC) must not shift the hourly buckets (#1447)."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
     dt = to_datetime("2024-01-01T00:00:00")
     for hour in range(25):
         await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
@@ -319,3 +327,152 @@ async def test_adjustment_within_first_hour_returns_zero(
     (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
     assert calls == []
     assert not weekday.any() and not weekend.any()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_skips_hours_without_load_meter_coverage(
+    loadakkudoktoradjusted, empty_measurement
+):
+    """Hours the load meters do not cover are unknown and must not adjust the profile."""
+    # A Monday, in the zone whose local hours the adjustment buckets.
+    timezone = loadakkudoktoradjusted.config.general.timezone
+    dt = to_datetime("2024-01-01T00:00:00", in_timezone=timezone)
+    for hour in range(13):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+        await empty_measurement.update_value(dt.add(hours=hour), "load1_mr", 500.0 + hour)
+    # Another channel keeps the store going until midnight.
+    await empty_measurement.update_value(dt.add(hours=24), "storage-soc-factor", 0.42)
+
+    (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls
+    assert np.isfinite(weekday).all() and np.isfinite(weekend).all()
+    assert (weekday[:12] != 0.0).all()
+    assert (weekday[12:] == 0.0).all()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_falls_back_when_the_meter_conversion_fails(
+    loadakkudoktoradjusted, empty_measurement
+):
+    """A broken meter history disables the adjustment instead of the load prediction."""
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(25):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+    with patch.object(
+        type(empty_measurement),
+        "load_total_kwh",
+        side_effect=ValueError("Overlapping source energy intervals."),
+    ):
+        weekday, weekend = await loadakkudoktoradjusted._calculate_adjustment(
+            np.random.rand(365, 2, 24)
+        )
+
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_without_load_meters_is_zero(loadakkudoktoradjusted, empty_measurement):
+    """Without configured load meters there is nothing to adjust from."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = None
+    for day in (1, 2):
+        await empty_measurement.update_value(
+            to_datetime(f"2024-01-0{day}T00:00:00"), "storage-soc-factor", 0.5
+        )
+
+    (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_window_follows_the_load_meters(
+    loadakkudoktoradjusted, empty_measurement
+):
+    """A load meter lagging behind other channels still gives its last 7 days."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(10 * 24 + 1):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+    # SoC keeps reporting three days after the load meter stopped.
+    await empty_measurement.update_value(dt.add(days=13), "storage-soc-factor", 0.42)
+
+    _, calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls
+    assert compare_datetimes(calls[0]["end_datetime"], dt.add(days=10)).equal
+    assert compare_datetimes(calls[0]["start_datetime"], dt.add(days=3)).equal
+
+
+@pytest.mark.asyncio
+async def test_adjustment_ignores_a_stale_load_meter_period(
+    loadakkudoktoradjusted, empty_measurement, caplog
+):
+    """A load meter that stopped long ago must not adjust today's profile with old weeks."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(3 * 24 + 1):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+    get_ems().set_start_datetime(dt.add(days=30))
+
+    def stale_warnings() -> int:
+        return sum(
+            record.levelname == "WARNING"
+            and "load meter 'load0_mr' last reported at" in record.getMessage()
+            for record in caplog.records
+        )
+
+    with caplog.at_level("WARNING"):
+        (weekday, weekend), calls = await _adjustment_window(
+            loadakkudoktoradjusted, empty_measurement
+        )
+        first_run = stale_warnings()
+        await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+    assert first_run > 0
+    assert stale_warnings() == first_run
+
+
+@pytest.mark.asyncio
+async def test_adjustment_names_a_load_meter_without_readings(
+    loadakkudoktoradjusted, empty_measurement, caplog
+):
+    """A configured load meter key without readings (e.g. a typo) is named in a warning."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr", "load0_mr_typo"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(25):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+
+    with caplog.at_level("WARNING"):
+        (weekday, weekend), calls = await _adjustment_window(
+            loadakkudoktoradjusted, empty_measurement
+        )
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+    assert "['load0_mr_typo'] have no valid readings" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_adjustment_names_a_replaced_load_meter(
+    loadakkudoktoradjusted, empty_measurement, caplog
+):
+    """Meters that share no period (a replaced meter still configured) are named."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr", "load1_mr"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(25):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+        await empty_measurement.update_value(dt.add(days=2, hours=hour), "load1_mr", 900.0 + hour)
+
+    with caplog.at_level("WARNING"):
+        (weekday, weekend), calls = await _adjustment_window(
+            loadakkudoktoradjusted, empty_measurement
+        )
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+    assert "meter 'load0_mr' last reported at" in caplog.text
+    assert "the meters share no period" in caplog.text

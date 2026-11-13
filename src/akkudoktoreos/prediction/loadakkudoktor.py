@@ -4,11 +4,19 @@ from typing import Optional
 
 import numpy as np
 from loguru import logger
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.loadabc import LoadDataRecord, LoadProvider
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    compare_datetimes,
+    to_datetime,
+    to_duration,
+)
+
+# The load adjustment ignores meters whose common period ended longer ago than this.
+LOAD_ADJUSTMENT_STALE_DAYS = 7
 
 
 class LoadAkkudoktorCommonSettings(SettingsBaseModel):
@@ -93,6 +101,9 @@ class LoadAkkudoktor(LoadProvider[LoadAkkudoktorDataRecord]):
 class LoadAkkudoktorAdjusted(LoadAkkudoktor):
     """Fetch Load forecast data from Akkudoktor load profiles with adjustment by measurements."""
 
+    # End of the load meter period last warned about as stale (warned once).
+    _stale_adjustment_reported_end: Optional[DateTime] = PrivateAttr(default=None)
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the LoadAkkudoktor provider."""
@@ -112,16 +123,39 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         weekend_adjust = np.zeros(24)
         weekend_adjust_weight = np.zeros(24)
 
-        max_dt = await self.measurement.max_datetime()
-        if max_dt is None:
-            # No measurements - return 0 adjustment
-            return (weekday_adjust, weekday_adjust)
+        if not self.config.measurement.load_emr_keys:
+            logger.info(
+                "LoadAkkudoktorAdjusted: measurement.load_emr_keys is not configured - "
+                "no load adjustment."
+            )
+            return (weekday_adjust, weekend_adjust)
 
-        min_dt = await self.measurement.min_datetime()
+        # Compare against the period every load meter reports, not the whole store:
+        # other channels (PV, SoC) often reach further than the load meters.
+        period = await self.measurement.keys_common_period(
+            self.config.measurement.load_emr_keys, "LoadAkkudoktorAdjusted"
+        )
+        if period is None:
+            return (weekday_adjust, weekend_adjust)
+        min_dt, max_dt = period.first, period.last
+        if compare_datetimes(
+            max_dt.add(days=LOAD_ADJUSTMENT_STALE_DAYS), self.ems_start_datetime
+        ).lt:
+            # A week that old says nothing about the current load profile.
+            message = (
+                f"LoadAkkudoktorAdjusted: load meter '{period.last_key}' last reported at "
+                f"{max_dt}, more than {LOAD_ADJUSTMENT_STALE_DAYS} days ago - no load "
+                "adjustment."
+            )
+            if self._stale_adjustment_reported_end == max_dt:
+                logger.debug(message)
+            else:
+                self._stale_adjustment_reported_end = max_dt
+                logger.warning(message)
+            return (weekday_adjust, weekend_adjust)
 
         # compare predictions with real measurement - try to use last 7 days
-        # Keep the hourly buckets on full hours: the newest record may be an off-hour
-        # device state (e.g. SoC stamped with the run time, #1447).
+        # Keep the hourly buckets on full hours (#1447).
         compare_end = max_dt.start_of("hour")
         compare_start = compare_end - to_duration("7 days")
         if compare_datetimes(compare_start, min_dt).lt:
@@ -134,13 +168,29 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
             return (weekday_adjust, weekend_adjust)
         compare_interval = to_duration("1 hour")
 
-        load_total_kwh_array = await self.measurement.load_total_kwh(
-            start_datetime=compare_start,
-            end_datetime=compare_end,
-            interval=compare_interval,
-        )
+        try:
+            load_total_kwh_array = await self.measurement.load_total_kwh(
+                start_datetime=compare_start,
+                end_datetime=compare_end,
+                interval=compare_interval,
+            )
+        except ValueError as exc:
+            logger.error(
+                f"Load adjustment: load meter energy conversion failed - no adjustment: {exc}"
+            )
+            return (weekday_adjust, weekend_adjust)
+        missing_hours = int(np.isnan(load_total_kwh_array).sum())
+        if missing_hours:
+            logger.debug(
+                f"Load adjustment: {missing_hours} of {len(load_total_kwh_array)} hours lack "
+                "full load meter coverage and are skipped."
+            )
         compare_dt = compare_start
         for i in range(len(load_total_kwh_array)):
+            if np.isnan(load_total_kwh_array[i]):
+                # Unknown load (meter gap): no information about this hour.
+                compare_dt += compare_interval
+                continue
             load_total_wh = load_total_kwh_array[i] * 1000
             hour = compare_dt.hour
 

@@ -7,7 +7,10 @@ The measurements can be added programmatically or imported from a file or JSON s
 """
 
 import json
+import math
 from bisect import bisect_left, bisect_right
+from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Literal, Optional
@@ -32,9 +35,29 @@ from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
+    compare_datetimes,
     to_datetime,
     to_duration,
 )
+
+# Limits of one quality-aware energy query (`Measurement.energy_intervals`).
+ENERGY_QUERY_MAX_SECONDS = 31 * 86400
+ENERGY_QUERY_MAX_INTERVALS = 10000
+
+
+@dataclass(frozen=True)
+class MeterPeriod:
+    """Period that every meter of a group reports.
+
+    Attributes:
+        first: Latest first valid reading across the meters.
+        last: Earliest last valid reading across the meters.
+        last_key: Meter whose last reading ends the period.
+    """
+
+    first: DateTime
+    last: DateTime
+    last_key: str
 
 
 class MeasurementChannelSettings(SettingsBaseModel):
@@ -209,6 +232,39 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             return
         super().__init__(*args, **kwargs)
 
+    @property
+    def _reported_warnings(self) -> set[str]:
+        """Topics of conditions already warned about; see `_warn_once`.
+
+        Created lazily and cached on the instance, like the record locks.
+        """
+        try:
+            return object.__getattribute__(self, "_reported_warnings_instance")
+        except AttributeError:
+            reported: set[str] = set()
+            object.__setattr__(self, "_reported_warnings_instance", reported)
+            return reported
+
+    def _warn_once(self, topics: str | Iterable[str], message: str, level: str = "WARNING") -> None:
+        """Log a lasting condition once at ``level``, then as debug until it clears.
+
+        Args:
+            topics: Identity of the condition, e.g. ``"meter-silent:<consumer>:<key>"``;
+                several topics log at ``level`` when any of them is new.
+            message: Log message.
+            level: Log level of the first message.
+        """
+        topic_set = {topics} if isinstance(topics, str) else set(topics)
+        if topic_set <= self._reported_warnings:
+            logger.debug(message)
+        else:
+            self._reported_warnings.update(topic_set)
+            logger.log(level, message)
+
+    def _clear_warning(self, topic: str) -> None:
+        """Forget a condition, so it is warned about again when it comes back."""
+        self._reported_warnings.discard(topic)
+
     def _measurement_file_path(self) -> Optional[Path]:
         """Path to measurements file (may be used optional to database)."""
         try:
@@ -291,14 +347,25 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         start: datetime,
         end: datetime,
     ) -> Callable[[str, datetime, datetime, int], list[EnergyInterval]]:
-        """Load a bounded window once, including configured boundary context."""
+        """Load a window once, including configured boundary context.
+
+        The query limits that protect the API are checked by the public wrappers
+        (`_check_energy_query`), not here.
+
+        Args:
+            keys: Energy channels to convert.
+            start: Start of the window.
+            end: End of the window.
+
+        Returns:
+            Converter from a channel and a sub-window to energy intervals.
+        """
         from akkudoktoreos.measurement.energy import energy_intervals
 
         if any(dt.tzinfo is None or dt.utcoffset() is None for dt in (start, end)):
             raise ValueError("Explicit timezone required.")
-        seconds = end.timestamp() - start.timestamp()
-        if not 0 < seconds <= 31 * 86400:
-            raise ValueError("Energy queries require a positive range of at most 31 days.")
+        if compare_datetimes(to_datetime(end), to_datetime(start)).le:
+            raise ValueError("Energy queries require a positive range.")
         channels = {key: self._energy_channel(key) for key in keys}
         context = self.config.measurement.energy_context_seconds
         records = [
@@ -339,10 +406,6 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         def convert(
             key: str, left: datetime, right: datetime, interval_seconds: int
         ) -> list[EnergyInterval]:
-            if type(interval_seconds) is not int or interval_seconds <= 0:
-                raise ValueError("Positive integer interval_seconds required.")
-            if (right.timestamp() - left.timestamp()) / interval_seconds > 10000:
-                raise ValueError("At most 10000 output intervals per query.")
             lo = max(0, bisect_left(timestamps[key], left.timestamp()) - 1)
             hi = bisect_right(timestamps[key], right.timestamp()) + 1
             return energy_intervals(
@@ -350,6 +413,21 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             )
 
         return convert
+
+    @staticmethod
+    def _check_energy_query(start: datetime, end: datetime, interval_seconds: int) -> None:
+        """Enforce the limits of one public energy query (31 days, 10000 intervals).
+
+        Raises:
+            ValueError: If the query exceeds a limit.
+        """
+        seconds = to_datetime(start).diff(to_datetime(end), False).total_seconds()
+        if not 0 < seconds <= ENERGY_QUERY_MAX_SECONDS:
+            raise ValueError("Energy queries require a positive range of at most 31 days.")
+        if type(interval_seconds) is not int or interval_seconds <= 0:
+            raise ValueError("Positive integer interval_seconds required.")
+        if seconds / interval_seconds > ENERGY_QUERY_MAX_INTERVALS:
+            raise ValueError("At most 10000 output intervals per query.")
 
     async def household_intervals(
         self, start_datetime: datetime, end_datetime: datetime, interval_seconds: int = 900
@@ -360,6 +438,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             raise ValueError("No household balance configured.")
         # Revalidate references even after an in-place configuration mutation.
         settings = HouseholdSettings.model_validate(settings.model_dump())
+        self._check_energy_query(start_datetime, end_datetime, interval_seconds)
         convert = await self._energy_converter(
             [item.key for item in settings.inputs], start_datetime, end_datetime
         )
@@ -374,13 +453,224 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         end_datetime: datetime,
         interval_seconds: int = 900,
     ) -> list[EnergyInterval]:
-        """Convert a typed channel without changing the legacy kWh calculation.
+        """Convert a typed channel; load and PV energy use the same conversion.
 
         Read only explicitly stored values for this key: another channel's timestamp
         must not introduce a synthetic outage. Explicit null values remain barriers.
         """
+        self._check_energy_query(start_datetime, end_datetime, interval_seconds)
         convert = await self._energy_converter([key], start_datetime, end_datetime)
         return convert(key, start_datetime, end_datetime, interval_seconds)
+
+    async def meter_energy_kwh(
+        self,
+        keys: list[str],
+        start_datetime: DateTime,
+        end_datetime: DateTime,
+        interval: Duration,
+    ) -> dict[str, NDArray[Shape["*"], float]]:
+        """Energy per interval of energy channels, read from the store once.
+
+        Uses the quality-aware conversion (`energy_intervals`): a cumulative meter is
+        interpolated at the interval boundaries, so a meter reporting at arbitrary
+        stamps yields exactly the energy of each interval. The records of the whole
+        period are loaded once for all channels, so a gap converts the same way
+        wherever it lies in the period.
+
+        Args:
+            keys: Energy channels, e.g. configured meter reading keys.
+            start_datetime: Start of the first interval; intervals start here.
+            end_datetime: End of the period. A last partial interval is extended to a
+                full interval.
+            interval: Interval length, a positive whole number of seconds.
+
+        Returns:
+            Energy in kWh per interval for each key, NaN where the channel does not
+            fully cover the interval (before its first or after its last reading, a
+            reset, or a gap longer than the channel's ``max_gap_seconds``).
+
+        Raises:
+            ValueError: If the period or interval is invalid or a key has no energy
+                channel definition.
+        """
+        interval_seconds = int(interval.total_seconds())
+        if interval_seconds <= 0 or interval_seconds != interval.total_seconds():
+            raise ValueError("Interval must be a positive whole number of seconds.")
+        size = self._interval_count(start_datetime, end_datetime, interval)
+        if size == 0:
+            return {key: np.zeros(0) for key in keys}
+        period_end = start_datetime.add(seconds=size * interval_seconds)
+        convert = await self._energy_converter(keys, start_datetime, period_end)
+        return {
+            key: np.asarray(
+                [
+                    np.nan if slot.energy_wh is None else slot.energy_wh / 1000.0
+                    for slot in convert(key, start_datetime, period_end, interval_seconds)
+                ],
+                dtype=float,
+            )
+            for key in keys
+        }
+
+    def _valid_reading_keys(self, record: MeasurementDataRecord, keys: Iterable[str]) -> list[str]:
+        """Keys of ``record`` that carry a valid reading.
+
+        A reading counts when it is a finite number whose sample quality is neither
+        invalid nor unavailable, as for the energy conversion.
+        """
+        if record.date_time is None:
+            return []
+        found = []
+        for key in keys:
+            value = record.configured_data.get(key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            if not math.isfinite(value):
+                continue
+            quality = record.sample_quality.get(key)
+            if quality is not None and quality.status in ("invalid", "unavailable"):
+                continue
+            found.append(key)
+        return found
+
+    async def keys_first_datetime(self, keys: list[str]) -> dict[str, DateTime]:
+        """First stamp with a valid reading per key, in one forward pass.
+
+        Scans forward from the oldest record in windows that double in size and stops
+        once every key is found, instead of reading the keys' whole history.
+
+        Args:
+            keys: Record keys, e.g. meter reading keys.
+
+        Returns:
+            First stamp per key, in the configured timezone like `min_datetime`; keys
+            without a valid reading are missing.
+        """
+        timezone = self.config.general.timezone
+        wanted = set(keys)
+        firsts: dict[str, DateTime] = {}
+        oldest = await self.min_datetime()
+        newest = await self.max_datetime()
+        if not wanted or oldest is None or newest is None:
+            return firsts
+        end_of_store = newest.add(seconds=1)
+        step_seconds = 86400
+        window_start = oldest
+        while len(firsts) < len(wanted) and compare_datetimes(window_start, end_of_store).lt:
+            window_end = window_start.add(seconds=step_seconds)
+            async for record in self.db_iterate_records(
+                DatabaseTimestamp.from_datetime(window_start),
+                DatabaseTimestamp.from_datetime(window_end),
+            ):
+                for key in self._valid_reading_keys(record, wanted - firsts.keys()):
+                    firsts[key] = to_datetime(record.date_time, in_timezone=timezone)
+            window_start = window_end
+            step_seconds *= 2
+        return firsts
+
+    async def keys_last_datetime(self, keys: list[str]) -> dict[str, DateTime]:
+        """Last stamp with a valid reading per key, in one backward pass.
+
+        Scans backward from the newest record in windows that double in size and
+        stops once every key is found.
+
+        Args:
+            keys: Record keys, e.g. meter reading keys.
+
+        Returns:
+            Last stamp per key, in the configured timezone like `max_datetime`; keys
+            without a valid reading are missing.
+        """
+        timezone = self.config.general.timezone
+        wanted = set(keys)
+        lasts: dict[str, DateTime] = {}
+        oldest = await self.min_datetime()
+        newest = await self.max_datetime()
+        if not wanted or oldest is None or newest is None:
+            return lasts
+        step_seconds = 86400
+        window_end = newest.add(seconds=1)
+        while len(lasts) < len(wanted) and compare_datetimes(window_end, oldest).gt:
+            window_start = window_end.subtract(seconds=step_seconds)
+            # Newest valid reading per key in this window; keys found in a newer
+            # window keep their stamp.
+            window_lasts: dict[str, DateTime] = {}
+            async for record in self.db_iterate_records(
+                DatabaseTimestamp.from_datetime(window_start),
+                DatabaseTimestamp.from_datetime(window_end),
+            ):
+                for key in self._valid_reading_keys(record, wanted - lasts.keys()):
+                    window_lasts[key] = to_datetime(record.date_time, in_timezone=timezone)
+            lasts.update(window_lasts)
+            window_end = window_start
+            step_seconds *= 2
+        return lasts
+
+    async def keys_common_period(self, keys: list[str], consumer: str) -> Optional[MeterPeriod]:
+        """Period that every meter in ``keys`` covers with valid readings.
+
+        Outside this period a sum over the meters is not the total they measure.
+        Logs why there is none, once per condition until it clears: a meter without
+        valid readings (e.g. a mistyped key) and meters that share no period (e.g. a
+        replaced meter still configured) are warnings; a single reading so far is an
+        info.
+
+        Args:
+            keys: Meter reading keys of one group, e.g. the PV production meters.
+            consumer: Name used in the log messages and warning topics.
+
+        Returns:
+            The common period, or None when a meter has no valid reading or the meters
+            share no period.
+        """
+        keys = list(dict.fromkeys(keys))
+        if not keys:
+            return None
+        firsts = await self.keys_first_datetime(keys)
+        silent = [key for key in keys if key not in firsts]
+        for key in firsts:
+            self._clear_warning(f"meter-silent:{consumer}:{key}")
+        if silent:
+            self._warn_once(
+                [f"meter-silent:{consumer}:{key}" for key in silent],
+                f"{consumer}: meter(s) {silent} have no valid readings (check the keys) - "
+                "waiting for them.",
+            )
+            return None
+        lasts = await self.keys_last_datetime(keys)
+        if any(key not in lasts for key in keys):
+            logger.info(f"{consumer}: meter readings changed while reading them - skipping.")
+            return None
+        first_key = keys[0]
+        last_key = keys[0]
+        for key in keys[1:]:
+            if compare_datetimes(firsts[key], firsts[first_key]).gt:
+                first_key = key
+            if compare_datetimes(lasts[key], lasts[last_key]).lt:
+                last_key = key
+        first, last = firsts[first_key], lasts[last_key]
+        overlapping = compare_datetimes(first, last).lt
+        no_period_topic = f"meter-no-period:{consumer}"
+        if not overlapping and first_key != last_key:
+            # Two meters that do not report together, e.g. a replaced meter.
+            self._warn_once(
+                f"{no_period_topic}:{last_key}",
+                f"{consumer}: meter '{last_key}' last reported at {last}, before meter "
+                f"'{first_key}' started at {first} - the meters share no period.",
+            )
+            return None
+        for key in keys:
+            self._clear_warning(f"{no_period_topic}:{key}")
+        if not overlapping:
+            # One meter with a single reading so far (or readings that changed).
+            self._warn_once(
+                f"meter-waiting:{consumer}",
+                f"{consumer}: the meters {keys} have no period yet ({first}) - waiting.",
+                level="INFO",
+            )
+            return None
+        self._clear_warning(f"meter-waiting:{consumer}")
+        return MeterPeriod(first=first, last=last, last_key=last_key)
 
     async def estimate_battery_capacity(
         self, battery_id: str, request: BatteryCapacityRequest
@@ -436,90 +726,37 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             discharging_efficiency=parameters.discharging_efficiency,
         )
 
-    async def _energy_from_meter_readings(
-        self,
-        key: str,
-        start_datetime: DateTime,
-        end_datetime: DateTime,
-        interval: Duration,
-    ) -> NDArray[Shape["*"], Any]:
-        """Calculate an  energy values array indexed by fixed time intervals from energy metering data within an optional date range.
-
-        Args:
-            key: Key for energy meter readings.
-            start_datetime (datetime): The start date for filtering the energy data (inclusive).
-            end_datetime (datetime): The end date for filtering the energy data (exclusive).
-            interval (duration): The fixed time interval.
-
-        Returns:
-            np.ndarray: A NumPy Array of the energy [kWh] per interval values calculated from
-                        the meter readings.
-        """
-        if start_datetime is None or end_datetime is None:
-            raise ValueError("Start and end datetimes are required for energy calculation")
-        size = self._interval_count(start_datetime, end_datetime, interval)
-
-        energy_mr_array = await self.key_to_array(
-            key=key,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime + interval,
-            interval=interval,
-            fill_method="time",
-            boundary="context",
-        )
-        if energy_mr_array.size != size + 1:
-            logging_msg = (
-                f"'{key}' meter reading array size: {energy_mr_array.size}"
-                f" does not fit to expected size: {size + 1}, {energy_mr_array}"
-            )
-            if energy_mr_array.size != 0:
-                logger.error(logging_msg)
-                raise ValueError(logging_msg)
-            logger.debug(logging_msg)
-            energy_array = np.zeros(size)
-        elif np.any(energy_mr_array == None):
-            # 'key_to_array()' creates None values array if no data records are available.
-            # Array contains None value -> ignore
-            debug_msg = f"'{key}' meter reading None: {energy_mr_array}"
-            logger.debug(debug_msg)
-            energy_array = np.zeros(size)
-        else:
-            # Calculate load per interval
-            debug_msg = f"'{key}' meter reading: {energy_mr_array}"
-            logger.debug(debug_msg)
-            energy_array = np.diff(energy_mr_array)
-            debug_msg = f"'{key}' energy calculation: {energy_array}"
-            logger.debug(debug_msg)
-        return energy_array
-
     async def load_total_kwh(
         self,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
-    ) -> NDArray[Shape["*"], Any]:
-        """Calculate a total load energy values array indexed by fixed time intervals from load metering data within an optional date range.
+    ) -> NDArray[Shape["*"], float]:
+        """Total load energy per interval from the configured load meters.
+
+        Each meter is converted with `meter_energy_kwh`: the cumulative reading is
+        interpolated at the interval boundaries, and an interval a meter does not
+        fully cover is unknown (NaN), never zero load.
 
         Args:
-            start_datetime (datetime, optional): The start date for filtering the load data (inclusive).
-            end_datetime (datetime, optional): The end date for filtering the load data (exclusive).
+            start_datetime (datetime, optional): Start of the first interval. Defaults
+                to the first measurement.
+            end_datetime (datetime, optional): End of the period (exclusive). Defaults to
+                just after the last measurement.
             interval (duration, optional): The fixed time interval. Defaults to 1 hour.
 
         Returns:
-            np.ndarray: A NumPy Array of the total load energy [kWh] per interval values calculated from
-                        the load meter readings.
+            np.ndarray: Total load energy [kWh] per interval; NaN where any load meter
+                lacks full coverage or no load meter is configured.
+
+        Raises:
+            ValueError: If the period cannot be determined or is invalid.
         """
         if interval is None:
             interval = to_duration("1 hour")
-
-        if len(self) < 1:
-            # No data available
-            if start_datetime is None or end_datetime is None:
-                size = 0
-            else:
-                size = self._interval_count(start_datetime, end_datetime, interval)
-            return np.zeros(size)
-
+        if len(self) < 1 and (start_datetime is None or end_datetime is None):
+            # No data and no period: nothing to report.
+            return np.zeros(0)
         if start_datetime is None:
             start_datetime = await self.min_datetime()
         if end_datetime is None:
@@ -529,23 +766,26 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         if start_datetime is None or end_datetime is None:
             raise ValueError("Start and end datetimes are required for energy calculation")
         size = self._interval_count(start_datetime, end_datetime, interval)
+        if size == 0:
+            return np.zeros(0)
+        load_keys = self.config.measurement.load_emr_keys or []
+        if not load_keys:
+            return np.full(size, np.nan)
+
         load_total_kwh_array = np.zeros(size)
-
-        # Loop through all loads
-        if isinstance(self.config.measurement.load_emr_keys, list):
-            for key in self.config.measurement.load_emr_keys:
-                # Calculate load per interval
-                load_array = await self._energy_from_meter_readings(
-                    key=key,
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=interval,
+        meters_kwh = await self.meter_energy_kwh(load_keys, start_datetime, end_datetime, interval)
+        for key, meter_kwh in meters_kwh.items():
+            if np.isnan(meter_kwh).all():
+                message = (
+                    f"Load meter '{key}' gives no usable energy for {start_datetime} .. "
+                    f"{end_datetime} (no readings, resets or gaps longer than its "
+                    "max_gap_seconds): the total load of this period is unknown."
                 )
-                # Add calculated load to total load
-                load_total_kwh_array += load_array
-                debug_msg = f"Total load '{key}' calculation: {load_total_kwh_array}"
-                logger.debug(debug_msg)
-
+                self._warn_once(f"meter-unusable:{key}", message)
+            else:
+                self._clear_warning(f"meter-unusable:{key}")
+            load_total_kwh_array += meter_kwh
+        logger.debug(f"Total load calculation: {load_total_kwh_array}")
         return load_total_kwh_array
 
     # ----------------------- Measurement Database Protocol ---------------------
