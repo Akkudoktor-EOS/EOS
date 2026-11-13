@@ -17,6 +17,7 @@ from akkudoktoreos.measurement.measurement import (
 from akkudoktoreos.utils.datetimeutil import (
     compare_datetimes,
     to_datetime,
+    to_duration,
 )
 
 
@@ -263,7 +264,7 @@ class TestMeasurement:
             ["load0_mr", "load1_mr"],
             to_datetime("2023-01-01T00:00:00"),
             to_datetime("2023-01-01T05:00:00"),
-            duration(hours=1),
+            to_duration("1 hour"),
         )
 
         np.testing.assert_array_equal(result["load0_mr"], [50, 50, 50, 50, 50])
@@ -283,7 +284,7 @@ class TestMeasurement:
         await measurement_eos.insert_by_datetime(record)
 
         result = await measurement_eos.meter_energy_kwh(
-            ["load1_mr"], start_datetime, to_datetime("2023-01-01T06:00:00"), duration(hours=1)
+            ["load1_mr"], start_datetime, to_datetime("2023-01-01T06:00:00"), to_duration("1 hour")
         )
 
         np.testing.assert_array_equal(result["load1_mr"], [50.0, 50.0, 50.0, 50.0, 50.0, 50.0])
@@ -294,7 +295,7 @@ class TestMeasurement:
             ["load0_mr", "load2_mr"],
             to_datetime("2022-12-31T23:00:00"),
             to_datetime("2023-01-01T07:00:00"),
-            duration(hours=1),
+            to_duration("1 hour"),
         )
 
         np.testing.assert_array_equal(
@@ -308,7 +309,7 @@ class TestMeasurement:
             ["load0_mr"],
             to_datetime("2023-01-01T00:00:00"),
             to_datetime("2023-01-01T02:20:00"),
-            duration(hours=1),
+            to_duration("1 hour"),
         )
 
         np.testing.assert_array_equal(result["load0_mr"], [50, 50, 50])
@@ -320,7 +321,7 @@ class TestMeasurement:
                 ["load0_mr"],
                 to_datetime("2023-01-01T00:00:00"),
                 to_datetime("2023-01-01T05:00:00"),
-                duration(hours=-1),
+                to_duration(-3600),
             )
 
     async def test_keys_first_and_last_datetime(self, measurement_eos):
@@ -359,7 +360,7 @@ class TestMeasurement:
         period = {
             "start_datetime": to_datetime("2023-01-01T00:00:00"),
             "end_datetime": to_datetime("2023-01-01T03:00:00"),
-            "interval": duration(hours=1),
+            "interval": to_duration("1 hour"),
         }
 
         def silent_meter_warnings() -> int:
@@ -446,7 +447,7 @@ class TestMeasurement:
             step += 1
 
         result = await measurement_eos.load_total_kwh(
-            start_datetime=start, end_datetime=start.add(days=1), interval=duration(hours=1)
+            start_datetime=start, end_datetime=start.add(days=1), interval=to_duration("1 hour")
         )
 
         # Away from the step every hour is exact. The step lies inside one ~5-minute
@@ -463,7 +464,7 @@ class TestMeasurement:
         result = await measurement_eos.load_total_kwh(
             start_datetime=to_datetime("2023-01-01T03:00:00"),
             end_datetime=to_datetime("2023-01-01T07:00:00"),
-            interval=duration(hours=1),
+            interval=to_duration("1 hour"),
         )
 
         # load2_mr and load3_mr are configured but never report.
@@ -472,7 +473,7 @@ class TestMeasurement:
         result = await measurement_eos.load_total_kwh(
             start_datetime=to_datetime("2023-01-01T03:00:00"),
             end_datetime=to_datetime("2023-01-01T07:00:00"),
-            interval=duration(hours=1),
+            interval=to_duration("1 hour"),
         )
         np.testing.assert_array_equal(result, [100.0, 100.0, np.nan, np.nan])
 
