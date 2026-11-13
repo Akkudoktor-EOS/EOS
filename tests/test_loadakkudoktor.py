@@ -50,8 +50,11 @@ def loadakkudoktoradjusted(config_eos):
     assert config_eos.load.provider == "LoadAkkudoktorAdjusted"
     assert config_eos.load.loadakkudoktor.loadakkudoktor_year_energy_kwh == 1000
     # The adjustment ignores stale meter periods; run the tests next to their data.
+    ems_class = type(get_ems())
+    previous_start = ems_class._start_datetime
     get_ems().set_start_datetime(to_datetime("2024-01-02T00:00:00"))
-    return LoadAkkudoktorAdjusted()
+    yield LoadAkkudoktorAdjusted()
+    ems_class._start_datetime = previous_start
 
 @pytest_asyncio.fixture
 async def measurement_eos():
@@ -449,3 +452,25 @@ async def test_adjustment_names_a_load_meter_without_readings(
     assert calls == []
     assert (weekday == 0.0).all() and (weekend == 0.0).all()
     assert "['load0_mr_typo'] have no valid readings" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_adjustment_names_a_replaced_load_meter(
+    loadakkudoktoradjusted, empty_measurement, caplog
+):
+    """Meters that share no period (a replaced meter still configured) are named."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr", "load1_mr"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(25):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+        await empty_measurement.update_value(dt.add(days=2, hours=hour), "load1_mr", 900.0 + hour)
+
+    with caplog.at_level("WARNING"):
+        (weekday, weekend), calls = await _adjustment_window(
+            loadakkudoktoradjusted, empty_measurement
+        )
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+    assert "meter 'load0_mr' last reported at" in caplog.text
+    assert "the meters share no period" in caplog.text
