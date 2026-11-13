@@ -11060,6 +11060,14 @@
             "description": "Duration of one result/control slot in seconds.",
             "default": 3600
           },
+          "first_slot_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "First Slot Fraction",
+            "description": "Part of the first control slot that was still ahead when the optimization ran (0.25 for a run at 10:45 with hourly slots). The results of the first slot cover only that part, and its factors are chosen for it. 1.0 for a run on a slot boundary.",
+            "default": 1.0
+          },
           "eautocharge_hours_float": {
             "anyOf": [
               {

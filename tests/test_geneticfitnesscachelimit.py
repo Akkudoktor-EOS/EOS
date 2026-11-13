@@ -34,7 +34,7 @@ def _configure_hourly_grid(config_eos: ConfigEOS) -> None:
             },
         }
     )
-    get_ems(init=True).set_start_datetime(to_datetime().set(hour=0, minute=0))
+    get_ems(init=True).set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
 
 
 def test_fitness_cache_max_entries_setting_defaults_to_unbounded():

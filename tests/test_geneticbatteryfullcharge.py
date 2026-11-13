@@ -510,7 +510,7 @@ def _full_charge_parameters(hours: int, **battery_extra) -> GeneticOptimizationP
 
 def test_full_charge_slot_resolution(config_eos: ConfigEOS):
     _optimizer_config(config_eos, 24)
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     optimization = GeneticOptimization(fixed_seed=1)
     optimization._slot0_datetime = optimization.ems.start_datetime
     slot0 = optimization._slot0_datetime
@@ -530,7 +530,7 @@ def test_full_charge_slot_resolution(config_eos: ConfigEOS):
 
 def test_maximum_soc_before_deadline_counts(config_eos: ConfigEOS):
     _optimizer_config(config_eos, 24)
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     optimization = GeneticOptimization(fixed_seed=1)
     optimization.simulation.battery = MagicMock(spec=Battery)
     optimization.simulation.battery.current_soc_percentage.return_value = 40.0
@@ -555,7 +555,7 @@ def test_maximum_soc_before_deadline_counts(config_eos: ConfigEOS):
 def _run(config_eos: ConfigEOS, **battery_extra) -> list[float]:
     hours = 24
     _optimizer_config(config_eos, hours)
-    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
     solution = GeneticOptimization(fixed_seed=42).optimize_ems(
         parameters=_full_charge_parameters(hours, **battery_extra), start_hour=0, ngen=40
