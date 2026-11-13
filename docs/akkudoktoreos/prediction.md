@@ -907,7 +907,8 @@ azimuth shape, clamps correction factors and respects inverter capacity.
 Hourly meters are fitted hourly; native quarter-hour meters retain their cadence.
 Meters may report at any time stamps: each interval gets the energy interpolated at its
 boundaries. With several PV meters only the period all of them report is fitted, and
-intervals a meter does not fully cover are skipped.
+intervals a meter does not fully cover (a reset, or a gap longer than the channel's
+`max_gap_seconds`) are skipped.
 Probable outage or curtailment days are excluded by default. Without sufficient
 usable measurements the uncalibrated physical model is used.
 

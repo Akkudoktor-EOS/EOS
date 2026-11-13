@@ -255,106 +255,93 @@ class TestMeasurement:
         with pytest.raises(ValueError, match="interval must be positive"):
             measurement_eos._interval_count(start, end, duration(hours=0))
 
-    async def test_energy_from_meter_readings_valid_input(self, measurement_eos):
-        """Test _energy_from_meter_readings with valid inputs and proper alignment of load data."""
-        key = "load0_mr"
-        start_datetime = to_datetime("2023-01-01T00:00:00")
-        end_datetime = to_datetime("2023-01-01T05:00:00")
-        interval = duration(hours=1)
-
-        load_array = await measurement_eos._energy_from_meter_readings(
-            key, start_datetime, end_datetime, interval
+    async def test_meter_energy_kwh_valid_input(self, measurement_eos):
+        """Energy per interval is the difference of the readings at its boundaries."""
+        result = await measurement_eos.meter_energy_kwh(
+            ["load0_mr", "load1_mr"],
+            to_datetime("2023-01-01T00:00:00"),
+            to_datetime("2023-01-01T05:00:00"),
+            duration(hours=1),
         )
 
-        expected_load_array = np.array([50, 50, 50, 50, 50])  # Differences between consecutive readings
-        np.testing.assert_array_equal(load_array, expected_load_array)
+        np.testing.assert_array_equal(result["load0_mr"], [50, 50, 50, 50, 50])
+        np.testing.assert_array_equal(result["load1_mr"], [50, 50, 50, 50, 50])
 
-    async def test_energy_from_meter_readings_empty_array(self, measurement_eos):
-        """Test _energy_from_meter_readings with no data (empty array)."""
-        key = "load0_mr"
+    async def test_meter_energy_kwh_interpolates_a_missing_reading(self, measurement_eos):
+        """A reading missing at an interval boundary is interpolated from its neighbours."""
         start_datetime = to_datetime("2023-01-01T00:00:00")
-        end_datetime = to_datetime("2023-01-01T05:00:00")
-        interval = duration(hours=1)
-
-        # Use empyt records array
-        await measurement_eos.delete_by_datetime(start_datetime, end_datetime)
-
-        load_array = await measurement_eos._energy_from_meter_readings(
-            key, start_datetime, end_datetime, interval
-        )
-
-        # Expected: an array of zeros with one less than the number of intervals
-        expected_size = (
-            measurement_eos._interval_count(start_datetime, end_datetime + interval, interval) - 1
-        )
-        expected_load_array = np.zeros(expected_size)
-        np.testing.assert_array_equal(load_array, expected_load_array)
-
-    async def test_energy_from_meter_readings_misaligned_array(self, measurement_eos):
-        """Test _energy_from_meter_readings with misaligned array size."""
-        key = "load1_mr"
-        interval = duration(hours=1)
-        start_datetime = to_datetime("2023-01-01T00:00:00")
-        end_datetime = to_datetime("2023-01-01T05:00:00")
-
-        # Use misaligned array, latest interval set to 2 hours (instead of 1 hour)
-        latest_record_datetime = to_datetime("2023-01-01T05:00:00")
-        new_record_datetime = to_datetime("2023-01-01T06:00:00")
-        record = await measurement_eos.get_by_datetime(latest_record_datetime)
+        record = await measurement_eos.get_by_datetime(to_datetime("2023-01-01T05:00:00"))
         assert record is not None
-        await measurement_eos.delete_by_datetime(start_datetime = latest_record_datetime,
-                                                 end_datetime = new_record_datetime)
-        record.date_time = new_record_datetime
+        await measurement_eos.delete_by_datetime(
+            start_datetime=to_datetime("2023-01-01T05:00:00"),
+            end_datetime=to_datetime("2023-01-01T06:00:00"),
+        )
+        record.date_time = to_datetime("2023-01-01T06:00:00")
+        record.load1_mr = 500
         await measurement_eos.insert_by_datetime(record)
 
-        # Check test setup
-        dates, values = await measurement_eos.key_to_lists(key, start_datetime, None)
-        assert dates == [
-            to_datetime("2023-01-01T00:00:00"),
-            to_datetime("2023-01-01T01:00:00"),
-            to_datetime("2023-01-01T02:00:00"),
-            to_datetime("2023-01-01T03:00:00"),
-            to_datetime("2023-01-01T04:00:00"),
-            to_datetime("2023-01-01T06:00:00"),
-        ]
-        assert values == [200, 250, 300, 350, 400, 450]
-        array = await measurement_eos.key_to_array(key, start_datetime, end_datetime + interval, interval=interval)
-        np.testing.assert_array_equal(array, [200, 250, 300, 350, 400, 425])
-
-        load_array = await measurement_eos._energy_from_meter_readings(
-            key, start_datetime, end_datetime, interval
+        result = await measurement_eos.meter_energy_kwh(
+            ["load1_mr"], start_datetime, to_datetime("2023-01-01T06:00:00"), duration(hours=1)
         )
 
-        expected_load_array = np.array([50., 50., 50., 50., 25.])  # Differences between consecutive readings
-        np.testing.assert_array_equal(load_array, expected_load_array)
+        np.testing.assert_array_equal(result["load1_mr"], [50.0, 50.0, 50.0, 50.0, 50.0, 50.0])
 
-    async def test_energy_from_meter_readings_partial_data(self, measurement_eos, caplog):
-        """Test _energy_from_meter_readings with partial data (misaligned but empty array)."""
-        key = "load2_mr"
-        start_datetime = to_datetime("2023-01-01T00:00:00")
-        end_datetime = to_datetime("2023-01-01T05:00:00")
-        interval = duration(hours=1)
+    async def test_meter_energy_kwh_is_nan_outside_the_readings(self, measurement_eos):
+        """Intervals before the first or after the last reading are unknown."""
+        result = await measurement_eos.meter_energy_kwh(
+            ["load0_mr", "load2_mr"],
+            to_datetime("2022-12-31T23:00:00"),
+            to_datetime("2023-01-01T07:00:00"),
+            duration(hours=1),
+        )
 
-        with caplog.at_level("DEBUG"):
-            load_array = await measurement_eos._energy_from_meter_readings(
-                key, start_datetime, end_datetime, interval
+        np.testing.assert_array_equal(
+            result["load0_mr"], [np.nan, 50, 50, 50, 50, 50, np.nan, np.nan]
+        )
+        assert np.isnan(result["load2_mr"]).all()
+
+    async def test_meter_energy_kwh_extends_a_partial_last_interval(self, measurement_eos):
+        """A period that ends inside an interval still yields that full interval."""
+        result = await measurement_eos.meter_energy_kwh(
+            ["load0_mr"],
+            to_datetime("2023-01-01T00:00:00"),
+            to_datetime("2023-01-01T02:20:00"),
+            duration(hours=1),
+        )
+
+        np.testing.assert_array_equal(result["load0_mr"], [50, 50, 50])
+
+    async def test_meter_energy_kwh_negative_interval(self, measurement_eos):
+        """A non-positive interval is rejected."""
+        with pytest.raises(ValueError, match="positive whole number of seconds"):
+            await measurement_eos.meter_energy_kwh(
+                ["load0_mr"],
+                to_datetime("2023-01-01T00:00:00"),
+                to_datetime("2023-01-01T05:00:00"),
+                duration(hours=-1),
             )
 
-        expected_size = (
-            measurement_eos._interval_count(start_datetime, end_datetime + interval, interval) - 1
+    async def test_key_datetime_range(self, measurement_eos):
+        """First and last stamp per key, also when other keys reach further."""
+        await measurement_eos.update_value(to_datetime("2023-01-03T00:00:00"), "load1_mr", 900)
+
+        assert await measurement_eos.key_datetime_range("load0_mr") == (
+            to_datetime("2023-01-01T00:00:00"),
+            to_datetime("2023-01-01T05:00:00"),
         )
-        expected_load_array = np.zeros(expected_size)
-        np.testing.assert_array_equal(load_array, expected_load_array)
+        assert await measurement_eos.key_datetime_range("load1_mr") == (
+            to_datetime("2023-01-01T00:00:00"),
+            to_datetime("2023-01-03T00:00:00"),
+        )
+        assert await measurement_eos.key_datetime_range("load2_mr") is None
 
-    async def test_energy_from_meter_readings_negative_interval(self, measurement_eos):
-        """Test _energy_from_meter_readings with a negative interval."""
-        key = "load3_mr"
-        start_datetime = to_datetime("2023-01-01T00:00:00")
-        end_datetime = to_datetime("2023-01-01T05:00:00")
-        interval = duration(hours=-1)
+    async def test_load_total_kwh_empty_store_without_period(self, measurement_eos):
+        """No data and no period yields an empty result, not an error."""
+        await measurement_eos.delete_by_datetime(None, None)
 
-        with pytest.raises(ValueError, match="interval must be positive"):
-            await measurement_eos._energy_from_meter_readings(key, start_datetime, end_datetime, interval)
+        result = await measurement_eos.load_total_kwh()
+
+        assert result.shape == (0,)
 
     async def test_load_total_kwh(self, measurement_eos):
         """Test total load calculation."""

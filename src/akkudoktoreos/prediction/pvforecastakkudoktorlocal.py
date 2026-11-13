@@ -1144,25 +1144,20 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             The common period, or None when a PV meter has no readings or the meters
             share no period.
         """
-        measurement = self.measurement
-        first = await measurement.min_datetime()
-        last = await measurement.max_datetime()
-        if first is None or last is None:
-            return None
         common_first: Optional[DateTime] = None
         common_last: Optional[DateTime] = None
         for key in self.config.measurement.pv_production_emr_keys or []:
-            dates, _ = await measurement.key_to_lists(
-                key=key,
-                start_datetime=first,
-                end_datetime=last.add(minutes=1),
-            )
-            if not dates:
+            key_range = await self.measurement.key_datetime_range(key)
+            if key_range is None:
+                logger.info(
+                    f"PVForecastAkkudoktorLocal: PV production meter '{key}' has no readings "
+                    "yet - calibration and snow feedback wait for it."
+                )
                 return None
-            if common_first is None or compare_datetimes(dates[0], common_first).gt:
-                common_first = dates[0]
-            if common_last is None or compare_datetimes(dates[-1], common_last).lt:
-                common_last = dates[-1]
+            if common_first is None or compare_datetimes(key_range[0], common_first).gt:
+                common_first = key_range[0]
+            if common_last is None or compare_datetimes(key_range[1], common_last).lt:
+                common_last = key_range[1]
         if common_first is None or common_last is None:
             return None
         if not compare_datetimes(common_first, common_last).lt:
@@ -1287,13 +1282,10 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         keys = self.config.measurement.pv_production_emr_keys or []
         if not keys:
             return np.asarray([], dtype=float)
-        totals: Optional[np.ndarray] = None
-        for key in keys:
-            meter_kwh = await self.measurement.meter_energy_kwh(
-                key, start_datetime, end_datetime, interval
-            )
-            totals = meter_kwh if totals is None else totals + meter_kwh
-        return np.asarray(totals, dtype=float)
+        meters_kwh = await self.measurement.meter_energy_kwh(
+            keys, start_datetime, end_datetime, interval
+        )
+        return np.asarray(sum(meters_kwh.values()), dtype=float)
 
     async def _fit_calibration(
         self, frame: pd.DataFrame, pv_window: Optional[PVMeterWindow]
@@ -1800,8 +1792,8 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             return [], None
         if pv_window is None:
             logger.warning(
-                "PVForecastAkkudoktorLocal snow feedback: no PV production readings - "
-                "using the weather-only snow model."
+                "PVForecastAkkudoktorLocal snow feedback: no period that every PV production "
+                "meter covers - using the weather-only snow model."
             )
             return [], None
         pv_first, pv_last = pv_window.first, pv_window.last
