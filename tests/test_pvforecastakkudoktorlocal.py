@@ -955,3 +955,24 @@ async def test_calibration_with_short_unaligned_meter_history(
     slot_seconds = interval_minutes * 60
     assert start.timestamp() % slot_seconds == 0
     assert end.timestamp() % slot_seconds == 0
+
+
+@pytest.mark.asyncio
+async def test_calibration_bins_interval_end_labels_by_interval_start(pvforecast_instance):
+    """With ``shift_to_interval_start=False`` the rows keep Open-Meteo's end stamps.
+
+    Each row still covers the interval before its label, so the fit must bin it into
+    the meter slot of that interval, not into the next one.
+    """
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings(
+        shift_to_interval_start=False
+    )
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(
+        frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5, interval_start_labels=False
+    )
+    await _feed_meters(pvforecast_instance, {"pv_end_labels_emr": meter})
+
+    calibration = await pvforecast_instance._fit_calibration(frame)
+
+    _assert_fitted_bias(calibration, 0.8)

@@ -1066,6 +1066,18 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                 total += min(limits)
         return total
 
+    def _row_start_index(self, frame: pd.DataFrame) -> pd.DatetimeIndex:
+        """Start of the interval each forecast row covers.
+
+        Rows carry interval-start stamps unless ``shift_to_interval_start`` is off; then
+        they keep Open-Meteo's interval-end stamps and each row covers the interval
+        before its label.
+        """
+        row_start = pd.DatetimeIndex(frame.index)
+        if not self._settings.shift_to_interval_start:
+            row_start = row_start - pd.Timedelta(minutes=self._settings.resolution_minutes)
+        return row_start
+
     async def _pv_measurement_window(self) -> Optional[tuple[Any, Any]]:
         """First and last timestamp that actually carries PV production readings.
 
@@ -1269,9 +1281,14 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         interval_minutes = await self._calibration_interval_minutes(reference_start, reference_end)
         interval_hours = interval_minutes / 60.0
         interval = to_duration(f"{interval_minutes} minutes")
+        # Bin the model rows by the interval they cover, like the meter slots.
+        model_frame = frame.set_axis(self._row_start_index(frame))
         # The model side only exists for the weather window that was requested.
         window = _slot_window(
-            interval_minutes, reference_start, reference_end, (pv_min_datetime, frame.index[0])
+            interval_minutes,
+            reference_start,
+            reference_end,
+            (pv_min_datetime, model_frame.index[0]),
         )
         if window is None:
             logger.info(
@@ -1300,7 +1317,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         # interval energy below; hourly meters stay hourly and native 15-minute meters
         # retain the shape that matters to the EMS.
         samples_frame = (
-            frame[["ac_power", "solar_azimuth"]]
+            model_frame[["ac_power", "solar_azimuth"]]
             .resample(f"{interval_minutes}min", origin="epoch")
             .mean()
         )
@@ -1313,12 +1330,12 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         modelled_kwh = samples_frame["ac_power"].to_numpy(dtype=float) / 1000.0 * interval_hours
         azimuth = samples_frame["solar_azimuth"].to_numpy(dtype=float)
         snow_possible = np.zeros(len(samples_frame), dtype=bool)
-        if "snow_possible" in frame.columns:
+        if "snow_possible" in model_frame.columns:
             # Snow on the modules is a transient loss, not a model error. The day-level
             # outage filter catches fully covered days, but partly covered ones would
             # still drag the factor down.
             snow_possible = (
-                frame["snow_possible"]
+                model_frame["snow_possible"]
                 .astype(float)
                 .resample(f"{interval_minutes}min", origin="epoch")
                 .max()
@@ -1736,9 +1753,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             )
 
         resolution = pd.Timedelta(minutes=settings.resolution_minutes)
-        row_start = pd.DatetimeIndex(frame.index)
-        if not settings.shift_to_interval_start:
-            row_start = row_start - resolution
+        row_start = self._row_start_index(frame)
 
         lookback_start = pv_last.subtract(days=settings.snow_lookback_days)
         interval_minutes = await self._calibration_interval_minutes(lookback_start, pv_last)
