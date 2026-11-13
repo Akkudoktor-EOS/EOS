@@ -41,10 +41,11 @@ import pandas as pd
 import pendulum
 import requests
 from loguru import logger
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, PrivateAttr, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
+from akkudoktoreos.measurement.measurement import MeterPeriod
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecordT,
     PVForecastProvider,
@@ -77,33 +78,20 @@ OPENMETEO_SNOW_VARIABLES = ("snowfall", "snow_depth")
 # Snow feedback warns when the newest PV meter reading is older than this.
 SNOW_FEEDBACK_STALE_HOURS = 3
 
+# Calibration warns when the common PV meter period ended longer ago than this.
+CALIBRATION_STALE_HOURS = 24
+
 # Open-Meteo hard limits for a single forecast request.
 MAX_FORECAST_DAYS = 16
 MAX_PAST_DAYS = 92
 
 TRANSPOSITION_MODELS = ("isotropic", "klucher", "haydavies", "reindl", "king", "perez")
 
-# The measurement store converts energy for at most 31 days per query.
-ENERGY_QUERY_MAX_DAYS = 30
-
 # pvlib SAPM cell temperature parameter set per EOS `mountingplace`.
 MOUNTING_TEMPERATURE_MODEL = {
     "free": "open_rack_glass_glass",
     "building": "close_mount_glass_glass",
 }
-
-
-@dataclass(frozen=True)
-class PVMeterWindow:
-    """Period every configured PV production meter reports.
-
-    Attributes:
-        first: Latest first reading across the PV meters.
-        last: Earliest last reading across the PV meters.
-    """
-
-    first: DateTime
-    last: DateTime
 
 
 def _utc_timestamp(moment: DateTime | pd.Timestamp) -> pd.Timestamp:
@@ -589,6 +577,11 @@ class PVForecastAkkudoktorLocalCommonSettings(SettingsBaseModel):
 class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
     """Compute the PV forecast locally from Open-Meteo irradiance using pvlib."""
 
+    # End of the common PV meter period last warned about as stale (warned once).
+    _stale_calibration_reported_end: Optional[DateTime] = PrivateAttr(default=None)
+    # Last PV reading the snow feedback last warned about as stale (warned once).
+    _stale_snow_reported_end: Optional[DateTime] = PrivateAttr(default=None)
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the PV-Forecast-Provider."""
@@ -1055,7 +1048,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
 
         raw_ac = frame["ac_power"].to_numpy(dtype=float).copy()
         # Calibration and snow feedback share one scan of the PV meter readings.
-        pv_window: Optional[PVMeterWindow] = None
+        pv_window: Optional[MeterPeriod] = None
         if (
             calibrate
             and self.config.measurement.pv_production_emr_keys
@@ -1133,7 +1126,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             row_start = row_start - pd.Timedelta(minutes=self._settings.resolution_minutes)
         return row_start
 
-    async def _pv_measurement_window(self) -> Optional[PVMeterWindow]:
+    async def _pv_measurement_window(self) -> Optional[MeterPeriod]:
         """Period that every configured PV production meter covers with readings.
 
         The measurement store holds every meter, not just the PV ones. Load meters
@@ -1147,48 +1140,25 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             The common period, or None when a PV meter has no readings or the meters
             share no period.
         """
-        measurement = self.measurement
-        first = await measurement.min_datetime()
-        last = await measurement.max_datetime()
-        if first is None or last is None:
-            return None
-        common_first: Optional[DateTime] = None
-        common_last: Optional[DateTime] = None
-        for key in self.config.measurement.pv_production_emr_keys or []:
-            dates, _ = await measurement.key_to_lists(
-                key=key,
-                start_datetime=first,
-                end_datetime=last.add(minutes=1),
-            )
-            if not dates:
-                return None
-            if common_first is None or compare_datetimes(dates[0], common_first).gt:
-                common_first = dates[0]
-            if common_last is None or compare_datetimes(dates[-1], common_last).lt:
-                common_last = dates[-1]
-        if common_first is None or common_last is None:
-            return None
-        if not compare_datetimes(common_first, common_last).lt:
-            logger.info(
-                "PVForecastAkkudoktorLocal: the PV production meters share no measurement "
-                f"period ({common_first} .. {common_last})."
-            )
-            return None
-        return PVMeterWindow(first=common_first, last=common_last)
+        return await self.measurement.keys_common_period(
+            self.config.measurement.pv_production_emr_keys or [], "PVForecastAkkudoktorLocal"
+        )
 
-    async def _calibration_interval_minutes(self, start: Any, end: Any) -> int:
+    async def _calibration_interval_minutes(self, start: DateTime, end: DateTime) -> int:
         """Use native forecast slots only when every PV meter resolves them.
 
         Interpolating an hourly cumulative meter onto quarter hours would create a
         perfectly flat, but invented, intrahour profile. Fall back to hourly fitting
         until all configured production meters actually provide native slot readings.
+        Only valid readings count: a meter that marks its intrahour readings invalid
+        or unavailable resolves full hours only.
         """
         native_minutes = self._settings.resolution_minutes
         meter_resolutions: list[float] = []
-        for key in self.config.measurement.pv_production_emr_keys or []:
-            dates, _ = await self.measurement.key_to_lists(
-                key=key, start_datetime=start, end_datetime=end
-            )
+        keys = self.config.measurement.pv_production_emr_keys or []
+        valid_datetimes = await self.measurement.keys_valid_datetimes(keys, start, end)
+        for key in keys:
+            dates = valid_datetimes[key]
             if len(dates) < 3:
                 return 60
             deltas = np.asarray(
@@ -1290,29 +1260,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         keys = self.config.measurement.pv_production_emr_keys or []
         if not keys:
             return np.asarray([], dtype=float)
-        interval_seconds = int(interval.total_seconds())
-        totals: Optional[np.ndarray] = None
-        for key in keys:
-            values: list[float] = []
-            chunk_start = start_datetime
-            while compare_datetimes(chunk_start, end_datetime).lt:
-                chunk_end = chunk_start.add(days=ENERGY_QUERY_MAX_DAYS)
-                if compare_datetimes(chunk_end, end_datetime).gt:
-                    chunk_end = end_datetime
-                intervals = await self.measurement.energy_intervals(
-                    key, chunk_start, chunk_end, interval_seconds
-                )
-                values.extend(
-                    np.nan if slot.energy_wh is None else slot.energy_wh / 1000.0
-                    for slot in intervals
-                )
-                chunk_start = chunk_end
-            meter_kwh = np.asarray(values, dtype=float)
-            totals = meter_kwh if totals is None else totals + meter_kwh
-        return np.asarray(totals, dtype=float)
+        meters_kwh = await self.measurement.meter_energy_kwh(
+            keys, start_datetime, end_datetime, interval
+        )
+        return np.asarray(sum(meters_kwh.values()), dtype=float)
 
     async def _fit_calibration(
-        self, frame: pd.DataFrame, pv_window: Optional[PVMeterWindow]
+        self, frame: pd.DataFrame, pv_window: Optional[MeterPeriod]
     ) -> Optional[tuple[float, np.ndarray]]:
         """Fit correction factors from measured PV production against the model.
 
@@ -1344,6 +1298,22 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             logger.info("PVForecastAkkudoktorLocal calibration: no PV measurements yet - skipping.")
             return None
         pv_min_datetime, reference_end = pv_window.first, pv_window.last
+        if compare_datetimes(
+            reference_end.add(hours=CALIBRATION_STALE_HOURS), self.ems_start_datetime
+        ).lt:
+            message = (
+                f"PVForecastAkkudoktorLocal calibration: PV production meter "
+                f"'{pv_window.last_key}' last reported at {reference_end}, more than "
+                f"{CALIBRATION_STALE_HOURS} h ago - calibration can only use data up to then."
+            )
+            if (
+                self._stale_calibration_reported_end is not None
+                and compare_datetimes(self._stale_calibration_reported_end, reference_end).equal
+            ):
+                logger.debug(message)
+            else:
+                self._stale_calibration_reported_end = reference_end
+                logger.warning(message)
 
         lookback_days = settings.calibration_days
         if settings.calibration_outage_filter_enabled:
@@ -1374,12 +1344,18 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             return None
         start, end = window.start_datetime, window.end_datetime
 
-        measured_kwh = np.asarray(
-            await self._pv_production_total_kwh(
+        try:
+            measured_kwh = await self._pv_production_total_kwh(
                 start_datetime=start, end_datetime=end, interval=interval
-            ),
-            dtype=float,
-        )
+            )
+        except ValueError as exc:
+            self.measurement.report_conversion_failure(
+                "PVForecastAkkudoktorLocal calibration",
+                "PVForecastAkkudoktorLocal calibration: PV meter energy conversion failed - "
+                f"using the uncalibrated model: {exc}",
+            )
+            return None
+        self.measurement.clear_conversion_failure("PVForecastAkkudoktorLocal calibration")
         if measured_kwh.size == 0 or not np.isfinite(measured_kwh).any():
             logger.info(
                 "PVForecastAkkudoktorLocal calibration: no usable PV measurements - skipping."
@@ -1799,7 +1775,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         return coverage, corrections
 
     async def _snow_observations(
-        self, frame: pd.DataFrame, pv_window: Optional[PVMeterWindow]
+        self, frame: pd.DataFrame, pv_window: Optional[MeterPeriod]
     ) -> tuple[list[tuple[int, int, float]], Optional[float]]:
         """Measured PV energy per meter interval, mapped onto forecast rows.
 
@@ -1815,8 +1791,9 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         if not settings.snow_feedback_enabled or not self.config.measurement.pv_production_emr_keys:
             return [], None
         if pv_window is None:
-            logger.warning(
-                "PVForecastAkkudoktorLocal snow feedback: no PV production readings - "
+            # keys_common_period already logged why, once per condition.
+            logger.debug(
+                "PVForecastAkkudoktorLocal snow feedback: no PV meter period - "
                 "using the weather-only snow model."
             )
             return [], None
@@ -1824,11 +1801,19 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         if compare_datetimes(
             pv_last.add(hours=SNOW_FEEDBACK_STALE_HOURS), self.ems_start_datetime
         ).lt:
-            logger.warning(
+            message = (
                 f"PVForecastAkkudoktorLocal snow feedback: last PV production reading "
                 f"{pv_last} is older than {SNOW_FEEDBACK_STALE_HOURS} h - the snow "
                 "coverage relies on the weather model since then."
             )
+            if (
+                self._stale_snow_reported_end is not None
+                and compare_datetimes(self._stale_snow_reported_end, pv_last).equal
+            ):
+                logger.debug(message)
+            else:
+                self._stale_snow_reported_end = pv_last
+                logger.warning(message)
 
         resolution = pd.Timedelta(minutes=settings.resolution_minutes)
         row_start = self._row_start_index(frame)
@@ -1845,14 +1830,20 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             return [], None
         start = window.start
 
-        measured = np.asarray(
-            await self._pv_production_total_kwh(
+        try:
+            measured = await self._pv_production_total_kwh(
                 start_datetime=window.start_datetime,
                 end_datetime=window.end_datetime,
                 interval=to_duration(f"{interval_minutes} minutes"),
-            ),
-            dtype=float,
-        )
+            )
+        except ValueError as exc:
+            self.measurement.report_conversion_failure(
+                "PVForecastAkkudoktorLocal snow feedback",
+                "PVForecastAkkudoktorLocal snow feedback: PV meter energy conversion failed - "
+                f"using the weather-only snow model: {exc}",
+            )
+            return [], None
+        self.measurement.clear_conversion_failure("PVForecastAkkudoktorLocal snow feedback")
         interval_hours = interval_minutes / 60.0
         # A meter jump (reset, a sub-meter dropping out of a sum) shows up as an
         # impossible yield. Drop it rather than learn snow - or its absence - from it.
@@ -1879,7 +1870,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         plane_ac: np.ndarray,
         plane_poa: np.ndarray,
         plane_tilt: np.ndarray,
-        pv_window: Optional[PVMeterWindow],
+        pv_window: Optional[MeterPeriod],
     ) -> pd.DataFrame:
         """Reduce the forecast by the (measurement-corrected) snow coverage."""
         settings = self._settings

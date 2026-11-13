@@ -40,6 +40,27 @@ def _date(value: float) -> datetime:
     return datetime.fromtimestamp(value, timezone.utc)
 
 
+def valid_reading(value: object, quality: SampleQuality | None = None) -> float | None:
+    """Value of a raw reading that counts as a valid observation.
+
+    A reading counts when it is a finite number (not a bool) whose sample quality is
+    neither invalid nor unavailable. The energy conversion, the meter period scans
+    and the meter resolution detection share this rule.
+
+    Args:
+        value: Raw stored reading.
+        quality: Sample quality of the reading, None for the default (measured).
+
+    Returns:
+        The reading as float, or None when it does not count.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
+        return None
+    if quality is not None and quality.status in ("invalid", "unavailable"):
+        return None
+    return float(value)
+
+
 def energy_intervals(
     samples: Iterable[tuple[datetime, float | None]],
     channel: "MeasurementChannelSettings",
@@ -66,10 +87,9 @@ def energy_intervals(
     def sample_quality(time: float) -> SampleQuality:
         return quality.get(time, SampleQuality())
 
-    def number(value: float | None) -> float | None:
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
-            return None
-        return float(value) * scale
+    def number(value: float | None, sample: SampleQuality) -> float | None:
+        reading = valid_reading(value, sample)
+        return None if reading is None else reading * scale
 
     # Segment: start, end, start/end power in W, method, error flag.
     segments = []
@@ -84,21 +104,15 @@ def energy_intervals(
             if previous_end is not None and a < previous_end:
                 raise ValueError("Overlapping source energy intervals.")
             previous_end = b
-            value = number(raw)
-            if sample_quality(time).status in ("invalid", "unavailable"):
-                value = None
+            value = number(raw, sample_quality(time))
             power = value * 3600 / duration if value is not None else None
             segments.append(
                 (a, b, power, power, "interval_energy", "invalid_sample" if power is None else None)
             )
     else:
         for (a, raw_a), (b, raw_b) in zip(points, points[1:]):
-            va, vb = number(raw_a), number(raw_b)
             qa, qb = sample_quality(a), sample_quality(b)
-            if qa.status in ("invalid", "unavailable"):
-                va = None
-            if qb.status in ("invalid", "unavailable"):
-                vb = None
+            va, vb = number(raw_a, qa), number(raw_b, qb)
             flag = None
             if channel.max_gap_seconds is not None and b - a > channel.max_gap_seconds:
                 flag = "gap_too_large"

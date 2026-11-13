@@ -8,8 +8,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from akkudoktoreos.measurement.energy import energy_intervals
+from akkudoktoreos.measurement.energy import energy_intervals, valid_reading
 from akkudoktoreos.measurement.measurement import MeasurementChannelSettings
+from akkudoktoreos.measurement.quality import SampleQuality
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 START = datetime(2026, 9, 10, tzinfo=timezone.utc)
@@ -133,3 +134,22 @@ async def test_measurement_wrapper_preserves_asynchronous_channels(config_eos):
         measurement._db_reset_state()
         measurement.records = records
         config_eos.measurement = previous
+
+
+@pytest.mark.parametrize(
+    ("value", "quality", "expected"),
+    [
+        (1, None, 1.0),
+        (2.5, SampleQuality(status="estimated"), 2.5),
+        (2.5, SampleQuality(status="invalid"), None),
+        (2.5, SampleQuality(status="unavailable"), None),
+        (True, None, None),
+        (float("nan"), None, None),
+        (float("inf"), None, None),
+        (None, None, None),
+        ("1.0", None, None),
+    ],
+)
+def test_valid_reading(value: Any, quality: SampleQuality | None, expected: float | None) -> None:
+    """One rule decides which raw readings count, shared by conversion and scans."""
+    assert valid_reading(value, quality) == expected
