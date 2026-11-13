@@ -474,6 +474,18 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         default=3600, description="Duration of one result/control slot in seconds."
     )
 
+    first_slot_fraction: float = Field(
+        default=1.0,
+        gt=0.0,
+        le=1.0,
+        description=(
+            "Part of the first control slot that was still ahead when the "
+            "optimization ran (0.25 for a run at 10:45 with hourly slots). The "
+            "results of the first slot cover only that part, and its factors are "
+            "chosen for it. 1.0 for a run on a slot boundary."
+        ),
+    )
+
     @field_validator("start_solution_datetime", mode="before")
     @classmethod
     def transform_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
@@ -621,6 +633,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         discharge_allowed: bool,
         soc_pct: float,
         battery_grid_export_allowed: bool = False,
+        slot_fraction: float = 1.0,
     ) -> tuple[float, float, bool, bool]:
         """Clamp raw genetic gene values by the battery's actual SOC at that hour.
 
@@ -638,6 +651,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             (the inverter curtails automatically, but this makes intent clear).
           - Discharge: blocked when SOC is at or below min SOC.
           - Battery grid export: blocked when SOC is at or below min SOC.
+
+        ``slot_fraction`` is the part of the slot the factors apply to:
+        ``first_slot_fraction`` for the running first slot, else 1.0. The
+        headroom check of the AC charge factor uses only that part of the slot.
         """
         parameters = getattr(self, "parameters", None)
         # Without parameters, convert the battery settings: they hold no
@@ -679,7 +696,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 )
                 # Energy storable in one optimization slot, not per hour: scale the
                 # power [W] by the slot duration (1.0 hourly, 0.25 at 15 min).
-                slot_duration_h = float(self.interval_seconds) / 3600.0
+                slot_duration_h = float(self.interval_seconds) / 3600.0 * slot_fraction
                 max_dc_per_slot_wh = (
                     effective_ac * max_ac_cp_w * slot_duration_h * ac_to_dc_eff * ch_eff
                 )
@@ -821,6 +838,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     discharge_allowed_hour,
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
+                    self.first_slot_fraction if result_idx == 0 else 1.0,
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac, eff_dc, eff_dis, eff_grid_export, battery_grid_export_factor_hour
@@ -1097,6 +1115,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     bool(self.discharge_allowed[hour_idx]),
                     soc_h_pct,
                     battery_grid_export_allowed_hour,
+                    self.first_slot_fraction if result_idx == 0 else 1.0,
                 )
                 operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                     eff_ac,

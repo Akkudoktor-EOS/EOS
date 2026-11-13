@@ -1056,6 +1056,37 @@ class GeneticOptimization(OptimizationBase):
         """Genomes and device arrays start at now, independently of wall-clock hour."""
         return 0
 
+    def _remaining_first_slot_fraction(self) -> float:
+        """Return the part of slot 0 that is still ahead of the run.
+
+        The run start is rounded down to the slot (``ems.start_datetime``),
+        while the measurements and the plan apply from the unrounded run time
+        (``ems.observation_datetime``). A run at 10:45 with hourly slots has
+        a quarter of slot 0 left. A run on a slot boundary, or without a
+        usable run time, keeps the full slot (1.0).
+        """
+        slot_seconds = self.slot_duration_h * 3600
+        slot0 = self.ems.start_datetime
+        observed = self.ems.observation_datetime
+        elapsed_s = (observed - slot0).total_seconds()
+        if elapsed_s <= 0.0:
+            return 1.0
+        if elapsed_s >= slot_seconds:
+            logger.debug(
+                "Run time {} is not within slot 0 starting {}; planning a full first slot.",
+                observed,
+                slot0,
+            )
+            return 1.0
+        fraction = (slot_seconds - elapsed_s) / slot_seconds
+        logger.debug(
+            "Run at {} within slot 0 starting {}: {:.3f} of slot 0 left.",
+            observed,
+            slot0,
+            fraction,
+        )
+        return fraction
+
     def _start_day_slot(self) -> int:
         """Offset used only to trim legacy midnight-indexed forecast inputs."""
         sd = self.ems.start_datetime
@@ -1085,6 +1116,9 @@ class GeneticOptimization(OptimizationBase):
         # Populated from parameters.pv_battery.grid_export_rates in optimize_ems;
         # the single full-power default keeps the all-or-nothing export.
         self.bat_possible_grid_export_values: list[float] = [1.0]
+        # Part of slot 0 still ahead of the run (1.0 on a slot boundary), set
+        # per run by optimize_ems().
+        self.first_slot_fraction: float = 1.0
         # Slot by which the EV has to reach its target SoC. None means the SoC is
         # only required at the end of the horizon (the behaviour without a deadline).
         self._ev_soc_deadline_slot: Optional[int] = None
@@ -2524,15 +2558,18 @@ class GeneticOptimization(OptimizationBase):
             return schedule
 
         max_stored_wh = ev.max_charge_power_w * self.slot_duration_h * ev.charging_efficiency
+        first_slot_fraction = getattr(self, "first_slot_fraction", 1.0)
         remaining_wh = required_stored_wh
         for slot in candidates:
-            required_rate = remaining_wh / max(max_stored_wh, 1e-9)
+            # Slot 0 only has its remaining part when the run starts within it.
+            slot_stored_wh = max_stored_wh * (first_slot_fraction if slot == 0 else 1.0)
+            required_rate = remaining_wh / max(slot_stored_wh, 1e-9)
             rate, rate_index = next(
                 (item for item in positive_rates if item[0] >= required_rate),
                 positive_rates[-1],
             )
             schedule[slot] = rate_index
-            remaining_wh -= max_stored_wh * rate
+            remaining_wh -= slot_stored_wh * rate
             if remaining_wh <= 1e-9:
                 break
         return schedule
@@ -3856,8 +3893,12 @@ class GeneticOptimization(OptimizationBase):
                         # AC charging at this hour is economically unjustified.
                         # Penalty = excess cost per Wh × DC energy requested this slot.
                         # max_charge_power_w is a power [W]; the energy movable in
-                        # one slot is power × slot_duration_h (¼ at 15 min).
-                        dc_wh = bat.max_charge_power_w * self.slot_duration_h * ac_factor
+                        # one slot is power × slot_duration_h (¼ at 15 min), and
+                        # only the remaining part of slot 0 within that slot.
+                        slot_scale = getattr(self, "first_slot_fraction", 1.0) if hour == 0 else 1.0
+                        dc_wh = (
+                            bat.max_charge_power_w * self.slot_duration_h * slot_scale * ac_factor
+                        )
                         ac_wh = dc_wh / max(inv.ac_to_dc_efficiency, 1e-9)
                         excess_cost_per_wh = break_even_price - best_uncovered_price
                         gesamtbilanz += ac_wh * excess_cost_per_wh * ac_penalty_factor
@@ -4215,6 +4256,9 @@ class GeneticOptimization(OptimizationBase):
         # break-even lookup must be rebuilt lazily on first evaluation.
         self._ac_break_even_best_prices = None
 
+        # A run within a slot plans slot 0 for the remaining time only.
+        self.first_slot_fraction = self._remaining_first_slot_fraction()
+
         # Initialize PV and EV batteries. slot_duration_h lets the Battery scale
         # its power caps (max_charge_power_w) to a per-slot energy cap.
         akku: Optional[Battery] = None
@@ -4223,6 +4267,7 @@ class GeneticOptimization(OptimizationBase):
                 parameters.pv_battery,
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
+                first_slot_fraction=self.first_slot_fraction,
             )
             akku.set_charge_per_hour(np.full(self.control_end_slot, 0))
 
@@ -4232,6 +4277,7 @@ class GeneticOptimization(OptimizationBase):
                 parameters.ev,
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
+                first_slot_fraction=self.first_slot_fraction,
             )
             eauto.set_charge_per_hour(np.full(self.control_end_slot, 1))
             self.optimize_ev = (
@@ -4356,6 +4402,7 @@ class GeneticOptimization(OptimizationBase):
                 parameters.inverter,
                 battery=akku,
                 slot_duration_h=self.slot_duration_h,
+                first_slot_fraction=self.first_slot_fraction,
             )
 
         # Prepare device simulation
@@ -4386,6 +4433,16 @@ class GeneticOptimization(OptimizationBase):
             "elect_revenue_per_hour_arr",
         ):
             setattr(self.simulation, name, getattr(self.simulation, name)[: self.control_slots])
+        # Only the remaining part of slot 0 is ahead: its PV and load forecast
+        # shrink to that part (spread evenly over the slot). Prices are per Wh
+        # and stay. The terminal value curve above keeps the full forecasts.
+        if self.first_slot_fraction < 1.0:
+            for name in ("load_energy_array", "pv_prediction_wh"):
+                values = getattr(self.simulation, name)
+                if values is not None and len(values) > 0:
+                    values = np.array(values, dtype=float)
+                    values[0] *= self.first_slot_fraction
+                    setattr(self.simulation, name, values)
 
         # Setup the DEAP environment and optimization process. The appliance
         # genome layout (built above) drives the appliance gene block; evaluate
@@ -4481,6 +4538,7 @@ class GeneticOptimization(OptimizationBase):
             **{
                 "parameters": parameters,
                 "interval_seconds": self._genetic_cfg.interval_sec,
+                "first_slot_fraction": self.first_slot_fraction,
                 "start_hour": start_hour,
                 "extra_data": extra_data,
                 "fitness_history": self.fitness_history,

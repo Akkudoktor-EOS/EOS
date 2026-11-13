@@ -137,11 +137,25 @@ class Inverter:
         parameters: InverterParameters,
         battery: Optional[Battery] = None,
         slot_duration_h: float = 1.0,
+        first_slot_fraction: float = 1.0,
     ):
+        # `first_slot_fraction` is the part of slot 0 still ahead when the
+        # optimization runs within that slot; slot 0 then moves only that part
+        # of the slot energy (see Battery).
+        if not 0.0 < first_slot_fraction <= 1.0:
+            raise ValueError(f"first_slot_fraction must be in (0, 1], got {first_slot_fraction}.")
         self.parameters: InverterParameters = parameters
         self.battery: Optional[Battery] = battery
         self.slot_duration_h: float = slot_duration_h
+        self.first_slot_fraction: float = first_slot_fraction
         self._setup()
+
+    def slot_scale(self, hour: int) -> float:
+        """Return the part of the slot duration that is simulated for slot ``hour``.
+
+        ``first_slot_fraction`` for slot 0, 1.0 for every later slot.
+        """
+        return self.first_slot_fraction if hour == 0 else 1.0
 
     def _setup(self) -> None:
         if self.battery and self.parameters.battery_id != self.battery.parameters.device_id:
@@ -167,19 +181,24 @@ class Inverter:
         self.max_ac_charge_power_w = self.parameters.max_ac_charge_power_w
         self.ac_charge_limits_total_charge = self.parameters.ac_charge_limits_total_charge
 
-    def dc_to_ac_efficiency_at(self, ac_wh: float) -> float:
+    def dc_to_ac_efficiency_at(self, ac_wh: float, scale: float = 1.0) -> float:
         """Return the DC-to-AC efficiency of a conversion delivering ``ac_wh`` in one slot.
 
         Without ``dc_to_ac_efficiency_curve`` this is the constant
         ``dc_to_ac_efficiency``. With a curve, the efficiency is interpolated at
-        the load fraction ``ac_wh / max_power_wh`` of this slot. ``max_power_wh``
-        is already scaled to the slot duration, so the fraction equals the mean
-        AC power relative to the rated power.
+        the load fraction ``ac_wh / (max_power_wh * scale)`` of this slot.
+        ``max_power_wh`` is already scaled to the slot duration, so the fraction
+        equals the mean AC power relative to the rated power.
+
+        Args:
+            ac_wh: AC energy of the conversion in this slot [Wh].
+            scale: Simulated part of the slot duration (see ``slot_scale``).
         """
         if self.dc_to_ac_efficiency_curve is None:
             return self.dc_to_ac_efficiency
         curve: list[tuple[float, float]] = self.dc_to_ac_efficiency_curve
-        load_fraction = ac_wh / self.max_power_wh if self.max_power_wh > 0 else 0.0
+        slot_max_power_wh = self.max_power_wh * scale
+        load_fraction = ac_wh / slot_max_power_wh if slot_max_power_wh > 0 else 0.0
         # This runs for every battery discharge of every candidate plan. Find
         # the curve segment by bisection on the load fractions, split off once
         # per curve, instead of walking the points. The segment and the
@@ -234,7 +253,11 @@ class Inverter:
         """
         if self.ac_charge_limits_total_charge and self.battery and factor > 0.0:
             self.battery.limit_slot_charge(
-                hour, self.battery.max_charge_power_w * self.slot_duration_h * factor
+                hour,
+                self.battery.max_charge_power_w
+                * self.slot_duration_h
+                * self.slot_scale(hour)
+                * factor,
             )
 
     def charge_battery_from_grid(self, hour: int, factor: float) -> tuple[float, float]:
@@ -250,9 +273,10 @@ class Inverter:
         """
         if not self.battery or factor <= 0.0:
             return 0.0, 0.0
+        scale = self.slot_scale(hour)
         if self.ac_charge_limits_total_charge:
             stored, battery_losses = self.battery.charge_energy(
-                self.battery.max_charge_power_w * self.slot_duration_h * factor, hour
+                self.battery.max_charge_power_w * self.slot_duration_h * scale * factor, hour
             )
         else:
             stored, battery_losses = self.battery.charge_energy(None, hour, charge_factor=factor)
@@ -262,7 +286,7 @@ class Inverter:
         # curve the efficiency is the one at the AC load actually drawn.
         curve = self.ac_to_dc_efficiency_curve
         if curve is not None:
-            ac_energy = solve_ac_for_charge_dc_energy(curve, dc_energy, self.max_power_wh)
+            ac_energy = solve_ac_for_charge_dc_energy(curve, dc_energy, self.max_power_wh * scale)
         else:
             ac_energy = dc_energy / self.ac_to_dc_efficiency
         return ac_energy, battery_losses + (ac_energy - dc_energy)
@@ -273,18 +297,20 @@ class Inverter:
         dc_request: float,
         requested_ac_wh: float,
         dc_to_ac_efficiency: float,
+        scale: float = 1.0,
     ) -> float:
         """Return the AC energy of a discharge that delivered ``battery_discharge_dc``.
 
         If the battery delivered less than requested (low state of charge or its
         power limit), the conversion runs at a lower AC load than requested. With
         an efficiency curve the efficiency must then be the one at the AC energy
-        that is actually delivered, not at the request.
+        that is actually delivered, not at the request. ``scale`` is the
+        simulated part of the slot duration (see ``slot_scale``).
         """
         curve = self.dc_to_ac_efficiency_curve
         if curve is not None and battery_discharge_dc < dc_request * (1.0 - 1e-12):
             return solve_ac_for_dc_energy(
-                curve, battery_discharge_dc, self.max_power_wh, requested_ac_wh
+                curve, battery_discharge_dc, self.max_power_wh * scale, requested_ac_wh
             )
         return battery_discharge_dc * dc_to_ac_efficiency
 
@@ -293,15 +319,16 @@ class Inverter:
         battery = self.battery
         if not battery or requested_ac_wh <= 0.0:
             return 0.0, 0.0
+        scale = self.first_slot_fraction if hour == 0 else 1.0
         if type(battery) is not Battery:
             # Another battery implementation: ask it, step by step.
             if not battery.discharge_released(hour):
                 return 0.0, 0.0
-            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh, scale)
             dc_request = requested_ac_wh / dc_to_ac_efficiency
             battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
             battery_discharge_ac = self._delivered_ac_wh(
-                battery_discharge_dc, dc_request, requested_ac_wh, dc_to_ac_efficiency
+                battery_discharge_dc, dc_request, requested_ac_wh, dc_to_ac_efficiency, scale
             )
             inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
             return battery_discharge_ac, discharge_losses + inverter_discharge_losses
@@ -319,7 +346,7 @@ class Inverter:
         if self.dc_to_ac_efficiency_curve is None:
             dc_to_ac_efficiency = self.dc_to_ac_efficiency
         else:
-            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh)
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh, scale)
         dc_request = requested_ac_wh / dc_to_ac_efficiency
 
         if battery._curves is not None:
@@ -335,7 +362,10 @@ class Inverter:
                 # Match Battery.discharge_energy(): preserve a SoC below the reserve.
                 return 0.0, 0.0
             max_raw_wh = max(
-                battery.max_discharge_power_w * battery.slot_duration_h - discharged_raw_wh[hour],
+                battery.max_discharge_power_w
+                * battery.slot_duration_h
+                * (battery.first_slot_fraction if hour == 0 else 1.0)
+                - discharged_raw_wh[hour],
                 0.0,
             )
             max_deliverable_wh = min(raw_available_wh, max_raw_wh) * discharging_efficiency
@@ -354,7 +384,7 @@ class Inverter:
             battery_discharge_ac = solve_ac_for_dc_energy(
                 self.dc_to_ac_efficiency_curve,
                 battery_discharge_dc,
-                self.max_power_wh,
+                self.max_power_wh * scale,
                 requested_ac_wh,
             )
         else:
@@ -402,12 +432,16 @@ class Inverter:
         if consumption < 0.0:
             consumption = 0.0
         battery = self.battery
-        max_power_wh = self.max_power_wh
+        # Slot 0 only has its remaining part when the run starts within it:
+        # the inverter moves that part of the slot energy, and the slot's
+        # energies are converted to power over that part of the slot.
+        scale = self.first_slot_fraction if hour == 0 else 1.0
+        max_power_wh = self.max_power_wh * scale
 
         # Convert interval energy [Wh] to mean power [W] for the probability
         # lookup, then convert its expected direct power back to slot energy.
         if generation > 0.0 and consumption > 0.0:
-            slot_duration_h = self.slot_duration_h
+            slot_duration_h = self.slot_duration_h * scale
             expected_direct_power_w = (
                 self.self_consumption_predictor.calculate_expected_direct_consumption(
                     consumption / slot_duration_h,
@@ -504,14 +538,14 @@ class Inverter:
             # limited by the energy the battery can actually deliver.
             remaining_battery_dc = battery.remaining_discharge_energy_wh(hour)
             remaining_battery_ac = remaining_battery_dc * self.dc_to_ac_efficiency_at(
-                remaining_battery_dc
+                remaining_battery_dc, scale
             )
             # The rate caps the export against the battery's *rated* discharge
             # power, so it stays a plain power setpoint ("export at 50 %") that
             # does not silently grow when self-consumption used less of the slot.
             # At factor 1.0 this bound never binds; behaviour is unchanged.
-            rated_export_dc = battery.rated_discharge_energy_wh() * export_factor
-            rated_export_ac = rated_export_dc * self.dc_to_ac_efficiency_at(rated_export_dc)
+            rated_export_dc = battery.rated_discharge_energy_wh(hour) * export_factor
+            rated_export_ac = rated_export_dc * self.dc_to_ac_efficiency_at(rated_export_dc, scale)
             export_capacity = remaining_inverter_ac_capacity
             if remaining_battery_ac < export_capacity:
                 export_capacity = remaining_battery_ac

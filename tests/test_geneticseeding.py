@@ -30,7 +30,7 @@ def _configure_hourly_grid(config_eos: ConfigEOS, *, start_hour: int = 0) -> Non
             },
         }
     )
-    get_ems(init=True).set_start_datetime(to_datetime().set(hour=start_hour, minute=0))
+    get_ems(init=True).set_start_datetime(to_datetime().set(hour=start_hour, minute=0, second=0, microsecond=0))
 
 
 def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEOS):
