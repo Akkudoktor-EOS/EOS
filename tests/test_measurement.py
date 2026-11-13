@@ -348,6 +348,8 @@ class TestMeasurement:
             "load0_mr": to_datetime("2023-01-01T05:00:00"),
             "load1_mr": to_datetime("2023-01-03T05:00:00"),
         }
+        timezone = measurement_eos.config.general.timezone
+        assert all(stamp.timezone_name == timezone for stamp in [*firsts.values(), *lasts.values()])
 
     async def test_load_total_kwh_warns_once_about_a_silent_meter(self, measurement_eos, caplog):
         """A configured meter that never reports is a warning once, not on every run."""

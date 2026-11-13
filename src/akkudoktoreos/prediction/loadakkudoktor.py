@@ -119,16 +119,31 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
             )
             return (weekday_adjust, weekend_adjust)
 
-        max_dt = await self.measurement.max_datetime()
-        if max_dt is None:
-            # No measurements - return 0 adjustment
-            return (weekday_adjust, weekday_adjust)
-
-        min_dt = await self.measurement.min_datetime()
+        # Compare against the period every load meter reports, not the whole store:
+        # other channels (PV, SoC) often reach further than the load meters.
+        load_keys = self.config.measurement.load_emr_keys
+        firsts = await self.measurement.keys_first_datetime(load_keys)
+        silent = [key for key in load_keys if key not in firsts]
+        if silent:
+            logger.info(
+                f"LoadAkkudoktorAdjusted: load meter(s) {silent} have no readings yet - "
+                "no load adjustment."
+            )
+            return (weekday_adjust, weekend_adjust)
+        lasts = await self.measurement.keys_last_datetime(load_keys)
+        if any(key not in lasts for key in load_keys):
+            # The readings went away between the two scans (e.g. a vacuum).
+            return (weekday_adjust, weekend_adjust)
+        min_dt = firsts[load_keys[0]]
+        max_dt = lasts[load_keys[0]]
+        for key in load_keys[1:]:
+            if compare_datetimes(firsts[key], min_dt).gt:
+                min_dt = firsts[key]
+            if compare_datetimes(lasts[key], max_dt).lt:
+                max_dt = lasts[key]
 
         # compare predictions with real measurement - try to use last 7 days
-        # Keep the hourly buckets on full hours: the newest record may be an off-hour
-        # device state (e.g. SoC stamped with the run time, #1447).
+        # Keep the hourly buckets on full hours (#1447).
         compare_end = max_dt.start_of("hour")
         compare_start = compare_end - to_duration("7 days")
         if compare_datetimes(compare_start, min_dt).lt:

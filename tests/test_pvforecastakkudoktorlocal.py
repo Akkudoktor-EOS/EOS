@@ -1094,13 +1094,27 @@ async def test_calibration_warns_about_a_stale_common_meter_period(pvforecast_in
     frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
     meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
     await _feed_meters(pvforecast_instance, {"pv_stale_emr": meter})
-    get_ems().set_start_datetime(START.add(days=3))
+
+    def stale_warnings() -> int:
+        return sum(
+            record.levelname == "WARNING" and "last reported together" in record.getMessage()
+            for record in caplog.records
+        )
 
     with caplog.at_level("WARNING"):
+        get_ems().set_start_datetime(START.add(hours=12))
+        await _fit(pvforecast_instance, frame)
+        fresh = stale_warnings()
+        get_ems().set_start_datetime(START.add(days=3))
         calibration = await _fit(pvforecast_instance, frame)
+        first_stale_run = stale_warnings()
+        await _fit(pvforecast_instance, frame)
 
     _assert_fitted_bias(calibration, 0.8)
-    assert "last reported together" in caplog.text
+    assert fresh == 0
+    assert first_stale_run > 0
+    # Once per stale period, not on every run.
+    assert stale_warnings() == first_stale_run
 
 
 @pytest.mark.asyncio

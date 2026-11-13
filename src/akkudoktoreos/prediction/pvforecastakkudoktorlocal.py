@@ -1121,6 +1121,21 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
                 total += min(limits)
         return total
 
+    @property
+    def _stale_calibration_reported_end(self) -> Optional[DateTime]:
+        """End of the common PV meter period last warned about as stale.
+
+        Kept on the instance, so the stale warning is given once per stale period.
+        """
+        try:
+            return object.__getattribute__(self, "_stale_calibration_reported_end_value")
+        except AttributeError:
+            return None
+
+    @_stale_calibration_reported_end.setter
+    def _stale_calibration_reported_end(self, value: Optional[DateTime]) -> None:
+        object.__setattr__(self, "_stale_calibration_reported_end_value", value)
+
     def _row_start_index(self, frame: pd.DataFrame) -> pd.DatetimeIndex:
         """Start of the interval each forecast row covers.
 
@@ -1333,11 +1348,17 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         if compare_datetimes(
             reference_end.add(hours=CALIBRATION_STALE_HOURS), self.ems_start_datetime
         ).lt:
-            logger.warning(
+            message = (
                 f"PVForecastAkkudoktorLocal calibration: the PV production meters last "
                 f"reported together at {reference_end}, more than {CALIBRATION_STALE_HOURS} h "
-                "ago - the fit uses that older period. Remove meters that no longer report."
+                "ago - calibration can only use data up to then. Check the PV meters that "
+                "stopped reporting."
             )
+            if self._stale_calibration_reported_end == reference_end:
+                logger.debug(message)
+            else:
+                self._stale_calibration_reported_end = reference_end
+                logger.warning(message)
 
         lookback_days = settings.calibration_days
         if settings.calibration_outage_filter_enabled:

@@ -507,8 +507,10 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             keys: Record keys, e.g. meter reading keys.
 
         Returns:
-            First stamp per key; keys without a valid reading are missing.
+            First stamp per key, in the configured timezone like `min_datetime`; keys
+            without a valid reading are missing.
         """
+        timezone = self.config.general.timezone
         wanted = set(keys)
         firsts: dict[str, DateTime] = {}
         oldest = await self.min_datetime()
@@ -525,7 +527,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                 DatabaseTimestamp.from_datetime(window_end),
             ):
                 for key in self._valid_reading_keys(record, wanted - firsts.keys()):
-                    firsts[key] = to_datetime(record.date_time)
+                    firsts[key] = to_datetime(record.date_time, in_timezone=timezone)
             window_start = window_end
             step_seconds *= 2
         return firsts
@@ -540,8 +542,10 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             keys: Record keys, e.g. meter reading keys.
 
         Returns:
-            Last stamp per key; keys without a valid reading are missing.
+            Last stamp per key, in the configured timezone like `max_datetime`; keys
+            without a valid reading are missing.
         """
+        timezone = self.config.general.timezone
         wanted = set(keys)
         lasts: dict[str, DateTime] = {}
         oldest = await self.min_datetime()
@@ -560,7 +564,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                 DatabaseTimestamp.from_datetime(window_end),
             ):
                 for key in self._valid_reading_keys(record, wanted - lasts.keys()):
-                    window_lasts[key] = to_datetime(record.date_time)
+                    window_lasts[key] = to_datetime(record.date_time, in_timezone=timezone)
             lasts.update(window_lasts)
             window_end = window_start
             step_seconds *= 2

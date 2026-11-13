@@ -290,6 +290,7 @@ async def _adjustment_window(adjusted, measurement):
 @pytest.mark.asyncio
 async def test_adjustment_buckets_stay_on_full_hours(loadakkudoktoradjusted, empty_measurement):
     """A newer off-hour record (e.g. a device SoC) must not shift the hourly buckets (#1447)."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
     dt = to_datetime("2024-01-01T00:00:00")
     for hour in range(25):
         await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
@@ -376,3 +377,22 @@ async def test_adjustment_without_load_meters_is_zero(loadakkudoktoradjusted, em
 
     assert calls == []
     assert (weekday == 0.0).all() and (weekend == 0.0).all()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_window_follows_the_load_meters(
+    loadakkudoktoradjusted, empty_measurement
+):
+    """A load meter lagging behind other channels still gives its last 7 days."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(10 * 24 + 1):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+    # SoC keeps reporting three days after the load meter stopped.
+    await empty_measurement.update_value(dt.add(days=13), "storage-soc-factor", 0.42)
+
+    _, calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls
+    assert compare_datetimes(calls[0]["end_datetime"], dt.add(days=10)).equal
+    assert compare_datetimes(calls[0]["start_datetime"], dt.add(days=3)).equal
