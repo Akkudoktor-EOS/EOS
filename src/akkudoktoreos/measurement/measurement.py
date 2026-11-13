@@ -328,7 +328,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
 
         if any(dt.tzinfo is None or dt.utcoffset() is None for dt in (start, end)):
             raise ValueError("Explicit timezone required.")
-        if end.timestamp() <= start.timestamp():
+        if compare_datetimes(to_datetime(end), to_datetime(start)).le:
             raise ValueError("Energy queries require a positive range.")
         channels = {key: self._energy_channel(key) for key in keys}
         context = self.config.measurement.energy_context_seconds
@@ -385,7 +385,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         Raises:
             ValueError: If the query exceeds a limit.
         """
-        seconds = end.timestamp() - start.timestamp()
+        seconds = to_datetime(start).diff(to_datetime(end), False).total_seconds()
         if not 0 < seconds <= ENERGY_QUERY_MAX_SECONDS:
             raise ValueError("Energy queries require a positive range of at most 31 days.")
         if type(interval_seconds) is not int or interval_seconds <= 0:
@@ -417,7 +417,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         end_datetime: datetime,
         interval_seconds: int = 900,
     ) -> list[EnergyInterval]:
-        """Convert a typed channel without changing the legacy kWh calculation.
+        """Convert a typed channel; load and PV energy use the same conversion.
 
         Read only explicitly stored values for this key: another channel's timestamp
         must not introduce a synthetic outage. Explicit null values remain barriers.
@@ -524,8 +524,8 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                 DatabaseTimestamp.from_datetime(window_start),
                 DatabaseTimestamp.from_datetime(window_end),
             ):
-                for key in self._valid_reading_keys(record, wanted):
-                    firsts.setdefault(key, to_datetime(record.date_time))
+                for key in self._valid_reading_keys(record, wanted - firsts.keys()):
+                    firsts[key] = to_datetime(record.date_time)
             window_start = window_end
             step_seconds *= 2
         return firsts
@@ -559,10 +559,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                 DatabaseTimestamp.from_datetime(window_start),
                 DatabaseTimestamp.from_datetime(window_end),
             ):
-                for key in self._valid_reading_keys(record, wanted):
+                for key in self._valid_reading_keys(record, wanted - lasts.keys()):
                     window_lasts[key] = to_datetime(record.date_time)
-            for key, stamp in window_lasts.items():
-                lasts.setdefault(key, stamp)
+            lasts.update(window_lasts)
             window_end = window_start
             step_seconds *= 2
         return lasts
@@ -672,8 +671,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         for key, meter_kwh in meters_kwh.items():
             if np.isnan(meter_kwh).all():
                 message = (
-                    f"Load meter '{key}' has no readings covering {start_datetime} .. "
-                    f"{end_datetime}: the total load of this period is unknown."
+                    f"Load meter '{key}' gives no usable energy for {start_datetime} .. "
+                    f"{end_datetime} (no readings, resets or gaps longer than its "
+                    "max_gap_seconds): the total load of this period is unknown."
                 )
                 if key in self._silent_load_meters_reported:
                     logger.debug(message)

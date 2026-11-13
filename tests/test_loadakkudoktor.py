@@ -361,3 +361,18 @@ async def test_adjustment_falls_back_when_the_meter_conversion_fails(
         )
 
     assert (weekday == 0.0).all() and (weekend == 0.0).all()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_without_load_meters_is_zero(loadakkudoktoradjusted, empty_measurement):
+    """Without configured load meters there is nothing to adjust from."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = None
+    for day in (1, 2):
+        await empty_measurement.update_value(
+            to_datetime(f"2024-01-0{day}T00:00:00"), "storage-soc-factor", 0.5
+        )
+
+    (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()

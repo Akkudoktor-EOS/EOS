@@ -1085,3 +1085,35 @@ async def test_calibration_falls_back_when_the_meter_conversion_fails(
     assert calibration is None
     np.testing.assert_allclose(forecast["ac_power"], frame["ac_power"])
     assert "calibration: PV meter energy conversion failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_calibration_warns_about_a_stale_common_meter_period(pvforecast_instance, caplog):
+    """A PV meter that stopped reporting holds the fit on old data - say so."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings()
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_stale_emr": meter})
+    get_ems().set_start_datetime(START.add(days=3))
+
+    with caplog.at_level("WARNING"):
+        calibration = await _fit(pvforecast_instance, frame)
+
+    _assert_fitted_bias(calibration, 0.8)
+    assert "last reported together" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_pv_meter_window_skips_readings_that_vanish_between_scans(
+    pvforecast_instance, monkeypatch
+):
+    """Readings removed between the first and last scan give no window, not an error."""
+    pvforecast_instance.config.pvforecast.akkudoktor = _calibration_settings()
+    frame = await pvforecast_instance._forecast_frame(synthetic_openmeteo(), calibrate=False)
+    meter = _unaligned_meter_series(frame, 0.8, to_datetime("2025-06-09T00:04:50Z"), START, 5)
+    await _feed_meters(pvforecast_instance, {"pv_vanishing_emr": meter})
+    monkeypatch.setattr(
+        type(get_measurement()), "keys_last_datetime", AsyncMock(return_value={})
+    )
+
+    assert await pvforecast_instance._pv_measurement_window() is None

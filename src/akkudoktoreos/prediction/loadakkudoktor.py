@@ -112,6 +112,13 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         weekend_adjust = np.zeros(24)
         weekend_adjust_weight = np.zeros(24)
 
+        if not self.config.measurement.load_emr_keys:
+            logger.info(
+                "LoadAkkudoktorAdjusted: measurement.load_emr_keys is not configured - "
+                "no load adjustment."
+            )
+            return (weekday_adjust, weekend_adjust)
+
         max_dt = await self.measurement.max_datetime()
         if max_dt is None:
             # No measurements - return 0 adjustment

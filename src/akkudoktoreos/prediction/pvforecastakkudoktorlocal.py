@@ -77,6 +77,9 @@ OPENMETEO_SNOW_VARIABLES = ("snowfall", "snow_depth")
 # Snow feedback warns when the newest PV meter reading is older than this.
 SNOW_FEEDBACK_STALE_HOURS = 3
 
+# Calibration warns when the common PV meter period ended longer ago than this.
+CALIBRATION_STALE_HOURS = 24
+
 # Open-Meteo hard limits for a single forecast request.
 MAX_FORECAST_DAYS = 16
 MAX_PAST_DAYS = 92
@@ -1156,8 +1159,17 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             )
             return None
         lasts = await self.measurement.keys_last_datetime(keys)
-        common_first = max(firsts.values(), key=lambda moment: moment.timestamp())
-        common_last = min(lasts.values(), key=lambda moment: moment.timestamp())
+        if any(key not in lasts for key in keys):
+            # The readings went away between the two scans (e.g. a vacuum).
+            logger.info("PVForecastAkkudoktorLocal: PV production readings changed - skipping.")
+            return None
+        common_first = firsts[keys[0]]
+        common_last = lasts[keys[0]]
+        for key in keys[1:]:
+            if compare_datetimes(firsts[key], common_first).gt:
+                common_first = firsts[key]
+            if compare_datetimes(lasts[key], common_last).lt:
+                common_last = lasts[key]
         if not compare_datetimes(common_first, common_last).lt:
             logger.info(
                 "PVForecastAkkudoktorLocal: the PV production meters share no measurement "
@@ -1318,6 +1330,14 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             logger.info("PVForecastAkkudoktorLocal calibration: no PV measurements yet - skipping.")
             return None
         pv_min_datetime, reference_end = pv_window.first, pv_window.last
+        if compare_datetimes(
+            reference_end.add(hours=CALIBRATION_STALE_HOURS), self.ems_start_datetime
+        ).lt:
+            logger.warning(
+                f"PVForecastAkkudoktorLocal calibration: the PV production meters last "
+                f"reported together at {reference_end}, more than {CALIBRATION_STALE_HOURS} h "
+                "ago - the fit uses that older period. Remove meters that no longer report."
+            )
 
         lookback_days = settings.calibration_days
         if settings.calibration_outage_filter_enabled:

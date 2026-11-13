@@ -361,7 +361,7 @@ class TestMeasurement:
         def silent_meter_warnings() -> int:
             return sum(
                 record.levelname == "WARNING"
-                and "'load_silent_mr' has no readings" in record.getMessage()
+                and "'load_silent_mr' gives no usable energy" in record.getMessage()
                 for record in caplog.records
             )
 
