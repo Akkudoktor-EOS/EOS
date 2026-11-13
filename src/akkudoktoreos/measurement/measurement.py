@@ -10,6 +10,7 @@ import json
 import math
 from bisect import bisect_left, bisect_right
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Literal, Optional
@@ -42,6 +43,21 @@ from akkudoktoreos.utils.datetimeutil import (
 # Limits of one quality-aware energy query (`Measurement.energy_intervals`).
 ENERGY_QUERY_MAX_SECONDS = 31 * 86400
 ENERGY_QUERY_MAX_INTERVALS = 10000
+
+
+@dataclass(frozen=True)
+class MeterPeriod:
+    """Period that every meter of a group reports.
+
+    Attributes:
+        first: Latest first valid reading across the meters.
+        last: Earliest last valid reading across the meters.
+        last_key: Meter whose last reading ends the period.
+    """
+
+    first: DateTime
+    last: DateTime
+    last_key: str
 
 
 class MeasurementChannelSettings(SettingsBaseModel):
@@ -217,16 +233,16 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         super().__init__(*args, **kwargs)
 
     @property
-    def _silent_load_meters_reported(self) -> set[str]:
-        """Load meters already reported as silent; warned once until they report again.
+    def _silent_meters_reported(self) -> set[str]:
+        """Meters already reported as silent; warned once until they report again.
 
         Created lazily and cached on the instance, like the record locks.
         """
         try:
-            return object.__getattribute__(self, "_silent_load_meters_reported_instance")
+            return object.__getattribute__(self, "_silent_meters_reported_instance")
         except AttributeError:
             reported: set[str] = set()
-            object.__setattr__(self, "_silent_load_meters_reported_instance", reported)
+            object.__setattr__(self, "_silent_meters_reported_instance", reported)
             return reported
 
     def _measurement_file_path(self) -> Optional[Path]:
@@ -570,6 +586,60 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             step_seconds *= 2
         return lasts
 
+    async def keys_common_period(self, keys: list[str], consumer: str) -> Optional[MeterPeriod]:
+        """Period that every meter in ``keys`` covers with valid readings.
+
+        Outside this period a sum over the meters is not the total they measure.
+        Logs why there is none: a meter without valid readings is a warning once
+        until it reports (e.g. a mistyped key); no shared period is an info.
+
+        Args:
+            keys: Meter reading keys of one group, e.g. the PV production meters.
+            consumer: Name used in the log messages.
+
+        Returns:
+            The common period, or None when a meter has no valid reading or the meters
+            share no period.
+        """
+        keys = list(dict.fromkeys(keys))
+        if not keys:
+            return None
+        firsts = await self.keys_first_datetime(keys)
+        silent = [key for key in keys if key not in firsts]
+        for key in keys:
+            if key in firsts:
+                self._silent_meters_reported.discard(key)
+        if silent:
+            message = (
+                f"{consumer}: meter(s) {silent} have no valid readings (check the keys) - "
+                "waiting for them."
+            )
+            if set(silent) <= self._silent_meters_reported:
+                logger.debug(message)
+            else:
+                self._silent_meters_reported.update(silent)
+                logger.warning(message)
+            return None
+        lasts = await self.keys_last_datetime(keys)
+        if any(key not in lasts for key in keys):
+            logger.info(f"{consumer}: meter readings changed while reading them - skipping.")
+            return None
+        first = firsts[keys[0]]
+        last_key = keys[0]
+        for key in keys[1:]:
+            if compare_datetimes(firsts[key], first).gt:
+                first = firsts[key]
+            if compare_datetimes(lasts[key], lasts[last_key]).lt:
+                last_key = key
+        last = lasts[last_key]
+        if not compare_datetimes(first, last).lt:
+            logger.info(
+                f"{consumer}: the meters {keys} share no measurement period "
+                f"({first} .. {last}) - skipping."
+            )
+            return None
+        return MeterPeriod(first=first, last=last, last_key=last_key)
+
     async def estimate_battery_capacity(
         self, battery_id: str, request: BatteryCapacityRequest
     ) -> BatteryCapacityEstimate:
@@ -679,13 +749,13 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                     f"{end_datetime} (no readings, resets or gaps longer than its "
                     "max_gap_seconds): the total load of this period is unknown."
                 )
-                if key in self._silent_load_meters_reported:
+                if key in self._silent_meters_reported:
                     logger.debug(message)
                 else:
-                    self._silent_load_meters_reported.add(key)
+                    self._silent_meters_reported.add(key)
                     logger.warning(message)
             else:
-                self._silent_load_meters_reported.discard(key)
+                self._silent_meters_reported.discard(key)
             load_total_kwh_array += meter_kwh
         logger.debug(f"Total load calculation: {load_total_kwh_array}")
         return load_total_kwh_array

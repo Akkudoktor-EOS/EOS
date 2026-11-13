@@ -49,6 +49,8 @@ def loadakkudoktoradjusted(config_eos):
     config_eos.merge_settings_from_dict(settings)
     assert config_eos.load.provider == "LoadAkkudoktorAdjusted"
     assert config_eos.load.loadakkudoktor.loadakkudoktor_year_energy_kwh == 1000
+    # The adjustment ignores stale meter periods; run the tests next to their data.
+    get_ems().set_start_datetime(to_datetime("2024-01-02T00:00:00"))
     return LoadAkkudoktorAdjusted()
 
 @pytest_asyncio.fixture
@@ -396,3 +398,54 @@ async def test_adjustment_window_follows_the_load_meters(
     assert calls
     assert compare_datetimes(calls[0]["end_datetime"], dt.add(days=10)).equal
     assert compare_datetimes(calls[0]["start_datetime"], dt.add(days=3)).equal
+
+
+@pytest.mark.asyncio
+async def test_adjustment_ignores_a_stale_load_meter_period(
+    loadakkudoktoradjusted, empty_measurement, caplog
+):
+    """A load meter that stopped long ago must not adjust today's profile with old weeks."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(3 * 24 + 1):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+    get_ems().set_start_datetime(dt.add(days=30))
+
+    def stale_warnings() -> int:
+        return sum(
+            record.levelname == "WARNING"
+            and "load meter 'load0_mr' last reported at" in record.getMessage()
+            for record in caplog.records
+        )
+
+    with caplog.at_level("WARNING"):
+        (weekday, weekend), calls = await _adjustment_window(
+            loadakkudoktoradjusted, empty_measurement
+        )
+        first_run = stale_warnings()
+        await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+    assert first_run > 0
+    assert stale_warnings() == first_run
+
+
+@pytest.mark.asyncio
+async def test_adjustment_names_a_load_meter_without_readings(
+    loadakkudoktoradjusted, empty_measurement, caplog
+):
+    """A configured load meter key without readings (e.g. a typo) is named in a warning."""
+    loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr", "load0_mr_typo"]
+    dt = to_datetime("2024-01-01T00:00:00")
+    for hour in range(25):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+
+    with caplog.at_level("WARNING"):
+        (weekday, weekend), calls = await _adjustment_window(
+            loadakkudoktoradjusted, empty_measurement
+        )
+
+    assert calls == []
+    assert (weekday == 0.0).all() and (weekend == 0.0).all()
+    assert "['load0_mr_typo'] have no valid readings" in caplog.text

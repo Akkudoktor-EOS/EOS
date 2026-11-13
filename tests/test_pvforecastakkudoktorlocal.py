@@ -1097,7 +1097,8 @@ async def test_calibration_warns_about_a_stale_common_meter_period(pvforecast_in
 
     def stale_warnings() -> int:
         return sum(
-            record.levelname == "WARNING" and "last reported together" in record.getMessage()
+            record.levelname == "WARNING"
+            and "meter 'pv_stale_emr' last reported at" in record.getMessage()
             for record in caplog.records
         )
 

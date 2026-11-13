@@ -579,7 +579,9 @@ The `LoadAkkudoktorAdjusted` provider retrieves generic load data from the local
 it to match the annual energy consumption specified in the
 `LoadAkkudoktor.loadakkudoktor_year_energy` configuration option. In addition, the provider refines
 the forecast by incorporating available measured load data, ensuring a more realistic and
-site-specific consumption profile.
+site-specific consumption profile. It compares the last 7 days that every configured load meter
+reports; if a load meter has no readings or stopped reporting more than 7 days ago, the forecast
+stays unadjusted and a warning names the meter.
 
 Prediction keys:
 

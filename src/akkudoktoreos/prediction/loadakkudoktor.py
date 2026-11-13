@@ -4,11 +4,19 @@ from typing import Optional
 
 import numpy as np
 from loguru import logger
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.loadabc import LoadDataRecord, LoadProvider
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    compare_datetimes,
+    to_datetime,
+    to_duration,
+)
+
+# The load adjustment ignores meters whose common period ended longer ago than this.
+LOAD_ADJUSTMENT_STALE_DAYS = 7
 
 
 class LoadAkkudoktorCommonSettings(SettingsBaseModel):
@@ -93,6 +101,9 @@ class LoadAkkudoktor(LoadProvider[LoadAkkudoktorDataRecord]):
 class LoadAkkudoktorAdjusted(LoadAkkudoktor):
     """Fetch Load forecast data from Akkudoktor load profiles with adjustment by measurements."""
 
+    # End of the load meter period last warned about as stale (warned once).
+    _stale_adjustment_reported_end: Optional[DateTime] = PrivateAttr(default=None)
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the LoadAkkudoktor provider."""
@@ -121,26 +132,27 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
 
         # Compare against the period every load meter reports, not the whole store:
         # other channels (PV, SoC) often reach further than the load meters.
-        load_keys = self.config.measurement.load_emr_keys
-        firsts = await self.measurement.keys_first_datetime(load_keys)
-        silent = [key for key in load_keys if key not in firsts]
-        if silent:
-            logger.info(
-                f"LoadAkkudoktorAdjusted: load meter(s) {silent} have no readings yet - "
-                "no load adjustment."
+        period = await self.measurement.keys_common_period(
+            self.config.measurement.load_emr_keys, "LoadAkkudoktorAdjusted"
+        )
+        if period is None:
+            return (weekday_adjust, weekend_adjust)
+        min_dt, max_dt = period.first, period.last
+        if compare_datetimes(
+            max_dt.add(days=LOAD_ADJUSTMENT_STALE_DAYS), self.ems_start_datetime
+        ).lt:
+            # A week that old says nothing about the current load profile.
+            message = (
+                f"LoadAkkudoktorAdjusted: load meter '{period.last_key}' last reported at "
+                f"{max_dt}, more than {LOAD_ADJUSTMENT_STALE_DAYS} days ago - no load "
+                "adjustment."
             )
+            if self._stale_adjustment_reported_end == max_dt:
+                logger.debug(message)
+            else:
+                self._stale_adjustment_reported_end = max_dt
+                logger.warning(message)
             return (weekday_adjust, weekend_adjust)
-        lasts = await self.measurement.keys_last_datetime(load_keys)
-        if any(key not in lasts for key in load_keys):
-            # The readings went away between the two scans (e.g. a vacuum).
-            return (weekday_adjust, weekend_adjust)
-        min_dt = firsts[load_keys[0]]
-        max_dt = lasts[load_keys[0]]
-        for key in load_keys[1:]:
-            if compare_datetimes(firsts[key], min_dt).gt:
-                min_dt = firsts[key]
-            if compare_datetimes(lasts[key], max_dt).lt:
-                max_dt = lasts[key]
 
         # compare predictions with real measurement - try to use last 7 days
         # Keep the hourly buckets on full hours (#1447).
