@@ -103,6 +103,8 @@ async def pvforecast_instance(config_eos):
     get_ems().set_start_datetime(START)
     await provider.delete_by_datetime()
     await get_measurement().delete_by_datetime()
+    # Warn-once state lives on the shared singleton; start each test fresh.
+    get_measurement()._reported_warnings.clear()
     yield provider
     await provider.delete_by_datetime()
     await get_measurement().delete_by_datetime()

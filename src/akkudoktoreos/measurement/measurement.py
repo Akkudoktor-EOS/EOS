@@ -245,18 +245,21 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             object.__setattr__(self, "_reported_warnings_instance", reported)
             return reported
 
-    def _warn_once(self, topic: str, message: str) -> None:
-        """Log a lasting condition as a warning once, then as debug until it clears.
+    def _warn_once(self, topics: str | Iterable[str], message: str, level: str = "WARNING") -> None:
+        """Log a lasting condition once at ``level``, then as debug until it clears.
 
         Args:
-            topic: Identity of the condition, e.g. ``"meter-silent:<key>"``.
+            topics: Identity of the condition, e.g. ``"meter-silent:<consumer>:<key>"``;
+                several topics log at ``level`` when any of them is new.
             message: Log message.
+            level: Log level of the first message.
         """
-        if topic in self._reported_warnings:
+        topic_set = {topics} if isinstance(topics, str) else set(topics)
+        if topic_set <= self._reported_warnings:
             logger.debug(message)
         else:
-            self._reported_warnings.add(topic)
-            logger.warning(message)
+            self._reported_warnings.update(topic_set)
+            logger.log(level, message)
 
     def _clear_warning(self, topic: str) -> None:
         """Forget a condition, so it is warned about again when it comes back."""
@@ -607,12 +610,14 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         """Period that every meter in ``keys`` covers with valid readings.
 
         Outside this period a sum over the meters is not the total they measure.
-        Logs why there is none: a meter without valid readings is a warning once
-        until it reports (e.g. a mistyped key); no shared period is an info.
+        Logs why there is none, once per condition until it clears: a meter without
+        valid readings (e.g. a mistyped key) and meters that share no period (e.g. a
+        replaced meter still configured) are warnings; a single reading so far is an
+        info.
 
         Args:
             keys: Meter reading keys of one group, e.g. the PV production meters.
-            consumer: Name used in the log messages.
+            consumer: Name used in the log messages and warning topics.
 
         Returns:
             The common period, or None when a meter has no valid reading or the meters
@@ -624,20 +629,13 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         firsts = await self.keys_first_datetime(keys)
         silent = [key for key in keys if key not in firsts]
         for key in firsts:
-            self._clear_warning(f"meter-silent:{key}")
+            self._clear_warning(f"meter-silent:{consumer}:{key}")
         if silent:
-            message = (
+            self._warn_once(
+                [f"meter-silent:{consumer}:{key}" for key in silent],
                 f"{consumer}: meter(s) {silent} have no valid readings (check the keys) - "
-                "waiting for them."
+                "waiting for them.",
             )
-            new_silent = [
-                key for key in silent if f"meter-silent:{key}" not in self._reported_warnings
-            ]
-            if new_silent:
-                self._reported_warnings.update(f"meter-silent:{key}" for key in silent)
-                logger.warning(message)
-            else:
-                logger.debug(message)
             return None
         lasts = await self.keys_last_datetime(keys)
         if any(key not in lasts for key in keys):
@@ -651,20 +649,27 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             if compare_datetimes(lasts[key], lasts[last_key]).lt:
                 last_key = key
         first, last = firsts[first_key], lasts[last_key]
-        comparison = compare_datetimes(first, last)
-        if comparison.gt:
-            # E.g. a replaced meter that is still configured.
+        overlapping = compare_datetimes(first, last).lt
+        no_period_topic = f"meter-no-period:{consumer}"
+        if not overlapping and first_key != last_key:
+            # Two meters that do not report together, e.g. a replaced meter.
             self._warn_once(
-                f"meter-no-period:{last_key}",
+                f"{no_period_topic}:{last_key}",
                 f"{consumer}: meter '{last_key}' last reported at {last}, before meter "
                 f"'{first_key}' started at {first} - the meters share no period.",
             )
             return None
         for key in keys:
-            self._clear_warning(f"meter-no-period:{key}")
-        if not comparison.lt:
-            logger.info(f"{consumer}: the meters {keys} have no period yet ({first}) - waiting.")
+            self._clear_warning(f"{no_period_topic}:{key}")
+        if not overlapping:
+            # One meter with a single reading so far (or readings that changed).
+            self._warn_once(
+                f"meter-waiting:{consumer}",
+                f"{consumer}: the meters {keys} have no period yet ({first}) - waiting.",
+                level="INFO",
+            )
             return None
+        self._clear_warning(f"meter-waiting:{consumer}")
         return MeterPeriod(first=first, last=last, last_key=last_key)
 
     async def estimate_battery_capacity(

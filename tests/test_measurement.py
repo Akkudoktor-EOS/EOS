@@ -641,6 +641,7 @@ class TestMeasurementCommonPeriod:
 
     @pytest_asyncio.fixture
     async def measurement(self, config_eos):
+        # Configured meter keys are writable record keys of the store.
         config_eos.measurement.load_emr_keys = ["meter_a_mr", "meter_b_mr"]
         measurement = get_measurement()
         await measurement.delete_by_datetime(None, None)
@@ -679,3 +680,15 @@ class TestMeasurementCommonPeriod:
             assert await measurement.keys_common_period(["meter_a_mr"], "test") is None
 
         assert self.warnings(caplog, "share no period") == 0
+
+    async def test_touching_replacement_is_a_replaced_meter(self, measurement, caplog):
+        """A swap where the new meter starts at the old meter's last stamp is named."""
+        start = to_datetime("2024-01-01T00:00:00Z")
+        for hour in range(4):
+            await measurement.update_value(start.add(hours=hour), "meter_a_mr", 10.0 + hour)
+            await measurement.update_value(start.add(hours=3 + hour), "meter_b_mr", 50.0 + hour)
+
+        with caplog.at_level("WARNING"):
+            assert await measurement.keys_common_period(["meter_a_mr", "meter_b_mr"], "test") is None
+
+        assert self.warnings(caplog, "meter 'meter_a_mr' last reported at") > 0
