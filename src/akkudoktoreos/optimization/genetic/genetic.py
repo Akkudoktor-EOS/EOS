@@ -1307,6 +1307,72 @@ class GeneticOptimization(OptimizationBase):
             )
             logger.warning(self._forecast_reason)
 
+    def _estimated_daily_appliance_load(self, start_slot: int, end_slot: int) -> np.ndarray:
+        """Expected per-slot load of DAILY home appliances over a slot range.
+
+        DAILY appliances repeat once per local calendar day, so their load is
+        part of the demand beyond the control horizon even though the optimizer
+        never schedules it there. Each (day, cycle) run is placed at its
+        earliest allowed start inside its time window; cycles of one appliance
+        on one day keep their configured minimum gap. ONCE appliances have no
+        recurring schedule and are left out (see #1495).
+
+        Args:
+            start_slot: First slot of the estimated range (absolute slot index).
+            end_slot: Exclusive end slot of the estimated range.
+
+        Returns:
+            Per-slot appliance load [Wh] over ``[start_slot, end_slot)``.
+        """
+        estimate = np.zeros(max(end_slot - start_slot, 0), dtype=float)
+        slot0 = self._slot0_datetime
+        if slot0 is None or start_slot >= end_slot:
+            return estimate
+        slot_seconds = self.slot_duration_h * 3600
+        first_date = slot0.date()
+        for appliance in self.simulation.home_appliances or []:
+            if appliance.schedule_mode != ConsumerScheduleMode.DAILY:
+                continue
+            # The configured appliance only spans the control horizon, so its
+            # window logic cannot see the tail. Query a throwaway copy sized to
+            # the estimated range instead; it shares the same parameters, so the
+            # time windows, earliest start and deadline bounds all still apply.
+            probe = HomeAppliance(
+                parameters=appliance.parameters,
+                optimization_hours=self._genetic_cfg.horizon_hours,
+                prediction_hours=end_slot,
+                slot_duration_h=self.slot_duration_h,
+            )
+            by_date: dict[Any, dict[int, list[int]]] = {}
+            for cycle in range(appliance.num_cycles):
+                allowed = probe.allowed_start_slots(
+                    slot0_datetime=slot0,
+                    earliest_slot=start_slot,
+                    horizon_end_slot=end_slot,
+                    cycle_index=cycle,
+                )
+                for slot in allowed:
+                    date = slot0.add(seconds=slot * slot_seconds).date()
+                    if date == first_date and cycle < appliance.completed_cycles:
+                        continue
+                    by_date.setdefault(date, {}).setdefault(cycle, []).append(slot)
+            gap_slots = appliance.run_slots + math.ceil(
+                appliance.min_cycle_gap_h / self.slot_duration_h
+            )
+            for cycle_slots in by_date.values():
+                earliest = start_slot
+                for cycle in sorted(cycle_slots, key=lambda c: cycle_slots[c][0]):
+                    starts = [slot for slot in cycle_slots[cycle] if slot >= earliest]
+                    if not starts:
+                        continue
+                    start = starts[0]
+                    run_end = min(start + appliance.run_slots, end_slot)
+                    estimate[start - start_slot : run_end - start_slot] += appliance.run_energy_wh[
+                        : run_end - start
+                    ]
+                    earliest = start + gap_slots
+        return estimate
+
     def _build_terminal_value_curve(
         self,
         battery: Optional[Battery],
@@ -1348,11 +1414,19 @@ class GeneticOptimization(OptimizationBase):
         window_slots = max(int(window_hours) * self.slots_per_hour, 1)
         end_slot = self.control_end_slot + getattr(self, "_effective_tail_slots", 0)
 
+        # DAILY home appliances keep running after the horizon: their expected
+        # load is part of the demand the tail and the continuation curve
+        # evaluate (#1495). Without it the tail sees the base load only and
+        # values stored energy at 0 ct/kWh over a wide SoC range.
+        base_window = trailing_window(self.simulation.load_energy_array, end_slot, window_slots)
+        appliance_window = self._estimated_daily_appliance_load(
+            end_slot - len(base_window), end_slot
+        )
         curve = build_terminal_value_curve(
             prices_euro_per_wh=trailing_window(
                 self.simulation.elect_price_hourly, end_slot, window_slots
             ),
-            load_wh=trailing_window(self.simulation.load_energy_array, end_slot, window_slots),
+            load_wh=base_window + appliance_window,
             pv_wh=trailing_window(self.simulation.pv_prediction_wh, end_slot, window_slots),
             feed_in_euro_per_wh=trailing_window(
                 self.simulation.elect_revenue_per_hour_arr, end_slot, window_slots
@@ -1401,7 +1475,8 @@ class GeneticOptimization(OptimizationBase):
                 battery=battery,
                 inverter=inverter,
                 prices_euro_per_wh=prices[tail],
-                load_wh=loads[tail],
+                load_wh=loads[tail]
+                + self._estimated_daily_appliance_load(self.control_end_slot, end_slot),
                 pv_wh=pv[tail],
                 feed_in_euro_per_wh=tariffs[tail],
                 continuation=curve,
