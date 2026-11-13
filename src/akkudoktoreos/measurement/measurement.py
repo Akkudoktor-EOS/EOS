@@ -32,9 +32,14 @@ from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
+    compare_datetimes,
     to_datetime,
     to_duration,
 )
+
+# Limits of one quality-aware energy query (`Measurement.energy_intervals`).
+ENERGY_QUERY_MAX_SECONDS = 31 * 86400
+ENERGY_QUERY_MAX_INTERVALS = 10000
 
 
 class MeasurementChannelSettings(SettingsBaseModel):
@@ -297,7 +302,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         if any(dt.tzinfo is None or dt.utcoffset() is None for dt in (start, end)):
             raise ValueError("Explicit timezone required.")
         seconds = end.timestamp() - start.timestamp()
-        if not 0 < seconds <= 31 * 86400:
+        if not 0 < seconds <= ENERGY_QUERY_MAX_SECONDS:
             raise ValueError("Energy queries require a positive range of at most 31 days.")
         channels = {key: self._energy_channel(key) for key in keys}
         context = self.config.measurement.energy_context_seconds
@@ -341,7 +346,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         ) -> list[EnergyInterval]:
             if type(interval_seconds) is not int or interval_seconds <= 0:
                 raise ValueError("Positive integer interval_seconds required.")
-            if (right.timestamp() - left.timestamp()) / interval_seconds > 10000:
+            if (
+                right.timestamp() - left.timestamp()
+            ) / interval_seconds > ENERGY_QUERY_MAX_INTERVALS:
                 raise ValueError("At most 10000 output intervals per query.")
             lo = max(0, bisect_left(timestamps[key], left.timestamp()) - 1)
             hi = bisect_right(timestamps[key], right.timestamp()) + 1
@@ -381,6 +388,58 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         """
         convert = await self._energy_converter([key], start_datetime, end_datetime)
         return convert(key, start_datetime, end_datetime, interval_seconds)
+
+    async def meter_energy_kwh(
+        self,
+        key: str,
+        start_datetime: DateTime,
+        end_datetime: DateTime,
+        interval: Duration,
+    ) -> NDArray[Shape["*"], float]:
+        """Energy per interval of an energy channel, for any query length.
+
+        Splits the period into queries the quality-aware conversion accepts
+        (`energy_intervals`). A cumulative meter is interpolated at the interval
+        boundaries, so a meter reporting at arbitrary stamps yields exactly the energy
+        of each interval.
+
+        Args:
+            key: Energy channel, e.g. a configured meter reading key.
+            start_datetime: Start of the first interval; intervals start here.
+            end_datetime: End of the period; the last interval may be shorter.
+            interval: Interval length, a positive whole number of seconds.
+
+        Returns:
+            Energy in kWh per interval, NaN where the channel does not fully cover the
+            interval (gap, reset, before its first or after its last reading).
+
+        Raises:
+            ValueError: If the interval is not a positive whole number of seconds or the
+                key has no energy channel definition.
+        """
+        interval_seconds = int(interval.total_seconds())
+        if interval_seconds <= 0 or interval_seconds != interval.total_seconds():
+            raise ValueError("Interval must be a positive whole number of seconds.")
+        intervals_per_query = min(
+            ENERGY_QUERY_MAX_INTERVALS, ENERGY_QUERY_MAX_SECONDS // interval_seconds
+        )
+        if intervals_per_query < 1:
+            raise ValueError("Interval exceeds the energy query range.")
+        query_seconds = intervals_per_query * interval_seconds
+        energy_kwh: list[float] = []
+        query_start = start_datetime
+        while compare_datetimes(query_start, end_datetime).lt:
+            query_end = query_start.add(seconds=query_seconds)
+            if compare_datetimes(query_end, end_datetime).gt:
+                query_end = end_datetime
+            energy_kwh.extend(
+                np.nan if slot.energy_wh is None else slot.energy_wh / 1000.0
+                for slot in await self.energy_intervals(
+                    key, query_start, query_end, interval_seconds
+                )
+            )
+            query_start = query_end
+        return np.asarray(energy_kwh, dtype=float)
 
     async def estimate_battery_capacity(
         self, battery_id: str, request: BatteryCapacityRequest
@@ -497,29 +556,29 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
-    ) -> NDArray[Shape["*"], Any]:
-        """Calculate a total load energy values array indexed by fixed time intervals from load metering data within an optional date range.
+    ) -> NDArray[Shape["*"], float]:
+        """Total load energy per interval from the configured load meters.
+
+        Each meter is converted with `meter_energy_kwh`: the cumulative reading is
+        interpolated at the interval boundaries, and an interval a meter does not
+        fully cover is unknown (NaN), never zero load.
 
         Args:
-            start_datetime (datetime, optional): The start date for filtering the load data (inclusive).
-            end_datetime (datetime, optional): The end date for filtering the load data (exclusive).
+            start_datetime (datetime, optional): Start of the first interval. Defaults
+                to the first measurement.
+            end_datetime (datetime, optional): End of the period (exclusive). Defaults to
+                just after the last measurement.
             interval (duration, optional): The fixed time interval. Defaults to 1 hour.
 
         Returns:
-            np.ndarray: A NumPy Array of the total load energy [kWh] per interval values calculated from
-                        the load meter readings.
+            np.ndarray: Total load energy [kWh] per interval; NaN where any load meter
+                lacks full coverage or no load meter is configured.
+
+        Raises:
+            ValueError: If the period cannot be determined or is invalid.
         """
         if interval is None:
             interval = to_duration("1 hour")
-
-        if len(self) < 1:
-            # No data available
-            if start_datetime is None or end_datetime is None:
-                size = 0
-            else:
-                size = self._interval_count(start_datetime, end_datetime, interval)
-            return np.zeros(size)
-
         if start_datetime is None:
             start_datetime = await self.min_datetime()
         if end_datetime is None:
@@ -529,23 +588,18 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         if start_datetime is None or end_datetime is None:
             raise ValueError("Start and end datetimes are required for energy calculation")
         size = self._interval_count(start_datetime, end_datetime, interval)
+        if size == 0:
+            return np.zeros(0)
+        load_keys = self.config.measurement.load_emr_keys or []
+        if not load_keys:
+            return np.full(size, np.nan)
+
         load_total_kwh_array = np.zeros(size)
-
-        # Loop through all loads
-        if isinstance(self.config.measurement.load_emr_keys, list):
-            for key in self.config.measurement.load_emr_keys:
-                # Calculate load per interval
-                load_array = await self._energy_from_meter_readings(
-                    key=key,
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=interval,
-                )
-                # Add calculated load to total load
-                load_total_kwh_array += load_array
-                debug_msg = f"Total load '{key}' calculation: {load_total_kwh_array}"
-                logger.debug(debug_msg)
-
+        for key in load_keys:
+            load_total_kwh_array += await self.meter_energy_kwh(
+                key, start_datetime, end_datetime, interval
+            )
+            logger.debug(f"Total load '{key}' calculation: {load_total_kwh_array}")
         return load_total_kwh_array
 
     # ----------------------- Measurement Database Protocol ---------------------

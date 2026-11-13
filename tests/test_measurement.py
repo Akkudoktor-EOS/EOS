@@ -358,6 +358,8 @@ class TestMeasurement:
 
     async def test_load_total_kwh(self, measurement_eos):
         """Test total load calculation."""
+        # Only these meters report; a silent configured meter makes the total unknown.
+        measurement_eos.config.measurement.load_emr_keys = ["load0_mr", "load1_mr"]
         start_datetime = to_datetime("2023-01-01T03:00:00")
         end_datetime = to_datetime("2023-01-01T05:00:00")
         interval = duration(hours=1)
@@ -376,11 +378,13 @@ class TestMeasurement:
         interval = duration(hours=1)
 
         result = await measurement_eos.load_total_kwh(start_datetime=start_datetime, end_datetime=end_datetime, interval=interval)
-        expected = np.zeros(3)  # No data, so all intervals are zero
-        np.testing.assert_array_equal(result, expected)
+        # No data: the load of every interval is unknown, not zero.
+        assert result.shape == (3,)
+        assert np.isnan(result).all()
 
     async def test_load_total_kwh_partial_intervals(self, measurement_eos):
         """Test total load calculation with partial intervals."""
+        measurement_eos.config.measurement.load_emr_keys = ["load0_mr", "load1_mr"]
         start_datetime = to_datetime("2023-01-01T00:30:00") # Start in the middle of an interval
         end_datetime = to_datetime("2023-01-01T01:30:00") # End in the middle of another interval
         interval = duration(hours=1)
@@ -388,6 +392,60 @@ class TestMeasurement:
         result = await measurement_eos.load_total_kwh(start_datetime=start_datetime, end_datetime=end_datetime, interval=interval)
         expected = np.array([100])  # Only one complete interval covered
         np.testing.assert_array_equal(result, expected)
+
+
+    async def test_load_total_kwh_follows_a_jittered_meter(self, measurement_eos):
+        """Hourly load energy is exact for a meter reporting at arbitrary stamps.
+
+        The meter reports every ~5 minutes off the hour. Load is 1 kW until noon and
+        3 kW afterwards; each hour must get exactly its own energy, also around the step.
+        """
+        measurement_eos.config.measurement.load_emr_keys = ["load_jitter_mr"]
+        start = to_datetime("2023-02-01T00:00:00Z")
+        jitter = [0, 21, 47, 13, 34]
+        stamp = to_datetime("2023-01-31T23:57:10Z")
+        energy_kwh = 0.0
+        step = 0
+        while compare_datetimes(stamp, to_datetime("2023-02-02T00:15:00Z")).lt:
+            await measurement_eos.update_value(stamp, "load_jitter_mr", round(energy_kwh, 6))
+            following = stamp.add(minutes=5, seconds=jitter[step % len(jitter)])
+            noon = to_datetime("2023-02-01T12:00:00Z")
+            seconds_before_noon = max(0.0, min(following.timestamp(), noon.timestamp()) - stamp.timestamp())
+            seconds_after_noon = (following.timestamp() - stamp.timestamp()) - seconds_before_noon
+            energy_kwh += (1.0 * seconds_before_noon + 3.0 * seconds_after_noon) / 3600.0
+            stamp = following
+            step += 1
+
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=start, end_datetime=start.add(days=1), interval=duration(hours=1)
+        )
+
+        # Away from the step every hour is exact. The step lies inside one ~5-minute
+        # reading interval, which a meter cannot resolve: hours 11 and 12 share it, but
+        # keep their sum (a bucket-mean conversion moves about half an hour across).
+        np.testing.assert_allclose(result[:11], 1.0, atol=1e-5)
+        np.testing.assert_allclose(result[13:], 3.0, atol=1e-5)
+        assert result[11] == pytest.approx(1.0, abs=0.05)
+        assert result[12] == pytest.approx(3.0, abs=0.05)
+        assert result[11] + result[12] == pytest.approx(4.0, abs=1e-5)
+
+    async def test_load_total_kwh_is_nan_without_full_coverage(self, measurement_eos):
+        """An hour a load meter does not fully cover is unknown, not zero load."""
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=to_datetime("2023-01-01T03:00:00"),
+            end_datetime=to_datetime("2023-01-01T07:00:00"),
+            interval=duration(hours=1),
+        )
+
+        # load2_mr and load3_mr are configured but never report.
+        assert np.isnan(result).all()
+        measurement_eos.config.measurement.load_emr_keys = ["load0_mr", "load1_mr"]
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=to_datetime("2023-01-01T03:00:00"),
+            end_datetime=to_datetime("2023-01-01T07:00:00"),
+            interval=duration(hours=1),
+        )
+        np.testing.assert_array_equal(result, [100.0, 100.0, np.nan, np.nan])
 
 
 class TestMeasurementFileRestore:

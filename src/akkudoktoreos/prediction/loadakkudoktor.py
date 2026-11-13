@@ -139,8 +139,18 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
             end_datetime=compare_end,
             interval=compare_interval,
         )
+        missing_hours = int(np.isnan(load_total_kwh_array).sum())
+        if missing_hours:
+            logger.debug(
+                f"Load adjustment: {missing_hours} of {len(load_total_kwh_array)} hours lack "
+                "full load meter coverage and are skipped."
+            )
         compare_dt = compare_start
         for i in range(len(load_total_kwh_array)):
+            if np.isnan(load_total_kwh_array[i]):
+                # Unknown load (meter gap): no information about this hour.
+                compare_dt += compare_interval
+                continue
             load_total_wh = load_total_kwh_array[i] * 1000
             hour = compare_dt.hour
 

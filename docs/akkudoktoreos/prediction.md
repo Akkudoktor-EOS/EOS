@@ -905,6 +905,9 @@ keys in `measurement.pv_production_emr_keys` to fit the model against measuremen
 Calibration preserves daily energy while optionally correcting the intraday
 azimuth shape, clamps correction factors and respects inverter capacity.
 Hourly meters are fitted hourly; native quarter-hour meters retain their cadence.
+Meters may report at any time stamps: each interval gets the energy interpolated at its
+boundaries. With several PV meters only the period all of them report is fitted, and
+intervals a meter does not fully cover are skipped.
 Probable outage or curtailment days are excluded by default. Without sufficient
 usable measurements the uncalibrated physical model is used.
 

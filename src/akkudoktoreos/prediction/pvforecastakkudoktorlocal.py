@@ -83,9 +83,6 @@ MAX_PAST_DAYS = 92
 
 TRANSPOSITION_MODELS = ("isotropic", "klucher", "haydavies", "reindl", "king", "perez")
 
-# The measurement store converts energy for at most 31 days per query.
-ENERGY_QUERY_MAX_DAYS = 30
-
 # pvlib SAPM cell temperature parameter set per EOS `mountingplace`.
 MOUNTING_TEMPERATURE_MODEL = {
     "free": "open_rack_glass_glass",
@@ -1290,24 +1287,11 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         keys = self.config.measurement.pv_production_emr_keys or []
         if not keys:
             return np.asarray([], dtype=float)
-        interval_seconds = int(interval.total_seconds())
         totals: Optional[np.ndarray] = None
         for key in keys:
-            values: list[float] = []
-            chunk_start = start_datetime
-            while compare_datetimes(chunk_start, end_datetime).lt:
-                chunk_end = chunk_start.add(days=ENERGY_QUERY_MAX_DAYS)
-                if compare_datetimes(chunk_end, end_datetime).gt:
-                    chunk_end = end_datetime
-                intervals = await self.measurement.energy_intervals(
-                    key, chunk_start, chunk_end, interval_seconds
-                )
-                values.extend(
-                    np.nan if slot.energy_wh is None else slot.energy_wh / 1000.0
-                    for slot in intervals
-                )
-                chunk_start = chunk_end
-            meter_kwh = np.asarray(values, dtype=float)
+            meter_kwh = await self.measurement.meter_energy_kwh(
+                key, start_datetime, end_datetime, interval
+            )
             totals = meter_kwh if totals is None else totals + meter_kwh
         return np.asarray(totals, dtype=float)
 

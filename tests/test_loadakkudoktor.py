@@ -319,3 +319,25 @@ async def test_adjustment_within_first_hour_returns_zero(
     (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
     assert calls == []
     assert not weekday.any() and not weekend.any()
+
+
+@pytest.mark.asyncio
+async def test_adjustment_skips_hours_without_load_meter_coverage(
+    loadakkudoktoradjusted, empty_measurement
+):
+    """Hours the load meters do not cover are unknown and must not adjust the profile."""
+    # A Monday, in the zone whose local hours the adjustment buckets.
+    timezone = loadakkudoktoradjusted.config.general.timezone
+    dt = to_datetime("2024-01-01T00:00:00", in_timezone=timezone)
+    for hour in range(13):
+        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+        await empty_measurement.update_value(dt.add(hours=hour), "load1_mr", 500.0 + hour)
+    # Another channel keeps the store going until midnight.
+    await empty_measurement.update_value(dt.add(hours=24), "storage-soc-factor", 0.42)
+
+    (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
+
+    assert calls
+    assert np.isfinite(weekday).all() and np.isfinite(weekend).all()
+    assert (weekday[:12] != 0.0).all()
+    assert (weekday[12:] == 0.0).all()
