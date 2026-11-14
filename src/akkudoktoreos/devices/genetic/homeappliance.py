@@ -483,7 +483,11 @@ class HomeAppliance:
         )
         self.pinned_start_datetime = started
         self.pinned_end_datetime = max(started.add(seconds=self.run_duration_seconds), now)
-        self.pinned_run_date = started.date()
+        # The start day in the time zone of the horizon, which also dates the cycles.
+        horizon_timezone = slot0_datetime.timezone
+        self.pinned_run_date = (
+            started.in_timezone(horizon_timezone) if horizon_timezone is not None else started
+        ).date()
         if elapsed >= self.run_duration_seconds:
             logger.info(
                 "Home appliance '{}': run started {} is past its duration of {} s "
