@@ -459,13 +459,13 @@ class TestRunInProgress:
 
     SLOT0 = "2026-11-14T01:00:00+01:00"
 
-    def pinned(self, started: str, now: str, **overrides) -> HomeAppliance:
+    def pinned(self, started: str, now: str, slot0: str = SLOT0, **overrides) -> HomeAppliance:
         appliance = make_appliance(
             prediction_hours=overrides.pop("prediction_hours", 6),
             run_started_datetime=started,
             **overrides,
         )
-        appliance.pin_run_in_progress(to_datetime(self.SLOT0), to_datetime(now))
+        appliance.pin_run_in_progress(to_datetime(slot0), to_datetime(now))
         return appliance
 
     def test_remaining_flat_run_is_placed_from_now(self):
@@ -542,17 +542,21 @@ class TestRunInProgress:
         assert appliance.get_load_curve()[0] == pytest.approx(1000 * 55 / 60)
 
     def test_counts_as_a_cycle_of_its_start_day_and_delays_the_next(self):
+        # Local times without offset, so the start day is the same in every local timezone of the test run.
+        slot0 = "2026-11-14T01:00:00"
         appliance = self.pinned(
-            "2026-11-14T00:47:00+01:00",
-            "2026-11-14T01:05:00+01:00",
+            "2026-11-14T00:47:00",
+            "2026-11-14T01:05:00",
+            slot0=slot0,
             num_cycles=2,
             min_cycle_gap_h=1,
             schedule_mode="DAILY",
         )
-        today = to_datetime(self.SLOT0).date()
+        today = to_datetime(slot0).date()
 
         assert appliance.completed_cycles_on(today) == 1
         assert appliance.completed_cycles_on(today.add(days=1)) == 0
+        assert appliance.completed_cycles_on(today.subtract(days=1)) == 0
         # Ends 02:47 (slot 2 is the first free slot) plus 1 h gap.
         assert appliance.next_cycle_earliest_slot() == 3
 
