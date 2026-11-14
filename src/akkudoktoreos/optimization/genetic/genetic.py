@@ -1307,7 +1307,9 @@ class GeneticOptimization(OptimizationBase):
             )
             logger.warning(self._forecast_reason)
 
-    def _estimated_daily_appliance_load(self, start_slot: int, end_slot: int) -> np.ndarray:
+    def _estimated_daily_appliance_load(
+        self, start_slot: int, end_slot: int, skip_planned_days: bool = False
+    ) -> np.ndarray:
         """Expected per-slot load of DAILY home appliances over a slot range.
 
         DAILY appliances repeat once per local calendar day, so their load is
@@ -1320,6 +1322,9 @@ class GeneticOptimization(OptimizationBase):
         Args:
             start_slot: First slot of the estimated range (absolute slot index).
             end_slot: Exclusive end slot of the estimated range.
+            skip_planned_days: Leave out local days whose run is already
+                scheduled in the control horizon, so a day that straddles the
+                    control end is not counted twice.
 
         Returns:
             Per-slot appliance load [Wh] over ``[start_slot, end_slot)``.
@@ -1356,6 +1361,13 @@ class GeneticOptimization(OptimizationBase):
                     if date == first_date and cycle < appliance.completed_cycles:
                         continue
                     by_date.setdefault(date, {}).setdefault(cycle, []).append(slot)
+    if skip_planned_days and self.appliance_layout is not None:
+        planned = {
+                gene.run_date
+                for gene in self.appliance_layout.genes
+                if gene.device_id == appliance.device_id
+        }
+        by_date = {d: c for d, c in by_date.items() if d not in planned}
             gap_slots = appliance.run_slots + math.ceil(
                 appliance.min_cycle_gap_h / self.slot_duration_h
             )
@@ -1476,7 +1488,9 @@ class GeneticOptimization(OptimizationBase):
                 inverter=inverter,
                 prices_euro_per_wh=prices[tail],
                 load_wh=loads[tail]
-                + self._estimated_daily_appliance_load(self.control_end_slot, end_slot),
+                    + self._estimated_daily_appliance_load(
+                        self.control_end_slot, end_slot, skip_planned_days=True
+                    ),
                 pv_wh=pv[tail],
                 feed_in_euro_per_wh=tariffs[tail],
                 continuation=curve,
