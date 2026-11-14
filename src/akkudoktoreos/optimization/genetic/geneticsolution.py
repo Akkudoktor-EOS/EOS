@@ -454,7 +454,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         default_factory=dict,
         json_schema_extra={
             "description": (
-                "Scheduled run start times per appliance device_id as absolute local datetimes."
+                "Scheduled run start times per appliance device_id as absolute local datetimes. "
+                "A run in progress is listed first with its actual (past) start."
             )
         },
     )
