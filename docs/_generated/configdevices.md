@@ -129,6 +129,7 @@ config path from ``self.device_id`` without needing an external index.
                    "cycle_time_windows": null,
                    "min_cycle_gap_h": 0,
                    "cycles_completed_measurement_key": null,
+                   "run_started_measurement_key": null,
                    "load_profile_power_w": null,
                    "load_profile_interval_seconds": null,
                    "schedule_mode": "ONCE",
@@ -303,6 +304,7 @@ config path from ``self.device_id`` without needing an external index.
                    "cycle_time_windows": null,
                    "min_cycle_gap_h": 0,
                    "cycles_completed_measurement_key": null,
+                   "run_started_measurement_key": null,
                    "load_profile_power_w": null,
                    "load_profile_interval_seconds": null,
                    "schedule_mode": "ONCE",
@@ -312,7 +314,8 @@ config path from ``self.device_id`` without needing an external index.
                    "deadline_policy": "BEST_EFFORT",
                    "effective_num_cycles": 1,
                    "measurement_keys": [
-                       "dishwasher.cycles_completed"
+                       "dishwasher.cycles_completed",
+                       "dishwasher.run_started_at"
                    ]
                }
            },
@@ -334,7 +337,8 @@ config path from ``self.device_id`` without needing an external index.
                "ev0-power-l2-w",
                "ev0-power-l3-w",
                "ev0-power-3-phase-sym-w",
-               "dishwasher.cycles_completed"
+               "dishwasher.cycles_completed",
+               "dishwasher.run_started_at"
            ]
        }
    }

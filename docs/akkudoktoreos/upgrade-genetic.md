@@ -96,6 +96,10 @@ time, charging power and supported charge rates.
   slots). The energies, costs and SoC change of that slot cover only that part, and its
   charge/discharge factors are the power for the remaining time. A run on a slot
   boundary plans a full first slot (`first_slot_fraction` 1.0).
+- Executors of household appliances should report a started run: write its start (UNIX
+  seconds) to `<device_id>.run_started_at` when switching the appliance on, and `0` when
+  the device reports it finished. Without it, a re-plan may move or stop a running
+  appliance.
 - Runtime purchase and sale prices are **currency per Wh**: 0.30 EUR/kWh is 0.00030 EUR/Wh.
   Provider power forecasts are converted by EOS; do not convert them a second time.
 - Read returned timestamps and interval information instead of assuming 24 hourly values

@@ -466,3 +466,232 @@ async def test_meter_only_record_does_not_hide_completed_cycles(
     ).resolve()
     assert prepared.home_appliances is not None
     assert prepared.home_appliances[0].completed_cycles == 1
+
+
+# ---------------------------------------------------------------------------
+# Run in progress (#1548): a started run is kept until the device reports it finished.
+# ---------------------------------------------------------------------------
+
+
+def heater(**kwargs: Any) -> dict[str, Any]:
+    """Water heater rod: 2 h at 1000 W, DAILY, window 00:00 + 5 h."""
+    return {
+        "device_id": "heater",
+        "consumption_wh": 2000,
+        "duration_h": 2,
+        "schedule_mode": "DAILY",
+        "shared_time_windows": {"windows": [{"start_time": "00:00", "duration": "5 hours"}]},
+        **kwargs,
+    }
+
+
+def replan_at(config: ConfigEOS, moment: str, hours: int = 4) -> None:
+    """Re-plan at a moment within a slot: slot start rounded down, observation kept."""
+    configure(config, hours=hours)
+    get_ems().set_start_datetime(to_datetime(moment), interval_seconds=900)
+
+
+def run_zone() -> str:
+    timezone = get_ems().start_datetime.timezone_name
+    assert timezone is not None
+    return timezone
+
+
+def heater_commands(solution: GeneticSolution) -> list[tuple[int, int, str]]:
+    timezone = run_zone()
+    return [
+        (
+            item.execution_time.in_timezone(timezone).hour,
+            item.execution_time.in_timezone(timezone).minute,
+            str(item.operation_mode_id),
+        )
+        for item in solution.energy_management_plan().instructions
+        if isinstance(item, DDBCInstruction) and item.resource_id == "heater"
+    ]
+
+
+def heater_starts(solution: GeneticSolution) -> list[tuple[int, int]]:
+    timezone = run_zone()
+    return [
+        (moment.in_timezone(timezone).hour, moment.in_timezone(timezone).minute)
+        for moment in solution.appliance_starts["heater"]
+    ]
+
+
+def test_run_in_progress_continues_after_its_start_slot(config_eos: ConfigEOS) -> None:
+    """Started 00:47, re-plan 01:05: the run goes on until 02:47, no new start."""
+    replan_at(config_eos, "2026-09-16T01:05:00")
+    consumer = heater(run_started_datetime="2026-09-16T00:47:00")
+    _, solution = run(parameters(consumers=[consumer]))
+
+    assert heater_starts(solution) == [(0, 47)]
+    running = solution.result.home_appliance_running["heater"]
+    assert running[:8] == [True] * 8 and not any(running[8:])
+    assert sum(solution.result.home_appliance_energy_wh["heater"]) == pytest.approx(1700.0)
+    assert heater_commands(solution) == [(1, 0, "RUN"), (3, 0, "OFF")]
+
+
+def test_run_in_progress_is_not_cut_by_the_window_end(config_eos: ConfigEOS) -> None:
+    """Started 03:03, re-plan 04:06: no complete run fits before 05:00 any more."""
+    replan_at(config_eos, "2026-09-16T04:06:00")
+    consumer = heater(run_started_datetime="2026-09-16T03:03:00")
+    _, solution = run(parameters(consumers=[consumer]))
+
+    assert heater_starts(solution) == [(3, 3)]
+    assert sum(solution.result.home_appliance_energy_wh["heater"]) == pytest.approx(
+        2000 * 57 / 120
+    )
+    assert heater_commands(solution) == [(4, 0, "RUN"), (5, 15, "OFF")]
+
+
+def test_run_in_progress_is_kept_by_a_replan_in_its_start_slot(config_eos: ConfigEOS) -> None:
+    """Started 01:02, re-plan 01:12 with equal prices: still RUN from now."""
+    replan_at(config_eos, "2026-09-16T01:12:00")
+    consumer = heater(run_started_datetime="2026-09-16T01:02:00")
+    _, solution = run(parameters(consumers=[consumer]))
+
+    assert heater_starts(solution) == [(1, 2)]
+    assert heater_commands(solution) == [(1, 0, "RUN"), (3, 15, "OFF")]
+
+
+def test_run_past_its_duration_runs_until_the_device_reports_finished(
+    config_eos: ConfigEOS,
+) -> None:
+    """A run longer than its profile keeps the current slot, without extra energy.
+
+    It is today's cycle, so no second run is planned for today.
+    """
+    replan_at(config_eos, "2026-09-16T02:35:00")
+    consumer = heater(run_started_datetime="2026-09-16T00:15:00")
+    _, solution = run(parameters(consumers=[consumer]))
+
+    assert heater_starts(solution) == [(0, 15)]
+    assert sum(solution.result.home_appliance_energy_wh["heater"]) == pytest.approx(0.0)
+    assert heater_commands(solution) == [(2, 30, "RUN"), (2, 45, "OFF")]
+
+
+def test_next_cycle_starts_after_the_run_in_progress_and_its_gap(config_eos: ConfigEOS) -> None:
+    replan_at(config_eos, "2026-09-16T01:05:00", hours=8)
+    consumer = heater(
+        num_cycles=2,
+        min_cycle_gap_h=1,
+        shared_time_windows={"windows": [{"start_time": "00:00", "duration": "9 hours"}]},
+        run_started_datetime="2026-09-16T00:47:00",
+    )
+    _, solution = run(parameters(hours=8, consumers=[consumer]))
+
+    starts = heater_starts(solution)
+    assert starts[0] == (0, 47) and len(starts) == 2
+    # The run ends 02:47 (slot until 03:00), then 1 h gap.
+    assert starts[1] >= (4, 0)
+    assert sum(solution.result.home_appliance_energy_wh["heater"]) == pytest.approx(
+        1700.0 + 2000.0
+    )
+
+
+def test_without_a_run_in_progress_the_plan_is_unchanged(config_eos: ConfigEOS) -> None:
+    replan_at(config_eos, "2026-09-16T01:05:00")
+    _, reference = run(parameters(consumers=[heater()]))
+    replan_at(config_eos, "2026-09-16T01:05:00")
+    _, solution = run(parameters(consumers=[heater(run_started_datetime=None)]))
+
+    assert solution.appliance_starts == reference.appliance_starts
+    assert solution.result.home_appliance_running == reference.result.home_appliance_running
+    assert sum(solution.result.home_appliance_energy_wh["heater"]) == pytest.approx(2000.0)
+
+
+def configure_heater_device(config: ConfigEOS, **kwargs: Any) -> None:
+    config.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_batteries": 0,
+                "batteries": {},
+                "max_electric_vehicles": 0,
+                "electric_vehicles": {},
+                "max_inverters": 1,
+                "inverters": {"inv": {"profile_adjustment": {"nominal_power_w": 10000}}},
+                "max_home_appliances": 1,
+                "home_appliances": {
+                    "heater": {
+                        "consumption_wh": 2000,
+                        "duration_h": 2,
+                        "schedule_mode": "DAILY",
+                        "time_windows": {
+                            "windows": [{"start_time": "00:00", "duration": "5 hours"}]
+                        },
+                        **kwargs,
+                    }
+                },
+            }
+        }
+    )
+
+
+async def resolve_heater() -> GeneticOptimizationParameters:
+    prepared = await ConfigOptimizationRequest.model_validate(
+        {
+            "forecasts": {
+                "pv_forecast_wh": [0.0] * 24,
+                "total_load": [0.0] * 24,
+                "electricity_price_per_wh": [0.0003] * 24,
+                "feed_in_tariff_per_wh": [0.0001] * 24,
+            }
+        }
+    ).resolve()
+    assert prepared.home_appliances is not None
+    return prepared
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("custom_key", [None, "heater.on_since"])
+async def test_measured_run_start_reaches_request_and_plan(
+    config_eos: ConfigEOS, custom_key: str | None, isolated_measurement: Measurement
+) -> None:
+    replan_at(config_eos, "2026-09-16T01:05:00")
+    configure_heater_device(config_eos, run_started_measurement_key=custom_key)
+    key = custom_key or "heater.run_started_at"
+    assert key in config_eos.devices.measurement_keys
+    started = to_datetime("2026-09-16T00:47:00")
+    # Like a pusher that stamps its rows at the slot start: the value carries the start.
+    await isolated_measurement.update_value(
+        get_ems().start_datetime, key, float(started.timestamp())
+    )
+
+    prepared = await resolve_heater()
+    assert prepared.home_appliances is not None
+    assert prepared.home_appliances[0].run_started_datetime == started
+    _, solution = run(prepared)
+    assert heater_starts(solution) == [(0, 47)]
+    assert heater_commands(solution)[0] == (1, 0, "RUN")
+
+    # The device reports the run finished: no run in progress any more.
+    await isolated_measurement.update_value(
+        get_ems().observation_datetime.subtract(seconds=10), key, 0.0
+    )
+    prepared = await resolve_heater()
+    assert prepared.home_appliances is not None
+    assert prepared.home_appliances[0].run_started_datetime is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [float("nan"), -5.0, "future"])
+async def test_invalid_run_start_is_logged_and_ignored(
+    config_eos: ConfigEOS,
+    isolated_measurement: Measurement,
+    caplog: pytest.LogCaptureFixture,
+    value: Any,
+) -> None:
+    replan_at(config_eos, "2026-09-16T01:05:00")
+    configure_heater_device(config_eos)
+    if value == "future":
+        value = float(get_ems().observation_datetime.add(minutes=10).timestamp())
+    await isolated_measurement.update_value(
+        get_ems().start_datetime, "heater.run_started_at", value
+    )
+
+    with caplog.at_level("ERROR"):
+        prepared = await resolve_heater()
+
+    assert prepared.home_appliances is not None
+    assert prepared.home_appliances[0].run_started_datetime is None
+    assert "Invalid run start" in caplog.text
