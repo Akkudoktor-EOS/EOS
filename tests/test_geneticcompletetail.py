@@ -498,3 +498,65 @@ def test_daily_appliance_load_values_stored_energy_in_tail(config_eos):
     ]
     assert marginals
     assert all(marginal == pytest.approx(0.2, abs=0.01) for marginal in marginals)
+
+
+@pytest.mark.parametrize(
+    "start_hour,window_start,window_duration,duration_h",
+    [
+        (15, "14:00", "4 hours", 1),  # control ends inside the afternoon window
+        (2, "00:00", "5 hours", 2),  # control ends inside the night window
+    ],
+)
+def test_daily_appliance_day_planned_in_control_is_not_counted_again_in_tail(
+    config_eos, start_hour, window_start, window_duration, duration_h
+):
+    """#1495: a day whose run is already scheduled in control is not repeated in the tail.
+
+    When the control horizon ends inside an appliance window, the optimizer
+    schedules that day's run before the control end. The tail must only add
+    the following days, otherwise the day's energy is counted twice.
+    """
+    opt, params = setup_run(config_eos, start_hour=start_hour, hours=72 + start_hour)
+    params.home_appliances = [
+        HomeApplianceParameters.model_validate(
+            dict(
+                device_id="water_heater",
+                consumption_wh=3000,
+                duration_h=duration_h,
+                num_cycles=1,
+                schedule_mode="DAILY",
+                time_windows={
+                    "windows": [
+                        {"start_time": window_start, "duration": window_duration, "value": 0}
+                    ]
+                },
+            )
+        )
+    ]
+
+    def choose(*args, **kwargs):
+        genome = opt.create_individual()
+        genome[:] = [0] * len(genome)
+        return genome, {}
+
+    with (
+        patch.object(opt, "optimize", side_effect=choose),
+        patch(
+            "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+            wraps=build_tail_value_curve,
+        ) as builder,
+    ):
+        opt.optimize_ems(params)
+
+    planned_days = {gene.run_date for gene in opt.appliance_layout.genes}
+    tail_load = builder.call_args.kwargs["load_wh"]
+    slot0 = opt._slot0_datetime
+    tail_days = {
+        slot0.add(hours=opt.control_end_slot + index).date()
+        for index, energy in enumerate(tail_load)
+        if energy > 0
+    }
+    assert tail_days
+    assert not planned_days & tail_days
+    # Base load is zero: the tail holds exactly one 3 kWh run per remaining day.
+    assert float(np.sum(tail_load)) == pytest.approx(3000 * len(tail_days))
