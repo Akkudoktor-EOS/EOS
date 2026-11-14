@@ -15,7 +15,7 @@ from akkudoktoreos.devices.genetic.homeappliance import (
     HomeAppliance,
     HomeApplianceParameters,
 )
-from akkudoktoreos.utils.datetimeutil import to_duration, to_time
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
 
 # ---------------------------------------------------------------------------
 # Fixtures / factories
@@ -448,3 +448,121 @@ class TestLoadCurve:
         appliance = make_appliance(prediction_hours=6)
         with pytest.raises(ValueError):
             appliance.get_load_for_hour(hour)
+
+
+# ---------------------------------------------------------------------------
+# Run in progress (#1548)
+# ---------------------------------------------------------------------------
+
+class TestRunInProgress:
+    """A started run is kept: its remainder is fixed load from the observation on."""
+
+    SLOT0 = "2026-11-14T01:00:00+01:00"
+
+    def pinned(self, started: str, now: str, **overrides) -> HomeAppliance:
+        appliance = make_appliance(
+            prediction_hours=overrides.pop("prediction_hours", 6),
+            run_started_datetime=started,
+            **overrides,
+        )
+        appliance.pin_run_in_progress(to_datetime(self.SLOT0), to_datetime(now))
+        return appliance
+
+    def test_remaining_flat_run_is_placed_from_now(self):
+        # 2000 Wh in 2 h (1000 W), started 00:47, re-plan 01:05: 102 min left.
+        appliance = self.pinned("2026-11-14T00:47:00+01:00", "2026-11-14T01:05:00+01:00")
+
+        assert appliance.run_in_progress
+        assert appliance.pinned_load[0] == pytest.approx(1000 * 55 / 60)
+        assert appliance.pinned_load[1] == pytest.approx(1000 * 47 / 60)
+        assert appliance.pinned_load[2:].sum() == 0
+        assert appliance.pinned_load.sum() == pytest.approx(2000 * 102 / 120)
+        assert appliance.pinned_end_slot == 2
+        assert appliance.pinned_end_datetime == to_datetime("2026-11-14T02:47:00+01:00")
+
+    def test_remaining_profile_run_follows_the_profile(self):
+        params = make_params(
+            consumption_wh=None,
+            duration_h=None,
+            load_profile_power_w=[400.0, 2000.0, 100.0],
+            load_profile_interval_seconds=900,
+            run_started_datetime="2026-11-14T00:00:00+01:00",
+        )
+        appliance = HomeAppliance(
+            parameters=params, optimization_hours=4, prediction_hours=16, slot_duration_h=0.25
+        )
+        appliance.pin_run_in_progress(
+            to_datetime("2026-11-14T00:15:00+01:00"), to_datetime("2026-11-14T00:20:00+01:00")
+        )
+
+        # Step 2 (2000 W) has 10 of 15 min left, step 3 (100 W) is complete.
+        assert appliance.pinned_load[0] == pytest.approx(2000 * 10 / 60)
+        assert appliance.pinned_load[1] == pytest.approx(100 * 15 / 60)
+        assert appliance.pinned_load[2:].sum() == 0
+        assert appliance.pinned_end_slot == 2
+
+    def test_run_past_its_duration_keeps_slot_zero_without_energy(self):
+        # The device decides when the run ends: 2 h run started 2 h 30 min ago.
+        appliance = self.pinned("2026-11-13T22:35:00+01:00", "2026-11-14T01:05:00+01:00")
+
+        assert appliance.run_in_progress
+        assert appliance.pinned_load.sum() == 0
+        assert appliance.pinned_end_slot == 1
+        assert appliance.pinned_end_datetime == to_datetime("2026-11-14T01:05:00+01:00")
+
+    @pytest.mark.parametrize(
+        "started",
+        [
+            "2026-11-13T21:04:00+01:00",  # more than 2 run durations ago: stale report
+            "2026-11-14T01:06:00+01:00",  # in the future
+        ],
+    )
+    def test_implausible_start_is_not_pinned(self, started):
+        appliance = self.pinned(started, "2026-11-14T01:05:00+01:00")
+
+        assert not appliance.run_in_progress
+        assert appliance.pinned_load.sum() == 0
+        assert appliance.pinned_end_slot == 0
+
+    def test_no_report_changes_nothing(self):
+        appliance = make_appliance(prediction_hours=6)
+        appliance.pin_run_in_progress(to_datetime(self.SLOT0), to_datetime(self.SLOT0))
+
+        assert not appliance.run_in_progress
+        assert appliance.next_cycle_earliest_slot() == 0
+        assert appliance.completed_cycles_on(to_datetime(self.SLOT0).date()) == 0
+
+    def test_load_curve_contains_the_remainder(self):
+        appliance = self.pinned("2026-11-14T00:47:00+01:00", "2026-11-14T01:05:00+01:00")
+
+        appliance.build_load_curve([])
+        np.testing.assert_allclose(appliance.get_load_curve(), appliance.pinned_load)
+        appliance.build_load_curve([4])
+        assert appliance.get_load_curve()[4] == pytest.approx(1000)
+        assert appliance.get_load_curve()[0] == pytest.approx(1000 * 55 / 60)
+
+    def test_counts_as_a_cycle_of_its_start_day_and_delays_the_next(self):
+        appliance = self.pinned(
+            "2026-11-14T00:47:00+01:00",
+            "2026-11-14T01:05:00+01:00",
+            num_cycles=2,
+            min_cycle_gap_h=1,
+            schedule_mode="DAILY",
+        )
+        today = to_datetime(self.SLOT0).date()
+
+        assert appliance.completed_cycles_on(today) == 1
+        assert appliance.completed_cycles_on(today.add(days=1)) == 0
+        # Ends 02:47 (slot 2 is the first free slot) plus 1 h gap.
+        assert appliance.next_cycle_earliest_slot() == 3
+
+    def test_deadline_counts_the_expected_end_of_the_run(self):
+        appliance = self.pinned(
+            "2026-11-14T00:47:00+01:00",
+            "2026-11-14T01:05:00+01:00",
+            deadline_datetime="2026-11-14T02:30:00+01:00",
+        )
+
+        assert appliance.deadline_missed([], to_datetime(self.SLOT0))
+        appliance.deadline_datetime = to_datetime("2026-11-14T03:00:00+01:00")
+        assert not appliance.deadline_missed([], to_datetime(self.SLOT0))

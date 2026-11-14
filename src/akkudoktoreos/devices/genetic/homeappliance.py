@@ -156,6 +156,18 @@ class HomeApplianceParameters(DeviceParameters):
     completed_cycles: int = Field(
         default=0, ge=0, description="Cycles already completed on the first planning day."
     )
+    run_started_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Start of the run in progress, None when the appliance is not "
+                "running. The run is kept until the device reports it as finished: "
+                "its remaining load is fixed from now on, independent of windows, "
+                "deadline and gene, and it is not counted in 'completed_cycles' yet."
+            ),
+            "examples": [None, "2026-11-14T00:47:45+01:00"],
+        },
+    )
 
     min_cycle_gap_h: int = Field(
         default=0,
@@ -263,7 +275,9 @@ class HomeApplianceParameters(DeviceParameters):
         },
     )
 
-    @field_validator("earliest_start_datetime", "deadline_datetime", mode="before")
+    @field_validator(
+        "earliest_start_datetime", "deadline_datetime", "run_started_datetime", mode="before"
+    )
     @classmethod
     def transform_to_datetime(cls, value: Any) -> Optional[DateTime]:
         """Accept the usual date time representations, naive input is local time."""
@@ -303,6 +317,10 @@ class HomeAppliance:
     the simulation horizon. See the module docstring for the start-time
     repair algorithm.
     """
+
+    # A run in progress whose start is more than this many run durations ago
+    # is taken as a stale report (the executor stopped updating it).
+    STALE_RUN_FACTOR: float = 2.0
 
     def __init__(
         self,
@@ -346,6 +364,14 @@ class HomeAppliance:
         self.completed_cycles = parameters.completed_cycles
 
         self.load_curve = np.zeros(prediction_hours)
+
+        # Run in progress, set by pin_run_in_progress(): its remaining energy
+        # per slot from now, the first slot after it, and its start/end.
+        self.pinned_load: np.ndarray = np.zeros(prediction_hours)
+        self.pinned_end_slot: int = 0
+        self.pinned_start_datetime: Optional[DateTime] = None
+        self.pinned_end_datetime: Optional[DateTime] = None
+        self.pinned_run_date: Any = None
 
         # Start times for remaining cycles, in chronological order.
         self.start_hours: list[int] = []
@@ -392,6 +418,108 @@ class HomeAppliance:
             power, float(input_interval), float(self.slot_interval_seconds)
         )
         self.run_slots: int = int(len(self.run_energy_wh))
+        # The profile itself, for the remainder of a run in progress.
+        self.run_power_w: list[float] = power
+        self.run_power_interval_seconds: float = float(input_interval)
+        self.run_duration_seconds: float = len(power) * float(input_interval)
+
+    def pin_run_in_progress(self, slot0_datetime: DateTime, observation_datetime: DateTime) -> None:
+        """Fix the remainder of the run in progress as load from now on.
+
+        A run in progress (``run_started_datetime``) is kept until the device
+        reports it as finished. Its remaining energy is placed from the
+        observation time on, independent of windows, deadline and genes. A run
+        past its configured duration still runs: slot 0 stays occupied without
+        extra energy. A start older than ``STALE_RUN_FACTOR`` run durations is
+        taken as a stale report and ignored.
+
+        Args:
+            slot0_datetime: Local, timezone-aware datetime of slot index 0.
+            observation_datetime: Moment of the optimization run (within slot 0).
+        """
+        self.pinned_load = np.zeros(self.prediction_hours)
+        self.pinned_end_slot = 0
+        self.pinned_start_datetime = None
+        self.pinned_end_datetime = None
+        self.pinned_run_date = None
+        started = self.parameters.run_started_datetime
+        if started is None or self.prediction_hours <= 0:
+            return
+        timezone = slot0_datetime.timezone
+        if timezone is None:
+            raise ValueError("The optimization slot origin must have a timezone.")
+        started = started.in_timezone(timezone)
+        now = observation_datetime.in_timezone(timezone)
+        elapsed = (now - started).total_seconds()
+        if elapsed < 0 or elapsed > self.STALE_RUN_FACTOR * self.run_duration_seconds:
+            logger.error(
+                "Home appliance '{}': run start {} is not plausible at {} "
+                "(run duration {} s); planned as not running.",
+                self.device_id,
+                started,
+                now,
+                self.run_duration_seconds,
+            )
+            return
+
+        slot_seconds = self.slot_interval_seconds
+        now_offset = (now - slot0_datetime).total_seconds()
+        start_offset = (started - slot0_datetime).total_seconds()
+        end_offset = start_offset + self.run_duration_seconds
+        for index, power in enumerate(self.run_power_w):
+            segment_start = max(start_offset + index * self.run_power_interval_seconds, now_offset)
+            segment_end = start_offset + (index + 1) * self.run_power_interval_seconds
+            while power > 0 and segment_start < segment_end:
+                slot = int(segment_start // slot_seconds)
+                if slot >= self.prediction_hours:
+                    break
+                part_end = min(segment_end, (slot + 1) * slot_seconds)
+                self.pinned_load[slot] += power * (part_end - segment_start) / 3600.0
+                segment_start = part_end
+        # Slot 0 stays occupied while the device runs, even past its duration.
+        self.pinned_end_slot = min(
+            self.prediction_hours,
+            max(1, math.ceil(end_offset / slot_seconds - 1e-9)),
+        )
+        self.pinned_start_datetime = started
+        self.pinned_end_datetime = max(started.add(seconds=self.run_duration_seconds), now)
+        self.pinned_run_date = started.date()
+        if elapsed >= self.run_duration_seconds:
+            logger.info(
+                "Home appliance '{}': run started {} is past its duration of {} s "
+                "and still running; kept until the device reports it finished.",
+                self.device_id,
+                started,
+                self.run_duration_seconds,
+            )
+
+    @property
+    def run_in_progress(self) -> bool:
+        """bool: Whether a run in progress is pinned."""
+        return self.pinned_start_datetime is not None
+
+    def next_cycle_earliest_slot(self) -> int:
+        """Earliest slot for the next cycle: after a pinned run and its gap."""
+        if not self.run_in_progress:
+            return 0
+        return self.pinned_end_slot + math.ceil(self.min_cycle_gap_h / self.slot_duration_h)
+
+    def completed_cycles_on(self, first_date: Any) -> int:
+        """Cycles counted as done on the first planning day, incl. a pinned run.
+
+        Args:
+            first_date: Local date of slot 0.
+
+        Returns:
+            ``completed_cycles`` plus one when a run in progress belongs to that
+            day (DAILY) or to the horizon (ONCE), capped to ``num_cycles``.
+        """
+        pinned = 0
+        if self.run_in_progress and (
+            self.schedule_mode == ConsumerScheduleMode.ONCE or self.pinned_run_date == first_date
+        ):
+            pinned = 1
+        return min(self.num_cycles, self.completed_cycles + pinned)
 
     def _slot_offset(self, moment: DateTime, slot0_datetime: DateTime, *, round_up: bool) -> int:
         """Convert an absolute moment into a slot index relative to slot 0.
@@ -620,7 +748,8 @@ class HomeAppliance:
 
         Without a deadline nothing can be missed. With one, a consumer that was
         not scheduled at all, or whose run ends after the deadline (a relaxed
-        BEST_EFFORT deadline), counts as missed.
+        BEST_EFFORT deadline), counts as missed. A run in progress counts with
+        its expected end.
 
         Args:
             starts: Absolute start slots of the scheduled runs.
@@ -631,13 +760,16 @@ class HomeAppliance:
         """
         if self.deadline_datetime is None:
             return False
-        if not starts:
-            return True
         timezone = slot0_datetime.timezone
         if timezone is None:
             raise ValueError("The optimization slot origin must have a timezone.")
+        ends = [self.run_end_datetime(start, slot0_datetime) for start in starts]
+        if self.pinned_end_datetime is not None:
+            ends.append(self.pinned_end_datetime)
+        if not ends:
+            return True
         deadline = self.deadline_datetime.in_timezone(timezone)
-        return any(self.run_end_datetime(start, slot0_datetime) > deadline for start in starts)
+        return any(end > deadline for end in ends)
 
     def build_load_curve(self, starts: list[int]) -> None:
         """Place the resampled run energy at each decoded start slot.
@@ -878,7 +1010,7 @@ class HomeAppliance:
 
         if self.num_remaining_cycles == 0:
             self.start_hours = []
-            self.reset_load_curve()
+            self._build_load_curve()
             return []
 
         max_start = max(
@@ -1058,8 +1190,10 @@ class HomeAppliance:
     # ------------------------------------------------------------------
 
     def _build_load_curve(self) -> None:
-        """Builds the load curve from all scheduled cycles."""
+        """Builds the load curve from all scheduled cycles and a pinned run."""
         self.reset_load_curve()
+        if self.run_in_progress:
+            self.load_curve += self.pinned_load
 
         for start in self.start_hours:
             length = min(self.run_slots, self.total_slots - start)

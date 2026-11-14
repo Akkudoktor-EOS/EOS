@@ -512,6 +512,22 @@ the measurement store, under the key configured in `cycles_completed_measurement
 to `{device_id}.cycles_completed`). This lets the optimizer skip cycles the appliance has already
 completed earlier the same day.
 
+A run that has started is kept until the device reports it as finished. The executor writes the
+start of the run as UNIX time in seconds to the key configured in `run_started_measurement_key`
+(defaults to `{device_id}.run_started_at`) when it switches the appliance on for a planned run.
+When the device reports the run as finished, the executor writes `0` and increments the completed
+cycles. The device decides when that is: a water heater may finish early because its thermostat
+reached the temperature, a dishwasher may run longer than its profile. Until then, every re-plan:
+
+- places the remaining energy of the run from now on, independent of time windows and deadline,
+- sends RUN for the appliance and does not move or stop the run,
+- counts the run as a cycle of its start day and plans further cycles after its end and
+  `min_cycle_gap_h`.
+
+A run past its configured duration keeps the current slot without extra energy. A start more than
+two run durations ago is taken as a stale report and ignored, as are invalid values; both are
+logged.
+
 :::{admonition} Note
 :class: note
 Unlike GENETIC0, the GENETIC algorithm can plan multiple cycles -- and therefore multiple starts

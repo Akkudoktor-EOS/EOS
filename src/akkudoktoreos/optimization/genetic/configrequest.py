@@ -25,7 +25,10 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
+
+# How far back the latest "run started" report of a home appliance is looked up.
+RUN_STARTED_LOOKBACK_HOURS = 48
 
 
 class RuntimeForecasts(GeneticParametersBaseModel):
@@ -71,6 +74,60 @@ class ConfigOptimizationRequest(
     def validate_start_solution_datetime(cls, value: Any) -> Optional[DateTime]:
         """Parse a previous-plan timestamp while retaining its explicit timezone."""
         return GeneticOptimizationParameters.transform_start_solution_datetime(value)
+
+    async def _run_started(self, device: Any, observation_time: DateTime) -> Optional[DateTime]:
+        """Start of the appliance's run in progress from its measurement, or None.
+
+        The latest report at or before the observation time holds the run start
+        as UNIX seconds, 0 when the device reported the run as finished. An
+        invalid report is logged and treated as no run in progress, so the
+        preparation never fails on it.
+
+        Args:
+            device: Home appliance settings.
+            observation_time: Moment of the optimization run.
+
+        Returns:
+            The run start, or None when no run is in progress.
+        """
+        key = device.run_started_measurement_key or f"{device.device_id}.run_started_at"
+        try:
+            dates, values = await self.measurement.key_to_lists(
+                key=key,
+                start_datetime=observation_time.subtract(hours=RUN_STARTED_LOOKBACK_HOURS),
+                end_datetime=observation_time.add(seconds=1),
+                dropna=False,
+            )
+        except KeyError:
+            return None
+        # Skip records without a value (e.g. an adapter's meter reading, #1447).
+        samples = [
+            (date, value)
+            for date, value in zip(dates, values)
+            if date.timestamp() <= observation_time.timestamp()
+            and value is not None
+            and value is not pd.NA
+        ]
+        if not samples:
+            return None
+        value = max(samples, key=lambda sample: sample[0].timestamp())[1]
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            seconds = math.nan
+        if seconds == 0:
+            return None
+        if not math.isfinite(seconds) or seconds < 0 or seconds > observation_time.timestamp():
+            logger.error(
+                "Invalid run start {!r} in '{}' for home appliance '{}'; planned as not running.",
+                value,
+                key,
+                device.device_id,
+            )
+            return None
+        started = to_datetime(seconds)
+        timezone = observation_time.timezone
+        return started.in_timezone(timezone) if timezone is not None else started
 
     async def resolve(self) -> GeneticOptimizationParameters:
         """Resolve inside the EMS lock after its slot start has been established."""
@@ -256,6 +313,8 @@ class ConfigOptimizationRequest(
             ):
                 raise ValueError(f"Invalid completed cycle count for {device.device_id}.")
             appliance.completed_cycles = int(count)
+        for device, appliance in zip(groups["home_appliances"], appliances):
+            appliance.run_started_datetime = await self._run_started(device, observation_time)
 
         origin = start.start_of("day")
         if config.prediction.hours is None or config.prediction.hours <= 0:

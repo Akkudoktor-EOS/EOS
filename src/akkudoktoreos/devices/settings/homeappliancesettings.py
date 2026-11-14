@@ -202,6 +202,24 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
             ],
         },
     )
+    run_started_measurement_key: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Measurement store key holding the start of the run in progress as "
+                "UNIX time in seconds, 0 when no run is in progress. The executor "
+                "sets it when it switches the appliance on for a planned run and "
+                "sets 0 when the device reports the run as finished (then it also "
+                "increments the completed cycles). The GENETIC optimizer keeps a "
+                "run in progress until then. Defaults to "
+                "'{device_id}.run_started_at' when null."
+            ),
+            "examples": ["dishwasher.run_started_at", None],
+            "x-scope": [
+                str(ConfigScope.GENETIC),
+            ],
+        },
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -402,4 +420,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     @property
     def measurement_keys(self) -> Optional[list[str]]:
         """Measurement keys for the home appliance stati that are measurements."""
-        return [self.cycles_completed_measurement_key or f"{self.device_id}.cycles_completed"]
+        return [
+            self.cycles_completed_measurement_key or f"{self.device_id}.cycles_completed",
+            self.run_started_measurement_key or f"{self.device_id}.run_started_at",
+        ]
