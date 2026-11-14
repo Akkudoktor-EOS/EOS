@@ -2,7 +2,8 @@
 
 LFP batteries can only recalibrate their state of charge close to full charge,
 so many battery management systems expect a full charge every few weeks. The
-last full charge is read from the measured state of charge; nothing is stored.
+last full charge is read from the measured state of charge or, if the battery
+reports it, from an external completion counter; nothing is stored.
 """
 
 import math
@@ -61,6 +62,81 @@ def full_charge_deadline(
         reference = min((date for date, _ in valid), key=lambda date: date.timestamp())
 
     return reference + interval
+
+
+def _valid_samples(
+    samples: Iterable[tuple[DateTime, Any]], now: DateTime
+) -> list[tuple[DateTime, float]]:
+    """Finite numeric samples up to ``now``, oldest first."""
+    valid = [
+        (date, float(value))
+        for date, value in samples
+        if value is not None
+        and isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and date.timestamp() <= now.timestamp()
+    ]
+    return sorted(valid, key=lambda sample: sample[0].timestamp())
+
+
+def completion_counter_deadline(
+    samples: Iterable[tuple[DateTime, Any]],
+    now: DateTime,
+    interval_days: float,
+) -> Optional[DateTime]:
+    """Return the next full charge deadline from an external completion counter.
+
+    The user's own script increments the counter whenever it considers a full
+    charge done, by whatever rule fits the battery management system. The last
+    full charge is the first reading after the last increase. A counter that
+    goes down (e.g. a reset) is no full charge.
+
+    Args:
+        samples: Counter readings as (time, value) pairs, covering at least the
+            last ``interval_days`` before ``now``. Readings after ``now`` and
+            invalid values are ignored.
+        now: Current time.
+        interval_days: Maximum number of days between two full charges.
+
+    Returns:
+        The deadline, which may already have passed, or None if there is no
+        valid reading at all. Without an increase among the readings, the
+        interval counts from the oldest reading, as for the measured SoC.
+    """
+    valid = _valid_samples(samples, now)
+    if not valid:
+        return None
+    reference = valid[0][0]
+    for (_, previous), (date, value) in zip(valid, valid[1:]):
+        if value > previous:
+            reference = date
+    return reference + timedelta(days=interval_days)
+
+
+def full_charge_hold_start(
+    samples: Iterable[tuple[DateTime, Any]],
+    now: DateTime,
+    detect_percentage: float,
+) -> Optional[DateTime]:
+    """Return when the battery last reached the full charge threshold and stayed there.
+
+    Args:
+        samples: Measured state of charge as (time, factor 0.0 ... 1.0) pairs.
+            Readings after ``now`` and invalid values are ignored.
+        now: Current time.
+        detect_percentage: State of charge from which a sample counts as full [%].
+
+    Returns:
+        Time of the oldest sample of the uninterrupted run of full samples that
+        ends with the latest sample, or None if the latest sample is not full.
+    """
+    start = None
+    for date, value in reversed(_valid_samples(samples, now)):
+        if value * 100 < detect_percentage - 1e-9:
+            break
+        start = date
+    return start
 
 
 def enforced_full_charge_deadline(deadline: DateTime, now: DateTime) -> DateTime:

@@ -30,8 +30,10 @@ from akkudoktoreos.optimization.genetic import configrequest
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.fullcharge import (
     FULL_CHARGE_MIN_LEAD_HOURS,
+    completion_counter_deadline,
     enforced_full_charge_deadline,
     full_charge_deadline,
+    full_charge_hold_start,
 )
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticparams import (
@@ -124,6 +126,17 @@ def test_settings_defaults_disable_the_feature(config_eos):
     # The default profile sets no interval.
     assert settings.effective_full_charge_interval_days is None
     assert settings.effective_full_charge_detect_percentage == 99
+
+
+def test_completion_counter_key_is_registered_in_measurement_mode():
+    battery = BatteriesCommonSettings(device_id="storage")
+    assert battery.full_charge_completion == "soc"
+    assert battery.full_charge_max_hold_hours == 12.0
+    assert "storage-full-charge-completed" not in battery.measurement_keys
+    battery = BatteriesCommonSettings(device_id="storage", full_charge_completion="measurement")
+    assert battery.measurement_keys[-1] == "storage-full-charge-completed"
+    battery.full_charge_completed_measurement_key = "storage.full_charge_completed"
+    assert battery.measurement_keys[-1] == "storage.full_charge_completed"
 
 
 def test_profile_adjustment_sets_the_full_charge(config_eos):
@@ -224,6 +237,39 @@ def test_parameters_parse_naive_deadline_as_local_time():
         }
     )
     assert parameters.full_charge_deadline_datetime == to_datetime("2026-11-21T07:00:00")
+
+
+@pytest.mark.parametrize(
+    ("counter", "reference_days_ago"),
+    [
+        ([0, 0, 1, 1, 1], 3),  # last increase
+        ([0, 1, 1, 2, 2], 2),  # the latest of several increases
+        ([3, 3, 3, 3, 3], 5),  # no increase: oldest reading
+        ([2, 3, 0, 0, 0], 4),  # a reset is no full charge
+        ([np.nan, 1, None, 1, 1], 4),  # invalid readings are ignored
+    ],
+)
+def test_completion_counter_deadline(counter, reference_days_ago):
+    samples = [(NOW.subtract(days=5 - index), value) for index, value in enumerate(counter)]
+    samples.append((NOW.add(hours=1), 99))  # in the future
+    deadline = completion_counter_deadline(samples, now=NOW, interval_days=21)
+    assert deadline == NOW.subtract(days=reference_days_ago).add(days=21)
+    assert completion_counter_deadline([], now=NOW, interval_days=21) is None
+
+
+@pytest.mark.parametrize(
+    ("soc", "start_hours_ago"),
+    [
+        ([0.5, 0.99, 1.0, 0.99], 3),  # full since the second sample
+        ([0.99, 0.5, 1.0, 1.0], 2),  # an interruption restarts the hold
+        ([1.0, 1.0, 1.0, 0.5], None),  # not full now
+    ],
+)
+def test_full_charge_hold_start(soc, start_hours_ago):
+    samples = [(NOW.subtract(hours=4 - index), value) for index, value in enumerate(soc)]
+    start = full_charge_hold_start(samples, now=NOW, detect_percentage=99)
+    expected = None if start_hours_ago is None else NOW.subtract(hours=start_hours_ago)
+    assert start == expected
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +495,97 @@ async def test_full_charge_target_stays_within_technical_bounds(full_charge_requ
     assert parameters.pv_battery.full_charge_soc_percentage == 95
 
 
+def _counter_history(start: DateTime, increase_days_ago: Optional[float]):
+    """Daily counter readings over 30 days, increased once ``increase_days_ago``."""
+    dates = [start.subtract(days=day) for day in range(30, -1, -1)]
+    values = [
+        1 if increase_days_ago is not None and day <= increase_days_ago else 0
+        for day in range(30, -1, -1)
+    ]
+    return dates, values
+
+
+def _soc_history(start: DateTime, full_hours: Optional[float]):
+    """15 min SoC samples over 30 days, the last ``full_hours`` at 100 %, else 40 %."""
+    dates = [start.subtract(minutes=15 * step) for step in range(30 * 96, -1, -1)]
+    values = [
+        1.0 if full_hours is not None and step * 15 <= full_hours * 60 else 0.4
+        for step in range(30 * 96, -1, -1)
+    ]
+    return dates, values
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("increase_days_ago", "full_hours", "hold_hours", "remaining_hours", "logged"),
+    [
+        # Counter went up recently: not due, no hold.
+        (5, 3, None, None, None),
+        # Pending and full for 1 h of an estimated 4 h: hold the remaining 3 h.
+        (None, 1, 3, 3.0, "Holding the full charge"),
+        # Pending but not full yet: no hold, the estimate is the planning window.
+        (None, None, None, 4.0, None),
+        # Full for longer than the safety limit: stop holding, log an error.
+        (None, 13, None, None, "no longer holding"),
+    ],
+)
+async def test_completion_counter_decides_due_and_hold(
+    full_charge_request, caplog, increase_days_ago, full_hours, hold_hours, remaining_hours, logged
+):
+    config, start, measurement, data = full_charge_request
+    device = config.devices.batteries["storage"]
+    device.full_charge_allow_grid = True
+    device.full_charge_completion = "measurement"
+    device.full_charge_hold_hours = 4
+    data["soc"]["storage"] = 100 if full_hours else 40
+    counter = _counter_history(start, increase_days_ago)
+    soc = _soc_history(start, full_hours)
+
+    async def key_to_lists(key, start_datetime, end_datetime, dropna):
+        dates, values = counter if key == "storage-full-charge-completed" else soc
+        pairs = [(d, v) for d, v in zip(dates, values) if d.timestamp() >= start_datetime.timestamp()]
+        return [d for d, _ in pairs], [v for _, v in pairs]
+
+    measurement.key_to_lists.side_effect = key_to_lists
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    battery = parameters.pv_battery
+    assert battery is not None
+    if increase_days_ago is not None:
+        assert battery.full_charge_soc_percentage is None
+        assert battery.full_charge_hold_until_datetime is None
+        return
+    assert battery.full_charge_soc_percentage == 100
+    assert battery.full_charge_hold_hours == remaining_hours
+    if hold_hours is None:
+        assert battery.full_charge_hold_until_datetime is None
+    else:
+        assert battery.full_charge_hold_until_datetime == start.add(hours=hold_hours)
+    if logged:
+        assert logged in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_completion_counter_without_readings_counts_from_the_oldest_soc(
+    full_charge_request, caplog
+):
+    config, start, measurement, data = full_charge_request
+    device = config.devices.batteries["storage"]
+    device.full_charge_allow_grid = True
+    device.full_charge_completion = "measurement"
+    soc = _history(start, full_days_ago=2)  # a full SoC does not count in this mode
+
+    async def key_to_lists(key, start_datetime, end_datetime, dropna):
+        if key == "storage-full-charge-completed":
+            raise KeyError(key)
+        return soc
+
+    measurement.key_to_lists.side_effect = key_to_lists
+    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.full_charge_soc_percentage == 100
+    assert "No readings of the full charge completion counter" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # Optimizer
 # ---------------------------------------------------------------------------
@@ -551,6 +688,13 @@ def test_maximum_soc_before_deadline_counts(config_eos: ConfigEOS):
     optimization._full_charge_deadline_slot = 99
     assert optimization._battery_max_soc_until_full_charge_deadline(result, 10) == 95.0
 
+    # With a hold window, the highest level held for that many slots counts.
+    result = {"akku_soc_pro_stunde": [30.0, 100.0, 60.0, 100.0, 100.0, 100.0, 50.0]}
+    optimization._full_charge_deadline_slot = 99
+    for window, expected in ((1, 100.0), (2, 100.0), (3, 60.0), (20, 30.0)):
+        optimization._full_charge_hold_window_slots = window
+        assert optimization._battery_max_soc_until_full_charge_deadline(result, 10) == expected
+
 
 def _run(config_eos: ConfigEOS, **battery_extra) -> list[float]:
     hours = 24
@@ -576,3 +720,29 @@ def test_due_full_charge_is_reached_before_deadline(config_eos: ConfigEOS):
     # Slot 12 starts at the deadline; its start-of-slot SoC includes every
     # charge that finished in time.
     assert max(soc[:13]) >= 99.0
+
+
+def test_held_full_charge_keeps_charging_in_the_first_slots(config_eos: ConfigEOS):
+    """Expensive energy and no PV: without the hold the full battery would discharge."""
+    slot0 = to_datetime().set(hour=0, minute=0, second=0, microsecond=0)
+    hours = 24
+    _optimizer_config(config_eos, hours)
+    ems_eos.set_start_datetime(slot0)
+    CacheEnergyManagementStore().clear()
+    optimization = GeneticOptimization(fixed_seed=42)
+    solution = optimization.optimize_ems(
+        parameters=_full_charge_parameters(
+            hours,
+            initial_soc_percentage=100,
+            full_charge_soc_percentage=100,
+            full_charge_deadline_datetime=slot0.add(hours=hours),
+            full_charge_hold_until_datetime=slot0.add(hours=2, minutes=30),
+        ),
+        start_hour=0,
+        ngen=10,
+    )
+    soc = list(solution.result.battery_soc_per_hour)
+    assert soc[:4] == pytest.approx([100.0] * 4)
+    assert solution.ac_charge[:3] == [1.0] * 3
+    assert solution.discharge_allowed[:3] == [0] * 3
+    assert min(soc) < 99.0  # discharges once the hold is over

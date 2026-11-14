@@ -71,7 +71,11 @@ config path from ``self.device_id`` without needing an external index.
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_allow_grid": false
+                   "full_charge_allow_grid": false,
+                   "full_charge_completion": "soc",
+                   "full_charge_completed_measurement_key": null,
+                   "full_charge_hold_hours": null,
+                   "full_charge_max_hold_hours": 12.0
                }
            },
            "max_batteries": 1,
@@ -114,7 +118,11 @@ config path from ``self.device_id`` without needing an external index.
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_allow_grid": false
+                   "full_charge_allow_grid": false,
+                   "full_charge_completion": "soc",
+                   "full_charge_completed_measurement_key": null,
+                   "full_charge_hold_hours": null,
+                   "full_charge_max_hold_hours": 12.0
                }
            },
            "max_electric_vehicles": 1,
@@ -192,6 +200,10 @@ config path from ``self.device_id`` without needing an external index.
                    "min_soc_max_duration_h": null,
                    "full_charge_soc_percentage": 100,
                    "full_charge_allow_grid": false,
+                   "full_charge_completion": "soc",
+                   "full_charge_completed_measurement_key": null,
+                   "full_charge_hold_hours": null,
+                   "full_charge_max_hold_hours": 12.0,
                    "effective_nominal_capacity_wh": 8000,
                    "effective_max_charge_power_w": 5000.0,
                    "effective_max_discharge_power_w": 4000.0,
@@ -209,6 +221,7 @@ config path from ``self.device_id`` without needing an external index.
                    "measurement_key_power_l2_w": "bat0-power-l2-w",
                    "measurement_key_power_l3_w": "bat0-power-l3-w",
                    "measurement_key_power_3_phase_sym_w": "bat0-power-3-phase-sym-w",
+                   "measurement_key_full_charge_completed": "bat0-full-charge-completed",
                    "measurement_keys": [
                        "bat0-soc-factor",
                        "bat0-temperature-degc",
@@ -262,6 +275,10 @@ config path from ``self.device_id`` without needing an external index.
                    "min_soc_max_duration_h": null,
                    "full_charge_soc_percentage": 100,
                    "full_charge_allow_grid": false,
+                   "full_charge_completion": "soc",
+                   "full_charge_completed_measurement_key": null,
+                   "full_charge_hold_hours": null,
+                   "full_charge_max_hold_hours": 12.0,
                    "effective_nominal_capacity_wh": 60000,
                    "effective_max_charge_power_w": 5000.0,
                    "effective_max_discharge_power_w": 5000.0,
@@ -279,6 +296,7 @@ config path from ``self.device_id`` without needing an external index.
                    "measurement_key_power_l2_w": "ev0-power-l2-w",
                    "measurement_key_power_l3_w": "ev0-power-l3-w",
                    "measurement_key_power_3_phase_sym_w": "ev0-power-3-phase-sym-w",
+                   "measurement_key_full_charge_completed": "ev0-full-charge-completed",
                    "measurement_keys": [
                        "ev0-soc-factor",
                        "ev0-temperature-degc",

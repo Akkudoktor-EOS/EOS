@@ -1092,6 +1092,11 @@ class GeneticOptimization(OptimizationBase):
         # to have happened. None means no full charge is enforced in this run.
         self._full_charge_deadline_slot: Optional[int] = None
         self._full_charge_target_soc: Optional[int] = None
+        # Consecutive slots the battery has to stay at the full charge target
+        # before the deadline (0: reaching it once is enough), and the first
+        # slots pinned to a charging state while a full charge is being held.
+        self._full_charge_hold_window_slots: int = 0
+        self._full_charge_hold_slots: int = 0
         # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
@@ -1271,6 +1276,44 @@ class GeneticOptimization(OptimizationBase):
         ).total_seconds()
         deadline_slot = math.floor(seconds / (self.slot_duration_h * 3600) + 1e-9)
         return min(max(deadline_slot, start_slot), self.control_end_slot)
+
+    def _full_charge_hold_slot_counts(
+        self, parameters: GeneticOptimizationParameters
+    ) -> tuple[int, int]:
+        """Hold window and pinned slots of a due full charge.
+
+        Args:
+            parameters: Optimization parameters of this run.
+
+        Returns:
+            ``(window_slots, pinned_slots)``: the number of consecutive slots the
+            battery has to stay at the target before the deadline, and the number
+            of slots from the start of the control horizon that stay in a charging
+            state. Both are 0 when no full charge is due.
+        """
+        battery = parameters.pv_battery
+        if battery is None or battery.full_charge_soc_percentage is None:
+            return 0, 0
+        slot_seconds = self.slot_duration_h * 3600
+        window_slots = 0
+        if battery.full_charge_hold_hours:
+            window_slots = math.ceil(battery.full_charge_hold_hours * 3600 / slot_seconds - 1e-9)
+        pinned_slots = 0
+        hold_until = battery.full_charge_hold_until_datetime
+        if hold_until is not None:
+            if self._slot0_datetime is None:
+                raise ValueError("Full charge hold requires a run start timestamp.")
+            seconds = hold_until.timestamp() - self._slot0_datetime.timestamp()
+            pinned_slots = max(1, math.ceil(seconds / slot_seconds - 1e-9))
+        start_slot = self._control_start_slot()
+        available = max(self.control_end_slot - start_slot, 0)
+        return min(window_slots, available), min(pinned_slots, available)
+
+    def _full_charge_hold_state(self) -> int:
+        """Battery state of a held full charge: highest AC charge level, no discharge."""
+        charge_values = self.bat_possible_charge_values
+        highest = max(range(len(charge_values)), key=lambda index: charge_values[index])
+        return 2 * len(charge_values) + highest
 
     def _validate_forecast_availability(self) -> None:
         """Use only the contiguous finite forecast prefix after now."""
@@ -3449,6 +3492,14 @@ class GeneticOptimization(OptimizationBase):
         This is an internal function.
         """
         self.simulation.reset()
+        # A full charge that waits for its completion counter keeps the battery
+        # charging in the first slots. The genome is changed as well, so that the
+        # solution reports what the simulation assumed.
+        hold_slots = getattr(self, "_full_charge_hold_slots", 0)
+        if hold_slots:
+            start_slot = self._control_start_slot()
+            hold_state = self._full_charge_hold_state()
+            individual[start_slot : start_slot + hold_slots] = [hold_state] * hold_slots
         discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = self.split_individual(
             individual
         )
@@ -3599,13 +3650,17 @@ class GeneticOptimization(OptimizationBase):
     def _battery_max_soc_until_full_charge_deadline(
         self, simulation_result: dict[str, Any], start_slot: int
     ) -> Optional[float]:
-        """Highest battery SoC reached before the full charge deadline [%].
+        """Highest battery SoC held long enough before the full charge deadline [%].
 
         The full charge only has to happen once, so the maximum counts, not the
         SoC at the deadline. ``akku_soc_pro_stunde`` holds the SoC at the start of
         each slot; the SoC at the start of the deadline slot includes every charge
         that finished in time. A deadline at the end of the horizon also counts
         the SoC after the last slot.
+
+        With a hold window of n slots the battery has to stay at the SoC for n
+        consecutive slots: the result is the highest minimum over n + 1
+        consecutive start-of-slot values. Without a window this is the maximum.
 
         Args:
             simulation_result: Result of the simulation run for this individual.
@@ -3626,7 +3681,17 @@ class GeneticOptimization(OptimizationBase):
         if index >= len(soc_per_slot):
             reached.append(battery.current_soc_percentage())
         reached = [value for value in reached if math.isfinite(value)]
-        return max(reached) if reached else battery.current_soc_percentage()
+        if not reached:
+            return battery.current_soc_percentage()
+        window = getattr(self, "_full_charge_hold_window_slots", 0)
+        if window <= 0:
+            return max(reached)
+        if window >= len(reached):
+            # The window does not fit before the deadline: the whole span counts.
+            return min(reached)
+        return max(
+            min(reached[index : index + window + 1]) for index in range(len(reached) - window)
+        )
 
     def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
         """EV state of charge the target is checked against [%].
@@ -4335,9 +4400,16 @@ class GeneticOptimization(OptimizationBase):
             if self._full_charge_deadline_slot is not None and parameters.pv_battery
             else None
         )
+        (
+            self._full_charge_hold_window_slots,
+            self._full_charge_hold_slots,
+        ) = self._full_charge_hold_slot_counts(parameters)
         if self._full_charge_deadline_slot is not None:
             logger.debug(
-                "Battery full charge required by slot {}.", self._full_charge_deadline_slot
+                "Battery full charge required by slot {}, held for {} slots; first {} slots pinned.",
+                self._full_charge_deadline_slot,
+                self._full_charge_hold_window_slots,
+                self._full_charge_hold_slots,
             )
         if self._ev_soc_deadline_slot is not None:
             logger.debug(

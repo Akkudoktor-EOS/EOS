@@ -75,7 +75,11 @@
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_allow_grid": false
+                   "full_charge_allow_grid": false,
+                   "full_charge_completion": "soc",
+                   "full_charge_completed_measurement_key": null,
+                   "full_charge_hold_hours": null,
+                   "full_charge_max_hold_hours": 12.0
                }
            },
            "max_batteries": 1,
@@ -118,7 +122,11 @@
                    "min_soc_deadline_datetime": null,
                    "min_soc_max_duration_h": null,
                    "full_charge_soc_percentage": 100,
-                   "full_charge_allow_grid": false
+                   "full_charge_allow_grid": false,
+                   "full_charge_completion": "soc",
+                   "full_charge_completed_measurement_key": null,
+                   "full_charge_hold_hours": null,
+                   "full_charge_max_hold_hours": 12.0
                }
            },
            "max_electric_vehicles": 1,
