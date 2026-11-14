@@ -327,7 +327,8 @@ class Inverter:
             battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
         else:
             soc_wh = battery.soc_wh
-            min_soc_wh = battery.min_soc_wh
+            # The minimum SoC, or a reserve (see Battery.set_discharge_floor).
+            min_soc_wh = battery._discharge_floor_wh_per_slot[hour]
             discharged_raw_wh = battery._discharged_raw_wh_per_slot
             discharging_efficiency = battery.discharging_efficiency
             raw_available_wh = max(soc_wh - min_soc_wh, 0.0)

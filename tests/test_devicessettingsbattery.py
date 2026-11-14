@@ -377,6 +377,23 @@ class TestDefaultsAndValidation:
         with pytest.raises(ValidationError, match="min_soc_percentage"):
             make_settings(min_soc_percentage=80, max_soc_percentage=20)
 
+    def test_reserve_is_off_by_default(self):
+        settings = make_settings()
+        assert settings.reserve_soc_percentage is None
+        assert settings.reserve_soc_time_windows is None
+
+    @pytest.mark.parametrize("reserve", [5, 91, -1, 101])
+    def test_rejects_reserve_outside_soc_range(self, reserve):
+        with pytest.raises(ValidationError):
+            make_settings(min_soc_percentage=10, max_soc_percentage=90, reserve_soc_percentage=reserve)
+
+    @pytest.mark.parametrize("reserve", [10, 40, 90])
+    def test_accepts_reserve_within_soc_range(self, reserve):
+        settings = make_settings(
+            min_soc_percentage=10, max_soc_percentage=90, reserve_soc_percentage=reserve
+        )
+        assert settings.reserve_soc_percentage == reserve
+
     def test_rejects_min_charge_power_above_installation_limit(self):
         with pytest.raises(ValidationError, match="min_charge_power_w"):
             make_settings(min_charge_power_w=6000.0, charge_limit_w=5000.0)
@@ -1407,6 +1424,29 @@ class TestOptimizationParameters:
     def test_genetic_pv_receives_storage_cost(self):
         params = make_settings(levelized_cost_of_storage_amt_kwh=0.12).to_genetic_pv_bat_param()
         assert params.levelized_cost_of_storage_kwh == pytest.approx(0.12)
+
+    def test_genetic_pv_receives_reserve(self):
+        windows = {"windows": [{"start_time": "17:00", "duration": "4 hours"}]}
+        params = make_settings(
+            min_soc_percentage=10, reserve_soc_percentage=40, reserve_soc_time_windows=windows
+        ).to_genetic_pv_bat_param()
+        assert params.reserve_soc_percentage == 40
+        assert params.reserve_soc_time_windows is not None
+        assert params.reserve_soc_time_windows.windows[0].start_time.hour == 17
+
+    def test_genetic_pv_without_reserve(self):
+        params = make_settings().to_genetic_pv_bat_param()
+        assert params.reserve_soc_percentage is None
+        assert params.reserve_soc_time_windows is None
+
+    @pytest.mark.parametrize("reserve, expected", [(2, 5), (50, 50), (98, 95)])
+    def test_genetic_pv_reserve_is_kept_within_technical_bounds(
+        self, make_profiled_settings, full_profile, reserve, expected
+    ):
+        settings = make_profiled_settings(
+            full_profile, capacity_wh=10000, reserve_soc_percentage=reserve
+        )
+        assert settings.to_genetic_pv_bat_param().reserve_soc_percentage == expected
 
     def test_genetic_ev_receives_soc_deadline_settings(self):
         params = make_settings(min_soc_max_duration_h=6.0).to_genetic_ev_bat_param()

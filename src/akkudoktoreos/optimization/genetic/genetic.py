@@ -36,6 +36,13 @@ from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
     GeneticSolution,
 )
+from akkudoktoreos.optimization.genetic.reserve import (
+    ReserveTargets,
+    default_reserve_time_windows,
+    reserve_shortfall,
+    reserve_targets,
+    reserve_window_mask,
+)
 from akkudoktoreos.optimization.genetic.tailvalue import (
     TailValueCurve,
     build_tail_value_curve,
@@ -1092,6 +1099,9 @@ class GeneticOptimization(OptimizationBase):
         # to have happened. None means no full charge is enforced in this run.
         self._full_charge_deadline_slot: Optional[int] = None
         self._full_charge_target_soc: Optional[int] = None
+        # Reserve of the stationary battery for unplanned consumption, indexed
+        # from the run start. None means no reserve in this run.
+        self._battery_reserve: Optional[ReserveTargets] = None
         # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
@@ -1271,6 +1281,94 @@ class GeneticOptimization(OptimizationBase):
         ).total_seconds()
         deadline_slot = math.floor(seconds / (self.slot_duration_h * 3600) + 1e-9)
         return min(max(deadline_slot, start_slot), self.control_end_slot)
+
+    def _battery_reserve_targets(
+        self, parameters: GeneticOptimizationParameters
+    ) -> Optional[ReserveTargets]:
+        """Reserve of the stationary battery for this run.
+
+        Args:
+            parameters: Optimization parameters of this run.
+
+        Returns:
+            Discharge floor and required SoC from the current slot on, or None
+            without a reserve or without a window in the control horizon.
+        """
+        battery = parameters.pv_battery
+        if battery is None or battery.reserve_soc_percentage is None:
+            return None
+        if self._slot0_datetime is None:
+            raise ValueError("Battery reserve requires a run start timestamp.")
+        windows = battery.reserve_soc_time_windows or default_reserve_time_windows()
+        in_window = reserve_window_mask(
+            windows,
+            self._slot0_datetime,
+            self._control_start_slot(),
+            self.control_end_slot,
+            self.slot_duration_h * 3600,
+        )
+        if not any(in_window):
+            return None
+        return reserve_targets(
+            float(battery.reserve_soc_percentage),
+            in_window,
+            float(battery.initial_soc_percentage),
+        )
+
+    def _release_discharge_at_reserve(
+        self, individual: list[int], simulation_result: dict[str, Any]
+    ) -> bool:
+        """Allow discharging in reserve slots the plan holds at the reserve.
+
+        Inside a reserve window the simulation stops planned discharge at the
+        reserve, so a slot that starts at the reserve simulates the same with
+        "hold" and with "discharge allowed". Only the latter lets the real
+        battery, which knows only its minimum SoC, cover unplanned consumption
+        from the reserve. Callers re-simulate after a change.
+
+        Args:
+            individual: Genome of the plan; changed in place.
+            simulation_result: Simulation result of ``individual``.
+
+        Returns:
+            Whether a slot was changed.
+        """
+        reserve = getattr(self, "_battery_reserve", None)
+        battery = self.simulation.battery
+        soc_per_slot = simulation_result.get("akku_soc_pro_stunde")
+        if reserve is None or battery is None or soc_per_slot is None:
+            return False
+
+        start_slot = self._control_start_slot()
+        battery_genes, _, _ = self.split_individual(individual)
+        ac_charge, dc_charge, discharge, grid_export = self.decode_charge_discharge(battery_genes)
+        state_layout = self._battery_state_layout()
+        discharge_state = len(self.bat_possible_charge_values)
+        min_soc_percent = battery.min_soc_percentage
+
+        changed = False
+        for offset, floor_percent in enumerate(reserve.floor_percent):
+            slot = start_slot + offset
+            if offset >= len(soc_per_slot) or slot >= len(battery_genes):
+                break
+            if floor_percent <= 0.0 or discharge[slot] or ac_charge[slot] > 0.0:
+                continue
+            if grid_export[slot] > 0.0:
+                continue
+            if soc_per_slot[offset] > max(floor_percent, min_soc_percent) + 1e-6:
+                # A real hold: the plan keeps energy above the reserve for later.
+                continue
+            state = discharge_state
+            if (
+                self.optimize_dc_charge
+                and dc_charge[slot]
+                and state_layout.self_consumption_state is not None
+            ):
+                # Keep PV charging allowed as in the held state.
+                state = state_layout.self_consumption_state
+            individual[slot] = state
+            changed = True
+        return changed
 
     def _validate_forecast_availability(self) -> None:
         """Use only the contiguous finite forecast prefix after now."""
@@ -3881,6 +3979,27 @@ class GeneticOptimization(OptimizationBase):
                     full_charge_penalty = 10.0
                 gesamtbilanz += (target - reached) * full_charge_penalty
 
+        # --- Battery reserve for unplanned consumption ---
+        # Every slot boundary inside a reserve window whose planned SoC is below
+        # the reserve counts, weighted by the slot duration so the penalty does
+        # not depend on the slot length. Planned discharge already stops at the
+        # reserve (discharge floor), so this mainly forces the reserve to be
+        # there when a window opens.
+        reserve = getattr(self, "_battery_reserve", None)
+        if reserve is not None and self.simulation.battery is not None:
+            soc_per_slot = simulation_result.get("akku_soc_pro_stunde")
+            if soc_per_slot is not None:
+                soc_at_boundaries = list(soc_per_slot) + [
+                    self.simulation.battery.current_soc_percentage()
+                ]
+                shortfall = reserve_shortfall(reserve.required_percent, soc_at_boundaries)
+                if shortfall > 0.0:
+                    try:
+                        reserve_penalty = float(self._genetic_cfg.penalties["battery_reserve_miss"])
+                    except Exception:
+                        reserve_penalty = 10.0
+                    gesamtbilanz += shortfall * self.slot_duration_h * reserve_penalty
+
         if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
                 penalty = self._genetic_cfg.penalties["ev_soc_miss"]
@@ -4339,6 +4458,16 @@ class GeneticOptimization(OptimizationBase):
             logger.debug(
                 "Battery full charge required by slot {}.", self._full_charge_deadline_slot
             )
+        self._battery_reserve = self._battery_reserve_targets(parameters)
+        if akku is not None and self._battery_reserve is not None:
+            akku.set_discharge_floor(self._battery_reserve.floor_percent, start_slot)
+            logger.debug(
+                "Battery reserve {}% in {} of {} slots; {} slots hold the start SoC.",
+                parameters.pv_battery.reserve_soc_percentage if parameters.pv_battery else None,
+                sum(1 for value in self._battery_reserve.floor_percent if value > 0.0),
+                len(self._battery_reserve.floor_percent),
+                self._battery_reserve.relaxed_slots,
+            )
         if self._ev_soc_deadline_slot is not None:
             logger.debug(
                 "EV target SoC required by slot {} ({}).",
@@ -4408,6 +4537,8 @@ class GeneticOptimization(OptimizationBase):
 
         # Perform final evaluation on the best solution
         simulation_result = self.evaluate_inner(start_solution)
+        if self._release_discharge_at_reserve(start_solution, simulation_result):
+            simulation_result = self.evaluate_inner(start_solution)
         # Read the terminal value off the final battery state, for the solution.
         _, terminal_value_result = self._terminal_value(parameters, include_tail_plan=True)
 

@@ -33,8 +33,10 @@ Configuration fields are inputs, in three groups:
 - Operating policy: ``min_soc_percentage`` / ``max_soc_percentage`` (kept within
   the technical SOC bounds of the profile), ``charge_rates``,
   ``min_charge_power_w``, ``levelized_cost_of_storage_amt_kwh``, the minimum SoC
-  deadline, the grid export rates and the periodic full charge target
-  (``full_charge_soc_percentage``, ``full_charge_allow_grid``).
+  deadline, the grid export rates, the periodic full charge target
+  (``full_charge_soc_percentage``, ``full_charge_allow_grid``) and the reserve
+  for unplanned consumption (``reserve_soc_percentage``,
+  ``reserve_soc_time_windows``).
 - Runtime state: ``capacity_estimation`` / ``capacity_estimate``.
 
 Computed fields are outputs, all named ``effective_*``. They are evaluated on
@@ -86,7 +88,11 @@ from pydantic import (
     model_validator,
 )
 
-from akkudoktoreos.config.configabc import ConfigScope, SettingsBaseModel
+from akkudoktoreos.config.configabc import (
+    ConfigScope,
+    SettingsBaseModel,
+    TimeWindowSequence,
+)
 from akkudoktoreos.devices.settings import batterymeasurement
 from akkudoktoreos.devices.settings.batterymeasurement import (
     BATTERY_MEASUREMENT_MAX_AGE as BATTERY_MEASUREMENT_MAX_AGE,
@@ -985,6 +991,48 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         },
     )
 
+    # ------------------------------------------------------------------
+    # Reserve for unplanned consumption (stationary batteries, GENETIC only)
+    # ------------------------------------------------------------------
+    #
+    # Operating policy of the household, not a property of the battery model,
+    # so it is not part of the battery profile.
+
+    reserve_soc_percentage: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=100,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Reserve for unplanned consumption of a stationary battery [%]. Within "
+                "'reserve_soc_time_windows' the plan keeps at least this state of "
+                "charge for the planned consumption and reaches it by each window "
+                "start, charging from the grid if needed. The battery may still "
+                "discharge into the reserve down to 'min_soc_percentage' for "
+                "consumption the forecast does not contain. Between "
+                "'min_soc_percentage' and 'max_soc_percentage'; kept within the "
+                "technical SOC bounds of the battery profile. None disables the reserve."
+            ),
+            "examples": [None, 40],
+        },
+    )
+    reserve_soc_time_windows: Optional[TimeWindowSequence] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Time windows in local time in which the reserve has to be "
+                "available, e.g. different ones on weekends. None means "
+                "06:00-22:00 every day."
+            ),
+            "examples": [
+                None,
+                {"windows": [{"start_time": "06:00", "duration": "16 hours"}]},
+            ],
+        },
+    )
+
     def resolve_full_charge(self) -> BatteryFullCharge:
         """Return the effective periodic full charge policy of this battery.
 
@@ -1036,6 +1084,10 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
 
         p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
+        reserve = self.reserve_soc_percentage
+        if reserve is not None:
+            # The profile may narrow the SoC range the reserve was set for.
+            reserve = min(max(reserve, p.min_soc_percentage), p.max_soc_percentage)
         return SolarPanelBatteryParameters(
             device_id=self.device_id,
             capacity_wh=p.capacity_wh,
@@ -1047,6 +1099,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             grid_export_rates=self.grid_export_rates,
             **self._genetic_power_parameters(p, profile),
             levelized_cost_of_storage_kwh=self.levelized_cost_of_storage_amt_kwh,
+            reserve_soc_percentage=reserve,
+            reserve_soc_time_windows=self.reserve_soc_time_windows,
         )
 
     def to_genetic_ev_bat_param(
@@ -1190,6 +1244,13 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def _validate_soc_range(self) -> "BatteriesCommonSettings":
         if self.min_soc_percentage > self.max_soc_percentage:
             raise ValueError("min_soc_percentage must be <= max_soc_percentage")
+        reserve = self.reserve_soc_percentage
+        if reserve is not None and not (
+            self.min_soc_percentage <= reserve <= self.max_soc_percentage
+        ):
+            raise ValueError(
+                "reserve_soc_percentage must be between min_soc_percentage and max_soc_percentage"
+            )
         detect_percentage = self.profile_adjustment.full_charge_detect_percentage
         if detect_percentage is not None and detect_percentage > self.full_charge_soc_percentage:
             raise ValueError(

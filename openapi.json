@@ -3991,6 +3991,52 @@
             "x-scope": [
               "GENETIC"
             ]
+          },
+          "reserve_soc_percentage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserve Soc Percentage",
+            "description": "Reserve for unplanned consumption of a stationary battery [%]. Within 'reserve_soc_time_windows' the plan keeps at least this state of charge for the planned consumption and reaches it by each window start, charging from the grid if needed. The battery may still discharge into the reserve down to 'min_soc_percentage' for consumption the forecast does not contain. Between 'min_soc_percentage' and 'max_soc_percentage'; kept within the technical SOC bounds of the battery profile. None disables the reserve.",
+            "examples": [
+              null,
+              40
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "reserve_soc_time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time windows in local time in which the reserve has to be available, e.g. different ones on weekends. None means 06:00-22:00 every day.",
+            "examples": [
+              null,
+              {
+                "windows": [
+                  {
+                    "duration": "16 hours",
+                    "start_time": "06:00"
+                  }
+                ]
+              }
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
           }
         },
         "type": "object",
@@ -4232,6 +4278,52 @@
             "examples": [
               false,
               true
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "reserve_soc_percentage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserve Soc Percentage",
+            "description": "Reserve for unplanned consumption of a stationary battery [%]. Within 'reserve_soc_time_windows' the plan keeps at least this state of charge for the planned consumption and reaches it by each window start, charging from the grid if needed. The battery may still discharge into the reserve down to 'min_soc_percentage' for consumption the forecast does not contain. Between 'min_soc_percentage' and 'max_soc_percentage'; kept within the technical SOC bounds of the battery profile. None disables the reserve.",
+            "examples": [
+              null,
+              40
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "reserve_soc_time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time windows in local time in which the reserve has to be available, e.g. different ones on weekends. None means 06:00-22:00 every day.",
+            "examples": [
+              null,
+              {
+                "windows": [
+                  {
+                    "duration": "16 hours",
+                    "start_time": "06:00"
+                  }
+                ]
+              }
             ],
             "x-scope": [
               "GENETIC"
@@ -17910,6 +18002,46 @@
             "examples": [
               null,
               "2026-11-20T07:00:00+01:00"
+            ]
+          },
+          "reserve_soc_percentage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserve Soc Percentage",
+            "description": "Reserve for unplanned consumption [%]. Within 'reserve_soc_time_windows' the plan keeps at least this state of charge for the planned consumption and reaches it by each window start, from the grid if needed. The battery may still discharge into the reserve for unplanned consumption. Between 'min_soc_percentage' and 'max_soc_percentage'. None means no reserve.",
+            "examples": [
+              null,
+              40
+            ]
+          },
+          "reserve_soc_time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time windows in local time in which the reserve has to be available. None means 06:00-22:00 every day.",
+            "examples": [
+              null,
+              {
+                "windows": [
+                  {
+                    "duration": "16 hours",
+                    "start_time": "06:00"
+                  }
+                ]
+              }
             ]
           }
         },

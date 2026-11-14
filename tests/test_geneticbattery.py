@@ -760,3 +760,122 @@ class TestPowerCurves:
     def test_invalid_curves_are_rejected(self, field, value):
         with pytest.raises(ValidationError):
             SolarPanelBatteryParameters(device_id="battery1", capacity_wh=10_000, **{field: value})
+
+
+class TestDischargeFloor:
+    """A per-slot discharge floor (battery reserve) above the minimum SoC."""
+
+    @staticmethod
+    def _battery(**extra):
+        params = SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=10_000,
+            initial_soc_percentage=50,
+            min_soc_percentage=10,
+            max_soc_percentage=100,
+            max_charge_power_w=10_000,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            **extra,
+        )
+        battery = Battery(params, prediction_hours=4)
+        battery.set_discharge_per_hour(np.ones(4))
+        return battery
+
+    def test_without_floor_the_minimum_soc_applies(self):
+        battery = self._battery()
+        assert [battery.discharge_floor_wh(slot) for slot in range(4)] == [1_000.0] * 4
+        delivered, _ = battery.discharge_energy(10_000.0, 0)
+        assert delivered == pytest.approx(4_000.0)
+
+    @pytest.mark.parametrize(
+        "extra",
+        [{}, {"discharge_power_limit_w_by_soc": [10_000.0] * 101}],
+        ids=["plain", "power-curve"],
+    )
+    def test_floor_stops_discharge_in_its_slots_only(self, extra):
+        battery = self._battery(**extra)
+        battery.set_discharge_floor([40.0, 30.0], start_slot=1)
+        assert [battery.discharge_floor_wh(slot) for slot in range(4)] == [
+            1_000.0,
+            4_000.0,
+            3_000.0,
+            1_000.0,
+        ]
+        assert battery.remaining_discharge_energy_wh(1) == pytest.approx(1_000.0)
+        delivered, _ = battery.discharge_energy(10_000.0, 1)
+        assert delivered == pytest.approx(1_000.0)
+        assert battery.current_soc_percentage() == pytest.approx(40.0)
+        # At the floor nothing more is planned in that slot.
+        assert battery.remaining_discharge_energy_wh(1) == 0.0
+        assert battery.discharge_energy(1_000.0, 1) == (0.0, 0.0)
+        # The next slot has a lower floor.
+        delivered, _ = battery.discharge_energy(10_000.0, 2)
+        assert delivered == pytest.approx(1_000.0)
+
+    def test_floor_below_soc_keeps_the_soc(self):
+        battery = self._battery()
+        battery.set_discharge_floor([60.0])
+        assert battery.discharge_energy(1_000.0, 0) == (0.0, 0.0)
+        assert battery.current_soc_percentage() == pytest.approx(50.0)
+
+    def test_floor_never_goes_below_the_minimum_soc(self):
+        battery = self._battery()
+        battery.set_discharge_floor([0.0, 5.0, 20.0, 30.0, 40.0], start_slot=0)
+        assert [battery.discharge_floor_wh(slot) for slot in range(4)] == [
+            1_000.0,
+            1_000.0,
+            2_000.0,
+            3_000.0,
+        ]
+
+    def test_floor_is_kept_by_reset(self):
+        battery = self._battery()
+        battery.set_discharge_floor([40.0])
+        battery.reset()
+        assert battery.discharge_floor_wh(0) == pytest.approx(4_000.0)
+
+
+@pytest.mark.parametrize("reserve", [10, 40, 80])
+def test_reserve_within_soc_range_is_valid(reserve):
+    params = SolarPanelBatteryParameters(
+        device_id="battery1",
+        capacity_wh=10_000,
+        min_soc_percentage=10,
+        max_soc_percentage=80,
+        reserve_soc_percentage=reserve,
+    )
+    assert params.reserve_soc_percentage == reserve
+    assert params.reserve_soc_time_windows is None
+
+
+@pytest.mark.parametrize("reserve", [5, 81, -1, 101])
+def test_reserve_outside_soc_range_fails(reserve):
+    with pytest.raises(ValidationError):
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=10_000,
+            min_soc_percentage=10,
+            max_soc_percentage=80,
+            reserve_soc_percentage=reserve,
+        )
+
+
+def test_reserve_time_windows_are_parsed():
+    params = SolarPanelBatteryParameters.model_validate(
+        {
+            "device_id": "battery1",
+            "capacity_wh": 10_000,
+            "reserve_soc_percentage": 40,
+            "reserve_soc_time_windows": {
+                "windows": [{"start_time": "17:00", "duration": "5 hours", "day_of_week": 5}]
+            },
+        }
+    )
+    assert params.reserve_soc_time_windows is not None
+    window = params.reserve_soc_time_windows.windows[0]
+    assert (window.start_time.hour, window.duration.total_seconds(), window.day_of_week) == (
+        17,
+        5 * 3600,
+        5,
+    )

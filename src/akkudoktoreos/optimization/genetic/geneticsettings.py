@@ -214,6 +214,7 @@ class GeneticCommonSettings(SettingsBaseModel):
             ev_soc_miss=10,
             ac_charge_break_even=1.0,
             battery_full_charge_miss=10,
+            battery_reserve_miss=10,
         ),
         json_schema_extra={
             "description": "Penalty parameters used in fitness evaluation.",

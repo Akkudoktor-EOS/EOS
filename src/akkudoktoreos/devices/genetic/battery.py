@@ -1,9 +1,10 @@
 import math
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator, Optional, Sequence
 
 import numpy as np
 from pydantic import Field, field_validator, model_validator
 
+from akkudoktoreos.config.configabc import TimeWindowSequence
 from akkudoktoreos.devices.devicesabc import validate_efficiency_curve
 from akkudoktoreos.devices.settings.batteryresolution import (
     BATTERY_SOC_TABLE_POINTS as SOC_TABLE_POINTS,
@@ -237,6 +238,36 @@ class SolarPanelBatteryParameters(BaseBatteryParameters):
         },
     )
 
+    reserve_soc_percentage: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=100,
+        json_schema_extra={
+            "description": (
+                "Reserve for unplanned consumption [%]. Within "
+                "'reserve_soc_time_windows' the plan keeps at least this state of "
+                "charge for the planned consumption and reaches it by each window "
+                "start, from the grid if needed. The battery may still discharge "
+                "into the reserve for unplanned consumption. Between "
+                "'min_soc_percentage' and 'max_soc_percentage'. None means no reserve."
+            ),
+            "examples": [None, 40],
+        },
+    )
+    reserve_soc_time_windows: Optional[TimeWindowSequence] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Time windows in local time in which the reserve has to be "
+                "available. None means 06:00-22:00 every day."
+            ),
+            "examples": [
+                None,
+                {"windows": [{"start_time": "06:00", "duration": "16 hours"}]},
+            ],
+        },
+    )
+
     @field_validator("full_charge_deadline_datetime", mode="before")
     @classmethod
     def transform_full_charge_deadline(cls, value: Any) -> Optional[DateTime]:
@@ -253,6 +284,18 @@ class SolarPanelBatteryParameters(BaseBatteryParameters):
             and self.full_charge_soc_percentage > self.max_soc_percentage
         ):
             raise ValueError("full_charge_soc_percentage must be <= max_soc_percentage")
+        return self
+
+    @model_validator(mode="after")
+    def validate_reserve(self) -> "SolarPanelBatteryParameters":
+        """The reserve has to lie within the SoC range of the battery."""
+        reserve = self.reserve_soc_percentage
+        if reserve is not None and not (
+            self.min_soc_percentage <= reserve <= self.max_soc_percentage
+        ):
+            raise ValueError(
+                "reserve_soc_percentage must be between min_soc_percentage and max_soc_percentage"
+            )
         return self
 
 
@@ -489,6 +532,10 @@ class Battery:
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.min_soc_wh = (self.min_soc_percentage / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percentage / 100) * self.capacity_wh
+        # Stored energy planned discharge must not go below, per slot. The
+        # minimum SoC unless a reserve raises it (see set_discharge_floor). A
+        # plain list for the same reason as the per-slot energies above.
+        self._discharge_floor_wh_per_slot: list[float] = [self.min_soc_wh] * self.prediction_hours
 
     def _lower_charge_rates_desc(self, start_rate: float) -> Iterator[float]:
         """Yield all charge rates lower than a given rate in descending order.
@@ -582,6 +629,28 @@ class Battery:
             self._charge_limit_raw_wh_per_slot[hour], max(float(raw_wh), 0.0)
         )
 
+    def set_discharge_floor(self, floor_percent: Sequence[float], start_slot: int = 0) -> None:
+        """Raise the SoC planned discharge stops at, per slot, e.g. for a reserve.
+
+        The floor never goes below the minimum SoC. It is kept by ``reset()``:
+        it belongs to the run, not to a candidate plan.
+
+        Args:
+            floor_percent: Floor per slot from ``start_slot`` on [%]. Slots it
+                does not cover keep the minimum SoC.
+            start_slot: Slot the first value applies to.
+        """
+        floors = [self.min_soc_wh] * self.prediction_hours
+        for offset, percent in enumerate(floor_percent):
+            slot = start_slot + offset
+            if 0 <= slot < self.prediction_hours:
+                floors[slot] = max(self.min_soc_wh, percent / 100.0 * self.capacity_wh)
+        self._discharge_floor_wh_per_slot = floors
+
+    def discharge_floor_wh(self, hour: int) -> float:
+        """Return the stored energy planned discharge stops at in a slot [Wh]."""
+        return self._discharge_floor_wh_per_slot[hour]
+
     def rated_discharge_energy_wh(self) -> float:
         """Return the DC energy one full-power discharge slot delivers.
 
@@ -596,7 +665,7 @@ class Battery:
         """Return DC energy still deliverable within one optimization slot."""
         discharged_raw_wh = self._discharged_raw_wh_per_slot[hour]
         raw_power_remaining_wh = max(self._discharge_slot_cap_wh() - discharged_raw_wh, 0.0)
-        raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
+        raw_soc_available_wh = max(self.soc_wh - self._discharge_floor_wh_per_slot[hour], 0.0)
         raw_remaining_wh = min(raw_power_remaining_wh, raw_soc_available_wh)
         return raw_remaining_wh * self._discharging_efficiency_at(
             discharged_raw_wh + raw_remaining_wh
@@ -664,8 +733,9 @@ class Battery:
         if self.discharge_array[hour] == 0:
             return 0.0, 0.0
 
-        # Raw extractable energy above minimum SoC
-        raw_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
+        # Raw extractable energy above the floor (minimum SoC, or a reserve)
+        floor_wh = self._discharge_floor_wh_per_slot[hour]
+        raw_available_wh = max(self.soc_wh - floor_wh, 0.0)
         if raw_available_wh == 0.0:
             # A measured SoC below the reserve must not be raised by discharging.
             return 0.0, 0.0
@@ -717,7 +787,7 @@ class Battery:
 
         # Update SoC
         self.soc_wh -= raw_used_wh
-        self.soc_wh = max(self.soc_wh, self.min_soc_wh)
+        self.soc_wh = max(self.soc_wh, floor_wh)
         self._discharged_raw_wh_per_slot[hour] = discharged_raw_wh + raw_used_wh
         if curves is not None:
             curves.discharged_dc_wh_per_slot[hour] += delivered_wh

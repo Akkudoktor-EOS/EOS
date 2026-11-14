@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import Mock, call, patch
 
 import numpy as np
@@ -541,3 +542,53 @@ def test_battery_discharge_limit_caps_load_and_grid_export():
     assert initial_soc_wh - battery.soc_wh == pytest.approx(1000.0)
     assert grid_import == pytest.approx(500.0)
     assert grid_export == 0.0
+
+
+@pytest.mark.parametrize("with_power_curve", [False, True])
+def test_discharge_floor_stops_load_and_grid_export(with_power_curve):
+    """A reserve floor stops planned discharge, in the inlined and in the curve path."""
+    curves: dict[str, Any] = (
+        {"discharge_power_limit_w_by_soc": [10000.0] * 101} if with_power_curve else {}
+    )
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery",
+            capacity_wh=10000,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            max_charge_power_w=10000,
+            min_soc_percentage=10,
+            initial_soc_percentage=50,
+            **curves,
+        ),
+        prediction_hours=2,
+    )
+    assert battery.has_power_curves is with_power_curve
+    battery.set_discharge_per_hour(np.array([1, 1]))
+    battery.set_discharge_floor([40.0], start_slot=1)
+    inverter = Inverter(
+        InverterParameters(
+            device_id="inverter",
+            max_power_wh=10000,
+            battery_id="battery",
+            dc_to_ac_efficiency=1.0,
+            ac_to_dc_efficiency=1.0,
+        ),
+        battery=battery,
+    )
+
+    # Slot 1 has the reserve: 1000 Wh above it, the rest comes from the grid.
+    grid_export, grid_import, _, _ = inverter.process_energy(
+        generation=0.0, consumption=3000.0, hour=1, allow_battery_grid_export=True
+    )
+    assert battery.soc_wh == pytest.approx(4000.0)
+    assert grid_import == pytest.approx(2000.0)
+    assert grid_export == 0.0
+
+    # Slot 0 has no reserve: down to the minimum SoC.
+    battery.soc_wh = 5000.0
+    _, grid_import, _, _ = inverter.process_energy(
+        generation=0.0, consumption=5000.0, hour=0, allow_battery_grid_export=False
+    )
+    assert battery.soc_wh == pytest.approx(1000.0)
+    assert grid_import == pytest.approx(1000.0)

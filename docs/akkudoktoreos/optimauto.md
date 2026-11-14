@@ -218,6 +218,11 @@ The behavior of the genetic algorithm can be customized using the following conf
   Applies a penalty per percent the battery stays below its target when a periodic full
   charge is due and enforced (see [Periodic full charge](#periodic-full-charge)).
   Default: `10`.
+
+- `battery_reserve_miss`:
+  Applies a penalty per percent and hour the planned state of charge of the battery stays below
+  its reserve inside a reserve window (see
+  [Reserve for unplanned consumption](#reserve-for-unplanned-consumption)). Default: `10`.
 :::
 
 #### Value Formats
@@ -453,6 +458,60 @@ a close or overdue full charge can still use the cheapest time.
                 },
                 "max_soc_percentage": 90,
                 "full_charge_allow_grid": true
+            }
+        }
+    }
+}
+```
+
+##### Reserve for unplanned consumption
+
+The optimizer plans the battery for the forecast load only. In winter, with little PV surplus, a
+large battery therefore stays nearly empty, and consumption the forecast did not contain has to
+come from the grid, often at the expensive evening price. A reserve keeps cheap energy in the
+battery for such consumption during the hours in which it is likely.
+
+The reserve is off by default (GENETIC only). It is operating policy of the household, so it is a
+battery setting and not part of the battery profile:
+
+- `reserve_soc_percentage` (default `null`): the reserve, between `min_soc_percentage` and
+  `max_soc_percentage`. It is kept within the technical SoC bounds of the battery profile.
+- `reserve_soc_time_windows` (default `null`, meaning 06:00-22:00 every day): the time windows in
+  local time in which the reserve has to be available. They use the same format as the time
+  windows of home appliances, so a window can be restricted to a weekday, a date or a month.
+
+The plan then:
+
+- reaches the reserve by the start of each window, charging from PV or from the grid in the
+  cheapest slots before it;
+- keeps the reserve for the planned consumption inside the window: planned discharge stops at the
+  reserve.
+
+The reserve only shapes the plan. The battery itself still discharges down to
+`min_soc_percentage`, so consumption the forecast does not contain is covered from the reserve. A
+slot in which the plan would only hold the battery at the reserve is sent as "discharge allowed"
+for that reason. The inverter cannot tell forecast from unplanned consumption, so in such a slot
+it covers all consumption from the reserve, also the part the plan expected from the grid; that is
+still cheap stored energy replacing expensive grid energy. When a run starts inside a window below
+the reserve (the reserve was used), EOS does not refill it at that window's prices: the plan keeps
+the current state of charge until the window ends and refills the reserve for the next window.
+
+Unused reserve energy is not lost: it stays in the battery and is credited by the terminal value.
+The penalty `battery_reserve_miss` weighs a missed reserve against the cost of the energy.
+
+```json
+{
+    "devices": {
+        "batteries": {
+            "battery1": {
+                "device_id": "battery1",
+                "min_soc_percentage": 10,
+                "reserve_soc_percentage": 40,
+                "reserve_soc_time_windows": {
+                    "windows": [
+                        {"start_time": "06:00", "duration": "16 hours"}
+                    ]
+                }
             }
         }
     }
