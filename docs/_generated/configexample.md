@@ -133,6 +133,7 @@
                    "cycle_time_windows": null,
                    "min_cycle_gap_h": 0,
                    "cycles_completed_measurement_key": null,
+                   "run_started_measurement_key": null,
                    "load_profile_power_w": null,
                    "load_profile_interval_seconds": null,
                    "schedule_mode": "ONCE",

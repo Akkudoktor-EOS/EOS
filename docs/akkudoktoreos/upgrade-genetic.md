@@ -91,6 +91,10 @@ time, charging power and supported charge rates.
 
 - Runtime forecast arrays start at local midnight and use the configured slot interval.
   Energy is **Wh per slot**, not W or kWh. A constant 1,000 W load uses 250 Wh in 15 minutes.
+- Executors of household appliances should report a started run: write its start (UNIX
+  seconds) to `<device_id>.run_started_at` when switching the appliance on, and `0` when
+  the device reports it finished. Without it, a re-plan may move or stop a running
+  appliance.
 - Runtime purchase and sale prices are **currency per Wh**: 0.30 EUR/kWh is 0.00030 EUR/Wh.
   Provider power forecasts are converted by EOS; do not convert them a second time.
 - Read returned timestamps and interval information instead of assuming 24 hourly values

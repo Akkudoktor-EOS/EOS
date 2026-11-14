@@ -1544,12 +1544,16 @@ class GeneticOptimization(OptimizationBase):
         first_date = slot0_datetime.date()
         for appliance_index, appliance in enumerate(appliances):
             cycles = range(appliance.num_cycles)
+            # A run in progress counts as done for its day and delays the next
+            # cycle until after its end and the minimum gap.
+            completed_cycles = appliance.completed_cycles_on(first_date)
+            earliest_slot = max(start_slot, appliance.next_cycle_earliest_slot())
             allowed_by_cycle: dict[int, list[int]] = {}
             relaxed_by_cycle: dict[int, bool] = {}
             for cycle in cycles:
                 allowed_by_cycle[cycle] = appliance.allowed_start_slots(
                     slot0_datetime=slot0_datetime,
-                    earliest_slot=start_slot,
+                    earliest_slot=earliest_slot,
                     horizon_end_slot=horizon_end_slot,
                     cycle_index=cycle,
                 )
@@ -1558,7 +1562,7 @@ class GeneticOptimization(OptimizationBase):
                 groups = [
                     (None, cycle, allowed_by_cycle[cycle])
                     for cycle in cycles
-                    if cycle >= appliance.completed_cycles
+                    if cycle >= completed_cycles
                 ]
             else:
                 by_date: dict[Any, dict[int, list[int]]] = {}
@@ -1567,7 +1571,7 @@ class GeneticOptimization(OptimizationBase):
                         date = slot0_datetime.add(
                             seconds=slot * appliance.slot_interval_seconds
                         ).date()
-                        if date == first_date and cycle < appliance.completed_cycles:
+                        if date == first_date and cycle < completed_cycles:
                             continue
                         by_date.setdefault(date, {}).setdefault(cycle, []).append(slot)
                 groups = [
@@ -1579,9 +1583,7 @@ class GeneticOptimization(OptimizationBase):
                 # later complete planning days must retain all configured cycles.
                 for date, cycle_slots in by_date.items():
                     expected = {
-                        cycle
-                        for cycle in cycles
-                        if date != first_date or cycle >= appliance.completed_cycles
+                        cycle for cycle in cycles if date != first_date or cycle >= completed_cycles
                     }
                     if set(cycle_slots) != expected:
                         raise ValueError(
@@ -4324,6 +4326,10 @@ class GeneticOptimization(OptimizationBase):
             )
             for appliance_params in home_appliance_params
         ]
+        # A run in progress keeps running until the device reports it as
+        # finished; its remainder is fixed load, not a gene.
+        for appliance in home_appliances:
+            appliance.pin_run_in_progress(self._slot0_datetime, self.ems.observation_datetime)
         self.appliance_layout = self._build_appliance_layout(home_appliances, self._slot0_datetime)
 
         # EV charging deadline (departure). Resolved once per run; the seeding
@@ -4431,7 +4437,8 @@ class GeneticOptimization(OptimizationBase):
             home_appliance_energy_wh[device_id] = appliance.get_load_curve()[start_slot:].tolist()
             starts = sorted(starts_per_appliance.get(appliance_index, []))
             home_appliance_running[device_id] = [
-                any(run_start <= slot < run_start + appliance.run_slots for run_start in starts)
+                slot < appliance.pinned_end_slot
+                or any(run_start <= slot < run_start + appliance.run_slots for run_start in starts)
                 for slot in range(self.control_slots)
             ]
             appliance_starts[device_id] = [
@@ -4440,6 +4447,10 @@ class GeneticOptimization(OptimizationBase):
                 ).in_timezone(timezone)
                 for start in starts
             ]
+            if appliance.pinned_start_datetime is not None:
+                appliance_starts[device_id].insert(
+                    0, appliance.pinned_start_datetime.in_timezone(timezone)
+                )
             # Report a deadline that could not be kept (no run scheduled at all,
             # or a run that ends late because a BEST_EFFORT deadline was dropped)
             # so the caller can warn instead of silently trusting the schedule.

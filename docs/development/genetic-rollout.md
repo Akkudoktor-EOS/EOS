@@ -59,6 +59,8 @@ Request SoC values are integer percentages. Without an override, the measurement
 key `<device_id>-soc-factor` must contain a recent factor from 0 to 1. Invalid,
 future or stale measurements never become an assumed zero SoC. Completed appliance
 cycles use their configured measurement key, default `<device_id>.cycles_completed`.
+The start of a run in progress (UNIX seconds, `0` when finished) uses
+`<device_id>.run_started_at`; such a run is kept until the device reports it finished.
 
 Optional forecast arrays begin at local midnight, with one value per configured
 slot: `pv_forecast_wh` and `total_load` are Wh per slot; `electricity_price_per_wh`

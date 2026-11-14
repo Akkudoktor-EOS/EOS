@@ -11044,7 +11044,7 @@
             },
             "type": "object",
             "title": "Appliance Starts",
-            "description": "Scheduled run start times per appliance device_id as absolute local datetimes."
+            "description": "Scheduled run start times per appliance device_id as absolute local datetimes. A run in progress is listed first with its actual (past) start."
           },
           "appliance_deadline_missed": {
             "additionalProperties": {
@@ -11285,6 +11285,25 @@
             "description": "Measurement store key holding the number of cycles already completed in the current planning day. Read by HomeApplianceDevice.setup_run via context.resolve_measurement. Defaults to '{device_id}.cycles_completed' when null.",
             "examples": [
               "dishwasher.cycles_completed",
+              null
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "run_started_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Started Measurement Key",
+            "description": "Measurement store key holding the start of the run in progress as UNIX time in seconds, 0 when no run is in progress. The executor sets it when it switches the appliance on for a planned run and sets 0 when the device reports the run as finished (then it also increments the completed cycles). The GENETIC optimizer keeps a run in progress until then. Defaults to '{device_id}.run_started_at' when null.",
+            "examples": [
+              "dishwasher.run_started_at",
               null
             ],
             "x-scope": [
@@ -11564,6 +11583,25 @@
               "GENETIC"
             ]
           },
+          "run_started_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Started Measurement Key",
+            "description": "Measurement store key holding the start of the run in progress as UNIX time in seconds, 0 when no run is in progress. The executor sets it when it switches the appliance on for a planned run and sets 0 when the device reports the run as finished (then it also increments the completed cycles). The GENETIC optimizer keeps a run in progress until then. Defaults to '{device_id}.run_started_at' when null.",
+            "examples": [
+              "dishwasher.run_started_at",
+              null
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
           "load_profile_power_w": {
             "anyOf": [
               {
@@ -11801,6 +11839,23 @@
             "title": "Completed Cycles",
             "description": "Cycles already completed on the first planning day.",
             "default": 0
+          },
+          "run_started_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Started Datetime",
+            "description": "Start of the run in progress, None when the appliance is not running. The run is kept until the device reports it as finished: its remaining load is fixed from now on, independent of windows, deadline and gene, and it is not counted in 'completed_cycles' yet.",
+            "examples": [
+              null,
+              "2026-11-14T00:47:45+01:00"
+            ]
           },
           "min_cycle_gap_h": {
             "type": "integer",
