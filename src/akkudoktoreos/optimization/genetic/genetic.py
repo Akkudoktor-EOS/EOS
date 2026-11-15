@@ -1358,7 +1358,7 @@ class GeneticOptimization(OptimizationBase):
             end_slot: Exclusive end slot of the estimated range.
             skip_planned_days: Leave out local days whose run is already
                 scheduled in the control horizon, so a day that straddles the
-                    control end is not counted twice.
+                control end is not counted twice.
 
         Returns:
             Per-slot appliance load [Wh] over ``[start_slot, end_slot)``.
@@ -1372,6 +1372,8 @@ class GeneticOptimization(OptimizationBase):
         for appliance in self.simulation.home_appliances or []:
             if appliance.schedule_mode != ConsumerScheduleMode.DAILY:
                 continue
+            # A run in progress counts as done for its day, as in the layout.
+            completed_cycles = appliance.completed_cycles_on(first_date)
             # The configured appliance only spans the control horizon, so its
             # window logic cannot see the tail. Query a throwaway copy sized to
             # the estimated range instead; it shares the same parameters, so the
@@ -1392,7 +1394,7 @@ class GeneticOptimization(OptimizationBase):
                 )
                 for slot in allowed:
                     date = slot0.add(seconds=slot * slot_seconds).date()
-                    if date == first_date and cycle < appliance.completed_cycles:
+                    if date == first_date and cycle < completed_cycles:
                         continue
                     by_date.setdefault(date, {}).setdefault(cycle, []).append(slot)
             if skip_planned_days and self.appliance_layout is not None:
@@ -1405,8 +1407,10 @@ class GeneticOptimization(OptimizationBase):
             gap_slots = appliance.run_slots + math.ceil(
                 appliance.min_cycle_gap_h / self.slot_duration_h
             )
+            # The next run starts after a run in progress and its minimum gap.
+            first_start = max(start_slot, appliance.next_cycle_earliest_slot())
             for cycle_slots in by_date.values():
-                earliest = start_slot
+                earliest = first_start
                 for cycle in sorted(cycle_slots, key=lambda c: cycle_slots[c][0]):
                     starts = [slot for slot in cycle_slots[cycle] if slot >= earliest]
                     if not starts:
@@ -1522,9 +1526,9 @@ class GeneticOptimization(OptimizationBase):
                 inverter=inverter,
                 prices_euro_per_wh=prices[tail],
                 load_wh=loads[tail]
-                    + self._estimated_daily_appliance_load(
-                        self.control_end_slot, end_slot, skip_planned_days=True
-                    ),
+                + self._estimated_daily_appliance_load(
+                    self.control_end_slot, end_slot, skip_planned_days=True
+                ),
                 pv_wh=pv[tail],
                 feed_in_euro_per_wh=tariffs[tail],
                 continuation=curve,

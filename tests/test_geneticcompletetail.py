@@ -560,3 +560,40 @@ def test_daily_appliance_day_planned_in_control_is_not_counted_again_in_tail(
     assert not planned_days & tail_days
     # Base load is zero: the tail holds exactly one 3 kWh run per remaining day.
     assert float(np.sum(tail_load)) == pytest.approx(3000 * len(tail_days))
+
+
+@pytest.mark.parametrize("running", [False, True])
+def test_daily_appliance_run_in_progress_counts_for_its_day_in_estimate(config_eos, running):
+    """#1495 with #1548: a run in progress is the day's run, not an extra one.
+
+    A water heater started at 01:30 and still runs at 02:00. Its day is done:
+    the appliance estimate adds no further run on that day, only the run of
+    the next day. Without the report, the day's run is still expected.
+    """
+    opt, params = setup_run(config_eos, start_hour=2, hours=72 + 2)
+    appliance = dict(
+        device_id="water_heater",
+        consumption_wh=3000,
+        duration_h=2,
+        num_cycles=1,
+        schedule_mode="DAILY",
+        time_windows={"windows": [{"start_time": "00:00", "duration": "5 hours", "value": 0}]},
+    )
+    if running:
+        appliance["run_started_datetime"] = to_datetime("2026-09-05T01:30:00")
+    params.home_appliances = [HomeApplianceParameters.model_validate(appliance)]
+
+    def choose(*args, **kwargs):
+        genome = opt.create_individual()
+        genome[:] = [0] * len(genome)
+        return genome, {}
+
+    with patch.object(opt, "optimize", side_effect=choose):
+        opt.optimize_ems(params)
+
+    # Slot 0 is 02:00; slots 0-21 are the rest of 2026-09-05, 22-45 the next day.
+    first_day = opt._estimated_daily_appliance_load(0, 22)
+    two_days = opt._estimated_daily_appliance_load(0, 46)
+    expected_first_day = 0.0 if running else 3000.0
+    assert float(np.sum(first_day)) == pytest.approx(expected_first_day)
+    assert float(np.sum(two_days)) == pytest.approx(expected_first_day + 3000.0)
