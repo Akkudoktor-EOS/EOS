@@ -1377,9 +1377,10 @@ class GeneticOptimization(OptimizationBase):
             # The configured appliance only spans the control horizon, so its
             # window logic cannot see the tail. Query a throwaway copy sized to
             # the estimated range instead; it shares the same parameters, so the
-            # time windows, earliest start and deadline bounds all still apply.
+            # time windows and the earliest start still apply. A deadline only
+            # limits the run it was set for and must not cap the following days.
             probe = HomeAppliance(
-                parameters=appliance.parameters,
+                parameters=appliance.parameters.model_copy(update={"deadline_datetime": None}),
                 optimization_hours=self._genetic_cfg.horizon_hours,
                 prediction_hours=end_slot,
                 slot_duration_h=self.slot_duration_h,
