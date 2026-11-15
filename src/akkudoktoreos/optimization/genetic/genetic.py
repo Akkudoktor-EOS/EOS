@@ -1324,7 +1324,7 @@ class GeneticOptimization(OptimizationBase):
             end_slot: Exclusive end slot of the estimated range.
             skip_planned_days: Leave out local days whose run is already
                 scheduled in the control horizon, so a day that straddles the
-                    control end is not counted twice.
+                control end is not counted twice.
 
         Returns:
             Per-slot appliance load [Wh] over ``[start_slot, end_slot)``.
@@ -1343,7 +1343,7 @@ class GeneticOptimization(OptimizationBase):
             # the estimated range instead; it shares the same parameters, so the
             # time windows, earliest start and deadline bounds all still apply.
             probe = HomeAppliance(
-                parameters=appliance.parameters,
+                parameters=appliance.parameters.model_copy(update={"deadline_datetime": None}),
                 optimization_hours=self._genetic_cfg.horizon_hours,
                 prediction_hours=end_slot,
                 slot_duration_h=self.slot_duration_h,
@@ -1488,9 +1488,9 @@ class GeneticOptimization(OptimizationBase):
                 inverter=inverter,
                 prices_euro_per_wh=prices[tail],
                 load_wh=loads[tail]
-                    + self._estimated_daily_appliance_load(
-                        self.control_end_slot, end_slot, skip_planned_days=True
-                    ),
+                + self._estimated_daily_appliance_load(
+                    self.control_end_slot, end_slot, skip_planned_days=True
+                ),
                 pv_wh=pv[tail],
                 feed_in_euro_per_wh=tariffs[tail],
                 continuation=curve,
