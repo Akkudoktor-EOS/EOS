@@ -356,6 +356,43 @@ class TestMeasurement:
         timezone = measurement_eos.config.general.timezone
         assert all(stamp.timezone_name == timezone for stamp in [*firsts.values(), *lasts.values()])
 
+    @pytest.mark.parametrize(
+        ("emr_max_gap_seconds", "channel_max_gap_seconds", "expected_kwh"),
+        [
+            # Default limit (3 h): a 6 h gap has no energy value.
+            ("default", None, [np.nan] * 6),
+            # No limit: the gap's energy is spread evenly, as before the limit.
+            (None, None, [1.0] * 6),
+            # An own channels entry overrides the limit for its meter.
+            ("default", 86400, [1.0] * 6),
+        ],
+    )
+    async def test_emr_meter_gap_limit(
+        self, measurement_eos, emr_max_gap_seconds, channel_max_gap_seconds, expected_kwh
+    ):
+        """A *_emr_keys meter gap longer than emr_max_gap_seconds is unknown energy."""
+        settings = measurement_eos.config.measurement
+        settings.load_emr_keys = ["load_gap_mr"]
+        if emr_max_gap_seconds != "default":
+            settings.emr_max_gap_seconds = emr_max_gap_seconds
+        if channel_max_gap_seconds is not None:
+            settings.channels = {
+                "load_gap_mr": MeasurementChannelSettings(
+                    quantity="cumulative_energy",
+                    unit="kWh",
+                    max_gap_seconds=channel_max_gap_seconds,
+                )
+            }
+        start = to_datetime("2023-01-02T00:00:00")
+        await measurement_eos.update_value(start, "load_gap_mr", 10.0)
+        await measurement_eos.update_value(start.add(hours=6), "load_gap_mr", 16.0)
+
+        energy = await measurement_eos.meter_energy_kwh(
+            ["load_gap_mr"], start, start.add(hours=6), to_duration("1 hour")
+        )
+
+        np.testing.assert_allclose(energy["load_gap_mr"], expected_kwh)
+
     async def test_conversion_failure_is_logged_once_per_streak(self, measurement_eos, caplog):
         """Error on the first failure, debug while it persists, error again after a success."""
 
@@ -632,6 +669,13 @@ class TestMeasurementChannels:
             MeasurementCommonSettings.model_validate(dict(
                 **{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_power"]}
             ))
+
+    def test_emr_max_gap_seconds_default(self):
+        """Three hours tolerate hourly meters with jitter; None turns the limit off."""
+        assert MeasurementCommonSettings().emr_max_gap_seconds == 10800
+        assert MeasurementCommonSettings(emr_max_gap_seconds=None).emr_max_gap_seconds is None
+        with pytest.raises(ValidationError):
+            MeasurementCommonSettings(emr_max_gap_seconds=0)
 
     @pytest.mark.parametrize("key", ["", " x", "date_time", "configured_data", "keys", "_private"])
     def test_reject_reserved_key(self, key):

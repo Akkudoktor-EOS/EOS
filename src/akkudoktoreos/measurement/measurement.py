@@ -179,6 +179,21 @@ class MeasurementCommonSettings(SettingsBaseModel):
         },
     )
 
+    emr_max_gap_seconds: Optional[int] = Field(
+        default=10800,
+        gt=0,
+        strict=True,
+        json_schema_extra={
+            "description": (
+                "Longest gap between two readings of a `*_emr_keys` meter [s] whose energy "
+                "is spread evenly over the gap. A longer gap has no energy value (unknown) "
+                "instead. A meter with its own `channels` entry uses that entry's "
+                "`max_gap_seconds`. None spreads every gap evenly."
+            ),
+            "examples": [10800, None],
+        },
+    )
+
     ## Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -353,7 +368,11 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             return channel
         for name in type(self.config.measurement).model_fields:
             if name.endswith("_emr_keys") and key in (getattr(self.config.measurement, name) or []):
-                return MeasurementChannelSettings(quantity="cumulative_energy", unit="kWh")
+                return MeasurementChannelSettings(
+                    quantity="cumulative_energy",
+                    unit="kWh",
+                    max_gap_seconds=self.config.measurement.emr_max_gap_seconds,
+                )
         raise ValueError(f"No energy channel definition for {key!r}.")
 
     async def _energy_converter(
@@ -502,7 +521,8 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         Returns:
             Energy in kWh per interval for each key, NaN where the channel does not
             fully cover the interval (before its first or after its last reading, a
-            reset, or a gap longer than the channel's ``max_gap_seconds``).
+            reset, or a gap longer than the channel's ``max_gap_seconds``; for a
+            ``*_emr_keys`` meter without own channel ``emr_max_gap_seconds``).
 
         Raises:
             ValueError: If the period or interval is invalid or a key has no energy
@@ -811,7 +831,8 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             if np.isnan(meter_kwh).all():
                 message = (
                     f"Load meter '{key}' gives no usable energy for {start_datetime} .. "
-                    f"{end_datetime} (no readings, resets or gaps longer than its "
+                    f"{end_datetime} (no readings, resets or gaps longer than its gap "
+                    "limit, measurement.emr_max_gap_seconds or its channel's "
                     "max_gap_seconds): the total load of this period is unknown."
                 )
                 self._warn_once(f"meter-unusable:{key}", message)

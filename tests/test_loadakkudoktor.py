@@ -298,17 +298,18 @@ async def _adjustment_window(adjusted, measurement):
 async def test_adjustment_buckets_stay_on_full_hours(loadakkudoktoradjusted, empty_measurement):
     """A newer off-hour record (e.g. a device SoC) must not shift the hourly buckets (#1447)."""
     loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
-    dt = to_datetime("2024-01-01T00:00:00")
+    start_dt = to_datetime("2024-01-01T00:00:00", in_timezone=loadakkudoktoradjusted.config.general.timezone)
+    end_dt = to_datetime("2024-01-02T00:00:00", in_timezone=loadakkudoktoradjusted.config.general.timezone)
     for hour in range(25):
-        await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
+        await empty_measurement.update_value(start_dt.add(hours=hour), "load0_mr", 500.0 + hour)
     await empty_measurement.update_value(
-        to_datetime("2024-01-02T00:11:00"), "storage-soc-factor", 0.42
+        to_datetime("2024-01-02T00:11:00", in_timezone=loadakkudoktoradjusted.config.general.timezone),
+        "storage-soc-factor", 0.42
     )
     _, calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
     assert calls
-    assert calls[0]["start_datetime"] == to_datetime("2024-01-01T00:00:00")
-    assert calls[0]["end_datetime"] == to_datetime("2024-01-02T00:00:00")
-
+    assert calls[0]["start_datetime"] == start_dt
+    assert calls[0]["end_datetime"] == end_dt
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -322,8 +323,10 @@ async def test_adjustment_within_first_hour_returns_zero(
     loadakkudoktoradjusted, empty_measurement, records
 ):
     """Less than one full hour of data yields no adjustment instead of an error."""
+    timezone = loadakkudoktoradjusted.config.general.timezone
     for time, key, value in records:
-        await empty_measurement.update_value(to_datetime(f"2026-08-01T{time}:00"), key, value)
+        time_dt = to_datetime(f"2026-08-01T{time}:00", in_timezone=timezone)
+        await empty_measurement.update_value(time_dt, key, value)
     (weekday, weekend), calls = await _adjustment_window(loadakkudoktoradjusted, empty_measurement)
     assert calls == []
     assert not weekday.any() and not weekend.any()
@@ -360,7 +363,7 @@ async def test_adjustment_falls_back_when_the_meter_conversion_fails(
     The failure is an error once per streak, not on every prediction run.
     """
     loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
-    dt = to_datetime("2024-01-01T00:00:00")
+    dt = to_datetime("2024-01-01T00:00:00", in_timezone=loadakkudoktoradjusted.config.general.timezone)
     for hour in range(25):
         await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
 
@@ -415,7 +418,7 @@ async def test_adjustment_window_follows_the_load_meters(
 ):
     """A load meter lagging behind other channels still gives its last 7 days."""
     loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
-    dt = to_datetime("2024-01-01T00:00:00")
+    dt = to_datetime("2024-01-01T00:00:00", in_timezone=loadakkudoktoradjusted.config.general.timezone)
     for hour in range(10 * 24 + 1):
         await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
     # SoC keeps reporting three days after the load meter stopped.
@@ -434,7 +437,7 @@ async def test_adjustment_ignores_a_stale_load_meter_period(
 ):
     """A load meter that stopped long ago must not adjust today's profile with old weeks."""
     loadakkudoktoradjusted.config.measurement.load_emr_keys = ["load0_mr"]
-    dt = to_datetime("2024-01-01T00:00:00")
+    dt = to_datetime("2024-01-01T00:00:00", in_timezone=loadakkudoktoradjusted.config.general.timezone)
     for hour in range(3 * 24 + 1):
         await empty_measurement.update_value(dt.add(hours=hour), "load0_mr", 500.0 + hour)
     get_ems().set_start_datetime(dt.add(days=30))
