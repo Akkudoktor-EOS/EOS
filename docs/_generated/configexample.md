@@ -277,7 +277,8 @@
            ],
            "pv_production_emr_keys": [
                "pv1_emr"
-           ]
+           ],
+           "emr_max_gap_seconds": 10800
        },
        "optimization": {
            "algorithm": "GENETIC",

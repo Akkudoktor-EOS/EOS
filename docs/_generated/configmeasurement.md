@@ -8,6 +8,7 @@
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | channels | `EOS_MEASUREMENT__CHANNELS` | `dict[str, akkudoktoreos.measurement.measurement.MeasurementChannelSettings]` | `rw` | `required` | Typed raw measurement channels keyed by measurement key. |
+| emr_max_gap_seconds | `EOS_MEASUREMENT__EMR_MAX_GAP_SECONDS` | `Optional[int]` | `rw` | `10800` | Longest gap between two readings of a `*_emr_keys` meter [s] whose energy is spread evenly over the gap. A longer gap has no energy value (unknown) instead. A meter with its own `channels` entry uses that entry's `max_gap_seconds`. None spreads every gap evenly. |
 | energy_context_seconds | `EOS_MEASUREMENT__ENERGY_CONTEXT_SECONDS` | `int` | `rw` | `86400` | None |
 | grid_export_emr_keys | `EOS_MEASUREMENT__GRID_EXPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy export to grid [kWh]. |
 | grid_import_emr_keys | `EOS_MEASUREMENT__GRID_IMPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy import from grid [kWh]. |
@@ -42,7 +43,8 @@
            ],
            "pv_production_emr_keys": [
                "pv1_emr"
-           ]
+           ],
+           "emr_max_gap_seconds": 10800
        }
    }
 ```
@@ -72,6 +74,7 @@
            "pv_production_emr_keys": [
                "pv1_emr"
            ],
+           "emr_max_gap_seconds": 10800,
            "keys": [
                "grid_export_emr",
                "grid_import_emr",

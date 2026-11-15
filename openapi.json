@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611122196862169"
+    "version": "v0.3.0.dev2611151515912129"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -14086,6 +14086,24 @@
                 "pv1_emr"
               ]
             ]
+          },
+          "emr_max_gap_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emr Max Gap Seconds",
+            "description": "Longest gap between two readings of a `*_emr_keys` meter [s] whose energy is spread evenly over the gap. A longer gap has no energy value (unknown) instead. A meter with its own `channels` entry uses that entry's `max_gap_seconds`. None spreads every gap evenly.",
+            "default": 10800,
+            "examples": [
+              10800,
+              null
+            ]
           }
         },
         "type": "object",
@@ -14218,6 +14236,24 @@
               [
                 "pv1_emr"
               ]
+            ]
+          },
+          "emr_max_gap_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emr Max Gap Seconds",
+            "description": "Longest gap between two readings of a `*_emr_keys` meter [s] whose energy is spread evenly over the gap. A longer gap has no energy value (unknown) instead. A meter with its own `channels` entry uses that entry's `max_gap_seconds`. None spreads every gap evenly.",
+            "default": 10800,
+            "examples": [
+              10800,
+              null
             ]
           },
           "keys": {

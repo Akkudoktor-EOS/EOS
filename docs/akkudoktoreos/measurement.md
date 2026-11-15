@@ -80,9 +80,48 @@ linearly approximated. Storing values between optimization intervals is generall
 The EOS measurement store automatically sums all given loads to create a total load value series
 for specified intervals, usually one hour. This aggregated data can be used for load predictions.
 An interval that the meters do not fully cover (before the first or after the last reading, a meter
-reset, or a gap longer than the channel's `max_gap_seconds`) has no value instead of zero load; with
-several load meters, all of them must cover it. Without `max_gap_seconds` a gap between two readings
-is spread evenly over it. The `LoadAkkudoktorAdjusted` provider skips hours without a value.
+reset, or a gap longer than the meter's gap limit) has no value instead of zero load; with
+several load meters, all of them must cover it. The `LoadAkkudoktorAdjusted` provider skips hours
+without a value.
+
+### Meter gaps
+
+The energy between two readings of a `*_emr_keys` meter (load, grid import/export, PV production)
+is spread evenly over the time between them. A gap longer than `measurement.emr_max_gap_seconds`
+(default 10800 s, 3 hours) has no energy value instead: an outage of EOS or of the meter does not
+turn into invented, even consumption or production, nights included.
+
+```json
+{
+  "measurement": {
+    "emr_max_gap_seconds": 10800
+  }
+}
+```
+
+Set it to `null` to spread every gap evenly (the behaviour before the limit). A feeder that only
+sends a reading when the meter value changes (e.g. a PV or export meter that stands still at night)
+needs `null` or a value longer than its longest still period; the Home Assistant adapter reads
+the meters on every energy management run and needs no change.
+
+A single meter can get its own limit with a `channels` entry, which takes precedence:
+
+```json
+{
+  "measurement": {
+    "pv_production_emr_keys": ["pv1_emr"],
+    "channels": {
+      "pv1_emr": {
+        "quantity": "cumulative_energy",
+        "unit": "kWh",
+        "max_gap_seconds": 43200
+      }
+    }
+  }
+}
+```
+
+The entry of a `*_emr_keys` meter must stay `cumulative_energy` in `kWh`.
 
 :::{admonition} Warning
 :class: warning

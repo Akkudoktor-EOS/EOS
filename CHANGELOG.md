@@ -186,6 +186,11 @@ test procedure. These changes are not yet a tagged release.
   final solution only, offspring are created without `deepcopy`, and identical genomes of a
   generation are evaluated once also when the fitness cache is off.
 - Data management (predictions, measurements, database) runs asynchronously.
+- A gap longer than `measurement.emr_max_gap_seconds` (default 3 hours) between two readings of
+  a `*_emr_keys` meter has no energy value instead of being spread evenly over the gap: PV
+  calibration, the PV snow feedback and the load adjustment skip it, and `/v1/measurement/energy`
+  and `/v1/measurement/household` report it as missing. Set it to `null` for the former behaviour, e.g.
+  for a feeder that only sends a reading when the meter value changes.
 
 ### Fixed
 
