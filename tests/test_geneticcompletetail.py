@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
+from loguru import logger
 
 from akkudoktoreos.config.config import SettingsEOSDefaults
 from akkudoktoreos.core.coreabc import get_ems
@@ -597,3 +598,60 @@ def test_daily_appliance_run_in_progress_counts_for_its_day_in_estimate(config_e
     expected_first_day = 0.0 if running else 3000.0
     assert float(np.sum(first_day)) == pytest.approx(expected_first_day)
     assert float(np.sum(two_days)) == pytest.approx(expected_first_day + 3000.0)
+
+
+@pytest.mark.parametrize("policy", ["BEST_EFFORT", "STRICT"])
+def test_daily_appliance_deadline_does_not_cap_tail(config_eos, policy):
+    """#1495: a deadline inside the control horizon does not limit the following days.
+
+    The run starts 22:00, so the control horizon holds one night run before the
+    deadline and the 48 h tail two more nights. The tail must hold both, and
+    estimating it must not log a missed deadline.
+    """
+    opt, params = setup_run(config_eos, start_hour=22, hours=72 + 22)
+    params.home_appliances = [
+        HomeApplianceParameters.model_validate(
+            dict(
+                device_id="water_heater",
+                consumption_wh=3000,
+                duration_h=2,
+                num_cycles=1,
+                schedule_mode="DAILY",
+                deadline_datetime="2026-09-06T08:00:00",
+                deadline_policy=policy,
+                time_windows={
+                    "windows": [{"start_time": "00:00", "duration": "5 hours", "value": 0}]
+                },
+            )
+        )
+    ]
+
+    def choose(*args, **kwargs):
+        genome = opt.create_individual()
+        genome[:] = [0] * len(genome)
+        return genome, {}
+
+    messages: list[str] = []
+    sink = logger.add(lambda message: messages.append(str(message)), level="WARNING")
+    try:
+        with (
+            patch.object(opt, "optimize", side_effect=choose),
+            patch(
+                "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+                wraps=build_tail_value_curve,
+            ) as builder,
+        ):
+            opt.optimize_ems(params)
+    finally:
+        logger.remove(sink)
+
+    tail_load = builder.call_args.kwargs["load_wh"]
+    slot0 = opt._slot0_datetime
+    tail_days = {
+        str(slot0.add(hours=opt.control_end_slot + index).date())
+        for index, energy in enumerate(tail_load)
+        if energy > 0
+    }
+    assert tail_days == {"2026-09-07", "2026-09-08"}
+    assert float(np.sum(tail_load)) == pytest.approx(6000)
+    assert not [message for message in messages if "can not be met" in message]
