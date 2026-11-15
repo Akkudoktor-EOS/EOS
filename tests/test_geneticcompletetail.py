@@ -9,6 +9,7 @@ import pytest
 from akkudoktoreos.config.config import SettingsEOSDefaults
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
+from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
@@ -436,3 +437,126 @@ def test_short_prediction_horizon_shortens_the_tail(config_eos):
     assert result.terminal_value.mode == "TAIL"
     assert result.terminal_value.requested_tail_hours == 48
     assert result.terminal_value.effective_tail_hours == 12
+
+
+def test_daily_appliance_load_values_stored_energy_in_tail(config_eos):
+    """#1495: a DAILY appliance's expected load belongs to the tail demand.
+
+    With a flat 20 ct/kWh import price, zero base load, no PV and no feed-in
+    value, stored energy is worth exactly 0 ct/kWh without the appliance. The
+    same run with a DAILY water heater (6 kWh every night) must value the
+    15-50 % SoC range at the import price instead.
+    """
+
+    def run(with_appliance: bool):
+        opt, params = setup_run(config_eos, hours=72)
+        config_eos.feedintariff.direct_marketing_enabled = False
+        params.ems.feed_in_tariff_per_wh = [0.0] * 72
+        if with_appliance:
+            params.home_appliances = [
+                HomeApplianceParameters.model_validate(
+                    dict(
+                        device_id="water_heater",
+                        consumption_wh=6000,
+                        duration_h=3,
+                        num_cycles=1,
+                        schedule_mode="DAILY",
+                        time_windows={
+                            "windows": [{"start_time": "00:00", "duration": "5 hours", "value": 0}]
+                        },
+                    )
+                )
+            ]
+
+        def choose(*args, **kwargs):
+            genome = opt.create_individual()
+            genome[:] = [0] * len(genome)
+            return genome, {}
+
+        with patch.object(opt, "optimize", side_effect=choose):
+            return opt.optimize_ems(params)
+
+    plain = run(with_appliance=False)
+    assert plain.terminal_value.mode == "TAIL"
+    assert plain.terminal_value.curve is not None
+    assert plain.terminal_value.curve.value(500) == pytest.approx(0.0)
+
+    with_appliance = run(with_appliance=True)
+    assert with_appliance.terminal_value.mode == "TAIL"
+    curve = with_appliance.terminal_value.curve
+    assert curve is not None
+    # The tail value includes the unavoidable cost of serving the tail load,
+    # so the absolute level is negative; what the optimizer acts on is the
+    # value of stored energy relative to an empty battery. 500 Wh of stored
+    # energy serves 500 Wh of night appliance load at 20 ct.
+    assert curve.value(500) - curve.value(0) == pytest.approx(0.10, abs=0.005)
+    # The 15-50 % SoC band (150-500 Wh of a 1000 Wh battery) is no longer 0.
+    marginals = [
+        marginal
+        for energy, marginal in zip(curve.energy_wh, curve.marginal_euro_per_kwh)
+        if 150 <= energy <= 500
+    ]
+    assert marginals
+    assert all(marginal == pytest.approx(0.2, abs=0.01) for marginal in marginals)
+
+
+@pytest.mark.parametrize(
+    "start_hour,window_start,window_duration,duration_h",
+    [
+        (15, "14:00", "4 hours", 1),  # control ends inside the afternoon window
+        (2, "00:00", "5 hours", 2),  # control ends inside the night window
+    ],
+)
+def test_daily_appliance_day_planned_in_control_is_not_counted_again_in_tail(
+    config_eos, start_hour, window_start, window_duration, duration_h
+):
+    """#1495: a day whose run is already scheduled in control is not repeated in the tail.
+
+    When the control horizon ends inside an appliance window, the optimizer
+    schedules that day's run before the control end. The tail must only add
+    the following days, otherwise the day's energy is counted twice.
+    """
+    opt, params = setup_run(config_eos, start_hour=start_hour, hours=72 + start_hour)
+    params.home_appliances = [
+        HomeApplianceParameters.model_validate(
+            dict(
+                device_id="water_heater",
+                consumption_wh=3000,
+                duration_h=duration_h,
+                num_cycles=1,
+                schedule_mode="DAILY",
+                time_windows={
+                    "windows": [
+                        {"start_time": window_start, "duration": window_duration, "value": 0}
+                    ]
+                },
+            )
+        )
+    ]
+
+    def choose(*args, **kwargs):
+        genome = opt.create_individual()
+        genome[:] = [0] * len(genome)
+        return genome, {}
+
+    with (
+        patch.object(opt, "optimize", side_effect=choose),
+        patch(
+            "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+            wraps=build_tail_value_curve,
+        ) as builder,
+    ):
+        opt.optimize_ems(params)
+
+    planned_days = {gene.run_date for gene in opt.appliance_layout.genes}
+    tail_load = builder.call_args.kwargs["load_wh"]
+    slot0 = opt._slot0_datetime
+    tail_days = {
+        slot0.add(hours=opt.control_end_slot + index).date()
+        for index, energy in enumerate(tail_load)
+        if energy > 0
+    }
+    assert tail_days
+    assert not planned_days & tail_days
+    # Base load is zero: the tail holds exactly one 3 kWh run per remaining day.
+    assert float(np.sum(tail_load)) == pytest.approx(3000 * len(tail_days))
