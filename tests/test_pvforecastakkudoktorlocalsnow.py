@@ -418,7 +418,9 @@ async def test_calibration_skips_intervals_with_possible_snow(snow_instance, cap
             }
         )
         raw = await snow_instance._forecast_frame(fixture["openmeteo"], calibrate=False)
-        calibration = await snow_instance._fit_calibration(raw)
+        calibration = await snow_instance._fit_calibration(
+            raw, await snow_instance._pv_measurement_window()
+        )
         assert calibration is not None
         factors[snow_enabled] = calibration[0]
 
