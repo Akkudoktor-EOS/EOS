@@ -161,7 +161,8 @@ minversion = "8.3.3"
 pythonpath = [ "src", ]
 testpaths = [ "tests", ]
 markers = [
-    "docker: marks tests that require a local Docker engine"
+    "docker: marks tests that require a local Docker engine",
+    "thermal_slow: opt-in isolated thermal planning performance tests"
 ]
 filterwarnings = [
     # Treat pandas 4 deprecations in EOS code as errors; upstream callers remain visible.
