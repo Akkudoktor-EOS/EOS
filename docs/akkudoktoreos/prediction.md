@@ -11,6 +11,7 @@ optimization is executed. In EOS, a standard set of predictions is managed, incl
 - Feed In Tariff Prediction
 - PV Power Prediction
 - Weather Prediction
+- Optional Historical Presence Prediction
 
 ## Storing Predictions
 
@@ -35,6 +36,16 @@ to prediction keys like:
 
 - `weather_temp_air` (air temperature)
 - `weather_wind_speed` (wind speed)
+
+### Historical Presence Provider
+
+`presence.provider="PresenceHistory"` learns local quarter-hour occupancy patterns from
+typed native presence measurements and their quality. It publishes probability, upper-bound,
+comfort and support-day keys per configured area, with bounded current-sensor and temporary
+manual corrections. Unknown data preserves comfort; missing samples do not mean absence.
+The provider does not control appliances or assign fixed heating hours. See
+[optional thermal planning](thermalconfiguration.md#native-presence-provider) for configuration,
+uncertainty, source freshness and integration with runtime comfort bands.
 
 ### Prediction Import Providers
 

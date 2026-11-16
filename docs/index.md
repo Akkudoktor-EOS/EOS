@@ -45,8 +45,10 @@ akkudoktoreos/adapter/adapternodered.md
 akkudoktoreos/architecture.md
 akkudoktoreos/configuration.md
 akkudoktoreos/configtimewindow.md
+akkudoktoreos/thermalconfiguration.md
 akkudoktoreos/optimpost.md
 akkudoktoreos/optimauto.md
+akkudoktoreos/fleet_optimization.md
 akkudoktoreos/resource.md
 akkudoktoreos/prediction.md
 akkudoktoreos/pvakkuadapt.md

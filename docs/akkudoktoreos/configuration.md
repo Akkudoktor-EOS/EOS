@@ -6,6 +6,11 @@
 The configuration controls all aspects of EOS: optimization, prediction, measurement, and energy
 management.
 
+The [optional thermal planning](thermalconfiguration.md) provides disabled-by-default zone
+and heat-source settings, native measurement/presence integration and a separate joint
+heat/battery/EV shadow planner. Its proposals do not change operational plans or issue
+appliance commands; thermal control remains unsupported.
+
 ## Storing Configuration
 
 EOS stores configuration data in a `nested structure`.

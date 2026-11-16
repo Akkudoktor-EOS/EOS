@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2611011668106370`
+**Version**: `v0.3.0.dev2611160838641258`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -1380,14 +1380,14 @@ Fastapi Optimize Config
 <!-- pyml disable line-length -->
 ```python
 """
-Optimize GENETIC using configured devices and optional fresh runtime inputs.
+Optimize configured GENETIC or FLEET devices using fresh runtime inputs.
 
 Static settings belong in configuration; query overrides are rejected.
 Forecast arrays start at local
-midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
+midnight and contain Wh per configured algorithm slot; prices are currency/Wh.
 An empty body uses configured providers. Explicit SoC values take precedence over
-fresh measured states of charge; missing usable measurements default to an assumed
-initial SoC of 0% without blocking a plan.
+fresh measured states of charge. GENETIC defaults missing measurements to 0%;
+FLEET requires a fresh measurement or an explicit SoC for every device.
 The deprecated /optimize endpoint continues to run hourly GENETIC0.
 """
 ```
@@ -1396,7 +1396,105 @@ The deprecated /optimize endpoint continues to run hourly GENETIC0.
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/ConfigOptimizationRequest"
+  "anyOf": [
+    {
+      "$ref": "#/components/schemas/ConfigOptimizationRequest"
+    },
+    {
+      "$ref": "#/components/schemas/FleetConfigRequest"
+    }
+  ],
+  "title": "Parameters"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## POST /v1/optimize/fleet
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/post_fleet_v1_optimize_fleet_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/post_fleet_v1_optimize_fleet_post)
+<!-- pyml enable line-length -->
+
+Post Fleet
+
+<!-- pyml disable line-length -->
+```python
+"""
+Plan multiple AC-connected devices; does not submit actuator commands.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/FleetRequest"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## POST /v1/optimize/thermal/heatpump/shadow
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/post_heat_pump_shadow_v1_optimize_thermal_heatpump_shadow_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/post_heat_pump_shadow_v1_optimize_thermal_heatpump_shadow_post)
+<!-- pyml enable line-length -->
+
+Post Heat Pump Shadow
+
+<!-- pyml disable line-length -->
+```python
+"""
+Plan native weather and a heat-pump map without publication or actuation.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/ThermalHeatPlanningRequest"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## POST /v1/optimize/thermal/shadow
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/post_thermal_shadow_v1_optimize_thermal_shadow_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/post_thermal_shadow_v1_optimize_thermal_shadow_post)
+<!-- pyml enable line-length -->
+
+Post Thermal Shadow
+
+<!-- pyml disable line-length -->
+```python
+"""
+Compute a separate proposal; never replace an operational battery or heat plan.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/ThermalShadowRequest"
 }
 
 **Responses**:

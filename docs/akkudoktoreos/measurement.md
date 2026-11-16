@@ -10,6 +10,13 @@ accuracy.
 - Grid Export Measurement
 - Grid Import Measurement
 
+Typed `MeasurementSample` channels also support temperature (`degC`) and presence (`1`),
+preserving original observation timestamps and quality. Invalid or unavailable samples
+remain distinct from measured zero; unknown presence is not absence. These channels cannot
+be converted into electrical energy. The [native thermal workflow](thermalconfiguration.md)
+uses room/outdoor temperature and source power (`W`) channels for causal state estimation,
+conditional calibration and shadow planning.
+
 ## Storing Measurements
 
 EOS stores measurements in a **key-value store**, where the term `measurement key` refers to the

@@ -17,6 +17,7 @@
 | home_assistant_addon | `EOS_GENERAL__HOME_ASSISTANT_ADDON` | `bool` | `rw` | `required` | EOS is running as home assistant add-on. |
 | latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (°) |
 | longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees within -180 to 180 (°) |
+| schema_version | `EOS_GENERAL__SCHEMA_VERSION` | `int` | `rw` | `1` | Configuration format version, independent of the application build. |
 | timezone | | `Optional[str]` | `ro` | `N/A` | Timezone: 'timezone_override' if set, else looked up from latitude and longitude. |
 | timezone_override | `EOS_GENERAL__TIMEZONE_OVERRIDE` | `Optional[str]` | `rw` | `None` | IANA timezone name, e.g. 'Europe/Berlin'. If set, 'timezone' is this value instead of the timezone looked up from latitude and longitude, and the lookup data (~25 MB) is never loaded. Defaults to None (look up). |
 | version | `EOS_GENERAL__VERSION` | `Optional[str]` | `rw` | `None` | Configuration file version. |
@@ -33,6 +34,7 @@
        "general": {
            "config_save_mode": "AUTOMATIC",
            "config_save_interval_sec": 60,
+           "schema_version": 1,
            "version": "0.0.0",
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",
@@ -54,6 +56,7 @@
        "general": {
            "config_save_mode": "AUTOMATIC",
            "config_save_interval_sec": 60,
+           "schema_version": 1,
            "version": "0.0.0",
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",

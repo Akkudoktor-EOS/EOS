@@ -7,8 +7,9 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `<enum 'OptimizationAlgorithm'>` | `rw` | `required` | Optimization algorithm [GENETIC | GENETIC0]. Defaults to GENETIC. |
+| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `<enum 'OptimizationAlgorithm'>` | `rw` | `required` | Optimization algorithm [GENETIC | GENETIC0 | FLEET]. Defaults to GENETIC. |
 | algorithms | | `list[str]` | `ro` | `N/A` | Available optimization algorithms. |
+| fleet | `EOS_OPTIMIZATION__FLEET` | `FleetCommonSettings` | `rw` | `required` | None |
 | genetic | `EOS_OPTIMIZATION__GENETIC` | `GeneticCommonSettings` | `rw` | `required` | GENETIC optimization algorithm configuration. |
 | genetic0 | `EOS_OPTIMIZATION__GENETIC0` | `Genetic0CommonSettings` | `rw` | `required` | GENETIC0 optimization algorithm configuration. |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the solution. |
@@ -24,6 +25,19 @@
 ```json
    {
        "optimization": {
+           "fleet": {
+               "interval_sec": 900,
+               "horizon_hours": 24,
+               "import_limit_w": null,
+               "export_limit_w": null,
+               "prevent_export_at_negative_market_price": false,
+               "solver_time_limit_seconds": 30,
+               "measurement_max_age_seconds": 300,
+               "terminal_value_eur_per_kwh": 0,
+               "allow_battery_export": false,
+               "devices": {},
+               "power_groups": {}
+           },
            "algorithm": "GENETIC",
            "genetic": {
                "interval_sec": 3600,
@@ -66,6 +80,19 @@
 ```json
    {
        "optimization": {
+           "fleet": {
+               "interval_sec": 900,
+               "horizon_hours": 24,
+               "import_limit_w": null,
+               "export_limit_w": null,
+               "prevent_export_at_negative_market_price": false,
+               "solver_time_limit_seconds": 30,
+               "measurement_max_age_seconds": 300,
+               "terminal_value_eur_per_kwh": 0,
+               "allow_battery_export": false,
+               "devices": {},
+               "power_groups": {}
+           },
            "algorithm": "GENETIC",
            "genetic": {
                "interval_sec": 3600,
@@ -100,7 +127,8 @@
            "self_consumption_interpolator": "scipy",
            "algorithms": [
                "GENETIC",
-               "GENETIC0"
+               "GENETIC0",
+               "FLEET"
            ],
            "keys": []
        }
@@ -257,6 +285,55 @@
                    "ev_soc_miss": 10
                },
                "horizon": 24
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Fleet scheduling settings; device properties remain in devices.*
+
+<!-- pyml disable line-length -->
+:::{table} optimization::fleet
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| allow_battery_export | `bool` | `rw` | `False` | None |
+| devices | `dict[str, akkudoktoreos.optimization.fleetsettings.FleetDevicePolicy]` | `rw` | `required` | None |
+| export_limit_w | `float | None` | `rw` | `None` | None |
+| horizon_hours | `int` | `rw` | `24` | None |
+| import_limit_w | `float | None` | `rw` | `None` | None |
+| interval_sec | `Literal[900, 3600]` | `rw` | `900` | None |
+| measurement_max_age_seconds | `int` | `rw` | `300` | None |
+| power_groups | `dict[str, akkudoktoreos.optimization.fleetsettings.FleetGroupSettings]` | `rw` | `required` | None |
+| prevent_export_at_negative_market_price | `bool` | `rw` | `False` | None |
+| solver_time_limit_seconds | `float` | `rw` | `30` | None |
+| terminal_value_eur_per_kwh | `float` | `rw` | `0` | None |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "optimization": {
+           "fleet": {
+               "interval_sec": 900,
+               "horizon_hours": 24,
+               "import_limit_w": 10000.0,
+               "export_limit_w": 10000.0,
+               "prevent_export_at_negative_market_price": false,
+               "solver_time_limit_seconds": 30.0,
+               "measurement_max_age_seconds": 300,
+               "terminal_value_eur_per_kwh": 0.0,
+               "allow_battery_export": false,
+               "devices": {},
+               "power_groups": {}
            }
        }
    }

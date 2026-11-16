@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611011668106370"
+    "version": "v0.3.0.dev2611160838641258"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -313,6 +313,132 @@
                     }
                   },
                   "title": "Response Get Household V1 Measurement Household Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/optimize/fleet": {
+      "post": {
+        "tags": [
+          "optimize"
+        ],
+        "summary": "Post Fleet",
+        "description": "Plan multiple AC-connected devices; does not submit actuator commands.",
+        "operationId": "post_fleet_v1_optimize_fleet_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FleetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FleetSolution"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/optimize/thermal/shadow": {
+      "post": {
+        "tags": [
+          "thermal-shadow"
+        ],
+        "summary": "Post Thermal Shadow",
+        "description": "Compute a separate proposal; never replace an operational battery or heat plan.",
+        "operationId": "post_thermal_shadow_v1_optimize_thermal_shadow_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThermalShadowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThermalShadowSolution"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/optimize/thermal/heatpump/shadow": {
+      "post": {
+        "tags": [
+          "thermal-shadow"
+        ],
+        "summary": "Post Heat Pump Shadow",
+        "description": "Plan native weather and a heat-pump map without publication or actuation.",
+        "operationId": "post_heat_pump_shadow_v1_optimize_thermal_heatpump_shadow_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThermalHeatPlanningRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThermalHeatPlanningSolution"
                 }
               }
             }
@@ -3004,6 +3130,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/Genetic0Solution"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FleetSolution"
                     }
                   ],
                   "title": "Response Fastapi Energy Management Optimization Solution Algorithm Get V1 Energy Management Optimization Solution  Algorithm  Get"
@@ -3214,13 +3343,21 @@
           "optimize"
         ],
         "summary": "Fastapi Optimize Config",
-        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers. Explicit SoC values take precedence over\nfresh measured states of charge; missing usable measurements default to an assumed\ninitial SoC of 0% without blocking a plan.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
+        "description": "Optimize configured GENETIC or FLEET devices using fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured algorithm slot; prices are currency/Wh.\nAn empty body uses configured providers. Explicit SoC values take precedence over\nfresh measured states of charge. GENETIC defaults missing measurements to 0%;\nFLEET requires a fresh measurement or an explicit SoC for every device.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
         "operationId": "fastapi_optimize_config_v1_optimize_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConfigOptimizationRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ConfigOptimizationRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FleetConfigRequest"
+                  }
+                ],
+                "title": "Parameters"
               }
             }
           }
@@ -3231,7 +3368,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GeneticSolution"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/GeneticSolution"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FleetSolution"
+                    }
+                  ],
+                  "title": "Response Fastapi Optimize Config V1 Optimize Post"
                 }
               }
             }
@@ -3440,6 +3585,105 @@
         ],
         "title": "AdapterCommonSettings",
         "description": "Adapter Configuration."
+      },
+      "AirDistributionSettings": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "air",
+            "title": "Kind",
+            "default": "air"
+          },
+          "air_capacity_j_per_k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Air Capacity J Per K"
+          },
+          "air_temperature_bounds": {
+            "$ref": "#/components/schemas/DistributionTemperatureBounds"
+          },
+          "fan_levels": {
+            "items": {
+              "$ref": "#/components/schemas/AirFanLevel"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Fan Levels"
+          },
+          "default_fan_level_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Default Fan Level Id"
+          },
+          "circulation_operation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "fixed_entire_horizon"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Circulation Operation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "air_capacity_j_per_k",
+          "air_temperature_bounds",
+          "fan_levels",
+          "default_fan_level_id"
+        ],
+        "title": "AirDistributionSettings",
+        "description": "A near-unit air node exchanging heat with the occupied room.\n\nCapacity may include explicitly identified local solids. It is not a CFD\nvolume, an appliance inlet measurement or a universal manufacturer value.\nThe selected fan/mixing profile is exogenous, not optimized here. A native\nunit's fan behavior while its thermostat is OFF is not inferred."
+      },
+      "AirFanLevel": {
+        "properties": {
+          "level_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Level Id"
+          },
+          "conductance_w_per_k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Conductance W Per K"
+          },
+          "electric_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electric Power W"
+          },
+          "electricity_included_in_cop": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electricity Included In Cop"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "level_id",
+          "conductance_w_per_k"
+        ],
+        "title": "AirFanLevel",
+        "description": "Declared mixing conductance and optional continuous fan electricity.\n\nConductance is calibrated or measured effective heat exchange. It is not\nautomatically inferred from an appliance's nominal airflow or a fan command."
       },
       "BatteriesCommonSettings-Input": {
         "properties": {
@@ -4267,6 +4511,9 @@
           "devices": {
             "$ref": "#/components/schemas/DevicesCommonSettings-Output"
           },
+          "thermal": {
+            "$ref": "#/components/schemas/ThermalCommonSettings"
+          },
           "measurement": {
             "$ref": "#/components/schemas/MeasurementCommonSettings-Output"
           },
@@ -4275,6 +4522,9 @@
           },
           "prediction": {
             "$ref": "#/components/schemas/PredictionCommonSettings"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/PresenceCommonSettings"
           },
           "elecfee": {
             "$ref": "#/components/schemas/ElecFeeCommonSettings-Output"
@@ -4957,6 +5207,17 @@
               "GENETIC",
               "GENETIC0"
             ]
+          },
+          "heat_sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HeatSourceSettings"
+            },
+            "type": "object",
+            "title": "Heat Sources",
+            "description": "Staged heat-source descriptions keyed by device_id. No thermal scheduling or actuation is implemented yet.",
+            "x-scope": [
+              "UNUSED"
+            ]
           }
         },
         "type": "object",
@@ -5151,6 +5412,17 @@
               "GENETIC0"
             ]
           },
+          "heat_sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HeatSourceSettings"
+            },
+            "type": "object",
+            "title": "Heat Sources",
+            "description": "Staged heat-source descriptions keyed by device_id. No thermal scheduling or actuation is implemented yet.",
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
           "measurement_keys": {
             "items": {
               "type": "string"
@@ -5167,6 +5439,40 @@
         ],
         "title": "DevicesCommonSettings",
         "description": "Configuration for all controllable devices in the simulation.\n\nEvery device collection is a ``dict[str, <Settings>]`` keyed by\n``device_id``.  This makes config paths stable regardless of\ndeclaration order and lets each device settings class build its own\nconfig path from ``self.device_id`` without needing an external index."
+      },
+      "DirectDistributionSettings": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "direct",
+            "title": "Kind",
+            "default": "direct"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DirectDistributionSettings",
+        "description": "Heat enters the room immediately, retaining the two-node building model."
+      },
+      "DistributionTemperatureBounds": {
+        "properties": {
+          "min_temperature_c": {
+            "type": "number",
+            "title": "Min Temperature C"
+          },
+          "max_temperature_c": {
+            "type": "number",
+            "title": "Max Temperature C"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "min_temperature_c",
+          "max_temperature_c"
+        ],
+        "title": "DistributionTemperatureBounds",
+        "description": "Explicit finite domain of an additional modeled temperature node."
       },
       "EOSdashCommonSettings": {
         "properties": {
@@ -6990,6 +7296,636 @@
         "title": "FeedInTariffSMARDCommonSettings",
         "description": "Settings for SMARD feed-in prices shared with ``elecprice.smard``."
       },
+      "FleetCommonSettings": {
+        "properties": {
+          "interval_sec": {
+            "type": "integer",
+            "enum": [
+              900,
+              3600
+            ],
+            "title": "Interval Sec",
+            "default": 900
+          },
+          "horizon_hours": {
+            "type": "integer",
+            "maximum": 96.0,
+            "minimum": 1.0,
+            "title": "Horizon Hours",
+            "default": 24
+          },
+          "import_limit_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Limit W",
+            "examples": [
+              10000.0
+            ]
+          },
+          "export_limit_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Limit W",
+            "examples": [
+              10000.0
+            ]
+          },
+          "prevent_export_at_negative_market_price": {
+            "type": "boolean",
+            "title": "Prevent Export At Negative Market Price",
+            "default": false
+          },
+          "solver_time_limit_seconds": {
+            "type": "number",
+            "maximum": 120.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Solver Time Limit Seconds",
+            "default": 30
+          },
+          "measurement_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age Seconds",
+            "default": 300
+          },
+          "terminal_value_eur_per_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Terminal Value Eur Per Kwh",
+            "default": 0
+          },
+          "allow_battery_export": {
+            "type": "boolean",
+            "title": "Allow Battery Export",
+            "default": false
+          },
+          "devices": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FleetDevicePolicy"
+            },
+            "type": "object",
+            "title": "Devices"
+          },
+          "power_groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FleetGroupSettings"
+            },
+            "type": "object",
+            "title": "Power Groups"
+          }
+        },
+        "type": "object",
+        "title": "FleetCommonSettings",
+        "description": "Fleet scheduling settings; device properties remain in devices.*."
+      },
+      "FleetConfigRequest": {
+        "properties": {
+          "soc": {
+            "additionalProperties": {
+              "type": "number",
+              "maximum": 100.0,
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Soc"
+          },
+          "forecasts": {
+            "$ref": "#/components/schemas/RuntimeForecasts"
+          },
+          "available": {
+            "additionalProperties": {
+              "items": {
+                "type": "boolean"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Available"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FleetConfigRequest",
+        "description": "Runtime inputs only; forecasts use the existing midnight Wh contract.\n\nAvailability is run-relative. Missing fresh SoC is an error rather than an\ninvented state. Fractional percentages are retained."
+      },
+      "FleetDevice": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Device Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "battery",
+              "ev"
+            ],
+            "title": "Kind"
+          },
+          "capacity_wh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh"
+          },
+          "max_energy_wh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Energy Wh"
+          },
+          "initial_energy_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Initial Energy Wh"
+          },
+          "reserve_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Reserve Wh",
+            "default": 0
+          },
+          "max_charge_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Charge Power W"
+          },
+          "min_charge_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Min Charge Power W",
+            "default": 0
+          },
+          "max_discharge_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Discharge Power W",
+            "default": 0
+          },
+          "charge_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charge Efficiency",
+            "default": 1
+          },
+          "discharge_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharge Efficiency",
+            "default": 1
+          },
+          "available": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "boolean"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available"
+          },
+          "charge_levels_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array",
+                "maxItems": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Levels W"
+          },
+          "target_energy_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Target Energy Wh",
+            "default": 0
+          },
+          "target_slot": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Slot"
+          },
+          "terminal_value_eur_per_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Terminal Value Eur Per Kwh",
+            "default": 0
+          },
+          "discharge_cost_eur_per_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Discharge Cost Eur Per Kwh",
+            "default": 0
+          },
+          "power_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power Group"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "kind",
+          "capacity_wh",
+          "initial_energy_wh",
+          "max_charge_power_w"
+        ],
+        "title": "FleetDevice"
+      },
+      "FleetDevicePlan": {
+        "properties": {
+          "charge_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Charge W"
+          },
+          "discharge_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Discharge W"
+          },
+          "energy_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Energy Wh"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "charge_w",
+          "discharge_w",
+          "energy_wh"
+        ],
+        "title": "FleetDevicePlan"
+      },
+      "FleetDevicePolicy": {
+        "properties": {
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W"
+          },
+          "power_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Power Group"
+          }
+        },
+        "type": "object",
+        "title": "FleetDevicePolicy",
+        "description": "Additional fleet constraints keyed by an existing EOS device ID."
+      },
+      "FleetGroupSettings": {
+        "properties": {
+          "max_charge_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Charge Power W"
+          },
+          "max_discharge_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Discharge Power W",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_charge_power_w"
+        ],
+        "title": "FleetGroupSettings",
+        "description": "Shared AC charger or converter power ratings."
+      },
+      "FleetPowerGroup": {
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Group Id"
+          },
+          "max_charge_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Charge Power W"
+          },
+          "max_discharge_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Discharge Power W"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "group_id",
+          "max_charge_power_w",
+          "max_discharge_power_w"
+        ],
+        "title": "FleetPowerGroup",
+        "description": "Shared AC converter/charger limits, not a model of a DC bus."
+      },
+      "FleetRequest": {
+        "properties": {
+          "start_datetime": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Datetime"
+          },
+          "interval_seconds": {
+            "type": "integer",
+            "enum": [
+              900,
+              3600
+            ],
+            "title": "Interval Seconds",
+            "default": 900
+          },
+          "load_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 384,
+            "minItems": 1,
+            "title": "Load W"
+          },
+          "pv_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv W"
+          },
+          "import_price_eur_per_kwh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Import Price Eur Per Kwh"
+          },
+          "export_price_eur_per_kwh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Export Price Eur Per Kwh"
+          },
+          "import_limit_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Import Limit W"
+          },
+          "export_limit_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Export Limit W"
+          },
+          "export_allowed": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "boolean"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Allowed"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/FleetDevice"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Devices"
+          },
+          "power_groups": {
+            "items": {
+              "$ref": "#/components/schemas/FleetPowerGroup"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Power Groups"
+          },
+          "allow_battery_export": {
+            "type": "boolean",
+            "title": "Allow Battery Export",
+            "default": false
+          },
+          "solver_time_limit_seconds": {
+            "type": "number",
+            "maximum": 120.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Solver Time Limit Seconds",
+            "default": 30
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start_datetime",
+          "load_w",
+          "pv_w",
+          "import_price_eur_per_kwh",
+          "export_price_eur_per_kwh",
+          "import_limit_w",
+          "export_limit_w"
+        ],
+        "title": "FleetRequest"
+      },
+      "FleetSolution": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "optimal",
+              "feasible",
+              "infeasible",
+              "limit",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "start_datetime": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Datetime"
+          },
+          "interval_seconds": {
+            "type": "integer",
+            "title": "Interval Seconds"
+          },
+          "objective_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Eur"
+          },
+          "relative_gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relative Gap"
+          },
+          "grid_cost_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Cost Eur"
+          },
+          "import_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Import W"
+          },
+          "export_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Export W"
+          },
+          "curtailed_pv_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Curtailed Pv W"
+          },
+          "devices": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FleetDevicePlan"
+            },
+            "type": "object",
+            "title": "Devices"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FleetRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_used": {
+            "type": "boolean",
+            "title": "Start Used",
+            "default": false
+          },
+          "start_objective_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Objective Eur"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "message",
+          "start_datetime",
+          "interval_seconds"
+        ],
+        "title": "FleetSolution"
+      },
       "ForecastResponse": {
         "properties": {
           "temperature": {
@@ -7046,6 +7982,14 @@
             "type": "boolean",
             "title": "Home Assistant Addon",
             "description": "EOS is running as home assistant add-on."
+          },
+          "schema_version": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "description": "Configuration format version, independent of the application build.",
+            "default": 1
           },
           "version": {
             "anyOf": [
@@ -7153,6 +8097,14 @@
             "examples": [
               60
             ]
+          },
+          "schema_version": {
+            "type": "integer",
+            "maximum": 1.0,
+            "minimum": 1.0,
+            "title": "Schema Version",
+            "description": "Configuration format version, independent of the application build.",
+            "default": 1
           },
           "version": {
             "anyOf": [
@@ -10422,6 +11374,825 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HeatPumpCOPPoint": {
+        "properties": {
+          "outdoor_temperature_c": {
+            "type": "number",
+            "title": "Outdoor Temperature C"
+          },
+          "delivery_temperature_c": {
+            "type": "number",
+            "title": "Delivery Temperature C"
+          },
+          "cop": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Cop"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "outdoor_temperature_c",
+          "delivery_temperature_c",
+          "cop"
+        ],
+        "title": "HeatPumpCOPPoint",
+        "description": "A COP sample at explicit outdoor and delivery rating temperatures."
+      },
+      "HeatPumpCapacityPoint": {
+        "properties": {
+          "outdoor_temperature_c": {
+            "type": "number",
+            "title": "Outdoor Temperature C"
+          },
+          "delivery_temperature_c": {
+            "type": "number",
+            "title": "Delivery Temperature C"
+          },
+          "thermal_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Thermal Power W"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "outdoor_temperature_c",
+          "delivery_temperature_c",
+          "thermal_power_w"
+        ],
+        "title": "HeatPumpCapacityPoint",
+        "description": "A delivered-thermal power sample; this is not electrical input power."
+      },
+      "HeatPumpConfiguration": {
+        "properties": {
+          "preset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "aira_12",
+                  "aira_6",
+                  "aira_8",
+                  "alpha_08",
+                  "alpha_11",
+                  "lambda_10L",
+                  "lambda_13L",
+                  "lambda_15L",
+                  "lambda_20L",
+                  "lambda_35L",
+                  "lg_12",
+                  "mitsubishi_13_10",
+                  "pana_l5",
+                  "pana_l7",
+                  "pana_l9",
+                  "panasonic_vz12ske",
+                  "stiebel_07_2",
+                  "stiebel_10_2",
+                  "vaillant_105",
+                  "vaillant_35",
+                  "vaillant_55",
+                  "vaillant_75",
+                  "viessmann_250A",
+                  "weishaupt_11",
+                  "wolf_cha07",
+                  "wolf_cha10"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset"
+          },
+          "custom_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeatPumpProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delivery_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Temperature C"
+          },
+          "delivery_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Temperature Measurement Key"
+          },
+          "source_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Temperature C"
+          },
+          "source_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Temperature Measurement Key"
+          },
+          "defrost": {
+            "$ref": "#/components/schemas/HeatPumpDefrostSettings"
+          },
+          "electrical": {
+            "$ref": "#/components/schemas/HeatPumpElectricalSettings"
+          },
+          "heating_curve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaterHeatingCurve"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "HeatPumpConfiguration",
+        "description": "Select a reusable catalog map or a custom map, without device communication.\n\nDelivery temperature is water flow for air-to-water systems and the indoor\nrating condition for air-to-air systems. A runtime planner may instead\nsupply a forecast of delivery temperatures; no 35 C value is assumed."
+      },
+      "HeatPumpDefrostSettings": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "html_heuristic"
+            ],
+            "title": "Mode",
+            "default": "off"
+          },
+          "allow_unknown_cop_basis": {
+            "type": "boolean",
+            "title": "Allow Unknown Cop Basis",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "HeatPumpDefrostSettings",
+        "description": "Opt-in HTML frost heuristic; unknown COP test basis requires explicit consent.\n\nIf COP already includes defrost, it is never penalized a second time. No\ncycling penalty, minimum-power estimate or capacity derating is invented."
+      },
+      "HeatPumpElectricalBreakdown": {
+        "properties": {
+          "base_energy_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Base Energy Wh"
+          },
+          "standby_energy_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Standby Energy Wh"
+          },
+          "auxiliary_energy_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Auxiliary Energy Wh"
+          },
+          "startup_energy_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Startup Energy Wh"
+          },
+          "total_energy_wh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Total Energy Wh"
+          },
+          "mean_electric_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Mean Electric Power W"
+          },
+          "started": {
+            "type": "boolean",
+            "title": "Started"
+          },
+          "quality_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Quality Flags"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "base_energy_wh",
+          "standby_energy_wh",
+          "auxiliary_energy_wh",
+          "startup_energy_wh",
+          "total_energy_wh",
+          "mean_electric_power_w",
+          "started",
+          "quality_flags"
+        ],
+        "title": "HeatPumpElectricalBreakdown",
+        "description": "Interval electricity with explicit, separately auditable components."
+      },
+      "HeatPumpElectricalSettings": {
+        "properties": {
+          "standby_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standby Power W"
+          },
+          "running_auxiliary_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Running Auxiliary Power W"
+          },
+          "startup_energy_wh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startup Energy Wh"
+          },
+          "startup_warmup_seconds": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 900.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startup Warmup Seconds"
+          },
+          "extras_are_outside_cop": {
+            "type": "boolean",
+            "title": "Extras Are Outside Cop",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "HeatPumpElectricalSettings",
+        "description": "Optional electrical consumption outside the supplied COP system boundary.\n\n``None`` means unknown or not modelled, whereas an explicit zero declares\nno additional consumption. Positive values require an explicit boundary\ndeclaration to avoid adding a pump, fan or transient twice. Startup energy\nis additional electrical energy per OFF-to-ON transition, not heat output\nand not a generic COP reduction. Standby here is a continuous electronics\nload in both ON and OFF states; running auxiliaries are additional ON load."
+      },
+      "HeatPumpOperatingPoint": {
+        "properties": {
+          "outdoor_temperature_c": {
+            "type": "number",
+            "title": "Outdoor Temperature C"
+          },
+          "delivery_temperature_c": {
+            "type": "number",
+            "title": "Delivery Temperature C"
+          },
+          "thermal_power_w": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Thermal Power W"
+          },
+          "electric_power_w": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Electric Power W"
+          },
+          "point_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Point Id"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source"
+          },
+          "quality_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Quality Flags",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "outdoor_temperature_c",
+          "delivery_temperature_c",
+          "thermal_power_w",
+          "electric_power_w",
+          "point_id",
+          "source"
+        ],
+        "title": "HeatPumpOperatingPoint",
+        "description": "A paired heat/electric rating, distinct from independent min/max ranges.\n\nInterpolation across heat load is meaningful only at matching weather and\ndelivery conditions. Source-labelled nominal, part-load and maximum tests\nmust not be mistaken for a fixed-COP map at every compressor load."
+      },
+      "HeatPumpPerformance": {
+        "properties": {
+          "cop": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Cop"
+          },
+          "min_electric_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Electric Power W"
+          },
+          "max_electric_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Electric Power W"
+          },
+          "min_thermal_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Thermal Power W"
+          },
+          "max_thermal_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Thermal Power W"
+          },
+          "supported": {
+            "type": "boolean",
+            "title": "Supported"
+          },
+          "quality_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Quality Flags"
+          },
+          "dew_point_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dew Point C"
+          },
+          "estimated_evaporator_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Evaporator Temperature C"
+          },
+          "defrost_multiplier": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Defrost Multiplier",
+            "default": 1.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cop",
+          "max_electric_power_w",
+          "max_thermal_power_w",
+          "supported",
+          "quality_flags"
+        ],
+        "title": "HeatPumpPerformance",
+        "description": "Evaluated rating, including diagnostic clamped values outside support.\n\n``supported`` refers to interpolation coordinates, not manufacturer or field\nvalidation. A planner must reject unsupported ratings. Electrical bounds\ndivide the thermal bounds by the same COP; without a part-load COP map this\nis a constant-COP approximation, explicitly flagged."
+      },
+      "HeatPumpProfile": {
+        "properties": {
+          "profile_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Profile Id"
+          },
+          "heat_pump_type": {
+            "type": "string",
+            "enum": [
+              "air_to_water",
+              "air_to_air",
+              "brine_to_water",
+              "water_to_water",
+              "brine_to_air",
+              "water_to_air"
+            ],
+            "title": "Heat Pump Type"
+          },
+          "cop_points": {
+            "items": {
+              "$ref": "#/components/schemas/HeatPumpCOPPoint"
+            },
+            "type": "array",
+            "maxItems": 2048,
+            "minItems": 1,
+            "title": "Cop Points"
+          },
+          "thermal_max_points": {
+            "items": {
+              "$ref": "#/components/schemas/HeatPumpCapacityPoint"
+            },
+            "type": "array",
+            "maxItems": 2048,
+            "minItems": 1,
+            "title": "Thermal Max Points"
+          },
+          "thermal_min_points": {
+            "items": {
+              "$ref": "#/components/schemas/HeatPumpCapacityPoint"
+            },
+            "type": "array",
+            "maxItems": 2048,
+            "title": "Thermal Min Points",
+            "default": []
+          },
+          "cop_includes_defrost": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cop Includes Defrost"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/HeatPumpProvenance"
+          },
+          "operating_points": {
+            "items": {
+              "$ref": "#/components/schemas/HeatPumpOperatingPoint"
+            },
+            "type": "array",
+            "maxItems": 2048,
+            "title": "Operating Points",
+            "default": []
+          },
+          "operating_point_interpolation": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "linear_common_heat"
+            ],
+            "title": "Operating Point Interpolation",
+            "default": "exact"
+          },
+          "minimum_operating_outdoor_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Operating Outdoor Temperature C"
+          },
+          "maximum_operating_outdoor_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Operating Outdoor Temperature C"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "profile_id",
+          "heat_pump_type",
+          "cop_points",
+          "thermal_max_points",
+          "provenance"
+        ],
+        "title": "HeatPumpProfile",
+        "description": "Separate COP, maximum heat and optional minimum modulation maps.\n\nPoints are linearly interpolated along outdoor-temperature slices, then\nbetween delivery-temperature slices. Missing points are never fabricated.\nA single delivery slice supports only that delivery temperature. Separate\nminimum/maximum maps may have different sample coordinates."
+      },
+      "HeatPumpProvenance": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "unverified_html",
+              "user_supplied",
+              "manufacturer_documented",
+              "measured"
+            ],
+            "title": "Quality"
+          },
+          "source_sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Sha256"
+          },
+          "electric_power_basis": {
+            "type": "string",
+            "enum": [
+              "total_system",
+              "compressor_only",
+              "unspecified"
+            ],
+            "title": "Electric Power Basis",
+            "default": "unspecified"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumptions",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "quality"
+        ],
+        "title": "HeatPumpProvenance",
+        "description": "Declared evidence and rating limitations, not an automatic verification."
+      },
+      "HeatSourceHorizon": {
+        "properties": {
+          "performance": {
+            "items": {
+              "$ref": "#/components/schemas/HeatPumpPerformance"
+            },
+            "type": "array",
+            "title": "Performance"
+          },
+          "effective_min_electric_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Effective Min Electric Power W"
+          },
+          "effective_max_electric_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Effective Max Electric Power W"
+          },
+          "assumed_thermal_load_fraction": {
+            "type": "number",
+            "title": "Assumed Thermal Load Fraction"
+          },
+          "approximations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Approximations"
+          },
+          "operating_points": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/HeatPumpOperatingPoint"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Operating Points",
+            "default": []
+          },
+          "minimum_modulation_known": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array",
+            "title": "Minimum Modulation Known",
+            "default": []
+          },
+          "configured_minimum_base_electric_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Configured Minimum Base Electric Power W",
+            "default": 0.0
+          },
+          "configured_minimum_components_known": {
+            "type": "boolean",
+            "title": "Configured Minimum Components Known",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "performance",
+          "effective_min_electric_power_w",
+          "effective_max_electric_power_w",
+          "assumed_thermal_load_fraction",
+          "approximations"
+        ],
+        "title": "HeatSourceHorizon",
+        "description": "Evaluated source ratings plus explicit, possibly restrictive electric caps."
+      },
+      "HeatSourceSettings": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "electric_room",
+              "heat_pump"
+            ],
+            "title": "Kind",
+            "default": "electric_room"
+          },
+          "heat_pump": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeatPumpConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "max_electric_power_w": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Electric Power W",
+            "description": "Explicit maximum electrical input power in watts."
+          },
+          "min_electric_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Min Electric Power W",
+            "description": "Minimum active electrical input power in watts; zero leaves it unspecified.",
+            "default": 0
+          },
+          "electric_power_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electric Power Measurement Key",
+            "description": "Optional source electrical power measurement key, in watts."
+          },
+          "thermal_power_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thermal Power Measurement Key"
+          },
+          "thermal_power_is_estimated": {
+            "type": "boolean",
+            "title": "Thermal Power Is Estimated",
+            "default": false
+          },
+          "thermal_power_idle_electric_threshold_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thermal Power Idle Electric Threshold W"
+          },
+          "idle_power_tolerance_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Idle Power Tolerance W",
+            "description": "Explicit negative idle-noise tolerance; raw observations are preserved.",
+            "default": 0
+          },
+          "zone_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Zone Ids",
+            "description": "Unique thermal zone IDs supplied by this source."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "max_electric_power_w"
+        ],
+        "title": "HeatSourceSettings",
+        "description": "Describe electrical limits and zone bindings without controlling a heater.\n\nPower is electrical input in watts, not delivered heat. No efficiency, COP,\ndevice protocol or learned-model defaults are inferred by this model."
+      },
       "HomeApplianceCommonSettings-Input": {
         "properties": {
           "device_id": {
@@ -13128,7 +14899,9 @@
             "enum": [
               "power",
               "cumulative_energy",
-              "interval_energy"
+              "interval_energy",
+              "temperature",
+              "presence"
             ],
             "title": "Quantity"
           },
@@ -13138,7 +14911,9 @@
               "W",
               "kW",
               "Wh",
-              "kWh"
+              "kWh",
+              "degC",
+              "1"
             ],
             "title": "Unit"
           },
@@ -13678,16 +15453,20 @@
         "type": "string",
         "enum": [
           "GENETIC",
-          "GENETIC0"
+          "GENETIC0",
+          "FLEET"
         ],
         "title": "OptimizationAlgorithm",
         "description": "Optimization Algorithm."
       },
       "OptimizationCommonSettings-Input": {
         "properties": {
+          "fleet": {
+            "$ref": "#/components/schemas/FleetCommonSettings"
+          },
           "algorithm": {
             "$ref": "#/components/schemas/OptimizationAlgorithm",
-            "description": "Optimization algorithm [GENETIC | GENETIC0]. Defaults to GENETIC.",
+            "description": "Optimization algorithm [GENETIC | GENETIC0 | FLEET]. Defaults to GENETIC.",
             "examples": [
               "GENETIC",
               "GENETIC0"
@@ -13733,9 +15512,12 @@
       },
       "OptimizationCommonSettings-Output": {
         "properties": {
+          "fleet": {
+            "$ref": "#/components/schemas/FleetCommonSettings"
+          },
           "algorithm": {
             "$ref": "#/components/schemas/OptimizationAlgorithm",
-            "description": "Optimization algorithm [GENETIC | GENETIC0]. Defaults to GENETIC.",
+            "description": "Optimization algorithm [GENETIC | GENETIC0 | FLEET]. Defaults to GENETIC.",
             "examples": [
               "GENETIC",
               "GENETIC0"
@@ -16078,6 +17860,186 @@
         "title": "PredictionCommonSettings",
         "description": "General Prediction Configuration."
       },
+      "PresenceAbsence": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start",
+            "examples": [
+              "2026-12-24T08:00:00+01:00"
+            ]
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End",
+            "examples": [
+              "2026-12-28T18:00:00+01:00"
+            ]
+          },
+          "zone_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Zone Ids"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "examples": [
+              "Holiday"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start"
+        ],
+        "title": "PresenceAbsence",
+        "description": "A reported absence (away from ... until ...); it beats the learned pattern.\n\n``start``/``end`` are ISO date-times. A value with an offset (\"+01:00\", \"Z\") is exact; one\nwithout is read in the installation's time zone. ``end=None`` means \"until revoked\": the\nplan then assumes absence for its whole horizon. Revoke or shorten a running absence by\nsetting ``end`` to the return time and keep the entry: reported absences are also\nexcluded from learning for as long as they lie inside the history window.\n``zone_ids`` limits the entry to some presence areas (empty = all areas)."
+      },
+      "PresenceCommonSettings": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "PresenceHistory"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "examples": [
+              null
+            ]
+          },
+          "zones": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PresenceZoneSettings"
+            },
+            "type": "object",
+            "title": "Zones"
+          },
+          "history_days": {
+            "type": "integer",
+            "maximum": 89.0,
+            "minimum": 7.0,
+            "title": "History Days",
+            "default": 56
+          },
+          "minimum_support_days": {
+            "type": "integer",
+            "maximum": 89.0,
+            "minimum": 1.0,
+            "title": "Minimum Support Days",
+            "description": "Minimum history for comfort reduction; provisional probabilities appear earlier.",
+            "default": 7
+          },
+          "allow_provisional_setback": {
+            "type": "boolean",
+            "title": "Allow Provisional Setback",
+            "default": false
+          },
+          "sample_max_age_seconds": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Sample Max Age Seconds",
+            "default": 90
+          },
+          "absence_delay_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Absence Delay Seconds",
+            "default": 1800
+          },
+          "local_correction_seconds": {
+            "type": "integer",
+            "maximum": 14400.0,
+            "minimum": 900.0,
+            "title": "Local Correction Seconds",
+            "default": 3600
+          },
+          "recency_half_life_days": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Recency Half Life Days",
+            "default": 21
+          },
+          "minimum_bucket_coverage": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Minimum Bucket Coverage",
+            "default": 0.8
+          },
+          "absence_probability_threshold": {
+            "type": "number",
+            "exclusiveMaximum": 0.5,
+            "exclusiveMinimum": 0.0,
+            "title": "Absence Probability Threshold",
+            "default": 0.2
+          },
+          "absences": {
+            "items": {
+              "$ref": "#/components/schemas/PresenceAbsence"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Absences",
+            "description": "Reported absences (from/until); they beat the learned presence pattern."
+          },
+          "absence_return_hold_minutes": {
+            "type": "integer",
+            "maximum": 720.0,
+            "minimum": 0.0,
+            "title": "Absence Return Hold Minutes",
+            "description": "After a reported absence ends, comfort is required for this long.",
+            "default": 120
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PresenceCommonSettings",
+        "description": "Optional history provider; no fixed occupancy or comfort calendar."
+      },
+      "PresenceZoneSettings": {
+        "properties": {
+          "measurement_key": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Measurement Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "measurement_key"
+        ],
+        "title": "PresenceZoneSettings",
+        "description": "Bind any occupancy area to an existing typed EOS presence measurement."
+      },
       "PydanticDateTimeData": {
         "additionalProperties": {
           "anyOf": [
@@ -16509,6 +18471,17 @@
             ],
             "description": "Devices Settings"
           },
+          "thermal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional thermal planning settings; disabled by default."
+          },
           "measurement": {
             "anyOf": [
               {
@@ -16541,6 +18514,17 @@
               }
             ],
             "description": "Prediction Settings"
+          },
+          "presence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PresenceCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional learned presence prediction settings"
           },
           "elecfee": {
             "anyOf": [
@@ -16991,6 +18975,43 @@
         "title": "TailPlanSlot",
         "description": "One diagnostic slot of the optimal tail path.\n\nThese values explain the lookahead used for fitness. They are diagnostics\nonly and are never copied into the executable control arrays."
       },
+      "TemperatureInterval": {
+        "properties": {
+          "min_temperature_c": {
+            "type": "number",
+            "title": "Min Temperature C"
+          },
+          "target_temperature_c": {
+            "type": "number",
+            "title": "Target Temperature C"
+          },
+          "max_temperature_c": {
+            "type": "number",
+            "title": "Max Temperature C"
+          },
+          "start_datetime": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Datetime"
+          },
+          "end_datetime": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Datetime"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "min_temperature_c",
+          "target_temperature_c",
+          "max_temperature_c",
+          "start_datetime",
+          "end_datetime"
+        ],
+        "title": "TemperatureInterval",
+        "description": "A half-open room-target interval; this contains no appliance commands."
+      },
       "TerminalValueCurve": {
         "properties": {
           "energy_wh": {
@@ -17177,6 +19198,2044 @@
         ],
         "title": "TerminalValueResult",
         "description": "What the optimizer credited for the energy left in the battery."
+      },
+      "ThermalBuildingRC2Parameters": {
+        "properties": {
+          "room_loss_per_hour": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Room Loss Per Hour"
+          },
+          "room_mass_exchange_per_hour": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Room Mass Exchange Per Hour"
+          },
+          "mass_capacity_ratio": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Mass Capacity Ratio"
+          },
+          "heat_gain_kelvin_per_kwh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Heat Gain Kelvin Per Kwh"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room_loss_per_hour",
+          "room_mass_exchange_per_hour",
+          "mass_capacity_ratio",
+          "heat_gain_kelvin_per_kwh"
+        ],
+        "title": "ThermalBuildingRC2Parameters",
+        "description": "Source-independent room/mass dynamics with delivered thermal input.\n\nWith time in hours and delivered heat Q in kW:\ndTr/dt = loss*(To-Tr) + exchange*(Tm-Tr) + heat_gain*Q;\ndTm/dt = exchange/mass_capacity_ratio*(Tr-Tm).\n\n``heat_gain_kelvin_per_kwh`` is per thermal kWh, not per electrical kWh.\nHeat-pump COP and capacity belong to a separate source model. A fitted\neffective electrical gain cannot be reused here without identifying that\nthermal/electrical conversion; doing so would count efficiency twice."
+      },
+      "ThermalComfortBand": {
+        "properties": {
+          "min_temperature_c": {
+            "type": "number",
+            "title": "Min Temperature C"
+          },
+          "target_temperature_c": {
+            "type": "number",
+            "title": "Target Temperature C"
+          },
+          "max_temperature_c": {
+            "type": "number",
+            "title": "Max Temperature C"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "min_temperature_c",
+          "target_temperature_c",
+          "max_temperature_c"
+        ],
+        "title": "ThermalComfortBand",
+        "description": "Continuous room-temperature bounds and a target within those bounds."
+      },
+      "ThermalCommonSettings": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "shadow",
+              "control"
+            ],
+            "title": "Mode",
+            "description": "Off preserves normal planning; shadow permits only the separate thermal API. Live control is not implemented.",
+            "default": "off",
+            "x-scope": [
+              "UNUSED"
+            ]
+          },
+          "zones": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ThermalZoneSettings"
+            },
+            "type": "object",
+            "title": "Zones"
+          },
+          "tracking": {
+            "$ref": "#/components/schemas/ThermalTrackingSettings",
+            "description": "Separate disabled-by-default room-target pilot; never executes the full plan."
+          },
+          "planning_time_limit_seconds": {
+            "type": "number",
+            "maximum": 3600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Planning Time Limit Seconds",
+            "description": "Cooperative total optimization budget, including all thermal/FLEET stages; not a hard process timeout or the native-data resolver duration.",
+            "default": 60.0
+          },
+          "electric_power_block_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "multipleOf": 900.0,
+                "minimum": 900.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electric Power Block Seconds",
+            "description": "Optional hard constant-electric-power blocks; null lets electricity follow the physical heat-pump map each slot. Not an actuator dwell time.",
+            "default": 1800
+          },
+          "solver_process_memory_limit_mb": {
+            "type": "integer",
+            "maximum": 8192.0,
+            "minimum": 128.0,
+            "title": "Solver Process Memory Limit Mb",
+            "description": "Isolated solver memory limit; Linux address-space cap plus sampled process-tree RSS.",
+            "default": 1024
+          },
+          "solver_process_grace_seconds": {
+            "type": "number",
+            "maximum": 30.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Solver Process Grace Seconds",
+            "description": "Startup/transport allowance beyond the cooperative planning budget; then kill worker.",
+            "default": 5.0
+          },
+          "pattern_polish_seconds": {
+            "type": "number",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Pattern Polish Seconds",
+            "description": "Seconds of the joint stage spent on exact local improvement of the heat-source on/off pattern (short pauses/bursts); 0 disables it (previous behaviour).",
+            "default": 0.0
+          },
+          "plan_ttl_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Plan Ttl Seconds",
+            "description": "Configured future plan lease in seconds.",
+            "default": 1800
+          },
+          "absence_delay_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Absence Delay Seconds",
+            "description": "Required continuous valid absence before an absence policy.",
+            "default": 1800
+          },
+          "measurement_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age Seconds",
+            "description": "Maximum age of room measurements in seconds.",
+            "default": 180
+          },
+          "presence_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Presence Max Age Seconds",
+            "description": "Maximum age of valid presence data in seconds.",
+            "default": 90
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ThermalCommonSettings",
+        "description": "Optional thermal settings; live control remains reserved.\n\nRuntime measurements, presence state, manual overrides and actuator targets\nare intentionally not persisted in this configuration model."
+      },
+      "ThermalDistributionMeasurementBindings": {
+        "properties": {
+          "air_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Air Temperature Measurement Key"
+          },
+          "water_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Water Temperature Measurement Key"
+          },
+          "emitter_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emitter Temperature Measurement Key"
+          },
+          "buffer_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer Temperature Measurement Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ThermalDistributionMeasurementBindings",
+        "description": "Explicit temperature channels for physical distribution-state meanings.\n\nA water-loop state is not automatically a supply or return thermometer.\nBind a sensor only when its meaning matches the calibrated model node."
+      },
+      "ThermalDistributionObserverSettings": {
+        "properties": {
+          "maximum_emitter_uncertainty_c": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum Emitter Uncertainty C"
+          },
+          "maximum_steps": {
+            "type": "integer",
+            "maximum": 200000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Maximum Steps",
+            "default": 20000
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "maximum_emitter_uncertainty_c"
+        ],
+        "title": "ThermalDistributionObserverSettings",
+        "description": "Opt-in solid/slab observer with an explicitly accepted initial-state width.\n\nThis limit bounds only propagated initial-state uncertainty under the\nconfigured physical parameters, not measurement noise or model error.\nThe zone's minimum state-history duration also applies to this observer."
+      },
+      "ThermalHeatPlanningRequest": {
+        "properties": {
+          "fleet": {
+            "$ref": "#/components/schemas/FleetRequest"
+          },
+          "load_basis": {
+            "type": "string",
+            "const": "residual_excluding_heat",
+            "title": "Load Basis"
+          },
+          "zone_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Zone Id"
+          },
+          "heat_source_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Heat Source Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ThermalState"
+          },
+          "candidate_pause_slots": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array",
+            "title": "Candidate Pause Slots",
+            "default": []
+          },
+          "comfort_required": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array",
+            "title": "Comfort Required",
+            "default": []
+          },
+          "comfort_bands": {
+            "items": {
+              "$ref": "#/components/schemas/ThermalComfortBand"
+            },
+            "type": "array",
+            "maxItems": 288,
+            "minItems": 1,
+            "title": "Comfort Bands"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Revision"
+          },
+          "basis_control_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Basis Control Revision"
+          },
+          "plan_ttl_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Plan Ttl Seconds",
+            "default": 1800
+          },
+          "measurement_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age Seconds",
+            "default": 180
+          },
+          "max_absolute_gap_eur": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Absolute Gap Eur",
+            "default": 0.005
+          },
+          "smoothing_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smoothing Seconds",
+            "default": 1800
+          },
+          "recovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalRecoverySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planning_time_limit_seconds": {
+            "type": "number",
+            "maximum": 3600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Planning Time Limit Seconds",
+            "default": 60.0
+          },
+          "pattern_polish_seconds": {
+            "type": "number",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Pattern Polish Seconds",
+            "default": 0.0
+          },
+          "building": {
+            "$ref": "#/components/schemas/ThermalBuildingRC2Parameters"
+          },
+          "heat_pump_profile": {
+            "$ref": "#/components/schemas/HeatPumpProfile"
+          },
+          "weather": {
+            "items": {
+              "$ref": "#/components/schemas/WeatherDataRecord"
+            },
+            "type": "array",
+            "maxItems": 288,
+            "minItems": 1,
+            "title": "Weather"
+          },
+          "delivery_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 288,
+            "minItems": 1,
+            "title": "Delivery Temperature C"
+          },
+          "source_temperature_c": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array",
+                "maxItems": 288,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Temperature C",
+            "description": "Source inlet forecast; required for water/brine, independent of outdoor weather."
+          },
+          "assumed_thermal_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Assumed Thermal Load Fraction",
+            "default": 1.0
+          },
+          "defrost": {
+            "$ref": "#/components/schemas/HeatPumpDefrostSettings"
+          },
+          "max_electric_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Electric Power W"
+          },
+          "min_electric_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Min Electric Power W",
+            "default": 0.0
+          },
+          "electrical": {
+            "$ref": "#/components/schemas/HeatPumpElectricalSettings"
+          },
+          "initial_running": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Running"
+          },
+          "distribution": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DirectDistributionSettings"
+              },
+              {
+                "$ref": "#/components/schemas/AirDistributionSettings"
+              },
+              {
+                "$ref": "#/components/schemas/WaterDistributionSettings"
+              }
+            ],
+            "title": "Distribution",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "air": "#/components/schemas/AirDistributionSettings",
+                "direct": "#/components/schemas/DirectDistributionSettings",
+                "water": "#/components/schemas/WaterDistributionSettings"
+              }
+            }
+          },
+          "distribution_state": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Distribution State",
+            "description": "Additional temperatures projected to fleet start, in model state order.",
+            "default": []
+          },
+          "distribution_observed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distribution Observed At",
+            "description": "Oldest fresh observation supporting the projected distribution state."
+          },
+          "distribution_fan_levels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": "array",
+                "maxItems": 288,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distribution Fan Levels",
+            "description": "Declared exogenous fan profile; not native actuator commands."
+          },
+          "distribution_load_basis": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "residual_excludes_external_distribution"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distribution Load Basis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fleet",
+          "load_basis",
+          "zone_id",
+          "heat_source_id",
+          "state",
+          "comfort_bands",
+          "issued_at",
+          "revision",
+          "basis_control_revision",
+          "building",
+          "heat_pump_profile",
+          "weather",
+          "delivery_temperature_c"
+        ],
+        "title": "ThermalHeatPlanningRequest",
+        "description": "Explicit source-independent building and native EOS forecast records.\n\nDelivery temperature is water flow for air-to-water devices and the indoor\nrating condition for air-to-air devices, never the hot discharge-air sensor.\nA per-slot COP is held fixed at ``assumed_thermal_load_fraction`` of maximum\nrated thermal output. The optimizer does not optimize that assumption."
+      },
+      "ThermalHeatPlanningSolution": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "optimal",
+              "feasible",
+              "infeasible",
+              "unsupported",
+              "limit",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "shadow_only": {
+            "type": "boolean",
+            "const": true,
+            "title": "Shadow Only",
+            "default": true
+          },
+          "execution_allowed": {
+            "type": "boolean",
+            "const": false,
+            "title": "Execution Allowed",
+            "default": false
+          },
+          "comparison_qualified": {
+            "type": "boolean",
+            "title": "Comparison Qualified",
+            "default": false
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FleetSolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FleetSolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_heat_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Heat Power W",
+            "default": []
+          },
+          "candidate_heat_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Heat Power W",
+            "default": []
+          },
+          "reference_source_electric_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Source Electric Power W",
+            "default": []
+          },
+          "candidate_source_electric_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Source Electric Power W",
+            "default": []
+          },
+          "reference_room_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Room Temperature C",
+            "default": []
+          },
+          "candidate_room_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Room Temperature C",
+            "default": []
+          },
+          "reference_mass_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Mass Temperature C",
+            "default": []
+          },
+          "candidate_mass_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Mass Temperature C",
+            "default": []
+          },
+          "reference_distribution_temperatures_c": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Reference Distribution Temperatures C"
+          },
+          "candidate_distribution_temperatures_c": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Candidate Distribution Temperatures C"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "savings_cash_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Cash Eur"
+          },
+          "savings_objective_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Objective Eur"
+          },
+          "objective_lower_bound_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Lower Bound Eur"
+          },
+          "absolute_gap_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Gap Eur"
+          },
+          "reference_absolute_gap_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Absolute Gap Eur"
+          },
+          "checks": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Checks"
+          },
+          "recovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalRecoveryReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage_diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/ThermalSolveDiagnostics"
+            },
+            "type": "array",
+            "title": "Stage Diagnostics",
+            "default": []
+          },
+          "source_horizon": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HeatSourceHorizon"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_thermal_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Thermal Power W",
+            "default": []
+          },
+          "candidate_thermal_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Thermal Power W",
+            "default": []
+          },
+          "reference_cop": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Reference Cop",
+            "default": []
+          },
+          "candidate_cop": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Candidate Cop",
+            "default": []
+          },
+          "reference_electricity": {
+            "items": {
+              "$ref": "#/components/schemas/HeatPumpElectricalBreakdown"
+            },
+            "type": "array",
+            "title": "Reference Electricity",
+            "default": []
+          },
+          "candidate_electricity": {
+            "items": {
+              "$ref": "#/components/schemas/HeatPumpElectricalBreakdown"
+            },
+            "type": "array",
+            "title": "Candidate Electricity",
+            "default": []
+          },
+          "distribution_electric_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Distribution Electric Power W",
+            "default": []
+          },
+          "distribution_quality_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Distribution Quality Flags",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "ThermalHeatPlanningSolution",
+        "description": "Generic source result with thermal/electrical distinction and limitations."
+      },
+      "ThermalPhysicalCheck": {
+        "properties": {
+          "phase": {
+            "type": "string",
+            "title": "Phase"
+          },
+          "metrics": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Metrics"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "phase",
+          "metrics"
+        ],
+        "title": "ThermalPhysicalCheck",
+        "description": "Retained physical error metrics, including failures preceding a repair."
+      },
+      "ThermalPlan": {
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Zone Id"
+          },
+          "plan_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Plan Id"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Revision"
+          },
+          "basis_control_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Basis Control Revision"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          },
+          "valid_until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Valid Until"
+          },
+          "intervals": {
+            "items": {
+              "$ref": "#/components/schemas/TemperatureInterval"
+            },
+            "type": "array",
+            "maxItems": 384,
+            "minItems": 1,
+            "title": "Intervals"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "zone_id",
+          "plan_id",
+          "source",
+          "revision",
+          "basis_control_revision",
+          "issued_at",
+          "valid_until",
+          "intervals"
+        ],
+        "title": "ThermalPlan",
+        "description": "Versioned single-zone room curve with an independent execution lease.\n\nA short lease can accompany a multi-day horizon. Its maximum duration and\nthe current wall-clock validity are runtime policy, not DTO validation.\nIdentifiers are preserved exactly for matching configured zone bindings.\nManual-priority and revision guards remain the adapter's responsibility.\nMerely constructing this object does not authorize or perform control."
+      },
+      "ThermalRC2Parameters": {
+        "properties": {
+          "room_loss_per_hour": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Room Loss Per Hour"
+          },
+          "room_mass_exchange_per_hour": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Room Mass Exchange Per Hour"
+          },
+          "mass_capacity_ratio": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Mass Capacity Ratio"
+          },
+          "electric_gain_kelvin_per_kwh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Electric Gain Kelvin Per Kwh"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room_loss_per_hour",
+          "room_mass_exchange_per_hour",
+          "mass_capacity_ratio",
+          "electric_gain_kelvin_per_kwh"
+        ],
+        "title": "ThermalRC2Parameters",
+        "description": "Legacy effective room/mass dynamics with mean electrical power as input.\n\nWith time in hours and electrical power P in kW, the model is:\ndTr/dt = loss*(To-Tr) + exchange*(Tm-Tr) + electric_gain*P;\ndTm/dt = exchange/mass_capacity_ratio*(Tr-Tm).\n\nThese normalized parameters do not separately identify heat-pump COP or\nphysical heat capacities. There is no constant, guaranteed external heat\nsource: at zero input, the stationary room and mass temperatures equal To."
+      },
+      "ThermalRecoveryReport": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "ThermalRecoverySettings": {
+        "properties": {
+          "max_duration_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Duration Seconds",
+            "default": 14400
+          },
+          "allow_passive_cooldown": {
+            "type": "boolean",
+            "title": "Allow Passive Cooldown",
+            "default": false
+          },
+          "max_heating_rate_kelvin_per_hour": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 20.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Heating Rate Kelvin Per Hour"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ThermalRecoverySettings",
+        "description": "Opt-in common heating or passive cooldown prefix outside initial comfort.\n\nRecovery is a modeled comfort exception, not a guarantee of native device\ntracking. The prefix is fixed identically in the reference and candidate."
+      },
+      "ThermalShadowRequest": {
+        "properties": {
+          "fleet": {
+            "$ref": "#/components/schemas/FleetRequest"
+          },
+          "load_basis": {
+            "type": "string",
+            "const": "residual_excluding_heat",
+            "title": "Load Basis"
+          },
+          "zone_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Zone Id"
+          },
+          "heat_source_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Heat Source Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ThermalState"
+          },
+          "candidate_pause_slots": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array",
+            "title": "Candidate Pause Slots",
+            "default": []
+          },
+          "comfort_required": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array",
+            "title": "Comfort Required",
+            "default": []
+          },
+          "comfort_bands": {
+            "items": {
+              "$ref": "#/components/schemas/ThermalComfortBand"
+            },
+            "type": "array",
+            "maxItems": 288,
+            "minItems": 1,
+            "title": "Comfort Bands"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Revision"
+          },
+          "basis_control_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Basis Control Revision"
+          },
+          "plan_ttl_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Plan Ttl Seconds",
+            "default": 1800
+          },
+          "measurement_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age Seconds",
+            "default": 180
+          },
+          "max_absolute_gap_eur": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Max Absolute Gap Eur",
+            "default": 0.005
+          },
+          "smoothing_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smoothing Seconds",
+            "default": 1800
+          },
+          "recovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalRecoverySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "planning_time_limit_seconds": {
+            "type": "number",
+            "maximum": 3600.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Planning Time Limit Seconds",
+            "default": 60.0
+          },
+          "pattern_polish_seconds": {
+            "type": "number",
+            "maximum": 60.0,
+            "minimum": 0.0,
+            "title": "Pattern Polish Seconds",
+            "default": 0.0
+          },
+          "model": {
+            "$ref": "#/components/schemas/ThermalRC2Parameters"
+          },
+          "outdoor_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "maxItems": 288,
+            "minItems": 1,
+            "title": "Outdoor Temperature C"
+          },
+          "max_electric_power_w": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Electric Power W"
+          },
+          "min_electric_power_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Min Electric Power W",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fleet",
+          "load_basis",
+          "zone_id",
+          "heat_source_id",
+          "state",
+          "comfort_bands",
+          "issued_at",
+          "revision",
+          "basis_control_revision",
+          "model",
+          "outdoor_temperature_c",
+          "max_electric_power_w"
+        ],
+        "title": "ThermalShadowRequest",
+        "description": "Legacy effective-electrical RC2 request, without a separate heat-pump COP.\n\nExisting payloads remain valid. Its electrical gain is never multiplied by\nthe generic heat-pump module; that path uses a separate thermal building DTO."
+      },
+      "ThermalShadowSolution": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "optimal",
+              "feasible",
+              "infeasible",
+              "unsupported",
+              "limit",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "shadow_only": {
+            "type": "boolean",
+            "const": true,
+            "title": "Shadow Only",
+            "default": true
+          },
+          "execution_allowed": {
+            "type": "boolean",
+            "const": false,
+            "title": "Execution Allowed",
+            "default": false
+          },
+          "comparison_qualified": {
+            "type": "boolean",
+            "title": "Comparison Qualified",
+            "default": false
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FleetSolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FleetSolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_heat_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Heat Power W",
+            "default": []
+          },
+          "candidate_heat_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Heat Power W",
+            "default": []
+          },
+          "reference_source_electric_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Source Electric Power W",
+            "default": []
+          },
+          "candidate_source_electric_power_w": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Source Electric Power W",
+            "default": []
+          },
+          "reference_room_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Room Temperature C",
+            "default": []
+          },
+          "candidate_room_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Room Temperature C",
+            "default": []
+          },
+          "reference_mass_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Reference Mass Temperature C",
+            "default": []
+          },
+          "candidate_mass_temperature_c": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Candidate Mass Temperature C",
+            "default": []
+          },
+          "reference_distribution_temperatures_c": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Reference Distribution Temperatures C"
+          },
+          "candidate_distribution_temperatures_c": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Candidate Distribution Temperatures C"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "savings_cash_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Cash Eur"
+          },
+          "savings_objective_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Savings Objective Eur"
+          },
+          "objective_lower_bound_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective Lower Bound Eur"
+          },
+          "absolute_gap_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absolute Gap Eur"
+          },
+          "reference_absolute_gap_eur": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Absolute Gap Eur"
+          },
+          "checks": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Checks"
+          },
+          "recovery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalRecoveryReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage_diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/ThermalSolveDiagnostics"
+            },
+            "type": "array",
+            "title": "Stage Diagnostics",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "ThermalShadowSolution",
+        "description": "Separated reference/candidate results, never an executable EMS plan.\n\nQualified savings are conditional model comparisons, not measured bills.\nCandidate storage endpoints match the native reference budget. Cash savings\nremain unset unless these endpoints and both solver gap budgets qualify."
+      },
+      "ThermalSolveAttempt": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "milp",
+              "feasibility_milp",
+              "lp",
+              "original_lp",
+              "fixed_pattern_lp",
+              "physical_cleanup_lp"
+            ],
+            "title": "Kind"
+          },
+          "representation": {
+            "type": "string",
+            "enum": [
+              "sparse",
+              "condensed"
+            ],
+            "title": "Representation",
+            "default": "sparse"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          },
+          "presolve": {
+            "type": "boolean",
+            "title": "Presolve"
+          },
+          "time_limit_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Time Limit Seconds"
+          },
+          "elapsed_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Elapsed Seconds"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "status",
+          "presolve",
+          "time_limit_seconds",
+          "elapsed_seconds",
+          "message"
+        ],
+        "title": "ThermalSolveAttempt",
+        "description": "One completed backend call, before any rescue or coordinate refinement."
+      },
+      "ThermalSolveDiagnostics": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "elapsed_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Elapsed Seconds"
+          },
+          "solver_calls": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Solver Calls"
+          },
+          "presolve_retries": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Presolve Retries"
+          },
+          "original_refinements": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Original Refinements",
+            "default": 0
+          },
+          "feasibility_rescues": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Feasibility Rescues",
+            "default": 0
+          },
+          "fixed_pattern_rescues": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Fixed Pattern Rescues",
+            "default": 0
+          },
+          "fixed_pattern_hint_rejection": {
+            "type": "string",
+            "title": "Fixed Pattern Hint Rejection",
+            "default": ""
+          },
+          "representation_switches": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Representation Switches",
+            "default": 0
+          },
+          "representation_switch_reason": {
+            "type": "string",
+            "title": "Representation Switch Reason",
+            "default": ""
+          },
+          "physical_refinements": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Physical Refinements",
+            "default": 0
+          },
+          "physical_checks": {
+            "items": {
+              "$ref": "#/components/schemas/ThermalPhysicalCheck"
+            },
+            "type": "array",
+            "title": "Physical Checks",
+            "default": []
+          },
+          "initial_allocation_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Initial Allocation Seconds",
+            "default": 0
+          },
+          "final_allocation_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Final Allocation Seconds",
+            "default": 0
+          },
+          "adaptive_extensions": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Adaptive Extensions",
+            "default": 0
+          },
+          "downstream_reserve_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Downstream Reserve Seconds",
+            "default": 0
+          },
+          "condensed_state_variables": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Condensed State Variables",
+            "default": 0
+          },
+          "condensed_dynamics_rows": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Condensed Dynamics Rows",
+            "default": 0
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/ThermalSolveAttempt"
+            },
+            "type": "array",
+            "title": "Attempts",
+            "default": []
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective"
+          },
+          "lower_bound": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower Bound"
+          },
+          "violation": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Violation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "elapsed_seconds",
+          "solver_calls",
+          "presolve_retries"
+        ],
+        "title": "ThermalSolveDiagnostics",
+        "description": "Measured stage work; retries and cleanup share the same stage/global budget."
+      },
+      "ThermalState": {
+        "properties": {
+          "estimated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Estimated At"
+          },
+          "based_on_observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Based On Observed At"
+          },
+          "room_temperature_c": {
+            "type": "number",
+            "title": "Room Temperature C"
+          },
+          "mass_temperature_c": {
+            "type": "number",
+            "title": "Mass Temperature C"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "estimated_at",
+          "based_on_observed_at",
+          "room_temperature_c",
+          "mass_temperature_c"
+        ],
+        "title": "ThermalState",
+        "description": "Estimated room/mass state, including its causal observation boundary.\n\nThe mass temperature is an estimate, not an additional measured sensor.\nThis DTO does not initialize or advance a thermal model."
+      },
+      "ThermalTrackingSettings": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "pilot",
+              "continuous"
+            ],
+            "title": "Operation",
+            "default": "pilot"
+          },
+          "zone_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Id"
+          },
+          "minimum_temperature_c": {
+            "type": "number",
+            "maximum": 30.0,
+            "minimum": 5.0,
+            "title": "Minimum Temperature C",
+            "default": 18
+          },
+          "occupied_tolerance_c": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Occupied Tolerance C",
+            "default": 0.3
+          },
+          "max_increase_c": {
+            "type": "number",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Max Increase C",
+            "default": 0.5
+          },
+          "maximum_preheat_temperature_c": {
+            "type": "number",
+            "maximum": 30.0,
+            "minimum": 5.0,
+            "title": "Maximum Preheat Temperature C",
+            "default": 30.0
+          },
+          "max_decrease_c": {
+            "type": "number",
+            "maximum": 0.5,
+            "minimum": 0.0,
+            "title": "Max Decrease C",
+            "default": 0.5
+          },
+          "cold_guard_below_manual_c": {
+            "type": "number",
+            "maximum": 0.5,
+            "minimum": 0.0,
+            "title": "Cold Guard Below Manual C",
+            "default": 0.25
+          },
+          "measured_room_ceiling_above_manual_c": {
+            "type": "number",
+            "maximum": 0.5,
+            "exclusiveMinimum": 0.0,
+            "title": "Measured Room Ceiling Above Manual C",
+            "default": 0.5
+          },
+          "lease_seconds": {
+            "type": "integer",
+            "maximum": 300.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Lease Seconds",
+            "default": 150
+          },
+          "operator_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Operator Max Age Seconds",
+            "default": 90
+          },
+          "room_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Room Max Age Seconds",
+            "default": 180
+          },
+          "presence_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Presence Max Age Seconds",
+            "default": 90
+          },
+          "source_max_age_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Source Max Age Seconds",
+            "default": 1800
+          },
+          "absence_delay_seconds": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Absence Delay Seconds",
+            "default": 1800
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ThermalTrackingSettings",
+        "description": "Disabled-by-default limits for a separate room-target pilot."
+      },
+      "ThermalZoneSettings": {
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Zone Id",
+            "description": "Stable ID matching the zones map key."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "description": "Whether this staged zone is complete for use.",
+            "default": false
+          },
+          "room_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Room Temperature Measurement Key",
+            "description": "Room temperature measurement key, in degrees Celsius."
+          },
+          "presence_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Measurement Key",
+            "description": "Optional presence measurement key; missing data is not absence."
+          },
+          "presence_area_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Area Id",
+            "description": "Optional area in the native learned presence provider."
+          },
+          "model_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Reference",
+            "description": "Opaque thermal model identifier; never imported or loaded here."
+          },
+          "model_parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalBuildingRC2Parameters"
+              },
+              {
+                "$ref": "#/components/schemas/ThermalRC2Parameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Parameters",
+            "description": "Optional calibrated model; otherwise estimate from native history."
+          },
+          "outdoor_temperature_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outdoor Temperature Measurement Key"
+          },
+          "state_history_hours": {
+            "type": "integer",
+            "maximum": 168.0,
+            "minimum": 1.0,
+            "title": "State History Hours",
+            "default": 48
+          },
+          "minimum_state_history_hours": {
+            "type": "integer",
+            "maximum": 168.0,
+            "minimum": 1.0,
+            "title": "Minimum State History Hours",
+            "default": 12
+          },
+          "state_room_observation_window_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3600.0,
+                "minimum": 300.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Room Observation Window Seconds",
+            "description": "Optional: use the mean of the measured room values over this window before the newest measurement as the room start value, instead of the single newest raw value (for sensors that report in coarse steps or bursts). Null keeps the raw value. Not available with an air/water distribution state model."
+          },
+          "recovery_max_heating_rate_kelvin_per_hour": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 20.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Max Heating Rate Kelvin Per Hour",
+            "description": "Optional: when the room starts below the comfort minimum, the initial recovery aims at a rise of at most this many kelvin per hour (raised automatically if the minimum could not be reached in time). Null keeps the immediate-target recovery at full available power."
+          },
+          "comfort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalComfortBand"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Explicit default room comfort band; no temperature is invented."
+          },
+          "unoccupied_comfort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalComfortBand"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional absence bounds; timing comes from runtime presence."
+          },
+          "absence_minimum_temperature_c": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 25.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Absence Minimum Temperature C",
+            "description": "Optional: lowest room temperature while a REPORTED absence (presence.absences or the plan request) runs; always respected. Null uses unoccupied_comfort when configured, else 14 degrees. Does not change learned reductions."
+          },
+          "allow_warm_coasting": {
+            "type": "boolean",
+            "title": "Allow Warm Coasting",
+            "description": "Explicitly permit occupied-range warmth during absence, retaining the absence minimum and target. False keeps the configured absence upper bound hard.",
+            "default": false
+          },
+          "distribution_measurements": {
+            "$ref": "#/components/schemas/ThermalDistributionMeasurementBindings"
+          },
+          "distribution_observer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThermalDistributionObserverSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distribution": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/DirectDistributionSettings"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AirDistributionSettings"
+                  },
+                  {
+                    "$ref": "#/components/schemas/WaterDistributionSettings"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "kind",
+                  "mapping": {
+                    "air": "#/components/schemas/AirDistributionSettings",
+                    "direct": "#/components/schemas/DirectDistributionSettings",
+                    "water": "#/components/schemas/WaterDistributionSettings"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distribution"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "zone_id"
+        ],
+        "title": "ThermalZoneSettings",
+        "description": "Describe a staged room zone and its measurement bindings.\n\nEnabling a zone requires an explicit comfort band, room measurement key and\nmodel reference. It does not enable thermal planning or send a command."
       },
       "TimeWindow-Input": {
         "properties": {
@@ -17750,6 +21809,229 @@
         "title": "ValueTimeWindowSequence",
         "description": "Sequence of value time windows.\n\nThis model specializes `TimeWindowSequence` to ensure that all\ncontained windows are instances of `ValueTimeWindow`.\nIt provides the full set of sequence operations (containment checks,\navailability, start time calculations) for value windows."
       },
+      "WaterBufferSettings": {
+        "properties": {
+          "capacity_j_per_k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity J Per K"
+          },
+          "temperature_bounds": {
+            "$ref": "#/components/schemas/DistributionTemperatureBounds"
+          },
+          "transfer_conductance_w_per_k": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer Conductance W Per K"
+          },
+          "transfer_mass_flow_kg_per_s": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transfer Mass Flow Kg Per S"
+          },
+          "fluid_specific_heat_j_per_kg_k": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fluid Specific Heat J Per Kg K"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "capacity_j_per_k",
+          "temperature_bounds"
+        ],
+        "title": "WaterBufferSettings",
+        "description": "One additional mixed buffer with a known effective transfer to loop water.\n\nExactly one transfer conductance or mass-flow/specific-heat pair is required.\nThis lumped thermal chain does not imply a particular pipe arrangement,\nstratification, domestic-hot-water demand or interchangeable primary flows."
+      },
+      "WaterDistributionSettings": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "water",
+            "title": "Kind",
+            "default": "water"
+          },
+          "emitter_type": {
+            "type": "string",
+            "enum": [
+              "radiator",
+              "underfloor"
+            ],
+            "title": "Emitter Type"
+          },
+          "water_capacity_j_per_k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Water Capacity J Per K"
+          },
+          "emitter_capacity_j_per_k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Emitter Capacity J Per K"
+          },
+          "water_to_emitter_conductance_w_per_k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Water To Emitter Conductance W Per K"
+          },
+          "emitter_to_room_conductance_w_per_k": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Emitter To Room Conductance W Per K"
+          },
+          "water_temperature_bounds": {
+            "$ref": "#/components/schemas/DistributionTemperatureBounds"
+          },
+          "emitter_temperature_bounds": {
+            "$ref": "#/components/schemas/DistributionTemperatureBounds"
+          },
+          "buffer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaterBufferSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_mass_flow_kg_per_s": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Mass Flow Kg Per S"
+          },
+          "fluid_specific_heat_j_per_kg_k": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fluid Specific Heat J Per Kg K"
+          },
+          "pump_electric_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pump Electric Power W"
+          },
+          "pump_electricity_included_in_cop": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pump Electricity Included In Cop"
+          },
+          "circulation_operation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "fixed_entire_horizon"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Circulation Operation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "emitter_type",
+          "water_capacity_j_per_k",
+          "emitter_capacity_j_per_k",
+          "water_to_emitter_conductance_w_per_k",
+          "emitter_to_room_conductance_w_per_k",
+          "water_temperature_bounds",
+          "emitter_temperature_bounds"
+        ],
+        "title": "WaterDistributionSettings",
+        "description": "Separate loop-water and metal/slab nodes with linear heat conductances.\n\n``water_temperature_c`` is a declared well-mixed loop-return proxy. The\nemitter state describes metal/slab storage and must not be used as water\nreturn temperature. Linear UAs are local/calibrated approximations; flow\ndependence, mixing valves and hydraulic delays are not identified here.\nPrimary source flow and buffer-to-water transfer are separate declarations.\nA scalar runtime flow override changes only the primary source flow."
+      },
+      "WaterHeatingCurve": {
+        "properties": {
+          "design_outdoor_temperature_c": {
+            "type": "number",
+            "title": "Design Outdoor Temperature C"
+          },
+          "heating_limit_outdoor_temperature_c": {
+            "type": "number",
+            "title": "Heating Limit Outdoor Temperature C"
+          },
+          "min_flow_temperature_c": {
+            "type": "number",
+            "title": "Min Flow Temperature C"
+          },
+          "max_flow_temperature_c": {
+            "type": "number",
+            "title": "Max Flow Temperature C"
+          },
+          "reference_room_temperature_c": {
+            "type": "number",
+            "title": "Reference Room Temperature C"
+          },
+          "room_target_correction_gain": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Room Target Correction Gain"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "design_outdoor_temperature_c",
+          "heating_limit_outdoor_temperature_c",
+          "min_flow_temperature_c",
+          "max_flow_temperature_c",
+          "reference_room_temperature_c",
+          "room_target_correction_gain"
+        ],
+        "title": "WaterHeatingCurve",
+        "description": "Explicit linear water-flow curve at a declared reference room target.\n\nAt design outdoor temperature the uncorrected curve reaches maximum flow;\nat the heating limit it reaches minimum flow. A configured target correction\nshifts flow by ``gain * (room_target - reference_room_target)`` before the\nfinal min/max clamp. No room-feedback gain or adaptive calibration is\ninferred. This curve is not an air-to-air appliance temperature command."
+      },
       "WeatherCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -17813,6 +22095,301 @@
         ],
         "title": "WeatherCommonSettings",
         "description": "Weather Forecast Configuration."
+      },
+      "WeatherDataRecord": {
+        "properties": {
+          "date_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Time",
+            "description": "DateTime"
+          },
+          "configured_data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Configured Data",
+            "description": "Configured field like data",
+            "examples": [
+              {
+                "load0_mr": 40421
+              }
+            ]
+          },
+          "weather_total_clouds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Total Clouds",
+            "description": "Total Clouds (% Sky Obscured)"
+          },
+          "weather_low_clouds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Low Clouds",
+            "description": "Low Clouds (% Sky Obscured)"
+          },
+          "weather_medium_clouds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Medium Clouds",
+            "description": "Medium Clouds (% Sky Obscured)"
+          },
+          "weather_high_clouds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather High Clouds",
+            "description": "High Clouds (% Sky Obscured)"
+          },
+          "weather_visibility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Visibility",
+            "description": "Visibility (m)"
+          },
+          "weather_fog": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Fog",
+            "description": "Fog (%)"
+          },
+          "weather_precip_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Precip Type",
+            "description": "Precipitation Type"
+          },
+          "weather_precip_prob": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Precip Prob",
+            "description": "Precipitation Probability (%)"
+          },
+          "weather_precip_amt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Precip Amt",
+            "description": "Precipitation Amount (mm)"
+          },
+          "weather_preciptable_water": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Preciptable Water",
+            "description": "Precipitable Water (cm)"
+          },
+          "weather_wind_speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Wind Speed",
+            "description": "Wind Speed (kmph)"
+          },
+          "weather_wind_direction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Wind Direction",
+            "description": "Wind Direction (\u00b0)"
+          },
+          "weather_frost_chance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Frost Chance",
+            "description": "Chance of Frost"
+          },
+          "weather_temp_air": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Temp Air",
+            "description": "Temperature (\u00b0C)"
+          },
+          "weather_feels_like": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Feels Like",
+            "description": "Feels Like (\u00b0C)"
+          },
+          "weather_dew_point": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Dew Point",
+            "description": "Dew Point (\u00b0C)"
+          },
+          "weather_relative_humidity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Relative Humidity",
+            "description": "Relative Humidity (%)"
+          },
+          "weather_pressure": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Pressure",
+            "description": "Pressure (mb)"
+          },
+          "weather_ozone": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Ozone",
+            "description": "Ozone (du)"
+          },
+          "weather_ghi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Ghi",
+            "description": "Global Horizontal Irradiance (W/m2)"
+          },
+          "weather_dni": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Dni",
+            "description": "Direct Normal Irradiance (W/m2)"
+          },
+          "weather_dhi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Dhi",
+            "description": "Diffuse Horizontal Irradiance (W/m2)"
+          }
+        },
+        "type": "object",
+        "title": "WeatherDataRecord",
+        "description": "Represents a weather data record containing various weather attributes at a specific datetime.\n\nAttributes:\n    date_time (Optional[AwareDatetime]): The datetime of the record.\n    total_clouds (Optional[float]): Total cloud cover as a percentage of the sky obscured.\n    low_clouds (Optional[float]): Cloud cover in the lower atmosphere (% sky obscured).\n    medium_clouds (Optional[float]): Cloud cover in the middle atmosphere (% sky obscured).\n    high_clouds (Optional[float]): Cloud cover in the upper atmosphere (% sky obscured).\n    visibility (Optional[float]): Horizontal visibility in meters.\n    fog (Optional[float]): Fog cover percentage.\n    precip_type (Optional[str]): Type of precipitation (e.g., \"rain\", \"snow\").\n    precip_prob (Optional[float]): Probability of precipitation as a percentage.\n    precip_amt (Optional[float]): Precipitation amount in millimeters.\n    preciptable_water (Optional[float]): Precipitable water in centimeters.\n    wind_speed (Optional[float]): Wind speed in kilometers per hour.\n    wind_direction (Optional[float]): Wind direction in degrees (0-360\u00b0).\n    frost_chance (Optional[str]): Probability of frost.\n    temp_air (Optional[float]): Air temperature in degrees Celsius.\n    feels_like (Optional[float]): Feels-like temperature in degrees Celsius.\n    dew_point (Optional[float]): Dew point in degrees Celsius.\n    relative_humidity (Optional[float]): Relative humidity in percentage.\n    pressure (Optional[float]): Atmospheric pressure in millibars.\n    ozone (Optional[float]): Ozone concentration in Dobson units.\n    ghi (Optional[float]): Global Horizontal Irradiance in watts per square meter (W/m\u00b2).\n    dni (Optional[float]): Direct Normal Irradiance in watts per square meter (W/m\u00b2).\n    dhi (Optional[float]): Diffuse Horizontal Irradiance in watts per square meter (W/m\u00b2)."
       },
       "WeatherImportCommonSettings": {
         "properties": {

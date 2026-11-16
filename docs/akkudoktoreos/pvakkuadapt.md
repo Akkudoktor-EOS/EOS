@@ -358,7 +358,37 @@ Normal prediction keys additionally include
 The candidate curves are diagnostic; optimization consumes `pvforecast_ac_power`,
 which includes only selected corrections. These keys can be queried in Grafana
 without enlarging an existing dashboard. Status distinguishes the established
-short-term algorithm version from long-response version 1. Hourly immutable
+short-term algorithm version from the separately versioned long response. Hourly immutable
 snapshots bound long-horizon storage; repeated polling cannot create extra evidence.
 The last received weather inputs and all candidates are retained for the configured
 archive retention period. Disabling either response switch prevents its activation.
+
+### Portable response learning (version 2)
+
+Weather learning normalizes errors by clear-sky power and gives each completed
+day equal weight. Numerically equivalent member curves share a family weight;
+adding a duplicate member cannot create an additional independent vote. Identity
+regularization uses prior days rather than a fixed power sum. The equal-family
+prior decreases with the number of observed days. Regime corrections remain at
+identity until their own minimum day count is met. No provider name or plant
+capacity receives special treatment.
+
+The angular basis covers the full azimuth circle with periodic distances, including
+north crossings and southern latitudes. Solar fitting uses relative power support;
+angular knots without enough distinct training days retain their identity prior.
+This is still an empirical differential response, not an identified shading horizon
+or an independent irradiance measurement.
+
+Activation additionally requires a positive conservative day-block error margin
+(mean improvement minus two standard errors), positive recent improvement, and the
+existing matched-energy and winning-day guards. This margin is not a calibrated
+confidence interval for correlated weather days. It reduces premature activation;
+it cannot guarantee improvement at every site or weather regime.
+
+Existing member forecasts can seed weather fitting, but only genuinely issued
+version-2 candidates can validate version-2 activation. Upgrading invalidates the
+response cache without deleting measurements or earlier issued forecasts. During
+the new validation period the long horizon uses calibration; short-horizon
+corrections are unaffected. Status includes member groups, regime day counts,
+prior days and selection evidence. Missing members retain the existing solar
+fallback rather than renormalizing weights against unvalidated inputs.

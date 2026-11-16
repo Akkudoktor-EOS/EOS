@@ -14,6 +14,7 @@ config path from ``self.device_id`` without needing an external index.
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | batteries | `EOS_DEVICES__BATTERIES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Stationary battery storage devices, keyed by device_id. |
 | electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Electric vehicle battery packs, keyed by device_id. |
+| heat_sources | `EOS_DEVICES__HEAT_SOURCES` | `dict[str, akkudoktoreos.devices.settings.heatsourcesettings.HeatSourceSettings]` | `rw` | `required` | Staged heat-source descriptions keyed by device_id. No thermal scheduling or actuation is implemented yet. |
 | home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `dict[str, akkudoktoreos.devices.settings.homeappliancesettings.HomeApplianceCommonSettings]` | `rw` | `required` | Shiftable home appliance devices, keyed by device_id. |
 | inverters | `EOS_DEVICES__INVERTERS` | `Optional[dict[str, akkudoktoreos.devices.settings.invertersettings.InverterCommonSettings]]` | `rw` | `None` | Inverter devices, keyed by device_id. |
 | max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `None` | Maximum number of batteries allowed. |
@@ -126,7 +127,8 @@ config path from ``self.device_id`` without needing an external index.
                    "deadline_policy": "BEST_EFFORT"
                }
            },
-           "max_home_appliances": 3
+           "max_home_appliances": 3,
+           "heat_sources": {}
        }
    }
 ```
@@ -263,6 +265,7 @@ config path from ``self.device_id`` without needing an external index.
                }
            },
            "max_home_appliances": 3,
+           "heat_sources": {},
            "measurement_keys": [
                "bat0-soc-factor",
                "bat0-power-l1-w",
