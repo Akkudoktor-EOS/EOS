@@ -459,7 +459,7 @@ def test_http_get_reports_rate_limit():
 
 
 def test_requests_carry_no_personal_data():
-    seen = {}
+    seen: dict[str, str] = {}
 
     class R:
         status_code = 200
