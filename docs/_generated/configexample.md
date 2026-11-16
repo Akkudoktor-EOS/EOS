@@ -169,6 +169,10 @@
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
            "akkudoktor": {},
+           "akkudoktorml": {
+               "price_source": "energycharts",
+               "write_uncertainty": true
+           },
            "elecpricefixed": {
                "elecprice_marketprice_amt_kwh": {
                    "windows": []

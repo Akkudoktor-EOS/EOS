@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611151515912129"
+    "version": "v0.3.0.dev2611161448615377"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -6145,6 +6145,35 @@
         "title": "ElecPriceAkkudoktorCommonSettings",
         "description": "Common configuration settings for Akkodoktor electricity pricing."
       },
+      "ElecPriceAkkudoktorMLCommonSettings": {
+        "properties": {
+          "price_source": {
+            "type": "string",
+            "enum": [
+              "energycharts",
+              "smard"
+            ],
+            "title": "Price Source",
+            "description": "Source of the published day-ahead prices (bidding zone DE-LU): 'energycharts' (published first, SMARD as fallback) or 'smard' (Energy-Charts as fallback). SMARD always provides the load and generation data.",
+            "default": "energycharts",
+            "examples": [
+              "energycharts"
+            ]
+          },
+          "write_uncertainty": {
+            "type": "boolean",
+            "title": "Write Uncertainty",
+            "description": "Write quantiles of the price forecast to uncertainty.json in the provider data folder (informational only, not used by the optimization).",
+            "default": true,
+            "examples": [
+              true
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceAkkudoktorMLCommonSettings",
+        "description": "Common settings for the Akkudoktor ML electricity price provider."
+      },
       "ElecPriceCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -6165,6 +6194,10 @@
           "akkudoktor": {
             "$ref": "#/components/schemas/ElecPriceAkkudoktorCommonSettings",
             "description": "Akkudoktor electricity price provider settings."
+          },
+          "akkudoktorml": {
+            "$ref": "#/components/schemas/ElecPriceAkkudoktorMLCommonSettings",
+            "description": "Akkudoktor ML (weather-driven market price model) provider settings. The weather data comes from the free Open-Meteo API (non-commercial use only, CC BY 4.0, attribution 'Open-Meteo.com')."
           },
           "elecpricefixed": {
             "$ref": "#/components/schemas/ElecPriceFixedCommonSettings-Input",
@@ -6211,6 +6244,10 @@
           "akkudoktor": {
             "$ref": "#/components/schemas/ElecPriceAkkudoktorCommonSettings",
             "description": "Akkudoktor electricity price provider settings."
+          },
+          "akkudoktorml": {
+            "$ref": "#/components/schemas/ElecPriceAkkudoktorMLCommonSettings",
+            "description": "Akkudoktor ML (weather-driven market price model) provider settings. The weather data comes from the free Open-Meteo API (non-commercial use only, CC BY 4.0, attribution 'Open-Meteo.com')."
           },
           "elecpricefixed": {
             "$ref": "#/components/schemas/ElecPriceFixedCommonSettings-Output",

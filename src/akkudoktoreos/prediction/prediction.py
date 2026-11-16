@@ -34,6 +34,7 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixed
 from akkudoktoreos.prediction.elecfeeimport import ElecFeeImport
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
+from akkudoktoreos.prediction.elecpriceakkudoktorml import ElecPriceAkkudoktorML
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
@@ -92,6 +93,7 @@ class PredictionCommonSettings(SettingsBaseModel):
 elecfee_fixed = ElecFeeFixed()
 elecfee_import = ElecFeeImport()
 elecprice_akkudoktor = ElecPriceAkkudoktor()
+elecprice_akkudoktor_ml = ElecPriceAkkudoktorML()
 elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
@@ -127,6 +129,7 @@ PredictionProviderType = Union[
     ElecFeeFixed,
     ElecFeeImport,
     ElecPriceAkkudoktor,
+    ElecPriceAkkudoktorML,
     ElecPriceEnergyCharts,
     ElecPriceFixed,
     ElecPriceImport,
@@ -188,6 +191,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         elecfee_fixed, \
         elecfee_import, \
         elecprice_akkudoktor, \
+        elecprice_akkudoktor_ml, \
         elecprice_energy_charts, \
         elecprice_fixed, \
         elecprice_import, \
@@ -230,6 +234,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         elecfee_fixed,  # elecfee maybe needed by elecprice and feedintariff, keep before
         elecfee_import,
         elecprice_akkudoktor,
+        elecprice_akkudoktor_ml,
         elecprice_energy_charts,
         elecprice_fixed,
         elecprice_import,

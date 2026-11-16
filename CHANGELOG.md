@@ -87,6 +87,11 @@ test procedure. These changes are not yet a tagged release.
 #### Predictions and providers
 
 - Electricity price provider `ElecPriceTibber`.
+- Electricity price provider `ElecPriceAkkudoktorML` (opt-in, bidding zone DE-LU): replaces the seasonal
+  forecast after the last published day-ahead price by a weather-driven market price model
+  (load, wind and PV from Open-Meteo forecasts, residual-load price curve) and writes a price
+  uncertainty file (`uncertainty.json`). It falls back to the seasonal forecast whenever the model
+  is not ready or cannot deliver. Requires `scikit-learn`; Open-Meteo is free for non-commercial use only.
 - Feed-in tariff providers: `FeedInTariffEnergyCharts` (day-ahead market price, extended by an
   ETS forecast beyond the published period), `FeedInTariffSMARD`, `FeedInTariffAkkudoktor`,
   `FeedInTariffTibber` and `FeedInTariffDvhubOnline`.
