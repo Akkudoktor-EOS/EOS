@@ -51,6 +51,11 @@ FloatArray = npt.NDArray[np.float64]
 PositiveSeconds = Annotated[int, Field(strict=True, gt=0)]
 ShadowStatus = Literal["optimal", "feasible", "infeasible", "unsupported", "limit", "error"]
 _TOL = 1e-5
+# Bundled smoothing moves of the pattern polish: at most this many bundles are evaluated per
+# polish call, and halving only pays off from this many short blocks on (fewer blocks are
+# covered by the single moves anyway).
+_SMOOTH_MAX_ATTEMPTS = 6
+_SMOOTH_MIN_BLOCKS_FOR_HALVES = 4
 
 
 if TYPE_CHECKING:
@@ -347,6 +352,9 @@ class _PlanningBudget:
     pattern_polish_start_eur: float = 0.0
     pattern_polish_seconds_used: float = 0.0
     pattern_polish_extra_seconds: float = 0.0
+    pattern_smooth_attempts: int = 0
+    pattern_smooth_moves: int = 0
+    pattern_smooth_infeasible: int = 0
     native_fleet_reference_retry_used: bool = False
     native_fleet_reference_idle_fallback: bool = False
     native_fleet_reference_start_used: bool = False
@@ -576,6 +584,9 @@ def _finish_planning(solution: _SolutionT, budget: _PlanningBudget) -> _Solution
                         "pattern_polish_gain_eur": budget.pattern_polish_gain_eur,
                         "pattern_polish_start_objective_eur": budget.pattern_polish_start_eur,
                         "pattern_polish_seconds_used": budget.pattern_polish_seconds_used,
+                        "pattern_smooth_attempts": float(budget.pattern_smooth_attempts),
+                        "pattern_smooth_moves": float(budget.pattern_smooth_moves),
+                        "pattern_smooth_infeasible": float(budget.pattern_smooth_infeasible),
                     }
                     if budget.pattern_polish_enabled
                     else {}
@@ -1645,6 +1656,12 @@ def _pattern_polish(
     as an LP with storage binaries held, re-checks the full original model and
     physical verification, and is kept only if the original objective falls. Nothing
     depends on clock times, prices or device type; it holds for any on/off source.
+
+    When both the pause-only and the run-only move are rejected, a smoothing round follows
+    before the one-block moves (each costs a full evaluation): every short block at once,
+    then, while evaluations remain, halves of a rejected group. Rejected bundles are mostly
+    infeasible, not dearer. The same acceptance rule applies, and the round is limited to
+    ``_SMOOTH_MAX_ATTEMPTS`` evaluations per call.
     """
     seconds = float(request.pattern_polish_seconds) if seconds is None else seconds
     budget.pattern_polish_enabled = True
@@ -1692,6 +1709,8 @@ def _pattern_polish(
             i = j
         return found
 
+    failure = {"kind": ""}  # why the last evaluation was rejected: "cost" or "infeasible"
+
     def child() -> _Program:
         r = copy.copy(p)
         r.lower, r.upper = list(p.lower), list(p.upper)
@@ -1706,6 +1725,7 @@ def _pattern_polish(
 
     def evaluate(on: list[bool]) -> tuple[FloatArray, float] | None:
         budget.pattern_polish_evaluations += 1
+        failure["kind"] = "cost"
         r = child()
         for i in storage_integers:
             r.lower[i] = r.upper[i] = float(round(x[i]))
@@ -1728,6 +1748,7 @@ def _pattern_polish(
                 r2.lower[i] = r2.upper[i] = hints.witness_values[i]
             exact = r2.solve(objective, max(0.2, min(left(), 4.0)))
         except (_NoSolution, KeyError):
+            failure["kind"] = "infeasible"
             return None
         if (
             exact.objective < best - 1e-6
@@ -1744,6 +1765,40 @@ def _pattern_polish(
                 new[k] = not state
         return new
 
+    def smooth_round(
+        on: list[bool], blocks: list[tuple[int, int, bool]]
+    ) -> tuple[FloatArray, float] | None:
+        """Bundled moves tried before the single moves, refined by halving while time allows.
+
+        Called after the pause-only and run-only moves were rejected. Starts with every short
+        block at once (when pauses and runs are both present, else that move was just tried),
+        then halves each rejected group in turn,
+        front half first. A group of one block is left to the single moves. At most
+        ``_SMOOTH_MAX_ATTEMPTS`` bundles are evaluated per polish call and none once
+        the polish time is used up, so a rejected bundle costs a bounded amount of time.
+        """
+        queue: list[list[tuple[int, int, bool]]] = []
+        if any(b[2] for b in blocks) and any(not b[2] for b in blocks):
+            queue.append(list(blocks))
+        elif len(blocks) >= _SMOOTH_MIN_BLOCKS_FOR_HALVES:
+            half = len(blocks) // 2  # the whole group is the pause-only or run-only move
+            queue.extend([blocks[:half], blocks[half:]])
+        while queue and left() > 1.0:
+            if budget.pattern_smooth_attempts - attempts_before >= _SMOOTH_MAX_ATTEMPTS:
+                break
+            group = queue.pop(0)
+            budget.pattern_smooth_attempts += 1
+            outcome = evaluate(flipped(on, group))
+            if outcome is not None:
+                return outcome
+            budget.pattern_smooth_infeasible += int(failure["kind"] == "infeasible")
+            if len(group) >= _SMOOTH_MIN_BLOCKS_FOR_HALVES:
+                half = len(group) // 2
+                queue.extend([group[:half], group[half:]])
+        return None
+
+    smoothing_open = True  # cleared once a whole round of bundles was rejected
+    attempts_before = budget.pattern_smooth_attempts
     try:
         while left() > 1.0:
             on = pattern(x)
@@ -1757,21 +1812,41 @@ def _pattern_polish(
                 candidates.append(pauses)
             if runs:
                 candidates.append(runs)
-            candidates.extend([b] for b in pauses if len(pauses) > 1)
-            candidates.extend([b] for b in runs if len(runs) > 1)
+            singles: list[list[tuple[int, int, bool]]] = []
+            singles.extend([b] for b in pauses if len(pauses) > 1)
+            singles.extend([b] for b in runs if len(runs) > 1)
             improved = False
-            for blocks_to_flip in candidates:
-                if left() <= 1.0:
+            for stage_moves in (candidates, None, singles):
+                if improved or left() <= 1.0:
                     break
-                outcome = evaluate(flipped(on, blocks_to_flip))
-                if outcome is not None:
-                    budget.pattern_polish_gain_eur += best - outcome[1]
-                    x, best = outcome
-                    budget.pattern_polish_moves += 1
-                    p.witness_values = dict(enumerate(x))
-                    budget.candidate_cost_seed_used = True
-                    improved = True
-                    break
+                if stage_moves is None:
+                    # Pause-only and run-only moves were rejected: try every short block at once,
+                    # then halves, before the slow one-block moves.
+                    if not smoothing_open:
+                        continue
+                    outcome = smooth_round(on, blocks)
+                    smoothing_open = outcome is not None
+                    if outcome is not None:
+                        budget.pattern_smooth_moves += 1
+                        budget.pattern_polish_gain_eur += best - outcome[1]
+                        x, best = outcome
+                        budget.pattern_polish_moves += 1
+                        p.witness_values = dict(enumerate(x))
+                        budget.candidate_cost_seed_used = True
+                        improved = True
+                    continue
+                for blocks_to_flip in stage_moves:
+                    if left() <= 1.0:
+                        break
+                    outcome = evaluate(flipped(on, blocks_to_flip))
+                    if outcome is not None:
+                        budget.pattern_polish_gain_eur += best - outcome[1]
+                        x, best = outcome
+                        budget.pattern_polish_moves += 1
+                        p.witness_values = dict(enumerate(x))
+                        budget.candidate_cost_seed_used = True
+                        improved = True
+                        break
             if not improved:
                 break
     except _NoSolution:
