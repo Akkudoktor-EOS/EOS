@@ -297,3 +297,18 @@ def test_zero_seconds_does_nothing(monkeypatch):
     assert result is None
     assert budget.pattern_smooth_attempts == 0 and budget.pattern_polish_evaluations == 0
     assert shared.solves == 0
+
+
+def test_second_tracking_search_keeps_the_polish_time_in_reserve(monkeypatch):
+    """The budget carries the requested polish seconds into the tracking-stage extension."""
+    seen = {}
+
+    def inner(request, source, budget):
+        seen["polish"] = budget.pattern_polish_request_seconds
+        raise T._NoSolution("error", "stop here")
+
+    monkeypatch.setattr(T, "_optimize_problem_inner", inner)
+    request = SimpleNamespace(planning_time_limit_seconds=60.0, pattern_polish_seconds=12.0)
+    assert T._optimize_problem(request, SimpleNamespace()).status == "error"
+    assert seen["polish"] == 12.0
+    assert T._PlanningBudget(60.0).pattern_polish_request_seconds == 0.0  # off: reserve unchanged
