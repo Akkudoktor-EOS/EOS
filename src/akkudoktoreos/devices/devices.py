@@ -17,6 +17,7 @@ from akkudoktoreos.devices.settings.batterysettings import (
 from akkudoktoreos.devices.settings.batterysettings import (
     BatteriesCommonSettings,
 )
+from akkudoktoreos.devices.settings.heatsourcesettings import HeatSourceSettings
 from akkudoktoreos.devices.settings.homeappliancesettings import (
     HomeApplianceCommonSettings,
 )
@@ -118,8 +119,26 @@ class DevicesCommonSettings(SettingsBaseModel):
         },
     )
 
+    # Heat sources are configuration-only in this release. They are deliberately
+    # not registered as active devices or added to measurement_keys below.
+    heat_sources: dict[str, HeatSourceSettings] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Staged heat-source descriptions keyed by device_id. "
+                "No thermal scheduling or actuation is implemented yet."
+            ),
+            "x-scope": [str(ConfigScope.UNUSED)],
+        },
+    )
+
     @field_validator(
-        "batteries", "electric_vehicles", "inverters", "home_appliances", mode="before"
+        "batteries",
+        "electric_vehicles",
+        "inverters",
+        "home_appliances",
+        "heat_sources",
+        mode="before",
     )
     @classmethod
     def validate_device_ids(cls, value: Any) -> Any:

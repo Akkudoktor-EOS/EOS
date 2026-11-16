@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "panasonic_vz12ske": {
+      "profile_id": "panasonic_vz12ske",
+      "heat_pump_type": "air_to_air",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -35.0,
+          "delivery_temperature_c": 20.0,
+          "cop": 1.15
+        },
+        {
+          "outdoor_temperature_c": -25.0,
+          "delivery_temperature_c": 20.0,
+          "cop": 1.5
+        },
+        {
+          "outdoor_temperature_c": -15.0,
+          "delivery_temperature_c": 20.0,
+          "cop": 1.9
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 20.0,
+          "cop": 2.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 20.0,
+          "cop": 5.04
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -35.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 2440.0
+        },
+        {
+          "outdoor_temperature_c": -25.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 3670.0
+        },
+        {
+          "outdoor_temperature_c": -15.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 5220.0
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 5600.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 9200.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 600.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "minimum_operating_outdoor_temperature_c": -30.0,
+      "maximum_operating_outdoor_temperature_c": 24.0,
+      "operating_points": [
+        {
+          "outdoor_temperature_c": -35.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 2440.0,
+          "electric_power_w": 2121.739130434783,
+          "point_id": "panasonic_cold_minus35",
+          "source": "https://www.panasonicproclub.com/uploads/LT/catalogues/EN_Nordic_RAC_25_LR.pdf#page=48",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop",
+            "below_factory_operating_range_not_guaranteed"
+          ]
+        },
+        {
+          "outdoor_temperature_c": -25.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 3670.0,
+          "electric_power_w": 2446.6666666666665,
+          "point_id": "panasonic_cold_minus25",
+          "source": "https://www.panasonicproclub.com/uploads/LT/catalogues/EN_Nordic_RAC_25_LR.pdf#page=48",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": -15.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 5220.0,
+          "electric_power_w": 2747.3684210526317,
+          "point_id": "panasonic_cold_minus15",
+          "source": "https://www.panasonicproclub.com/uploads/LT/catalogues/EN_Nordic_RAC_25_LR.pdf#page=48",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 5600.0,
+          "electric_power_w": 2800.0,
+          "point_id": "panasonic_cold_minus7",
+          "source": "https://www.panasonicproclub.com/uploads/LT/catalogues/EN_Nordic_RAC_25_LR.pdf#page=48",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 4200.0,
+          "electric_power_w": 833.3333333333334,
+          "point_id": "panasonic_nominal",
+          "source": "https://www.panasonicproclub.com/uploads/LT/catalogues/EN_Nordic_RAC_25_LR.pdf#page=48",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": -10.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 4200.0,
+          "electric_power_w": 1468.5314685314686,
+          "point_id": "eurovent_tol_tbiv",
+          "source": "https://www.eurovent-certification.com/de/catalog/program/certificate/participant/model/show/196539768",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 3720.0,
+          "electric_power_w": 981.5303430079156,
+          "point_id": "eurovent_partload_a",
+          "source": "https://www.eurovent-certification.com/de/catalog/program/certificate/participant/model/show/196539768",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 2260.0,
+          "electric_power_w": 395.10489510489515,
+          "point_id": "eurovent_partload_b",
+          "source": "https://www.eurovent-certification.com/de/catalog/program/certificate/participant/model/show/196539768",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 1450.0,
+          "electric_power_w": 185.8974358974359,
+          "point_id": "eurovent_partload_c",
+          "source": "https://www.eurovent-certification.com/de/catalog/program/certificate/participant/model/show/196539768",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        },
+        {
+          "outdoor_temperature_c": 12.0,
+          "delivery_temperature_c": 20.0,
+          "thermal_power_w": 910.0,
+          "electric_power_w": 91.18236472945891,
+          "point_id": "eurovent_partload_d",
+          "source": "https://www.eurovent-certification.com/de/catalog/program/certificate/participant/model/show/196539768",
+          "quality_flags": [
+            "electric_power_derived_from_reported_heat_and_cop"
+          ]
+        }
+      ],
+      "provenance": {
+        "source": "https://www.panasonicproclub.com/uploads/LT/catalogues/EN_Nordic_RAC_25_LR.pdf#page=48 ; https://www.eurovent-certification.com/de/catalog/program/certificate/participant/model/show/196539768",
+        "quality": "manufacturer_documented",
+        "electric_power_basis": "total_system",
+        "assumptions": [
+          "Indoor heating rating is20C dry bulb; standard outdoor heating rating7C dry bulb/6C wet bulb, per EN14511 rating conditions in the Panasonic Nordic catalogue. Delivery axis is indoor rating temperature, not discharge air.",
+          "Eurovent EN14825 average-climate part-load conditions A/B/C/D correspond to outdoor−7/+2/+7/+12C. These are different weather conditions, not one modulation curve.",
+          "Electrical operating-point values are computed as published heat/COP; the catalogue rounds nominal electrical input to0.83kW while Eurovent reports nominal COP5.06 and Panasonic5.04. The Panasonic nominal COP is retained without averaging sources.",
+          "The independent min/max input-power range0.14..3.16kW has not been paired with the independent heating-capacity range0.60..9.20kW to manufacture COP endpoints.",
+          "Only exact supported outdoor/indoor operating slices are supplied. Interpolation between loads within a slice remains a declared model assumption, not independently tested commands.",
+          "The−35C laboratory test is outside the−30C factory operating range and is not guaranteed.",
+          "Eurovent reports Off1W and thermostat-Off23W as distinct modes; no single standby default or startup-energy value is inferred."
+        ],
+        "source_sha256": "63fcb5a518aefed48e8d6b05b07c7816b8c0549e9b57760a197584bd37bea20b"
+      }
+    }
+  },
+  "sources": {
+    "panasonic_catalogue_url": "https://www.panasonicproclub.com/uploads/LT/catalogues/EN_Nordic_RAC_25_LR.pdf",
+    "panasonic_page": 48,
+    "eurovent_model_url": "https://www.eurovent-certification.com/de/catalog/program/certificate/participant/model/show/196539768",
+    "standard_condition_code_reference": "https://brandportal.carrier.com/m/37b3c5806804f720/original/42QHG009D8SH-EC.pdf",
+    "standard_condition_code_reference_note": "Primary Eurovent-issued EN14825 product performance certificate hosted by another manufacturer, used only to verify A/B/C/D test-condition temperature labels, not Panasonic performance."
+  },
+  "documented_non_operating_point_values": {
+    "panasonic_heating_input_min_w": 140.0,
+    "panasonic_heating_input_nominal_rounded_w": 830.0,
+    "panasonic_heating_input_max_w": 3160.0,
+    "eurovent_off_heating_w": 1.0,
+    "eurovent_thermostat_off_heating_w": 23.0,
+    "eurovent_crankcase_heating_w": 0.0
+  }
+}
