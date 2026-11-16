@@ -1000,6 +1000,17 @@ the setting does not enter the request fingerprint. Enable it (for example 10 to
 plans show many short heat-pump runs and the planning budget has room; leave it at `0` on
 slow hardware or with a tight budget.
 
+The polish first tries to close all short pauses and then to remove all short runs, each in
+one step. If both fail, a smoothing round follows before the slow one-block moves: it
+tries all short blocks at once and then halves a rejected group (at most six such
+evaluations per polish call). The usual reason a bundle is rejected is that the remaining
+heat can no longer be supplied (infeasible), not that it is dearer. The same rule applies as
+for every move: a bundle is kept only if the verified cost falls, and there is no extra
+setting. The checks `pattern_smooth_attempts`, `pattern_smooth_moves` and
+`pattern_smooth_infeasible` report it. When the reference search needs a second attempt,
+it now leaves `thermal.pattern_polish_seconds` of the budget for the later stages, so the
+polish is not starved; without polish (`0`) nothing changes.
+
 The first thermal reference receives 55% of the remaining time instead of 25%.
 Reference energy refinement receives 25% of its then-remaining time and can reuse a
 verified witness. The native battery reference and joint optimization keep sharing
