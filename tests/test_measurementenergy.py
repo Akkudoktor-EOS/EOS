@@ -102,6 +102,13 @@ def test_nan_and_signed_power():
     assert convert([(0, -800), (900, -800)])[0].energy_wh == -200
 
 
+@pytest.mark.parametrize("quantity,unit", [("temperature", "degC"), ("presence", "1")])
+def test_direct_energy_helper_rejects_nonenergy_channels(quantity, unit):
+    config = MeasurementChannelSettings(quantity=quantity, unit=unit)
+    with pytest.raises(ValueError, match="requires a power or energy channel"):
+        convert([(0, 1), (900, 1)], config)
+
+
 @pytest.mark.parametrize("month,day,hours", [(3, 29, 23), (10, 25, 25)])
 def test_dst_calendar_day(month, day, hours):
     start = datetime(2026, month, day, tzinfo=ZoneInfo("Europe/Berlin"))
@@ -109,7 +116,9 @@ def test_dst_calendar_day(month, day, hours):
     result = energy_intervals([(start, 0), (end, hours)], channel("cumulative_energy"), start, end)
     assert len(result) == hours * 4
     assert all(r.energy_wh is not None for r in result)
-    assert sum(r.energy_wh for r in result if r.energy_wh is not None) == pytest.approx(hours * 1000)
+    assert sum(r.energy_wh for r in result if r.energy_wh is not None) == pytest.approx(
+        hours * 1000
+    )
 
 
 @pytest.mark.asyncio
@@ -127,7 +136,7 @@ async def test_measurement_wrapper_preserves_asynchronous_channels(config_eos):
         (await measurement.update_value(to_datetime(START), "p", 800))
         (await measurement.update_value(to_datetime(START + timedelta(seconds=450)), "other", 1))
         (await measurement.update_value(to_datetime(START + timedelta(seconds=900)), "p", 800))
-        result = (await measurement.energy_intervals("p", START, START + timedelta(seconds=900)))
+        result = await measurement.energy_intervals("p", START, START + timedelta(seconds=900))
         assert result[0].energy_wh == 200
     finally:
         measurement._db_reset_state()

@@ -40,8 +40,8 @@ from akkudoktoreos.utils.datetimeutil import (
 class MeasurementChannelSettings(SettingsBaseModel):
     """Meaning of a raw measurement channel; no conversion is performed on storage."""
 
-    quantity: Literal["power", "cumulative_energy", "interval_energy"]
-    unit: Literal["W", "kW", "Wh", "kWh"]
+    quantity: Literal["power", "cumulative_energy", "interval_energy", "temperature", "presence"]
+    unit: Literal["W", "kW", "Wh", "kWh", "degC", "1"]
     integration_method: Optional[Literal["hold", "linear"]] = None
     max_gap_seconds: Optional[int] = Field(default=None, gt=0, strict=True)
     interval_seconds: Optional[int] = Field(default=None, gt=0, strict=True)
@@ -50,6 +50,23 @@ class MeasurementChannelSettings(SettingsBaseModel):
     @model_validator(mode="after")
     def validate_semantics(self) -> "MeasurementChannelSettings":
         """Reject ambiguous units and time semantics before accepting a channel."""
+        if self.quantity in ("temperature", "presence"):
+            expected_unit = "degC" if self.quantity == "temperature" else "1"
+            if self.unit != expected_unit:
+                raise ValueError(f"{self.quantity} channels require unit {expected_unit}.")
+            if any(
+                value is not None
+                for value in (
+                    self.integration_method,
+                    self.max_gap_seconds,
+                    self.interval_seconds,
+                    self.timestamp_reference,
+                )
+            ):
+                raise ValueError(
+                    "Temperature and presence channels do not define energy integration."
+                )
+            return self
         if self.quantity == "power":
             if self.unit not in ("W", "kW"):
                 raise ValueError("Power channels require W or kW.")
@@ -251,9 +268,16 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
 
     async def import_samples(self, samples: list[MeasurementSample]) -> None:
         """Validate the whole batch before replacing samples; omitted keys stay untouched."""
-        for sample in samples:
-            self._energy_channel(sample.key)
-        for sample in samples:
+        validated = [MeasurementSample.model_validate(sample.model_dump()) for sample in samples]
+        for sample in validated:
+            channel = self.measurement_channel(sample.key)
+            if (
+                channel.quantity == "presence"
+                and sample.value is not None
+                and sample.value not in (0, 1)
+            ):
+                raise ValueError("Presence samples require 0, 1 or null; unknown is not absence.")
+        for sample in validated:
             dt = to_datetime(sample.date_time)
             await self.update_value(dt, sample.key, sample.value)
             record = await self.db_get_record(DatabaseTimestamp.from_datetime(dt))
@@ -261,6 +285,47 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
                 raise RuntimeError("Measurement sample was not stored.")
             record.sample_quality[sample.key] = sample.quality.model_copy(deep=True)
             await self.db_mark_dirty_record(record)
+
+    async def get_samples(
+        self,
+        key: str,
+        start: datetime,
+        end: datetime,
+        *,
+        max_samples: int = 100000,
+    ) -> list[MeasurementSample]:
+        """Read bounded raw channel history with original times and sample quality.
+
+        The range is half-open and limited to 90 days. Only explicitly stored
+        samples for this key are returned; other channel timestamps introduce
+        neither synthetic values nor absence. Null and quality are preserved.
+        """
+        self.measurement_channel(key)
+        if any(dt.tzinfo is None or dt.utcoffset() is None for dt in (start, end)):
+            raise ValueError("Explicit timezone required.")
+        if not 0 < end.timestamp() - start.timestamp() <= 90 * 86400:
+            raise ValueError("Require a positive range of at most 90 days.")
+        if type(max_samples) is not int or not 0 < max_samples <= 250000:
+            raise ValueError("max_samples must be a positive integer at most 250000.")
+        result: list[MeasurementSample] = []
+        async for record in self.db_iterate_records(
+            DatabaseTimestamp.from_datetime(to_datetime(start)),
+            DatabaseTimestamp.from_datetime(to_datetime(end)),
+        ):
+            if key in record.configured_data and record.date_time is not None:
+                if len(result) >= max_samples:
+                    raise ValueError(f"More than {max_samples} samples; request a shorter range.")
+                result.append(
+                    MeasurementSample(
+                        date_time=record.date_time,
+                        key=key,
+                        value=record.configured_data[key],
+                        quality=record.sample_quality.get(key, SampleQuality()).model_copy(
+                            deep=True
+                        ),
+                    )
+                )
+        return result
 
     async def insert_by_datetime(self, record: MeasurementDataRecord) -> None:
         """Merge quality by channel as well as the ordinary measurement fields."""
@@ -276,14 +341,21 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
             stored.sample_quality = stored.sample_quality | record.sample_quality
             await self.db_mark_dirty_record(stored)
 
-    def _energy_channel(self, key: str) -> MeasurementChannelSettings:
+    def measurement_channel(self, key: str) -> MeasurementChannelSettings:
+        """Resolve any typed raw channel, preserving legacy kWh meter semantics."""
         channel = self.config.measurement.channels.get(key)
         if channel is not None:
             return channel
         for name in type(self.config.measurement).model_fields:
             if name.endswith("_emr_keys") and key in (getattr(self.config.measurement, name) or []):
                 return MeasurementChannelSettings(quantity="cumulative_energy", unit="kWh")
-        raise ValueError(f"No energy channel definition for {key!r}.")
+        raise ValueError(f"No measurement channel definition for {key!r}.")
+
+    def _energy_channel(self, key: str) -> MeasurementChannelSettings:
+        channel = self.measurement_channel(key)
+        if channel.quantity not in ("power", "cumulative_energy", "interval_energy"):
+            raise ValueError(f"Measurement channel {key!r} does not represent power or energy.")
+        return channel
 
     async def _energy_converter(
         self,
