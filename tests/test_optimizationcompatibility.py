@@ -47,26 +47,32 @@ def test_energy_parameter_aliases_preserve_wh_prices(model, tariff):
 async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypatch, algorithm):
     from akkudoktoreos.server import eos
 
-    genetic, genetic0 = object(), object()
+    genetic, genetic0, fleet = object(), object(), object()
     fake = SimpleNamespace(
         genetic_solution=Mock(return_value=genetic),
         genetic0_solution=Mock(return_value=genetic0),
+        fleet_solution=Mock(return_value=fleet),
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
     monkeypatch.setattr(
         eos,
         "get_config",
-        lambda: SimpleNamespace(optimization=SimpleNamespace(algorithms=["GENETIC", "GENETIC0"])),
+        lambda: SimpleNamespace(optimization=SimpleNamespace(algorithms=list(OptimizationAlgorithm))),
     )
     result = await eos.fastapi_energy_management_optimization_solution_algorithm_get(algorithm)
     if algorithm == OptimizationAlgorithm.GENETIC:
         assert result is genetic
         fake.genetic_solution.assert_called_once_with()
         fake.genetic0_solution.assert_not_called()
-    else:
+    elif algorithm == OptimizationAlgorithm.GENETIC0:
         assert result is genetic0
         fake.genetic0_solution.assert_called_once_with()
         fake.genetic_solution.assert_not_called()
+    else:
+        assert result is fleet
+        fake.fleet_solution.assert_called_once_with()
+        fake.genetic_solution.assert_not_called()
+        fake.genetic0_solution.assert_not_called()
 
 
 @pytest.mark.parametrize("algorithm", ["genetic", "genetic0"])
