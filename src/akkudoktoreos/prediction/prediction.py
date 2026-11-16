@@ -53,6 +53,7 @@ from akkudoktoreos.prediction.loadakkudoktor import (
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
+from akkudoktoreos.prediction.presence import PresenceHistory
 from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
 )
@@ -121,9 +122,11 @@ weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
 weather_openmeteo = WeatherOpenMeteo()
 weather_import = WeatherImport()
+presence_history = PresenceHistory()
 
 
 PredictionProviderType = Union[
+    PresenceHistory,
     ElecFeeFixed,
     ElecFeeImport,
     ElecPriceAkkudoktor,
@@ -235,6 +238,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         pvforecast_pvnode,
         pvforecast_solcast,
         pvforecast_vrm,
+        presence_history,
     ]
 
 

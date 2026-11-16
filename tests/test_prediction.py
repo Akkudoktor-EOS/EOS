@@ -27,6 +27,7 @@ from akkudoktoreos.prediction.prediction import (
     Prediction,
     PredictionCommonSettings,
 )
+from akkudoktoreos.prediction.presence import PresenceHistory
 from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
 )
@@ -86,6 +87,7 @@ def forecast_providers():
         PVForecastPVNode(),
         PVForecastSolcast(),
         PVForecastVrm(),
+        PresenceHistory(),
     ]
 
 
