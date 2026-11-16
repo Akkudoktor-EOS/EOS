@@ -86,6 +86,20 @@ def test_model_learns_slope_on_unseen_samples_while_level_only_cannot():
     assert trend_error.mean() < 0.1 * level_error.mean()
 
 
+def test_model_accepts_mixed_iso_timestamp_precision_from_archive():
+    samples = training().iloc[:160].copy()
+    cutoff = pd.Timestamp("2026-09-15T00:00:00Z")
+    expected = LocalPVTrendModel(ridge=0.01).fit(samples, cutoff)
+    for column in ("issue", "time", "target_available_at", "feature_available_at"):
+        samples[column] = [
+            value.isoformat(timespec="seconds" if index % 2 else "microseconds")
+            for index, value in enumerate(samples[column])
+        ]
+    actual = LocalPVTrendModel(ridge=0.01).fit(samples, cutoff)
+    for bucket, coefficients in expected.coefficients.items():
+        np.testing.assert_allclose(actual.coefficients[bucket], coefficients)
+
+
 def test_scaling_allows_learning_small_normalized_features_with_regularization():
     samples = training()
     cutoff = pd.Timestamp("2026-09-15T00:00:00Z")
