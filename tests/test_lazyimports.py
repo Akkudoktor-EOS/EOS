@@ -23,6 +23,8 @@ LAZY_MODULES = [
     "bs4",
     "lxml",
     "scipy",
+    "sklearn",
+    "joblib",
     "tzfpy",
     "akkudoktoreos.optimization.genetic0.genetic0",
     "akkudoktoreos.optimization.genetic0.genetic0visualize",

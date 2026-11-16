@@ -66,6 +66,14 @@ class ElecPriceProvider(PricePredictionProviderBase[ElecPriceDataRecord]):
     def provider_id(cls) -> str:
         return "ElecPriceProvider"
 
+    def exchange_price_zone(self) -> Optional[str]:
+        """Bidding zone if the raw price series is a day-ahead exchange price, otherwise None.
+
+        Providers that return the exchange price of one bidding zone override this. It lets other components
+        (e.g. a feed-in tariff provider) follow the same raw series without maintaining a list of providers.
+        """
+        return None
+
     def enabled(self) -> bool:
         return self.provider_id() == self.config.elecprice.provider
 

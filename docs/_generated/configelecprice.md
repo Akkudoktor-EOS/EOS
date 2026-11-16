@@ -8,6 +8,7 @@
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | akkudoktor | `EOS_ELECPRICE__AKKUDOKTOR` | `ElecPriceAkkudoktorCommonSettings` | `rw` | `required` | Akkudoktor electricity price provider settings. |
+| akkudoktorml | `EOS_ELECPRICE__AKKUDOKTORML` | `ElecPriceAkkudoktorMLCommonSettings` | `rw` | `required` | Akkudoktor ML (weather-driven market price model) provider settings. The weather data comes from the free Open-Meteo API (non-commercial use only, CC BY 4.0, attribution 'Open-Meteo.com'). |
 | elecpricefixed | `EOS_ELECPRICE__ELECPRICEFIXED` | `ElecPriceFixedCommonSettings` | `rw` | `required` | Fixed electricity price provider settings. |
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Electricity price import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
@@ -28,6 +29,10 @@
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
            "akkudoktor": {},
+           "akkudoktorml": {
+               "price_source": "energycharts",
+               "write_uncertainty": true
+           },
            "elecpricefixed": {
                "elecprice_marketprice_amt_kwh": {
                    "windows": []
@@ -63,6 +68,10 @@
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
            "akkudoktor": {},
+           "akkudoktorml": {
+               "price_source": "energycharts",
+               "write_uncertainty": true
+           },
            "elecpricefixed": {
                "elecprice_marketprice_amt_kwh": {
                    "windows": []
@@ -85,6 +94,7 @@
            },
            "providers": [
                "ElecPriceAkkudoktor",
+               "ElecPriceAkkudoktorML",
                "ElecPriceEnergyCharts",
                "ElecPriceFixed",
                "ElecPriceImport",
@@ -268,6 +278,37 @@ price applicable during that interval.
                        }
                    ]
                }
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the Akkudoktor ML electricity price provider
+
+<!-- pyml disable line-length -->
+:::{table} elecprice::akkudoktorml
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| price_source | `Literal['energycharts', 'smard']` | `rw` | `energycharts` | Source of the published day-ahead prices (bidding zone DE-LU): 'energycharts' (published first, SMARD as fallback) or 'smard' (Energy-Charts as fallback). SMARD always provides the load and generation data. |
+| write_uncertainty | `bool` | `rw` | `True` | Write quantiles of the price forecast to uncertainty.json in the provider data folder (informational only, not used by the optimization). |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "akkudoktorml": {
+               "price_source": "energycharts",
+               "write_uncertainty": true
            }
        }
    }

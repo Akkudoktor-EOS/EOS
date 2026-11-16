@@ -75,6 +75,11 @@ class ElecPriceSMARD(ElecPriceEnergyCharts):
         """Return the unique identifier for the direct SMARD provider."""
         return "ElecPriceSMARD"
 
+    def exchange_price_zone(self) -> Optional[str]:
+        """SMARD region; the region "DE" is the DE-LU day-ahead price."""
+        region = str(self.config.elecprice.smard.region)
+        return "DE-LU" if region == "DE" else region
+
     @classmethod
     def _validate_index(cls, json_data: bytes) -> SmardIndex:
         """Validate a SMARD chunk index response."""
