@@ -352,6 +352,7 @@ class _PlanningBudget:
     pattern_polish_start_eur: float = 0.0
     pattern_polish_seconds_used: float = 0.0
     pattern_polish_extra_seconds: float = 0.0
+    pattern_polish_request_seconds: float = 0.0
     pattern_smooth_attempts: int = 0
     pattern_smooth_moves: int = 0
     pattern_smooth_infeasible: int = 0
@@ -959,7 +960,12 @@ class _Program:
                 return False
             now = time.monotonic()
             global_left = self.budget.remaining(self.stage)
-            reserve = min(self.budget.seconds * 0.25, global_left * 0.5)
+            # The later stages include the pattern polish the request asked for: keep its
+            # time too, so a second tracking search cannot leave the polish nothing.
+            reserve = min(
+                self.budget.seconds * 0.25 + self.budget.pattern_polish_request_seconds,
+                global_left * 0.5,
+            )
             extended = min(
                 started + self.adaptive_stage_cap_seconds,
                 now + global_left - reserve,
@@ -3245,6 +3251,7 @@ def _optimize_problem(
 ) -> ThermalShadowSolution:
     """Share one public-entry budget, including all preparation and verification."""
     budget = budget or _PlanningBudget(request.planning_time_limit_seconds)
+    budget.pattern_polish_request_seconds = float(request.pattern_polish_seconds)
     try:
         budget.remaining("core_preparation")
         result = _optimize_problem_inner(request, source, budget)
