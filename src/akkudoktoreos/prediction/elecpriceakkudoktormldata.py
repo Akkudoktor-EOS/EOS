@@ -4,8 +4,8 @@ Sources (both without key, generic user agent only, no location or personal data
 weather points):
 
 * SMARD (Bundesnetzagentur, CC BY 4.0) ``chart_data``: day-ahead price DE-LU (4169), grid load
-(410),
-  onshore wind (4067), offshore wind (1225), PV (4068), each as an hourly series in weekly chunks.
+  (410), onshore wind (4067), offshore wind (1225), PV (4068), each as an hourly series in weekly
+  chunks.
 * Open-Meteo Previous-Runs API, model ``ecmwf_ifs025``: ``<variable>_previous_day{K}`` for K = 3..6.
   The same interface delivers the training data for target times in the past and, for target times
   in the coming days, the weather run that was started K days before the target time. Thus the
