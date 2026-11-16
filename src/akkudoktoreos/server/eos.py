@@ -9,13 +9,15 @@ import sys
 import traceback
 from contextlib import asynccontextmanager
 from enum import Enum
+from threading import Lock as ThreadLock
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 from urllib.parse import urljoin, urlsplit
 
 import psutil
 import uvicorn
-from fastapi import Body, FastAPI, Query, Request
+from fastapi import Body, FastAPI
 from fastapi import Path as FastapiPath
+from fastapi import Query, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import (
     HTMLResponse,
@@ -54,17 +56,17 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic0.genetic0params import (
 from akkudoktoreos.optimization.fleet import FleetSolution
 from akkudoktoreos.optimization.fleetrequest import FleetConfigRequest
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import (
     Genetic0Solution,
     Genetic0SolutionLegacy,
 )
+from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
+from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
@@ -80,10 +82,11 @@ from akkudoktoreos.server.rest.error import (
     create_error_page,
     register_problem_handlers,
 )
-from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.server.rest.fleet import router as fleet_router
+from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.server.rest.pvakkuadaptrest import router as pvadaptive_router
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
+from akkudoktoreos.server.rest.thermal import router as thermal_router
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
     drop_root_privileges,
@@ -264,11 +267,13 @@ The genetic optimization API fields were renamed from German to English. For bac
 # Application generic exception handling
 # ----------------------
 
+app.state.thermal_solve_lock = ThreadLock()
 app.include_router(measurement_router)
+app.include_router(fleet_router)
+app.include_router(thermal_router)
 app.include_router(pvadaptive_router)
 
 register_problem_handlers(app)
-app.include_router(fleet_router)
 
 
 # ----------------------
@@ -1863,12 +1868,12 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
         solution = get_ems().genetic_solution()
     elif algorithm == OptimizationAlgorithm.GENETIC0:
         solution = get_ems().genetic0_solution()
+    elif algorithm == OptimizationAlgorithm.FLEET:
+        solution = get_ems().fleet_solution()
 
     if solution is None:
         raise EOSProblem(
             status=404,
-    elif algorithm == OptimizationAlgorithm.FLEET:
-        solution = get_ems().fleet_solution()
             title="Algorithm specific optimization solution retrieval failed",
             detail=(
                 f"Can not get the '{algorithm}' optimization solution.\n"
@@ -2243,10 +2248,6 @@ async def fastapi_optimize_config(
             status_code=422,
             detail="Configure optimization settings; query overrides are not supported.",
         )
-    solution = await get_ems().run(
-        mode=EnergyManagementMode.OPTIMIZATION,
-        algorithm=OptimizationAlgorithm.GENETIC,
-        genetic_parameters=parameters,
     if get_config().optimization.algorithm == OptimizationAlgorithm.FLEET:
         try:
             fleet_parameters = FleetConfigRequest.model_validate(
@@ -2274,6 +2275,10 @@ async def fastapi_optimize_config(
         return fleet_solution
     if not isinstance(parameters, ConfigOptimizationRequest):
         raise HTTPException(status_code=422, detail="Fleet runtime inputs require algorithm FLEET")
+    solution = await get_ems().run(
+        mode=EnergyManagementMode.OPTIMIZATION,
+        algorithm=OptimizationAlgorithm.GENETIC,
+        genetic_parameters=parameters,
     )
     if solution is None:
         raise EOSProblem(
@@ -2332,16 +2337,16 @@ async def fastapi_optimize(
         )
 
     # Create compatible solution.
-    legacy_solution = Genetic0SolutionLegacy.model_validate(
-        {
-            "ac_charge": solution.ac_charge,
-            "dc_charge": solution.dc_charge,
     if not isinstance(solution, (GeneticSolution, Genetic0Solution)):
         raise EOSProblem(
             status=500,
             title="Unexpected legacy result",
             detail="Expected a genetic optimization solution.",
         )
+    legacy_solution = Genetic0SolutionLegacy.model_validate(
+        {
+            "ac_charge": solution.ac_charge,
+            "dc_charge": solution.dc_charge,
             "discharge_allowed": solution.discharge_allowed,
             "ev_charge_hours_float": solution.ev_charge_hours_float,
             "result": solution.result,

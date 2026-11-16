@@ -13,16 +13,16 @@ import json
 import os
 import sys
 import tempfile
-from uuid import uuid4
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Optional, Type, Union
+from uuid import uuid4
 
 import pendulum
 import pydantic_settings
 from loguru import logger
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 # settings
 from akkudoktoreos.adapter.adapter import AdapterCommonSettings
@@ -55,11 +55,13 @@ from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.feedintariff import FeedInTariffCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
+from akkudoktoreos.prediction.presence import PresenceCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
 from akkudoktoreos.server.dash.dashsettings import EOSdashCommonSettings
 from akkudoktoreos.server.rest.cli import cli_argument_parser
 from akkudoktoreos.server.server import ServerCommonSettings
+from akkudoktoreos.thermal.thermalsettings import ThermalCommonSettings
 from akkudoktoreos.utils.datetimeutil import (
     _canonicalize_tz_name,
     to_datetime,
@@ -164,8 +166,6 @@ class GeneralSettings(SettingsBaseModel):
         exclude=True,
     )
 
-    version: Optional[str] = Field(
-        default=None,  # keep None here, will be set elsewhere
     schema_version: int = Field(
         default=CONFIG_SCHEMA_VERSION,
         strict=True,
@@ -174,6 +174,8 @@ class GeneralSettings(SettingsBaseModel):
         description="Configuration format version, independent of the application build.",
     )
 
+    version: Optional[str] = Field(
+        default=None,  # keep None here, will be set elsewhere
         json_schema_extra={"description": "Configuration file version."},
         examples=["0.0.0"],
     )
@@ -309,6 +311,12 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     devices: Optional[DevicesCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Devices Settings"}
     )
+    thermal: Optional[ThermalCommonSettings] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Optional thermal planning settings; disabled by default."
+        },
+    )
     measurement: Optional[MeasurementCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Measurement Settings"}
     )
@@ -317,6 +325,10 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     )
     prediction: Optional[PredictionCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Prediction Settings"}
+    )
+    presence: Optional[PresenceCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "Optional learned presence prediction settings"},
     )
     elecfee: Optional[ElecFeeCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Electricity Fee Settings"}
@@ -369,9 +381,11 @@ class SettingsEOSDefaults(SettingsEOS):
     ems: EnergyManagementCommonSettings = Field(default_factory=EnergyManagementCommonSettings)
     logging: LoggingCommonSettings = Field(default_factory=LoggingCommonSettings)
     devices: DevicesCommonSettings = Field(default_factory=DevicesCommonSettings)
+    thermal: ThermalCommonSettings = Field(default_factory=ThermalCommonSettings)
     measurement: MeasurementCommonSettings = Field(default_factory=MeasurementCommonSettings)
     optimization: OptimizationCommonSettings = Field(default_factory=OptimizationCommonSettings)
     prediction: PredictionCommonSettings = Field(default_factory=PredictionCommonSettings)
+    presence: PresenceCommonSettings = Field(default_factory=PresenceCommonSettings)
     elecfee: ElecFeeCommonSettings = Field(default_factory=ElecFeeCommonSettings)
     elecprice: ElecPriceCommonSettings = Field(default_factory=ElecPriceCommonSettings)
     feedintariff: FeedInTariffCommonSettings = Field(default_factory=FeedInTariffCommonSettings)
@@ -382,6 +396,47 @@ class SettingsEOSDefaults(SettingsEOS):
     utils: UtilsCommonSettings = Field(default_factory=UtilsCommonSettings)
     adapter: AdapterCommonSettings = Field(default_factory=AdapterCommonSettings)
     eosdash: EOSdashCommonSettings = Field(default_factory=EOSdashCommonSettings)
+
+    @model_validator(mode="after")
+    def validate_thermal_references(self) -> "SettingsEOSDefaults":
+        """Validate staged heat-source bindings without collecting or scheduling data."""
+        heat_sources = self.devices.heat_sources
+        known_zones = set(self.thermal.zones)
+        existing_ids = {
+            device_id
+            for collection in (
+                self.devices.batteries,
+                self.devices.electric_vehicles,
+                self.devices.inverters,
+                self.devices.home_appliances,
+            )
+            for device_id in (collection or {})
+        }
+        if existing_ids.intersection(heat_sources):
+            raise ValueError("Heat-source device IDs must be unique across device groups")
+        for device in heat_sources.values():
+            unknown = set(device.zone_ids) - known_zones
+            if unknown:
+                raise ValueError(
+                    f"Heat source {device.device_id!r} references unknown thermal zones: "
+                    f"{sorted(unknown)}"
+                )
+        for zone in self.thermal.zones.values():
+            if (
+                zone.presence_area_id is not None
+                and zone.presence_area_id not in self.presence.zones
+            ):
+                raise ValueError(
+                    f"Thermal zone {zone.zone_id!r} references an unknown presence area"
+                )
+        if self.presence.provider is not None:
+            for binding in self.presence.zones.values():
+                channel = self.measurement.channels.get(binding.measurement_key)
+                if channel is None or channel.quantity != "presence":
+                    raise ValueError(
+                        "Presence providers require a typed EOS presence measurement channel"
+                    )
+        return self
 
     def __hash__(self) -> int:
         # Just for usage in configmigrate, finally overwritten when used by ConfigEOS.
@@ -730,6 +785,16 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 backup_file = config_file.with_suffix(
                     f".{to_datetime(as_string='YYYYMMDDHHmmss')}.{uuid4().hex}.bak"
                 )
+                if not migrate_config_file(config_file, backup_file):
+                    raise RuntimeError(
+                        "Configuration migration failed; refusing default configuration"
+                    )
+                settings = pydantic_settings.JsonConfigSettingsSource(
+                    settings_cls, json_file=config_file
+                )()
+            except Exception as ex:
+                logger.error("Configuration could not be loaded; startup aborted")
+                raise RuntimeError("Configuration could not be loaded safely") from ex
 
             return settings
 
@@ -785,16 +850,6 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         Configuration data is loaded from a configuration file or a default one is created if none
         exists.
         """
-                if not migrate_config_file(config_file, backup_file):
-                    raise RuntimeError(
-                        "Configuration migration failed; refusing default configuration"
-                    )
-                settings = pydantic_settings.JsonConfigSettingsSource(
-                    settings_cls, json_file=config_file
-                )()
-            except Exception as ex:
-                logger.error("Configuration could not be loaded; startup aborted")
-                raise RuntimeError("Configuration could not be loaded safely") from ex
         # Check for singleton guard
         if hasattr(self, "_initialized"):
             logger.debug("Config init called again with parameters {} {}", args, kwargs)
@@ -1192,6 +1247,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         # Ensure version is present and correct
         cleaned_root.setdefault("general", {})
         cleaned_root["general"]["version"] = __version__
+        cleaned_root["general"]["schema_version"] = CONFIG_SCHEMA_VERSION
 
         # Return pretty-printed JSON
         return json.dumps(
@@ -1240,4 +1296,3 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         The first non None value in priority order is taken.
         """
         self._setup()
-        cleaned_root["general"]["schema_version"] = CONFIG_SCHEMA_VERSION

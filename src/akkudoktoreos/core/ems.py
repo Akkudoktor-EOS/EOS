@@ -23,20 +23,21 @@ from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.optimization.fleet import FleetSolution, optimize_fleet
 from akkudoktoreos.optimization.fleetrequest import FleetConfigRequest
 from akkudoktoreos.optimization.fleetsolution import fleet_representations
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
-)
-from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
 )
+from akkudoktoreos.thermal.thermalsettings import require_thermal_control_disabled
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # The executor to execute the CPU heavy energy management run
@@ -132,8 +133,8 @@ class EnergyManagement(
     # Solution of the genetic0 algorithm of latest energy management run with optimization
     # For classic API
     _genetic0_solution: ClassVar[Optional[Genetic0Solution]] = None
-
     _fleet_solution: ClassVar[Optional[FleetSolution]] = None
+
     # energy management lock (for energy management run)
     _run_lock: ClassVar[Lock] = Lock()
 
@@ -184,9 +185,9 @@ class EnergyManagement(
                 if cls.config.optimization.algorithm == OptimizationAlgorithm.GENETIC
                 else 3600
             )
-        if interval_seconds not in (900, 3600):
             if cls.config.optimization.algorithm == OptimizationAlgorithm.FLEET:
                 interval_seconds = cls.config.optimization.fleet.interval_sec
+        if interval_seconds not in (900, 3600):
             raise ValueError("Optimization slots must be 900 or 3600 seconds.")
         midnight = start_datetime.start_of("day").int_timestamp
         elapsed = start_datetime.int_timestamp - midnight
@@ -241,12 +242,12 @@ class EnergyManagement(
         """
         return cls._genetic0_solution
 
-    async def run(
     @classmethod
     def fleet_solution(cls) -> Optional[FleetSolution]:
         """Return the latest successfully published fleet solution."""
         return cls._fleet_solution
 
+    async def run(
         self,
         start_datetime: Optional[DateTime] = None,
         mode: Optional[EnergyManagementMode] = None,
@@ -260,8 +261,8 @@ class EnergyManagement(
         genetic0_parameters: Optional[Genetic0OptimizationParameters] = None,
         genetic0_generations: Optional[int] = None,
         genetic0_seed: Optional[int] = None,
-        force_enable: Optional[bool] = False,
         fleet_parameters: Optional[FleetConfigRequest] = None,
+        force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
     ) -> Optional[GeneticSolution | Genetic0Solution | FleetSolution]:
         """Run the energy management.
@@ -282,8 +283,8 @@ class EnergyManagement(
                 The algorithm to use. Must be one of:
                 - "GENETIC": Optimization uses the `GENETIC` optimization algorithm.
                 - "GENETIC0": Optimization uses the `GENETIC0` optimization algorithm.
-
                 - "FLEET": Joint AC-bus scheduling of configured batteries and EVs.
+
                 Defaults to the algorithm defined in the current configuration.
             genetic_parameters (GeneticOptimizationParameters, optional): The
                 parameter set for the `GENETIC` algorithm. If not provided, it will
@@ -302,9 +303,9 @@ class EnergyManagement(
                 if not specified.
             genetic0_seed (int, optional): The seed for the `GENETIC0` algorithm. Defaults
                 to the algorithm's internal random seed if not specified.
-            force_enable (bool, optional): If True, bypasses any disabled state
             fleet_parameters (FleetConfigRequest, optional): Runtime SoC, availability
                 and forecasts for FLEET. Omitted inputs use configured providers.
+            force_enable (bool, optional): If True, bypasses any disabled state
                 to force the update process. This is mostly applicable to
                 prediction providers.
             force_update (bool, optional): If True, forces data to be refreshed
@@ -325,8 +326,12 @@ class EnergyManagement(
                 logger.info("Energy management run disabled.")
                 return None
 
-            logger.info("Starting energy management run.")
+            if mode == EnergyManagementMode.OPTIMIZATION:
+                # Shadow plans use their separate API and never enter this
+                # publication path. Live thermal control is not implemented.
+                require_thermal_control_disabled(self.config.thermal)
 
+            logger.info("Starting energy management run.")
 
             # --- Data Aquisition ---
             EnergyManagement._stage = EnergyManagementStage.DATA_ACQUISITION
@@ -347,13 +352,13 @@ class EnergyManagement(
                 interval_seconds=(
                     self.config.optimization.genetic.interval_sec
                     if algorithm == OptimizationAlgorithm.GENETIC
+                    else self.config.optimization.fleet.interval_sec
+                    if algorithm == OptimizationAlgorithm.FLEET
                     else 3600
                 ),
             )
 
             # Throw away any memory cached results of the last energy management run.
-                    else self.config.optimization.fleet.interval_sec
-                    if algorithm == OptimizationAlgorithm.FLEET
             CacheEnergyManagementStore().clear()
 
             # --- Adapter update     ---
@@ -467,11 +472,6 @@ class EnergyManagement(
                     EnergyManagement._genetic_solution,
                 )
 
-            # --- GENETIC0 algorithm ---
-            elif algorithm == OptimizationAlgorithm.GENETIC0:
-                # Prepare optimization parameters
-                # This also creates default configurations for missing values and updates the predictions
-                logger.info(f"{algorithm}: Starting optimzation parameter preparation.")
             # --- FLEET algorithm ---
             elif algorithm == OptimizationAlgorithm.FLEET:
                 try:
@@ -492,6 +492,11 @@ class EnergyManagement(
                 EnergyManagement._plan = plan
                 run_solution = fleet_solution
 
+            # --- GENETIC0 algorithm ---
+            elif algorithm == OptimizationAlgorithm.GENETIC0:
+                # Prepare optimization parameters
+                # This also creates default configurations for missing values and updates the predictions
+                logger.info(f"{algorithm}: Starting optimzation parameter preparation.")
                 if genetic0_parameters is None:
                     genetic0_parameters = await Genetic0OptimizationParameters.prepare()
                     if genetic0_parameters is None:

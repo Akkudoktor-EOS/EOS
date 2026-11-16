@@ -11,10 +11,11 @@ import tempfile
 import time
 from collections.abc import Sequence
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
 from http import HTTPStatus
 from pathlib import Path
-from typing import Callable, Generator, Optional, TextIO, Union, cast
+from typing import Any, Callable, Generator, Optional, TextIO, Union, cast
 from unittest.mock import PropertyMock, patch
 
 import pandas as pd
@@ -29,7 +30,10 @@ from xprocess import ProcessStarter, XProcess
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_config, get_prediction, singletons_init
 from akkudoktoreos.core.version import _version_date_hash, version
+from akkudoktoreos.measurement.quality import MeasurementSample
 from akkudoktoreos.server.server import get_default_host
+from akkudoktoreos.thermal.thermallearning import estimate_thermal_state
+from akkudoktoreos.thermal.thermalmodels import ThermalRC2Parameters
 
 # -----------------------------------------------
 # Adapt pytest logging handling to Loguru logging
@@ -784,3 +788,271 @@ def set_other_timezone():
     # Restore the original timezone
     cast(Callable[[pendulum.Timezone | pendulum.FixedTimezone], None], pendulum.set_local_timezone)(original_timezone)
     assert pendulum.local_timezone() == original_timezone
+
+
+@pytest.fixture(autouse=True)
+def isolated_thermal_warm_start(tmp_path, monkeypatch):
+    """Keep the thermal planner's fleet warm-start file out of the user's cache."""
+    monkeypatch.setenv("EOS_THERMAL_WARM_START_DIR", str(tmp_path / "thermal-warm-start"))
+
+
+# --- Shared thermal test helpers (used by several thermal test modules) -----------------
+
+THERMAL_NOW = datetime(2026, 11, 8, 12, 7, tzinfo=timezone.utc)
+THERMAL_START = datetime(2026, 11, 8, 12, 15, tzinfo=timezone.utc)
+
+
+@pytest.fixture
+def context(config_eos, monkeypatch):
+    config_eos.merge_settings_from_dict(
+        {
+            "general": {"timezone_override": "UTC"},
+            "thermal": {
+                "mode": "shadow",
+                "zones": {
+                    "area1": {
+                        "enabled": True,
+                        "room_temperature_measurement_key": "room",
+                        "outdoor_temperature_measurement_key": "outside",
+                        "model_reference": "test-model",
+                        "model_parameters": {
+                            "room_loss_per_hour": 0.05,
+                            "room_mass_exchange_per_hour": 0.12,
+                            "mass_capacity_ratio": 4.0,
+                            "electric_gain_kelvin_per_kwh": 2.0,
+                        },
+                        "state_history_hours": 2,
+                        "minimum_state_history_hours": 1,
+                        "comfort": {
+                            "min_temperature_c": 19.5,
+                            "target_temperature_c": 20.0,
+                            "max_temperature_c": 20.5,
+                        },
+                    }
+                },
+            },
+            "devices": {
+                "heat_sources": {
+                    "source1": {
+                        "enabled": True,
+                        "max_electric_power_w": 2000,
+                        "electric_power_measurement_key": "heat",
+                        "zone_ids": ["area1"],
+                    }
+                }
+            },
+            "weather": {"provider": "WeatherImport"},
+            "measurement": {
+                "channels": {
+                    "room": {"quantity": "temperature", "unit": "degC"},
+                    "outside": {"quantity": "temperature", "unit": "degC"},
+                    "heat": {
+                        "quantity": "power",
+                        "unit": "W",
+                        "integration_method": "hold",
+                        "max_gap_seconds": 180,
+                    },
+                }
+            },
+        }
+    )
+    from akkudoktoreos.core import coreabc
+    from akkudoktoreos.thermal import thermalconfigrequest as native
+    from akkudoktoreos.thermal.thermalconfigrequest import ThermalRuntimeContext
+
+    monkeypatch.setattr(native, "thermal_now", lambda: THERMAL_NOW)
+    ctx = ThermalRuntimeContext(config_eos, coreabc.get_measurement(), coreabc.get_prediction())
+    return ctx
+
+
+def bundle_data():
+    samples = [
+        {"date_time": THERMAL_NOW - timedelta(minutes=minute), "key": key, "value": value}
+        for minute in range(121)
+        for key, value in (("room", 20.0), ("outside", 5.0), ("heat", 375.0))
+    ]
+    return {
+        "fleet": {
+            "start_datetime": THERMAL_START,
+            "load_w": [300.0] * 8,
+            "pv_w": [0.0] * 8,
+            "import_price_eur_per_kwh": [0.1] * 4 + [0.5] * 4,
+            "export_price_eur_per_kwh": [0.05] * 8,
+            "import_limit_w": 10000,
+            "export_limit_w": 10000,
+        },
+        "load_basis": "residual_excluding_heat",
+        "sampled_at": THERMAL_NOW,
+        "forecast_issued_at": THERMAL_NOW - timedelta(seconds=10),
+        "weather": [
+            {"date_time": THERMAL_START + timedelta(minutes=15 * i), "weather_temp_air": 5.0}
+            for i in range(8)
+        ],
+        "samples": samples,
+        "control_revision": 7,
+    }
+
+
+def heat_pump_request_data(n: int = 8) -> dict[str, Any]:
+    """Synthetic explicit ratings, not a manufacturer or installation preset."""
+    start = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
+    return {
+        "fleet": {
+            "start_datetime": start,
+            "load_w": [300.0] * n,
+            "pv_w": [0.0] * n,
+            "import_price_eur_per_kwh": [0.1] * (n // 2) + [0.8] * (n - n // 2),
+            "export_price_eur_per_kwh": [0.05] * n,
+            "import_limit_w": 10000.0,
+            "export_limit_w": 10000.0,
+            "solver_time_limit_seconds": 10.0,
+        },
+        "load_basis": "residual_excluding_heat",
+        "zone_id": "zone1",
+        "heat_source_id": "heater1",
+        "state": {
+            "estimated_at": start,
+            "based_on_observed_at": start - timedelta(seconds=60),
+            "room_temperature_c": 20.5,
+            "mass_temperature_c": 20.5,
+        },
+        "comfort_bands": [
+            {"min_temperature_c": 20.0, "target_temperature_c": 20.5, "max_temperature_c": 21.0}
+        ]
+        * n,
+        "issued_at": start - timedelta(seconds=30),
+        "revision": 1,
+        "basis_control_revision": 1,
+        "smoothing_seconds": None,
+        "building": {
+            "room_loss_per_hour": 0.1,
+            "room_mass_exchange_per_hour": 0.2,
+            "mass_capacity_ratio": 5.0,
+            "heat_gain_kelvin_per_kwh": 1.0,
+        },
+        "heat_pump_profile": {
+            "profile_id": "synthetic",
+            "heat_pump_type": "air_to_water",
+            "cop_points": [
+                {"outdoor_temperature_c": t, "delivery_temperature_c": 35.0, "cop": 4.0}
+                for t in [-10.0, 10.0]
+            ],
+            "thermal_max_points": [
+                {
+                    "outdoor_temperature_c": t,
+                    "delivery_temperature_c": 35.0,
+                    "thermal_power_w": 8000.0,
+                }
+                for t in [-10.0, 10.0]
+            ],
+            "thermal_min_points": [
+                {
+                    "outdoor_temperature_c": t,
+                    "delivery_temperature_c": 35.0,
+                    "thermal_power_w": 1000.0,
+                }
+                for t in [-10.0, 10.0]
+            ],
+            "cop_includes_defrost": False,
+            "provenance": {
+                "source": "Synthetic test fixture",
+                "quality": "user_supplied",
+                "electric_power_basis": "total_system",
+            },
+        },
+        "weather": [
+            {
+                "date_time": start + timedelta(seconds=k * 900),
+                "weather_temp_air": 0.0,
+                "weather_relative_humidity": 80.0,
+            }
+            for k in range(n)
+        ],
+        "delivery_temperature_c": [35.0] * n,
+    }
+
+
+def fleet_request_data(n: int = 8, *, constant: bool = False) -> dict[str, Any]:
+    """Make an explicit generic scenario, not installation or calendar data."""
+    start = datetime(2026, 1, 1, 12, tzinfo=timezone.utc)
+    return {
+        "fleet": {
+            "start_datetime": start,
+            "load_w": [300.0] * n,
+            "pv_w": [0.0] * n,
+            "import_price_eur_per_kwh": [0.1] * (n // 2) + [0.8] * (n - n // 2),
+            "export_price_eur_per_kwh": [0.05] * n,
+            "import_limit_w": 10000.0,
+            "export_limit_w": 10000.0,
+            "solver_time_limit_seconds": 10.0,
+        },
+        "load_basis": "residual_excluding_heat",
+        "zone_id": "zone1",
+        "heat_source_id": "heater1",
+        "model": {
+            "room_loss_per_hour": 0.1,
+            "room_mass_exchange_per_hour": 0.2,
+            "mass_capacity_ratio": 5.0,
+            "electric_gain_kelvin_per_kwh": 4.0,
+        },
+        "state": {
+            "estimated_at": start,
+            "based_on_observed_at": start - timedelta(seconds=60),
+            "room_temperature_c": 20.5,
+            "mass_temperature_c": 20.5,
+        },
+        "outdoor_temperature_c": [20.5 if constant else 0.0] * n,
+        "comfort_bands": [
+            {
+                "min_temperature_c": 20.5 if constant else 20.0,
+                "target_temperature_c": 20.5,
+                "max_temperature_c": 20.5 if constant else 21.0,
+            }
+        ]
+        * n,
+        "max_electric_power_w": 2000.0,
+        "issued_at": start - timedelta(seconds=30),
+        "revision": 1,
+        "basis_control_revision": 1,
+        "smoothing_seconds": None,
+    }
+
+
+LEARNING_NOW = datetime(2026, 1, 3, 12, tzinfo=timezone.utc)
+
+
+def learning_sample(
+    key: str, when: datetime, value: float | None, status: str = "measured"
+) -> MeasurementSample:
+    return MeasurementSample.model_validate(
+        {"key": key, "date_time": when, "value": value, "quality": {"status": status}}
+    )
+
+
+def learning_model() -> ThermalRC2Parameters:
+    return ThermalRC2Parameters(
+        room_loss_per_hour=0.1,
+        room_mass_exchange_per_hour=0.3,
+        mass_capacity_ratio=4.0,
+        electric_gain_kelvin_per_kwh=1.0,
+    )
+
+
+def learning_history() -> tuple[list[MeasurementSample], list[MeasurementSample], list[MeasurementSample]]:
+    room = [learning_sample("room", LEARNING_NOW - timedelta(minutes=240 - k), 20.0) for k in range(241)]
+    return room, [learning_sample("outdoor", LEARNING_NOW, 5.0)], [learning_sample("power", LEARNING_NOW, 1500.0)]
+
+
+def learning_observer(**updates: Any):
+    room, outside, power = learning_history()
+    inputs = {
+        "model": learning_model(),
+        "room": room,
+        "outdoor": outside,
+        "power": power,
+        "now": LEARNING_NOW,
+        "start": LEARNING_NOW + timedelta(minutes=15),
+        "max_age_seconds": 180,
+        "minimum_history_hours": 2,
+    }
+    return estimate_thermal_state(**{**inputs, **updates})

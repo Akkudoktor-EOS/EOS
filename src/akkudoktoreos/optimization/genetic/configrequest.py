@@ -20,6 +20,7 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.thermal.thermalsettings import require_thermal_control_disabled
 from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
 
@@ -70,6 +71,7 @@ class ConfigOptimizationRequest(
     async def resolve(self) -> GeneticOptimizationParameters:
         """Resolve inside the EMS lock after its slot start has been established."""
         config = self.config
+        require_thermal_control_disabled(config.thermal)
         settings = config.optimization.genetic
         config.validate_optimization_horizons()
         ems = get_ems()

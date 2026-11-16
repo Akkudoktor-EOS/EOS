@@ -6,14 +6,12 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from pydantic import AwareDatetime
 
 from akkudoktoreos.core.coreabc import get_config, get_measurement
-from akkudoktoreos.core.databaseabc import DatabaseTimestamp
 from akkudoktoreos.measurement.batterycapacity import (
     BatteryCapacityEstimate,
     BatteryCapacityRequest,
 )
 from akkudoktoreos.measurement.energy import EnergyInterval
-from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.measurement.quality import MeasurementSample
 
 router = APIRouter(prefix="/v1/measurement", tags=["measurement"])
 
@@ -63,28 +61,8 @@ async def get_samples(
     key: str, start: AwareDatetime, end: AwareDatetime
 ) -> list[MeasurementSample]:
     """Read raw samples including quality, in a bounded half-open range."""
-    measurement = get_measurement()
     try:
-        measurement._energy_channel(key)
-        if not 0 < end.timestamp() - start.timestamp() <= 31 * 86400:
-            raise ValueError("Require a positive range of at most 31 days.")
-        result = []
-        async for record in measurement.db_iterate_records(
-            DatabaseTimestamp.from_datetime(to_datetime(start)),
-            DatabaseTimestamp.from_datetime(to_datetime(end)),
-        ):
-            if key in record.configured_data and record.date_time is not None:
-                result.append(
-                    MeasurementSample(
-                        date_time=record.date_time,
-                        key=key,
-                        value=record.configured_data[key],
-                        quality=record.sample_quality.get(key, SampleQuality()),
-                    )
-                )
-                if len(result) > 10000:
-                    raise ValueError("More than 10000 samples; request a shorter range.")
-        return result
+        return await get_measurement().get_samples(key, start, end, max_samples=10000)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
 
