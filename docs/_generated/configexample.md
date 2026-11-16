@@ -232,9 +232,12 @@
                "zone": "DE-LU"
            },
            "energycharts": {
-               "bidding_zone": "DE-LU"
+               "bidding_zone": "DE-LU",
+               "follow_elecprice": false
            },
-           "smard": {}
+           "smard": {
+               "follow_elecprice": false
+           }
        },
        "general": {
            "config_save_mode": "AUTOMATIC",

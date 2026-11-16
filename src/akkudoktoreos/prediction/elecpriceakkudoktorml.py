@@ -89,6 +89,10 @@ class ElecPriceAkkudoktorML(ElecPriceSMARD):
         """Return the unique identifier for the residual-load provider."""
         return "ElecPriceAkkudoktorML"
 
+    def exchange_price_zone(self) -> Optional[str]:
+        """The model is valid for the German bidding zone DE-LU only."""
+        return "DE-LU"
+
     # ------------------------------------------------------------------ helpers
     def _engine_folder(self) -> Path:
         return Path(self.config.general.data_folder_path) / "elecprice_akkudoktorml"

@@ -7,7 +7,7 @@ from typing import Optional
 import pandas as pd
 import requests
 from loguru import logger
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
@@ -18,6 +18,8 @@ from akkudoktoreos.prediction.elecpriceenergycharts import (
 )
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+
+MIRROR_HISTORY_HOURS = 48
 
 
 class FeedInTariffEnergyChartsCommonSettings(SettingsBaseModel):
@@ -34,6 +36,22 @@ class FeedInTariffEnergyChartsCommonSettings(SettingsBaseModel):
         },
     )
 
+    follow_elecprice: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "Use the day-ahead market price series of the active electricity price provider as "
+                "the feed-in market price instead of fetching and extrapolating an own series. "
+                "Purchase and feed-in forecasts then stay consistent when the electricity price "
+                "provider forecasts differently from the seasonal extrapolation (e.g. "
+                "'ElecPriceAkkudoktorML'). Only applied if that provider delivers an exchange "
+                "price of the same bidding zone and covers the whole prediction horizon; "
+                "otherwise the own series is used."
+            ),
+            "examples": [True],
+        },
+    )
+
 
 class FeedInTariffEnergyCharts(FeedInTariffProvider):
     """Fetch Energy-Charts market prices as feed-in tariff data.
@@ -45,6 +63,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
     """
 
     highest_orig_datetime: Optional[datetime] = None
+    _zone_warning_logged: bool = PrivateAttr(default=False)
 
     def historic_hours_min(self) -> int:
         """Keep enough history for weekly seasonal price extrapolation."""
@@ -98,6 +117,11 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             seconds=resolution_seconds
         )
         return coverage_end >= required_coverage_end
+
+    def _follows_elecprice(self) -> bool:
+        """Return whether the feed-in market price follows the electricity price provider."""
+        settings = self.config.feedintariff.energycharts
+        return settings is not None and settings.follow_elecprice
 
     def _bidding_zone(self) -> str:
         settings = self.config.feedintariff.energycharts
@@ -186,6 +210,99 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         # raw+predicted series in _store_gross_series().
         return prices_wh
 
+    async def _mirror_elecprice_raw(self) -> bool:
+        """Mirror the raw exchange price series of the active electricity price provider.
+
+        If the setting ``follow_elecprice`` is on, the feed-in revenue is the exchange price.
+        Fetching and extrapolating a second, independent series makes the purchase and feed-in
+        forecasts diverge as soon as the electricity price provider forecasts differently (e.g. a
+        model instead of the seasonal extrapolation). In that case the raw feed-in series is copied
+        from ``elecprice_marketprice_raw_wh`` for every slot of the horizon; the configured feed-in
+        fees are applied unchanged afterwards.
+
+        Returns:
+            True if the series was mirrored, False if the regular own fetch and extrapolation has to
+            run (setting off, other electricity price provider or zone, or no series covering the
+            horizon).
+        """
+        if not self._follows_elecprice():
+            return False
+        if not self.ems_start_datetime or not self.config.elecprice.provider:
+            return False
+        elec_provider = self.prediction.provider_by_id(self.config.elecprice.provider)
+        elec_zone = elec_provider.exchange_price_zone() if elec_provider is not None else None
+        if elec_zone is None:
+            return False  # the electricity price series is not a day-ahead exchange price
+        if elec_zone != self._bidding_zone():
+            if not self._zone_warning_logged:
+                self._zone_warning_logged = True
+                logger.warning(
+                    "{}: the electricity price provider uses bidding zone {} but the feed-in "
+                    "provider uses {}; the feed-in market price is not mirrored",
+                    self.provider_id(),
+                    elec_zone,
+                    self._bidding_zone(),
+                )
+            return False
+        start = self.ems_start_datetime - to_duration(f"{MIRROR_HISTORY_HOURS} hours")
+        end = self.ems_start_datetime + to_duration(f"{self.config.prediction.hours} hours")
+        try:
+            raw = await self.prediction.key_to_raw_series(
+                key="elecprice_marketprice_raw_wh",
+                start_datetime=start,
+                end_datetime=end,
+                dropna=False,
+            )
+        except KeyError:
+            return False
+        if raw.loc[raw.index >= pd.Timestamp(self.ems_start_datetime)].isna().any():
+            # A gap in the forecast horizon would leave stale own values in the feed-in series.
+            logger.warning(
+                "{}: the electricity price series has gaps in the forecast horizon; "
+                "using the own market price series",
+                self.provider_id(),
+            )
+            return False
+        raw = raw.dropna()  # gaps in the history before the start are simply not mirrored
+        if len(raw) < 2:
+            return False
+        resolution_seconds = self._resolution_seconds(raw)
+        if raw.index.max() < pd.Timestamp(end) - pd.Timedelta(seconds=2 * resolution_seconds):
+            logger.warning(
+                "{}: the electricity price series ends at {} before the horizon end {}; "
+                "using the own market price series",
+                self.provider_id(),
+                raw.index.max(),
+                end,
+            )
+            return False
+        window_start = to_datetime(raw.index.min())
+        window_end = to_datetime(raw.index.max()) + to_duration(f"{resolution_seconds} seconds")
+        # Own values of another resolution (e.g. hourly from an earlier extrapolation) would survive
+        # between the mirrored slots: clear the window first.
+        try:
+            await self.key_delete_by_datetime("feed_in_tariff_raw_wh", window_start, window_end)
+            await self.key_delete_by_datetime("feed_in_tariff_wh", window_start, window_end)
+            await self.key_from_series("feed_in_tariff_raw_wh", raw)
+            await self._store_gross_series(start_datetime=window_start, end_datetime=window_end)
+        except Exception as exc:
+            # Do not leave a half-written window behind: the regular own fetch rewrites it.
+            logger.warning(
+                "{}: mirroring the electricity price series failed ({}); using the own market "
+                "price series",
+                self.provider_id(),
+                exc,
+            )
+            return False
+        logger.info(
+            "{}: feed-in market price mirrored from the {} series ({} slots up to {})",
+            self.provider_id(),
+            self.config.elecprice.provider,
+            len(raw),
+            raw.index.max(),
+        )
+        return True
+
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update feed-in tariff forecast data from Energy-Charts.
 
@@ -199,6 +316,9 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
+
+        if await self._mirror_elecprice_raw():
+            return
 
         # Lower bound for the gross-series recompute at the end of this method:
         # defaults to "from now", widened to the fetched window's start if a

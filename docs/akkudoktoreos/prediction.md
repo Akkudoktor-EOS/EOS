@@ -321,6 +321,10 @@ Settings:
 - `elecprice.smard.region` / `elecprice.smard.filter_id`: SMARD is only used as a price source
   with its defaults (region `DE`, filter `4169`, the DE-LU day-ahead price); with other values the
   SMARD source is skipped.
+- `feedintariff.energycharts.follow_elecprice` (for `FeedInTariffSMARD`:
+  `feedintariff.smard.follow_elecprice`): recommended together with this provider. The feed-in
+  market price then uses the same exchange price series in every slot instead of an own
+  extrapolation (default: off).
 
 The provider writes `uncertainty.json` to its data folder after each update. It is informational
 only and not used by the optimization:
@@ -351,6 +355,10 @@ Example configuration:
 {
   "elecprice": {
     "provider": "ElecPriceAkkudoktorML"
+  },
+  "feedintariff": {
+    "provider": "FeedInTariffEnergyCharts",
+    "energycharts": {"follow_elecprice": true}
   }
 }
 ```
@@ -546,6 +554,14 @@ The seasonal periods are adjusted to the source resolution. For example, quarter
 four values per hour. Values already supplied by Energy-Charts are kept unchanged; only missing
 future slots after the last published price are forecast. Consequently, a 15-minute optimization
 uses four forecast values per hour without converting them to hourly averages.
+
+With `feedintariff.energycharts.follow_elecprice` enabled (default: off; for `FeedInTariffSMARD`
+`feedintariff.smard.follow_elecprice`), the provider follows the
+raw price series of the active electricity price provider instead of fetching and extrapolating a
+second series, as long as that provider delivers a day-ahead exchange price of the same bidding
+zone and its series covers the prediction horizon. Purchase and feed-in prices then use the same
+exchange price in every slot, including forecast slots. Otherwise the behavior described above
+applies.
 
 Fees are applied if given by the `ElecFee` prediction.
 

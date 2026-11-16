@@ -908,6 +908,7 @@ def test_published_prices_raise_when_both_sources_fail(provider, sources):
 def test_model_uses_zone_de_lu_regardless_of_user_zone(provider, config_eos):
     config_eos.merge_settings_from_dict({"elecprice": {"energycharts": {"bidding_zone": "AT"}}})
     assert provider._bidding_zone() == "DE-LU"
+    assert provider.exchange_price_zone() == "DE-LU"
 
 
 def test_stored_models_are_bound_to_library_version_and_schema(tmp_path, inputs, monkeypatch):

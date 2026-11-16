@@ -92,6 +92,10 @@ test procedure. These changes are not yet a tagged release.
   (load, wind and PV from Open-Meteo forecasts, residual-load price curve) and writes a price
   uncertainty file (`uncertainty.json`). It falls back to the seasonal forecast whenever the model
   is not ready or cannot deliver. Requires `scikit-learn`; Open-Meteo is free for non-commercial use only.
+- New opt-in setting `feedintariff.energycharts.follow_elecprice` (and `feedintariff.smard.follow_elecprice`):
+  `FeedInTariffEnergyCharts` and `FeedInTariffSMARD` then follow the raw price series of the active
+  electricity price provider (same bidding zone) instead of fetching and extrapolating a second one,
+  so purchase and feed-in forecasts stay consistent. Default off, existing setups are unchanged.
 - Feed-in tariff providers: `FeedInTariffEnergyCharts` (day-ahead market price, extended by an
   ETS forecast beyond the published period), `FeedInTariffSMARD`, `FeedInTariffAkkudoktor`,
   `FeedInTariffTibber` and `FeedInTariffDvhubOnline`.
