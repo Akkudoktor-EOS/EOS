@@ -48,6 +48,7 @@ def offline_ems(monkeypatch):
         config=SimpleNamespace(
             general=SimpleNamespace(timezone="Europe/Berlin"),
             ems=SimpleNamespace(mode=EnergyManagementMode.OPTIMIZATION),
+            thermal=SimpleNamespace(mode="off"),
             optimization=SimpleNamespace(
                 algorithm=OptimizationAlgorithm.GENETIC,
                 genetic=SimpleNamespace(generations=3, seed=17, interval_sec=3600, individuals=31),
