@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import tempfile
+from uuid import uuid4
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, ClassVar, Optional, Type, Union
@@ -30,7 +31,11 @@ from akkudoktoreos.config.configabc import (
     SettingsBaseModel,
     is_home_assistant_addon,
 )
-from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
+from akkudoktoreos.config.configmigrate import (
+    CONFIG_SCHEMA_VERSION,
+    migrate_config_data,
+    migrate_config_file,
+)
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.database import DatabaseCommonSettings
@@ -161,6 +166,14 @@ class GeneralSettings(SettingsBaseModel):
 
     version: Optional[str] = Field(
         default=None,  # keep None here, will be set elsewhere
+    schema_version: int = Field(
+        default=CONFIG_SCHEMA_VERSION,
+        strict=True,
+        ge=1,
+        le=CONFIG_SCHEMA_VERSION,
+        description="Configuration format version, independent of the application build.",
+    )
+
         json_schema_extra={"description": "Configuration file version."},
         examples=["0.0.0"],
     )
@@ -714,15 +727,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
             settings = {}
             try:
-                backup_file = config_file.with_suffix(f".{to_datetime(as_string='YYYYMMDDHHmmss')}")
-                if migrate_config_file(config_file, backup_file):
-                    # If the config file does have the correct version add it as settings source
-                    settings = pydantic_settings.JsonConfigSettingsSource(
-                        settings_cls, json_file=config_file
-                    )()
-            except Exception as ex:
-                logger.error(
-                    f"Error reading config file '{config_file}' (falling back to default config): {ex}"
+                backup_file = config_file.with_suffix(
+                    f".{to_datetime(as_string='YYYYMMDDHHmmss')}.{uuid4().hex}.bak"
                 )
 
             return settings
@@ -779,6 +785,16 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         Configuration data is loaded from a configuration file or a default one is created if none
         exists.
         """
+                if not migrate_config_file(config_file, backup_file):
+                    raise RuntimeError(
+                        "Configuration migration failed; refusing default configuration"
+                    )
+                settings = pydantic_settings.JsonConfigSettingsSource(
+                    settings_cls, json_file=config_file
+                )()
+            except Exception as ex:
+                logger.error("Configuration could not be loaded; startup aborted")
+                raise RuntimeError("Configuration could not be loaded safely") from ex
         # Check for singleton guard
         if hasattr(self, "_initialized"):
             logger.debug("Config init called again with parameters {} {}", args, kwargs)
@@ -1224,3 +1240,4 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         The first non None value in priority order is taken.
         """
         self._setup()
+        cleaned_root["general"]["schema_version"] = CONFIG_SCHEMA_VERSION

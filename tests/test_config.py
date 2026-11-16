@@ -59,6 +59,11 @@ class TestConfigEOS:
         """Exercise real configuration lookup within this class."""
         pass
 
+    def test_failed_migration_never_falls_back_to_defaults(self, config_eos_file, monkeypatch):
+        monkeypatch.setattr("akkudoktoreos.config.config.migrate_config_file", lambda *args: False)
+        with pytest.raises(RuntimeError, match="could not be loaded safely"):
+            config_eos_file.reset_settings()
+
     def test_fixture_new_config_file(self, config_default_dirs):
         """Assure fixture stash_config_file is working."""
         config_default_dir_user, config_default_dir_cwd, _, _ = config_default_dirs
