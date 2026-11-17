@@ -44,7 +44,7 @@ dependencies = [
     "statsmodels==0.15.0",
     "pydantic-settings==2.16.1",
     "linkify-it-py==2.2.0",
-    "loguru==0.7.3",
+    "loguru==0.8.0",
     "lmdb==3.0.0",
 ]
 
