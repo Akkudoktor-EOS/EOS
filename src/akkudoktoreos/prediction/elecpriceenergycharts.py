@@ -16,9 +16,9 @@ from loguru import logger
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 
 
@@ -171,7 +171,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             return bidding_zone.value
         return str(bidding_zone)
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("elecprice/energycharts", "prediction/hours")
     def _request_forecast(self, start_date: Optional[str] = None) -> EnergyChartsElecPrice:
         """Fetch electricity price forecast data from Energy-Charts API.
 

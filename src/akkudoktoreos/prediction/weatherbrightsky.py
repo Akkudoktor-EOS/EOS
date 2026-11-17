@@ -14,7 +14,7 @@ import pandas as pd
 import requests
 from loguru import logger
 
-from akkudoktoreos.core.cache import cache_in_file
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.weatherabc import WeatherDataRecord, WeatherProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
@@ -78,7 +78,7 @@ class WeatherBrightSky(WeatherProvider):
         """Return the unique identifier for the BrightSky provider."""
         return "BrightSky"
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("general/latitude", "general/longitude", "general/timezone", "prediction/hours")
     def _request_forecast(self) -> dict:
         """Fetch weather forecast data from BrightSky API.
 

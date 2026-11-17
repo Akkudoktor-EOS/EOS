@@ -1,6 +1,9 @@
+import ast
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, ClassVar, List, Optional, Union
+from unittest.mock import patch
 
 import pandas as pd
 import pendulum
@@ -16,6 +19,8 @@ from akkudoktoreos.prediction.predictionabc import (
     PredictionProvider,
     PredictionRecord,
     PredictionSequence,
+    cache_request,
+    request_config_context,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
@@ -408,3 +413,202 @@ class TestPredictionContainer:
     async def test_provider_by_id(self, container_with_providers):
         provider = container_with_providers.provider_by_id("DerivedPredictionProvider")
         assert isinstance(provider, DerivedPredictionProvider)
+
+
+class _ConfigHolder:
+    """Stands in for a provider: the request cache context only reads ``config``."""
+
+    def __init__(self, config) -> None:
+        self.config = config
+
+
+def test_request_config_context_follows_only_its_settings(config_eos):
+    """The context changes with the settings a request reads, and only with those."""
+    context = request_config_context("general/latitude", "general/longitude")
+    provider = _ConfigHolder(config_eos)
+    before = context(provider)
+    assert context(provider) == before
+
+    # Other settings, e.g. pushed by an adapter on every run, leave the context alone.
+    config_eos.merge_settings_from_dict({"prediction": {"hours": 72}})
+    config_eos.set_nested_value(
+        "elecprice/elecpriceimport/import_json", '{"elecprice_marketprice_wh": [0.0003]}'
+    )
+    assert context(provider) == before
+
+    config_eos.merge_settings_from_dict({"general": {"latitude": 48.14, "longitude": 11.58}})
+    moved = context(provider)
+    assert moved != before
+    config_eos.set_nested_value("general/latitude", 52.52)
+    assert context(provider) not in (before, moved)
+
+
+def test_request_config_context_is_a_digest_reused_until_the_settings_change(config_eos):
+    """The context is a short digest, computed once per settings generation."""
+    import akkudoktoreos.prediction.predictionabc as predictionabc
+
+    context = request_config_context("general/latitude", "pvforecast/planes")
+    provider = _ConfigHolder(config_eos)
+    with patch.object(predictionabc, "json", wraps=predictionabc.json) as json_spy:
+        first = context(provider)
+        for _ in range(3):
+            assert context(provider) == first
+        assert len(first) == 32
+        int(first, 16)
+        assert json_spy.dumps.call_count == 1
+
+        config_eos.merge_settings_from_dict({"general": {"latitude": 48.14}})
+        assert context(provider) != first
+        assert json_spy.dumps.call_count == 2
+        context(provider)
+        assert json_spy.dumps.call_count == 2
+
+
+def test_request_config_context_needs_a_path():
+    with pytest.raises(ValueError):
+        request_config_context()
+
+
+@pytest.mark.parametrize(
+    "cache_kwargs, expected",
+    [
+        ({}, {"with_ttl": "1 hour", "key_context_hold": "1 hour"}),
+        # The TTL also sets the hold: at most one settings-driven request per TTL.
+        ({"with_ttl": "3 hours"}, {"with_ttl": "3 hours", "key_context_hold": "3 hours"}),
+        ({"with_ttl": None}, {"with_ttl": "1 hour", "key_context_hold": "1 hour"}),
+        (
+            {"with_ttl": "3 hours", "key_context_hold": "30 minutes"},
+            {"with_ttl": "3 hours", "key_context_hold": "30 minutes"},
+        ),
+        (
+            {"key_context_hold": None},
+            {"with_ttl": "1 hour", "key_context_hold": None},
+        ),
+        # Everything else goes to cache_in_file as is.
+        (
+            {"ignore_params": ["token"], "suffix": ".json", "mode": "w+"},
+            {
+                "with_ttl": "1 hour",
+                "key_context_hold": "1 hour",
+                "ignore_params": ["token"],
+                "suffix": ".json",
+                "mode": "w+",
+            },
+        ),
+    ],
+)
+def test_cache_request_passes_its_options_to_cache_in_file(cache_kwargs, expected):
+    import akkudoktoreos.prediction.predictionabc as predictionabc
+
+    with patch.object(predictionabc, "cache_in_file") as cache_in_file:
+        cache_request("general/latitude", **cache_kwargs)
+
+    kwargs = dict(cache_in_file.call_args.kwargs)
+    key_context = kwargs.pop("key_context")
+    assert key_context.config_paths == ("general/latitude",)
+    assert kwargs == expected
+
+
+def test_cache_request_builds_the_key_context_itself():
+    with pytest.raises(TypeError):
+        cache_request("general/latitude", key_context=lambda *args, **kwargs: None)
+
+
+def _cached_requests() -> list[tuple[str, ast.FunctionDef, list[str], dict]]:
+    """The ``@cache_request`` methods of the prediction package, with their module's methods."""
+    import akkudoktoreos.prediction as prediction_package
+
+    found = []
+    for path in sorted(Path(prediction_package.__file__).parent.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        methods = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+        for method in methods.values():
+            for decorator in method.decorator_list:
+                if isinstance(decorator, ast.Call) and getattr(decorator.func, "id", "") == (
+                    "cache_request"
+                ):
+                    paths = [arg.value for arg in decorator.args]  # type: ignore[attr-defined]
+                    found.append((path.name, method, paths, methods))
+    return found
+
+
+# Inherited properties that read the configuration.
+_INHERITED_CONFIG_READS = {
+    "end_datetime": "prediction/hours",
+    "keep_datetime": "prediction/historic_hours",
+}
+
+
+def _config_reads(method: ast.FunctionDef, methods: dict, seen: set) -> set[str]:
+    """Configuration paths a method reads, following ``self.<method>`` of its module.
+
+    The time stamp of the response (``self.update_datetime = ...``) is not part of the
+    request and left out.
+    """
+
+    def walk(node):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Attribute) and target.attr == "update_datetime"
+            for target in node.targets
+        ):
+            return
+        yield node
+        for child in ast.iter_child_nodes(node):
+            yield from walk(child)
+
+    reads: set[str] = set()
+    for node in walk(method):
+        if not isinstance(node, ast.Attribute):
+            continue
+        if isinstance(node.value, ast.Name) and node.value.id == "self":
+            if node.attr in _INHERITED_CONFIG_READS:
+                reads.add(_INHERITED_CONFIG_READS[node.attr])
+            if node.attr in methods and node.attr not in seen:
+                seen.add(node.attr)
+                reads |= _config_reads(methods[node.attr], methods, seen)
+        parts = []
+        inner: ast.expr = node
+        while isinstance(inner, ast.Attribute):
+            parts.append(inner.attr)
+            inner = inner.value
+        if isinstance(inner, ast.Name) and inner.id == "self" and parts[-1] == "config":
+            if len(parts) > 1:
+                reads.add("/".join(reversed(parts[:-1])))
+    return {read for read in reads if not any(other.startswith(read + "/") for other in reads)}
+
+
+def test_provider_requests_are_cached_with_cache_request():
+    """Provider requests use ``cache_request``, which keys on their settings (#1559)."""
+    import akkudoktoreos.prediction as prediction_package
+
+    package = Path(prediction_package.__file__).parent
+    plain = [
+        path.name
+        for path in sorted(package.glob("*.py"))
+        if "@cache_in_file(" in path.read_text(encoding="utf-8")
+    ]
+    assert plain == []
+    assert len(_cached_requests()) >= 16
+
+
+def test_cached_requests_declare_every_setting_they_read(config_eos):
+    """A setting the request reads but the key leaves out gives stale responses (#1559).
+
+    A declared setting the request does not read costs extra requests.
+    """
+    problems = []
+    for module, method, paths, methods in _cached_requests():
+        for path in paths:
+            config_eos.get_nested_value(path)  # raises for an unknown setting
+        reads = _config_reads(method, methods, {method.name})
+        missing = sorted(
+            read for read in reads if not any(read == p or read.startswith(p + "/") for p in paths)
+        )
+        unused = sorted(
+            p
+            for p in paths
+            if not any(read == p or read.startswith(p + "/") or p.startswith(read + "/") for read in reads)
+        )
+        if missing or unused:
+            problems.append((module, method.name, missing, unused))
+    assert problems == []

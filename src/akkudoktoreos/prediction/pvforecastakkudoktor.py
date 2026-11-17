@@ -84,8 +84,8 @@ import requests
 from loguru import logger
 from pydantic import Field, ValidationError, computed_field, field_validator
 
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
 from akkudoktoreos.prediction.pvforecastabc import PVForecastDataRecord
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
@@ -317,7 +317,7 @@ class PVForecastAkkudoktor(PVForecastAkkudoktorLocal[PVForecastAkkudoktorDataRec
 
         return url
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("general/latitude", "general/longitude", "general/timezone", "pvforecast/planes")
     def _request_forecast(self) -> AkkudoktorForecast:
         """Fetch PV forecast data from Akkudoktor API.
 

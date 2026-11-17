@@ -8,11 +8,15 @@ This module is designed for use in predictive modeling workflows, facilitating t
 and manipulation of configuration and prediction data in a clear, scalable, and structured manner.
 """
 
-from typing import Generic, List, Optional, TypeVar
+import hashlib
+import json
+from typing import Any, Callable, Generic, List, Optional, TypeVar
 
 from loguru import logger
 from pydantic import Field, computed_field
+from pydantic_core import to_jsonable_python
 
+from akkudoktoreos.core.cache import Param, RetType, cache_in_file
 from akkudoktoreos.core.coreabc import MeasurementMixin
 from akkudoktoreos.core.dataabc import (
     DataABC,
@@ -24,6 +28,94 @@ from akkudoktoreos.core.dataabc import (
     DataSequence,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
+
+# Default for how long a provider response stays cached, and the shortest time between
+# two requests caused by settings changes (see `cache_request`).
+REQUEST_CACHE_TTL = "1 hour"
+
+
+def request_config_context(*config_paths: str) -> Callable[..., str]:
+    """Build a cache key context from the settings a provider request is built from.
+
+    The returned function takes the provider (``self`` of the cached method) and returns
+    the MD5 digest of the values at ``config_paths`` (``'/'``-separated, as for
+    ``get_nested_value``). The digest is kept until the settings change
+    (``ConfigEOS.settings_generation()``).
+
+    Args:
+        *config_paths: The settings the request reads, e.g. ``"general/latitude"``.
+
+    Returns:
+        The key context function for ``cache_in_file(key_context=...)``.
+    """
+    if not config_paths:
+        raise ValueError("A request cache context needs at least one configuration path.")
+    paths = tuple(config_paths)
+    # (config id, settings generation, digest) of the last result.
+    last: list[Optional[tuple[int, int, str]]] = [None]
+
+    def context(provider: Any, *args: Any, **kwargs: Any) -> str:
+        config = provider.config
+        generation = config.settings_generation()
+        cached = last[0]
+        if cached is not None and cached[0] == id(config) and cached[1] == generation:
+            return cached[2]
+        values = {path: to_jsonable_python(config.get_nested_value(path)) for path in paths}
+        text = json.dumps(values, sort_keys=True, default=str)
+        digest = hashlib.md5(text.encode("utf-8"), usedforsecurity=False).hexdigest()
+        last[0] = (id(config), generation, digest)
+        return digest
+
+    context.config_paths = paths  # type: ignore[attr-defined]
+    return context
+
+
+def cache_request(
+    *config_paths: str,
+    **cache_kwargs: Any,
+) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
+    """Cache a provider request in a file, keyed on the settings it is built from (#1559).
+
+    Provider request methods read their parameters (location, planes, tokens, past days)
+    from the configuration, not from their arguments. The values at ``config_paths`` are
+    part of the cache key, so a change of them requests new data instead of reusing the
+    response for the previous settings. Other settings changes leave the cache alone.
+
+    To protect the provider rate limits, settings changes lead to at most one extra request
+    per ``with_ttl``: a further change within that time keeps the cached response until
+    then (``cache_in_file(key_context_hold=...)``). A forced update applies it at once.
+
+    Example:
+        .. code-block:: python
+
+            @cache_request("general/latitude", "general/longitude")
+            def _request_forecast(self) -> dict: ...
+
+            # A provider with a stricter rate limit: cache and hold for 3 hours.
+            @cache_request("pvforecast/planes", with_ttl="3 hours")
+            def _request_forecast(self) -> dict: ...
+
+    Args:
+        *config_paths: Every setting the request reads, as ``'/'``-separated paths.
+            They build the ``key_context``.
+        **cache_kwargs: Passed on to ``cache_in_file``. ``with_ttl`` defaults to
+            ``REQUEST_CACHE_TTL``, and ``key_context_hold`` defaults to ``with_ttl``.
+
+    Returns:
+        The ``cache_in_file`` decorator.
+    """
+    if "key_context" in cache_kwargs:
+        raise TypeError("cache_request builds the key_context from the config_paths.")
+    with_ttl = cache_kwargs.pop("with_ttl", None)
+    if with_ttl is None:
+        with_ttl = REQUEST_CACHE_TTL
+    key_context_hold = cache_kwargs.pop("key_context_hold", with_ttl)
+    return cache_in_file(
+        with_ttl=with_ttl,
+        key_context=request_config_context(*config_paths),
+        key_context_hold=key_context_hold,
+        **cache_kwargs,
+    )
 
 
 class PredictionABC(DataABC, MeasurementMixin):

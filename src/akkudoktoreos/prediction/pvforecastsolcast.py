@@ -25,7 +25,7 @@ from loguru import logger
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -78,7 +78,7 @@ class PVForecastSolcast(PVForecastProvider):
         minutes = int(match.group(2) or 0)
         return hours * 60 + minutes
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("pvforecast/solcast")
     def _request_forecast(self) -> Any:
         """Fetch the rooftop-site forecast from Solcast."""
         settings = self._settings

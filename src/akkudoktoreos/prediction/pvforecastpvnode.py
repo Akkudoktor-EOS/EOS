@@ -30,7 +30,7 @@ from loguru import logger
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -154,7 +154,12 @@ class PVForecastPVNode(PVForecastProvider):
             rows.append((date, round(power, 1)))
         return rows
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request(
+        "general/latitude",
+        "general/longitude",
+        "pvforecast/planes",
+        "pvforecast/pvnode",
+    )
     def _request_forecast(self) -> Any:
         """Fetch the PV forecast from pvnode.com (saved site or inline planes)."""
         settings = self._settings

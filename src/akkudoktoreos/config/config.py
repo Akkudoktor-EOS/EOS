@@ -470,6 +470,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     _config_autosave: ClassVar[str] = ""
     # Settings provided at runtime, e.g. by the REST interface. Highest priority after CLI.
     _runtime_settings: ClassVar[dict[str, Any]] = {}
+    # Counts the setups and nested value changes, see `settings_generation()`.
+    _settings_generation: ClassVar[int] = 0
     # A ClassVar: without the annotation pydantic makes it a private attribute,
     # and the class attribute would be a (truthy) descriptor object.
     _force_documentation_mode: ClassVar[bool] = False
@@ -813,6 +815,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""
         logger.debug("Config setup with parameters {} {}", args, kwargs)
+        ConfigEOS._settings_generation += 1
 
         # Assure settings base knows the singleton EOS configuration
         SettingsBaseModel.config = self
@@ -848,6 +851,20 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             logger.error(message)
         for message in warnings:
             logger.warning(message)
+
+    @classmethod
+    def settings_generation(cls) -> int:
+        """Number that changes whenever the settings may have changed.
+
+        It counts every setup of the settings (merge, reset, revert, update) and every
+        `set_nested_value()`. Use it to keep values derived from the settings until the
+        next change. A direct attribute assignment, e.g. ``config.general.latitude = 1.0``,
+        does not count.
+
+        Returns:
+            The current generation.
+        """
+        return cls._settings_generation
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
@@ -906,7 +923,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             path (str): A '/'-separated path to the nested attribute (e.g. "server/port").
             value (Any): The new value to set.
         """
-        super().set_nested_value(path, value)
+        try:
+            super().set_nested_value(path, value)
+        finally:
+            # Also after a partly applied change.
+            ConfigEOS._settings_generation += 1
 
         # Remember as runtime setting to survive re-evaluation of the configuration sources.
         # List indices can not be expressed by the settings dictionary - remember the whole list.
