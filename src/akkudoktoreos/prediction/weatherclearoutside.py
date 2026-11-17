@@ -19,7 +19,7 @@ import pandas as pd
 import requests
 from loguru import logger
 
-from akkudoktoreos.core.cache import cache_in_file
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.weatherabc import WeatherDataRecord, WeatherProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_timezone
 
@@ -79,7 +79,7 @@ class WeatherClearOutside(WeatherProvider):
     def provider_id(cls) -> str:
         return "ClearOutside"
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("general/latitude", "general/longitude")
     def _request_forecast(self) -> requests.Response:
         """Requests weather forecast from ClearOutside.
 

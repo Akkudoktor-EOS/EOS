@@ -5,6 +5,7 @@ both in memory (using an LRU cache) and in temporary files. It also includes
 mechanisms for managing cache file expiration and retrieval.
 """
 
+import contextlib
 import functools
 import hashlib
 import inspect
@@ -816,6 +817,11 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
         Raises:
             OSError: If there's an error during file deletion.
         """
+        if clear_all:
+            # Without entries there is nothing to hold (see `key_context_hold`).
+            # Suppressed: clear_all also runs on __del__, possibly at interpreter exit.
+            with contextlib.suppress(Exception), _key_context_lock:
+                _key_context_states.clear()
         # Some weired logic to prevent calling to_datetime on clear_all.
         # Clear_all may be set on __del__. At this time some info for to_datetime will
         # not be available anymore.
@@ -963,6 +969,17 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             return store_loaded
 
 
+# `cache_in_file(key_context_hold=...)` state per argument key:
+# (context hash in use, when it was switched to, last held context hash).
+_key_context_states: dict[str, tuple[str, Optional[DateTime], Optional[str]]] = {}
+_key_context_lock = threading.Lock()
+
+
+def _hold_now() -> DateTime:
+    """Current time for `cache_in_file(key_context_hold=...)`; tests replace it."""
+    return to_datetime()
+
+
 def cache_in_file(
     ignore_params: List[str] = [],
     force_update: Optional[bool] = None,
@@ -972,6 +989,8 @@ def cache_in_file(
     mode: Literal["w", "w+", "wb", "wb+", "r", "r+", "rb", "rb+"] = "wb+",
     delete: bool = False,
     suffix: Optional[str] = None,
+    key_context: Optional[Callable[..., Any]] = None,
+    key_context_hold: Optional[Any] = None,
 ) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
     """Cache the output of a function into a temporary file.
 
@@ -1011,6 +1030,19 @@ def cache_in_file(
         suffix (Optional[str], optional):
             A file suffix (e.g., ".txt" or ".json") for the cache file. Defaults to None. If not
             provided, files are pickled by default.
+        key_context (Optional[Callable[..., Any]], optional):
+            Called with the arguments of each call; a hash of the ``repr()`` of its result is
+            part of the cache key. Use it when the result depends on state the arguments do
+            not carry, e.g. a method that builds its request from the configuration of
+            ``self``. Defaults to None.
+        key_context_hold (Union[timedelta, str, int, float, None], optional):
+            Limits how often a change of the `key_context` leads to a new call. After the
+            context of a call changed, a later change within this duration keeps using the
+            still valid cache entry of the current context instead of calling the function.
+            The first change, and any change once the duration passed, applies at once.
+            A forced update applies the change at once. Without a valid entry to keep, the
+            function is called for the new context. Defaults to None (every change applies
+            at once).
 
     Returns:
         Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
@@ -1029,8 +1061,10 @@ def cache_in_file(
 
     Notes:
         - The cache key is based on the function arguments after excluding those in
-          `ignore_params`, and on a hash of the function's code, defaults and captured
-          values (see `_get_func_code_hash`).
+          `ignore_params`, on a hash of the function's code, defaults and captured
+          values (see `_get_func_code_hash`), and on the `key_context`, if given.
+        - With `key_context_hold`, a cached result is only ever stored under the context it
+          was computed for; holding only reuses an existing entry.
         - The control parameters (`force_update`, `until_date`, `until_datetime`,
           `with_ttl`) are consumed by the wrapper and are not forwarded to the wrapped
           function.
@@ -1044,6 +1078,55 @@ def cache_in_file(
         func_code_hash = _get_func_code_hash(func)
         # Follows functools.wraps wrappers to the signature of the wrapped function.
         func_signature = inspect.signature(func)
+        hold = None if key_context_hold is None else to_duration(key_context_hold)
+
+        def held_context(base_key: str, context_hash: str, call_force_update: bool) -> str:
+            """Return the context hash to try for this call, see `key_context_hold`.
+
+            The context in use is kept while its hold lasts; the caller falls back to
+            `switch_context` if it has no valid cache entry.
+            """
+            with _key_context_lock:
+                state = _key_context_states.get(base_key)
+                if state is None:
+                    if len(_key_context_states) >= 256:
+                        _key_context_states.clear()
+                    _key_context_states[base_key] = (context_hash, None, None)
+                    return context_hash
+                active, switched_at, held = state
+                if context_hash == active:
+                    if held is not None:
+                        _key_context_states[base_key] = (active, switched_at, None)
+                    return active
+                if (
+                    not call_force_update
+                    and hold is not None
+                    and switched_at is not None
+                    and _hold_now() < switched_at + hold
+                ):
+                    return active
+                _key_context_states[base_key] = (context_hash, _hold_now(), None)
+                return context_hash
+
+        def switch_context(base_key: str, context_hash: str) -> None:
+            """Use `context_hash` from now on; its hold starts now."""
+            with _key_context_lock:
+                _key_context_states[base_key] = (context_hash, _hold_now(), None)
+
+        def report_held(base_key: str, context_hash: str) -> None:
+            """Log once per change that a changed context waits for the hold to end."""
+            with _key_context_lock:
+                state = _key_context_states.get(base_key)
+                if state is None or state[2] == context_hash or state[1] is None:
+                    return
+                _key_context_states[base_key] = (state[0], state[1], context_hash)
+                until = state[1] + hold  # type: ignore[operator]
+            logger.info(
+                "{}: changed settings apply from {} on; the cached result of the previous "
+                "settings is used until then.",
+                func.__qualname__,
+                to_datetime(until, as_string=True),
+            )
 
         def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
             # Control parameters given at call time apply to this call only.
@@ -1073,6 +1156,17 @@ def cache_in_file(
             # Create key based on argument names, argument values, and function code
             key = str(_cache_key_arguments(func_signature, args, kwargs, ignore_params))
             key += func_code_hash
+            base_key = key
+            context_hash = use_hash = ""
+            if key_context is not None:
+                # State outside the arguments that decides the result, e.g. the
+                # configuration a provider builds its request from.
+                context = repr(key_context(*args, **kwargs))
+                context_hash = hashlib.sha256(context.encode("utf-8")).hexdigest()
+                use_hash = context_hash
+                if hold is not None:
+                    use_hash = held_context(base_key, context_hash, bool(call_force_update))
+                key = base_key + use_hash
 
             result: Optional[RetType | bytes] = None
             # Get cache file that is currently valid
@@ -1082,6 +1176,20 @@ def cache_in_file(
                 until_datetime=expiry["until_datetime"],
                 ttl_duration=expiry["with_ttl"],
             )
+            if use_hash != context_hash:
+                if cache_file is None:
+                    # Nothing to keep: call for the current context, never store the
+                    # result under another one.
+                    switch_context(base_key, context_hash)
+                    key = base_key + context_hash
+                    cache_file = CacheFileStore().get(
+                        key,
+                        until_date=expiry["until_date"],
+                        until_datetime=expiry["until_datetime"],
+                        ttl_duration=expiry["with_ttl"],
+                    )
+                else:
+                    report_held(base_key, context_hash)
             if not call_force_update and cache_file is not None:
                 # cache file is available
                 try:
@@ -1095,6 +1203,10 @@ def cache_in_file(
                     logger.info(f"Read failed: {e}")
                     # Fail gracefully - recreate the cache file in this call
                     call_force_update = True
+                    if use_hash != context_hash:
+                        # Recreate it for the current context, not the held one.
+                        switch_context(base_key, context_hash)
+                        key = base_key + context_hash
             if call_force_update or cache_file is None:
                 # Otherwise, call the function and save its result to the cache
                 logger.debug("Created cache file for function: " + func.__name__)

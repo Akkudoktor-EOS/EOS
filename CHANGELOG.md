@@ -227,6 +227,11 @@ test procedure. These changes are not yet a tagged release.
 - Database: records persist and reload, compaction runs, `delete_by_datetime(None, None)` wipes
   all data, and NaN values are dropped when reading series.
 - The file cache (`cache_in_file`) keys stay the same across restarts, so the cache keeps hitting.
+- Cached provider requests (weather, PV forecast, electricity price, feed-in tariff) follow the
+  settings they are built from: after a change of e.g. the location, the PV planes, a token or the
+  past days of the local PV forecast, the next update requests new data instead of reusing the
+  response for the previous settings for up to an hour. Other settings changes don't cause
+  requests, and settings changes cause at most one extra request per provider and hour.
 - Parallel GENETIC evaluation workers stop reliably at the end of a run; fitness-cache memory is
   released after each run.
 - Home Assistant adapter: config entities with the state `0` or `off` are applied, unknown

@@ -691,6 +691,29 @@ class TestConfigEOS:
         config_eos_file.reset_settings()
         assert config_eos_file.optimization.genetic.individuals == 200
 
+    def test_settings_generation_changes_with_every_settings_change(self, config_eos):
+        """Merge, nested set, failed set, reset and update each start a new generation."""
+        seen = [config_eos.settings_generation()]
+
+        def changed() -> None:
+            generation = config_eos.settings_generation()
+            assert generation not in seen
+            seen.append(generation)
+
+        assert config_eos.settings_generation() == seen[-1]
+        config_eos.merge_settings_from_dict({"prediction": {"hours": 72}})
+        changed()
+        config_eos.set_nested_value("prediction/historic_hours", 72)
+        changed()
+        with pytest.raises(ValueError):
+            config_eos.set_nested_value("prediction/hours", "not a number")
+        changed()
+        config_eos.reset_settings()
+        changed()
+        config_eos.update()
+        changed()
+        assert config_eos.settings_generation() == seen[-1]
+
     def test_set_nested_value_survives_merge(self, config_eos_file):
         """Granular updates are not lost by a later bulk update."""
         write_config_file(

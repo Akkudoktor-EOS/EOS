@@ -10,8 +10,8 @@ from loguru import logger
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
@@ -63,7 +63,7 @@ class FeedInTariffDvhubOnline(FeedInTariffProvider):
             return FeedInTariffDvhubOnlineCommonSettings()
         return settings
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("feedintariff/dvhubonline")
     def _request_forecast(self, start_date: str, end_date: str) -> dict[str, Any]:
         """Fetch market prices from the dvhub.online price API."""
         settings = self._provider_settings()

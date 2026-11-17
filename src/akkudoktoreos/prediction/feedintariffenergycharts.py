@@ -10,13 +10,13 @@ from loguru import logger
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyCharts,
     EnergyChartsBiddingZones,
     EnergyChartsElecPrice,
 )
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
@@ -108,7 +108,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             return bidding_zone.value
         return str(bidding_zone)
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("feedintariff/energycharts", "prediction/hours")
     def _request_forecast(self, start_date: Optional[str] = None) -> EnergyChartsElecPrice:
         """Fetch electricity price forecast data from Energy-Charts API.
 

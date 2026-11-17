@@ -9,12 +9,12 @@ from loguru import logger
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyCharts,
     EnergyChartsElecPrice,
 )
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 SMARD_BASE_URL = "https://www.smard.de/app/chart_data"
@@ -130,7 +130,7 @@ class ElecPriceSMARD(ElecPriceEnergyCharts):
                 selected.append(chunk_start)
         return selected
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("elecprice/smard", "general/timezone", "prediction/hours")
     def _request_forecast(self, start_date: Optional[str] = None) -> EnergyChartsElecPrice:
         """Fetch and normalize quarter-hourly German/Luxembourg day-ahead prices from SMARD."""
         if not self.ems_start_datetime:

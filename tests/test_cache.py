@@ -960,6 +960,144 @@ class TestCacheFileDecorators:
 
         assert received == [{"a": 1, "token": "secret-1"}]
 
+    def test_key_context_is_part_of_the_key(self, cache_file_store):
+        """State outside the arguments that decides the result gets its own entry (#1559)."""
+        cache_file_store.clear(clear_all=True)
+
+        class Provider:
+            def __init__(self) -> None:
+                self.location = "Berlin"
+                self.calls: list[str] = []
+
+            def context(self, *args, **kwargs):
+                return {"location": self.location}
+
+            @cache_in_file(key_context=lambda self, *args, **kwargs: self.context())
+            def request(self) -> str:
+                self.calls.append(self.location)
+                return f"forecast for {self.location}"
+
+            def __repr__(self) -> str:
+                # Same repr for every configuration, like the prediction providers.
+                return "Provider()"
+
+        provider = Provider()
+        assert provider.request() == "forecast for Berlin"
+        assert provider.request() == "forecast for Berlin"
+        provider.location = "Munich"
+        assert provider.request() == "forecast for Munich"
+        provider.location = "Berlin"
+        assert provider.request() == "forecast for Berlin"
+
+        assert provider.calls == ["Berlin", "Munich"]
+
+    def test_key_context_gets_the_call_arguments(self, cache_file_store):
+        cache_file_store.clear(clear_all=True)
+        seen: list[tuple] = []
+
+        def context(*args, **kwargs):
+            seen.append((args, kwargs))
+            return None
+
+        @cache_in_file(key_context=context)
+        def f(x, y=0):
+            return x + y
+
+        assert f(1, y=2) == 3
+        # Cache control parameters are consumed by the wrapper, not passed on.
+        assert f(1, y=2, force_update=True) == 3  # type: ignore[call-arg]
+
+        assert seen == [((1,), {"y": 2}), ((1,), {"y": 2})]
+
+    @staticmethod
+    def _held_provider():
+        class Provider:
+            def __init__(self) -> None:
+                self.location = "Berlin"
+                self.calls: list[str] = []
+
+            @cache_in_file(
+                with_ttl="2 hours",
+                key_context=lambda self, *args, **kwargs: self.location,
+                key_context_hold="1 hour",
+            )
+            def request(self) -> str:
+                self.calls.append(self.location)
+                return f"forecast for {self.location}"
+
+            def __repr__(self) -> str:
+                return "Provider()"
+
+        return Provider()
+
+    @staticmethod
+    def _clock(monkeypatch):
+        now = [to_datetime("2026-11-15T12:00:00+00:00")]
+        monkeypatch.setattr("akkudoktoreos.core.cache._hold_now", lambda: now[0])
+        return now
+
+    def test_key_context_hold_allows_one_change_per_hold(self, cache_file_store, monkeypatch):
+        """Settings changes lead to at most one extra call per hold duration."""
+        cache_file_store.clear(clear_all=True)
+        now = self._clock(monkeypatch)
+        provider = self._held_provider()
+
+        assert provider.request() == "forecast for Berlin"
+        now[0] = now[0].add(minutes=5)
+        provider.location = "Munich"  # first change: applies at once
+        assert provider.request() == "forecast for Munich"
+        now[0] = now[0].add(minutes=5)
+        provider.location = "Hamburg"  # within the hold: keeps the Munich result
+        assert provider.request() == "forecast for Munich"
+        now[0] = now[0].add(minutes=30)
+        assert provider.request() == "forecast for Munich"
+        provider.location = "Munich"  # back to the settings in use
+        assert provider.request() == "forecast for Munich"
+        provider.location = "Hamburg"
+        now[0] = now[0].add(minutes=26)  # 61 minutes after the switch to Munich
+        assert provider.request() == "forecast for Hamburg"
+
+        assert provider.calls == ["Berlin", "Munich", "Hamburg"]
+
+    def test_key_context_hold_yields_to_force_update(self, cache_file_store, monkeypatch):
+        cache_file_store.clear(clear_all=True)
+        now = self._clock(monkeypatch)
+        provider = self._held_provider()
+
+        provider.request()
+        provider.location = "Munich"
+        provider.request()
+        now[0] = now[0].add(minutes=1)
+        provider.location = "Hamburg"
+        assert provider.request(force_update=True) == "forecast for Hamburg"
+        # The forced call stored the Hamburg result under the Hamburg settings.
+        assert provider.request() == "forecast for Hamburg"
+
+        assert provider.calls == ["Berlin", "Munich", "Hamburg"]
+
+    def test_key_context_hold_never_stores_under_other_settings(
+        self, cache_file_store, monkeypatch
+    ):
+        """Without a valid entry to keep, the call is made and keyed on its own settings."""
+        cache_file_store.clear(clear_all=True)
+        now = self._clock(monkeypatch)
+        provider = self._held_provider()
+
+        provider.request()
+        provider.location = "Munich"
+        provider.request()
+        # The entries are gone (e.g. expired); the switch time to Munich is kept.
+        cache_file_store._store.clear()
+        now[0] = now[0].add(minutes=1)
+        provider.location = "Hamburg"
+        assert provider.request() == "forecast for Hamburg"
+        provider.location = "Munich"
+        now[0] = now[0].add(minutes=1)
+        # Hamburg is now in use and has a valid entry: the change back is held.
+        assert provider.request() == "forecast for Hamburg"
+
+        assert provider.calls == ["Berlin", "Munich", "Hamburg"]
+
 
 class TestFuncCodeHash:
     def test_hash_is_stable(self):

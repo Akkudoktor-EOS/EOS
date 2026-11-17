@@ -29,7 +29,7 @@ from loguru import logger
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
@@ -157,7 +157,13 @@ class PVForecastForecastSolar(PVForecastProvider):
             base = f"{base}/{api_key}"
         return f"{base}/estimate/{latitude}/{longitude}/{float(tilt)}/{fs_az}/{float(peakpower)}"
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request(
+        "general/latitude",
+        "general/longitude",
+        "general/timezone",
+        "pvforecast/planes",
+        "pvforecast/forecastsolar",
+    )
     def _request_forecast(self) -> dict:
         """Fetch and aggregate the Forecast.Solar estimate across all configured planes."""
         planes = self.config.pvforecast.planes or []

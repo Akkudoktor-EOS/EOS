@@ -9,9 +9,9 @@ from loguru import logger
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 TIBBER_GRAPHQL_URL = "https://api.tibber.com/v1-beta/gql"
@@ -217,7 +217,7 @@ class ElecPriceTibber(ElecPriceProvider):
             tomorrow_count = len(subscription.priceInfo.tomorrow)
         return history_count, today_count, tomorrow_count
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("elecprice/tibber/access_token")
     def _request_forecast(self) -> TibberGraphQLResponse:
         """Fetch electricity price data from the Tibber GraphQL API."""
         access_token = self.config.elecprice.tibber.access_token

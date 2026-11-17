@@ -44,8 +44,8 @@ from loguru import logger
 from pydantic import Field, PrivateAttr, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.measurement.measurement import MeterPeriod
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecordT,
     PVForecastProvider,
@@ -626,7 +626,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
 
         return forecast_days, min(MAX_PAST_DAYS, past_days)
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request(
+        "general/latitude",
+        "general/longitude",
+        "prediction/hours",
+        "prediction/historic_hours",
+        "pvforecast/akkudoktor",
+    )
     def _request_local_forecast(self) -> Any:
         """Fetch raw irradiance and weather from Open-Meteo."""
         latitude = self.config.general.latitude

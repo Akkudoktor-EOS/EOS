@@ -567,6 +567,49 @@ def test_transient_weather_outage_is_retried(pvforecast_instance):
     assert "minutely_15" in data
 
 
+def test_weather_request_cache_follows_the_configuration(pvforecast_instance, monkeypatch):
+    """A configuration change must not get the cached response of the old one (#1559).
+
+    Only the settings the request reads count, and settings changes cause at most one
+    extra request per hour.
+    """
+    sent: list[tuple[int, float]] = []
+    now = [to_datetime("2026-11-15T12:00:00+00:00")]
+    monkeypatch.setattr("akkudoktoreos.core.cache._hold_now", lambda: now[0])
+    monkeypatch.setattr("akkudoktoreos.core.cache._key_context_states", {})
+
+    def respond(url, params, timeout):
+        sent.append((params["past_days"], params["latitude"]))
+        response = Mock()
+        response.url = url
+        response.raise_for_status.return_value = None
+        response.json.return_value = synthetic_openmeteo()
+        return response
+
+    config = pvforecast_instance.config
+    with patch(
+        "akkudoktoreos.prediction.pvforecastakkudoktorlocal.requests.get", side_effect=respond
+    ):
+        pvforecast_instance._request_local_forecast(force_update=True)
+        pvforecast_instance._request_local_forecast()  # unchanged: from the cache
+        # A setting the request does not read, e.g. pushed by an adapter on every run.
+        config.set_nested_value("elecprice/elecpriceimport/import_json", '{"a": [1.0]}')
+        pvforecast_instance._request_local_forecast()
+        # Calibration needs the weather of its lookback: more past days.
+        config.merge_settings_from_dict(
+            {"pvforecast": {"akkudoktor": {"calibration_enabled": True}}}
+        )
+        pvforecast_instance._request_local_forecast()
+        # A second change within the hour keeps the response until an hour after the first.
+        now[0] = now[0].add(minutes=10)
+        config.merge_settings_from_dict({"general": {"latitude": 48.14, "longitude": 11.58}})
+        pvforecast_instance._request_local_forecast()
+        now[0] = now[0].add(minutes=51)
+        pvforecast_instance._request_local_forecast()
+
+    assert sent == [(2, LATITUDE), (30, LATITUDE), (30, 48.14)]
+
+
 @pytest.mark.asyncio
 async def test_weather_outage_keeps_the_previous_forecast(pvforecast_instance):
     """One dead weather API must not take the whole prediction update down.

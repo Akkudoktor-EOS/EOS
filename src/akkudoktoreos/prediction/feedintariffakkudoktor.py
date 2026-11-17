@@ -10,12 +10,12 @@ import requests
 from loguru import logger
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPrice,
     ElecPriceAkkudoktor,
 )
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
@@ -51,7 +51,7 @@ class FeedInTariffAkkudoktor(FeedInTariffProvider):
         """Return the unique provider identifier."""
         return "FeedInTariffAkkudoktor"
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("general/timezone", "prediction/hours")
     def _request_forecast(self) -> AkkudoktorElecPrice:
         """Fetch market prices from the public Akkudoktor API."""
         if not self.ems_start_datetime:

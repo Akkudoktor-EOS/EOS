@@ -9,7 +9,6 @@ import requests
 from loguru import logger
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.prediction.elecpricetibber import (
     TIBBER_GRAPHQL_URL,
     TIBBER_PRICE_QUERY_QUARTER_HOURLY,
@@ -18,6 +17,7 @@ from akkudoktoreos.prediction.elecpricetibber import (
     TibberPricePoint,
 )
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
@@ -47,7 +47,7 @@ class FeedInTariffTibber(FeedInTariffProvider):
         """Keep enough history for seasonal price extrapolation."""
         return 24 * 35
 
-    @cache_in_file(with_ttl="1 hour")
+    @cache_request("elecprice/tibber/access_token")
     def _request_forecast(self) -> TibberGraphQLResponse:
         """Request strictly quarter-hourly Tibber prices.
 
