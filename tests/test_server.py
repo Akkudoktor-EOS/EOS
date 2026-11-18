@@ -115,21 +115,19 @@ class TestServerStartStop:
         monkeypatch.setenv("EOS_CONFIG_DIR", str(eos_dir))
 
         # Import after env vars are set
+        from akkudoktoreos.server.rest import starteosdash
         from akkudoktoreos.server.rest.starteosdash import (
             EOSDASH_LOG_MAX_LINE_BYTES,
             _eosdash_log_worker,
-            eosdash_log_queue,
             forward_stream,
         )
 
-        # ---- Ensure queue + worker are initialized ----
-        if eosdash_log_queue is None:
-            from akkudoktoreos.server.rest import starteosdash
-
-            starteosdash.eosdash_log_queue = asyncio.Queue(maxsize=10)
-            worker_task = asyncio.create_task(_eosdash_log_worker())
-        else:
-            worker_task = None
+        # ---- Queue + worker of this test ----
+        # A queue left behind by an earlier test of this process (test_server_start_eosdash)
+        # has no worker and belongs to a closed event loop. monkeypatch restores the value.
+        log_queue: asyncio.Queue = asyncio.Queue(maxsize=10)
+        monkeypatch.setattr(starteosdash, "eosdash_log_queue", log_queue)
+        worker_task = asyncio.create_task(_eosdash_log_worker())
 
         long_message = "X" * (EOSDASH_LOG_MAX_LINE_BYTES + 10_000)
         raw_line = f"INFO some.module:123 some_func - {long_message}\n"
@@ -157,12 +155,8 @@ class TestServerStartStop:
             logger.remove(logger_id)
 
             # Clean shutdown of worker (important for pytest)
-            if worker_task:
-                from akkudoktoreos.server.rest import starteosdash
-
-                if starteosdash.eosdash_log_queue:
-                    starteosdash.eosdash_log_queue.put_nowait(None)
-                await worker_task
+            log_queue.put_nowait(None)
+            await worker_task
 
         # ---- Assert ----
         assert len(records) == 1, "Expected exactly one log record"
@@ -172,6 +166,46 @@ class TestServerStartStop:
 
         assert msg.endswith("[TRUNCATED]"), "Expected truncation marker"
         assert len(msg) <= EOSDASH_LOG_MAX_LINE_BYTES + 20
+
+    @pytest.mark.asyncio
+    async def test_forward_stream_drops_lines_when_queue_is_full(self, monkeypatch, tmp_path):
+        """Lines that do not fit into the log queue are dropped with a single warning."""
+
+        eos_dir = tmp_path
+        monkeypatch.setenv("EOS_DIR", str(eos_dir))
+        monkeypatch.setenv("EOS_CONFIG_DIR", str(eos_dir))
+
+        # Import after env vars are set
+        from akkudoktoreos.server.rest import starteosdash
+        from akkudoktoreos.server.rest.starteosdash import forward_stream
+
+        # A queue for one entry and no worker: the second and the third line find it full.
+        log_queue: asyncio.Queue = asyncio.Queue(maxsize=1)
+        monkeypatch.setattr(starteosdash, "eosdash_log_queue", log_queue)
+        monkeypatch.setattr(starteosdash, "eosdash_last_drop_warning", float("-inf"))
+
+        reader = asyncio.StreamReader()
+        reader.feed_data(
+            b"INFO | some/module.py:123 | some_func | first\n"
+            b"INFO | some/module.py:124 | some_func | second\n"
+            b"a line without log metadata\n"
+        )
+        reader.feed_eof()
+
+        records = []
+
+        def sink(message):
+            records.append(message.record)
+
+        logger_id = logger.add(sink, level="WARNING")
+        try:
+            await forward_stream(reader)
+        finally:
+            logger.remove(logger_id)
+
+        assert log_queue.qsize() == 1
+        drop_warnings = [record for record in records if "queue full" in record["message"]]
+        assert len(drop_warnings) == 1, "Expected one rate-limited warning for two dropped lines"
 
     @pytest.mark.asyncio
     async def test_server_start_eosdash(self, config_eos, monkeypatch, tmp_path):
@@ -191,6 +225,10 @@ class TestServerStartStop:
 
         # Import with environment vars set to prevent creation of EOS.config.json in wrong dir.
         from akkudoktoreos.server.rest import starteosdash
+
+        # The supervisor creates the log queue in this test's event loop. monkeypatch
+        # removes it again, so no later test of the process finds a queue of a closed loop.
+        monkeypatch.setattr(starteosdash, "eosdash_log_queue", None)
 
         config_eos.server.host = get_default_host()
         config_eos.server.port = 8503

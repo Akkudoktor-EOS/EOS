@@ -653,7 +653,11 @@ class TestSystem:
 
     @pytest.mark.parametrize("db_provider", ["LMDB", "SQLite", None])
     def test_measurement_realtime_stream(self, db_provider, server_setup_for_class):
-        """Simulate real production stream: 1 Hz updates with jitter, duplicates, and out-of-order timestamps."""
+        """Simulate real production stream: 1 Hz updates with jitter, duplicates, and out-of-order timestamps.
+
+        The 1 Hz timestamps are synthetic (one second apart, in the recent past),
+        so the test does not have to wait a real second between updates.
+        """
 
         server = server_setup_for_class["server"]
 
@@ -681,13 +685,14 @@ class TestSystem:
         # ----------------------------------------------------------------------
         # 2. Real-time simulation
         # ----------------------------------------------------------------------
-        start = to_datetime().replace(microsecond=0)
+        n_updates = 20
+        start = to_datetime().replace(microsecond=0).subtract(seconds=n_updates + 10)
 
         sent_timestamps = []
         errors = []
 
-        for i in range(20):  # run ~20 seconds
-            now = to_datetime().replace(microsecond=0)
+        for i in range(n_updates):
+            now = start.add(seconds=i)
 
             # --- main timestamp ---
             ts = str(now)
@@ -773,9 +778,6 @@ class TestSystem:
             if i in (0, 4, 9, 14, 19):
                 response = requests.post(f"{server}/v1/admin/database/save")
                 assert response.status_code == HTTPStatus.OK
-
-            # small delay to simulate real system (~1 Hz)
-            time.sleep(1)
 
         # ----------------------------------------------------------------------
         # 3. Assertions

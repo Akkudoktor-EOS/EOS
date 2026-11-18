@@ -132,10 +132,11 @@ class TestPredictionABC:
 class TestPredictionProvider:
     # Fixtures and helper functions
     @pytest.fixture
-    def provider(self):
+    def provider(self, monkeypatch):
         """Fixture to provide an instance of TestPredictionProvider for testing."""
-        DerivedPredictionProvider.provider_enabled = True
-        DerivedPredictionProvider.provider_updated = False
+        # monkeypatch restores the class flags, so later tests do not inherit them.
+        monkeypatch.setattr(DerivedPredictionProvider, "provider_enabled", True)
+        monkeypatch.setattr(DerivedPredictionProvider, "provider_updated", False)
         return DerivedPredictionProvider()
 
     @pytest.fixture
@@ -247,7 +248,10 @@ class TestPredictionContainer:
         return container
 
     @pytest_asyncio.fixture
-    async def container_with_providers(self):
+    async def container_with_providers(self, monkeypatch):
+        # The container only counts enabled providers. Enable it here instead of relying
+        # on a TestPredictionProvider test having run before in the same process.
+        monkeypatch.setattr(DerivedPredictionProvider, "provider_enabled", True)
         records = [
             # Test records - include 'prediction_value' key
             self.create_test_record(datetime(2023, 11, 5), 1),

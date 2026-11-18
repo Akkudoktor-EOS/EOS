@@ -834,7 +834,8 @@ class TestIntegration:
 class TestPerformance:
     """Throughput benchmarks — not correctness tests."""
 
-    async def test_insert_throughput(self, config_eos, async_database_instance):
+    async def test_insert_save_load_throughput(self, config_eos, async_database_instance):
+        """Insert, save and load the same records; each phase is timed on its own."""
         sequence = SampleDataSequence()
         await _reset_sequence_state(sequence)
         base_time = to_datetime("2024-01-01T00:00:00Z")
@@ -854,42 +855,14 @@ class TestPerformance:
 
         assert len(sequence.records) == n
 
-    async def test_save_throughput(self, config_eos, async_database_instance):
-        sequence = SampleDataSequence()
-        await _reset_sequence_state(sequence)
-        base_time = to_datetime("2024-01-01T00:00:00Z")
-        n = 10_000
-
-        for i in range(n):
-            await sequence.db_insert_record(
-                SampleDataRecord(
-                    date_time=base_time.add(minutes=i),
-                    temperature=20.0 + (i % 100) * 0.1,
-                )
-            )
-
         start = time.perf_counter()
         saved = await sequence.db_save_records()
         save_duration = time.perf_counter() - start
 
         assert saved == n
-        print(f"\nSaved {n} records in {save_duration:.2f}s "
+        print(f"Saved {n} records in {save_duration:.2f}s "
               f"({n / save_duration:.0f} rec/s)")
 
-    async def test_load_throughput(self, config_eos, async_database_instance):
-        sequence = SampleDataSequence()
-        await _reset_sequence_state(sequence)
-        base_time = to_datetime("2024-01-01T00:00:00Z")
-        n = 10_000
-
-        for i in range(n):
-            await sequence.db_insert_record(
-                SampleDataRecord(
-                    date_time=base_time.add(minutes=i),
-                    temperature=20.0 + (i % 100) * 0.1,
-                )
-            )
-        await sequence.db_save_records()
         await _reset_sequence_state(sequence)
 
         start = time.perf_counter()
@@ -897,7 +870,7 @@ class TestPerformance:
         load_duration = time.perf_counter() - start
 
         assert loaded == n
-        print(f"\nLoaded {n} records in {load_duration:.2f}s "
+        print(f"Loaded {n} records in {load_duration:.2f}s "
               f"({n / load_duration:.0f} rec/s)")
 
 @pytest.mark.asyncio

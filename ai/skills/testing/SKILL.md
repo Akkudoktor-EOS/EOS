@@ -20,6 +20,10 @@ description: Use when adding or updating pytest tests, fixing bugs, or changing 
 - Prefer deterministic, isolated tests; mock external services/devices.
 - Cover boundary conditions and error paths.
 - Do not weaken tests to accommodate implementation defects.
+- Keep each test case well under a second. No real-time sleeps or wait loops
+  (use synthetic timestamps), no full cartesian `parametrize` over independent
+  axes, and extend an existing parametrized test before writing a new one.
+  The CI log lists the 25 slowest tests (`--durations=25`).
 
 ## Verify
 

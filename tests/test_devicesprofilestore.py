@@ -413,6 +413,10 @@ class TestConcurrency:
                 except BaseException as exc:  # noqa: BLE001 - collect for the assertion
                     errors.append(exc)
                     return
+                # Give up the GIL after each lookup. Cached lookups never block, so four
+                # spinning readers kept the writer waiting for the GIL after every file
+                # operation (~50 s instead of ~0.5 s). A non-atomic save is still caught.
+                time.sleep(0)
 
         threads = [threading.Thread(target=write)] + [
             threading.Thread(target=read) for _ in range(4)
