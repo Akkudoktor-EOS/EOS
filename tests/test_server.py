@@ -207,11 +207,13 @@ class TestServerStartStop:
         drop_warnings = [record for record in records if "queue full" in record["message"]]
         assert len(drop_warnings) == 1, "Expected one rate-limited warning for two dropped lines"
 
+    @pytest.mark.eos_server
     @pytest.mark.asyncio
     async def test_server_start_eosdash(self, config_eos, monkeypatch, tmp_path):
         """Test the EOSdash server startup from EOS.
 
         Do not use any fixture as this will make pytest the owner of the EOSdash port.
+        The test binds the fixed EOSdash port itself, hence the ``eos_server`` marker.
 
         Tests that:
         1. EOSdash starts via the supervisor

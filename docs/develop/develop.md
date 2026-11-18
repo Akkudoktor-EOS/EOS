@@ -600,6 +600,70 @@ Ensure your changes do not break existing functionality:
         make test
 ```
 
+### Keep Tests Fast
+
+Keep each test case well under a second:
+
+- Do not wait in real time (no `sleep` or wait loops); use synthetic timestamps instead.
+- Do not `parametrize` the full cartesian product of independent axes.
+- Extend an existing parametrized test before writing a new one.
+
+The CI logs of the `test-shard` and `test-server` jobs list their 25 slowest tests
+(`--durations=25`). The Sphinx documentation build and the Docker checks run in their own CI
+jobs. Run them locally with `uv run pytest --finalize -m docs` and
+`uv run pytest --finalize -m docker` (the Docker checks need a running Docker engine).
+
+The Sphinx build resolves Python cross-references through the local extension
+`docs/_ext/pyxrefindex.py`. It answers a search that Sphinx runs over all documented objects from
+an index; the generated pages stay the same (see
+[sphinx-doc/sphinx#11282](https://github.com/sphinx-doc/sphinx/issues/11282)). The extension is
+only active for the Sphinx version it was verified with. After a Sphinx update, `TestPyXrefIndex`
+in `tests/test_docsphinx.py` fails until the version in the extension is raised.
+
+The documentation test builds with up to four parallel jobs (`sphinx-build -j`), and so do
+`make docs` and `make read-docs`, which run this test. A parallel build can link a cross-reference
+with an ambiguous name to another object of the same name than a build with one process.
+
+CI runs every test exactly once, spread over several jobs:
+
+- `test-shard`: the tests that do not start a server, in four shards of about equal runtime, each
+  with pytest-xdist on all cores of its runner.
+- `test-server`: the tests with the `eos_server` marker, one after the other.
+- `test-count`: fails if these parts do not add up to the tests of one plain run, or if the
+  marker of the server tests is no longer derived from the fixture.
+- `test`: prints the coverage report of all parts. It is the required check and fails if one of
+  these jobs, `docs-test` or `docker-test` failed.
+
+`make test-ci` runs the tests of the jobs `test-server`, `test-shard`, `docs-test` and
+`docker-test` locally, with the markers and options of these jobs and one part after the other:
+the server tests, the other tests with pytest-xdist on all cores (not split into shards), the
+Sphinx build and the Docker checks. It prints the coverage report of the first two parts and stops
+at the first part that fails. The browser tests of the `browser-test` job have their own target,
+`make test-browser`.
+
+The coverage report of the `test` job is combined from the parts. It differs from the report of
+one plain run in a few lines, and not in exactly the same ones in every run: lines that are only
+executed when a test finds state left by an earlier test of the same process. With pytest-xdist
+the order of the tests in a worker changes from run to run. When the layout was introduced, three
+runs missed 4523 to 4525 statements out of 26154, one plain run 4522.
+
+`scripts/shard_test_files.py` distributes the test modules to the shards by the runtimes in
+`scripts/test_durations.json`. Outdated runtimes only cost balance; a module without an entry
+counts one second. To rebalance, download the `junit-shard-*` artifacts of a CI run and call
+`uv run python scripts/shard_test_files.py --update junit-shard-*.xml`.
+
+CI measures coverage with the `sys.monitoring` core of coverage.py (`COVERAGE_CORE=sysmon`).
+The report is the same as with the default tracer, but a coverage run takes about a third less
+time. Set the variable for local coverage runs as well. On Python 3.13 this core does not measure
+branch coverage: with `--cov-branch`, coverage.py falls back to the default tracer.
+
+Run the tests in parallel with `uv run pytest -n auto --dist loadgroup` (pytest-xdist). The tests
+that start a real EOS or EOSdash server listen on fixed ports and must not run next to each
+other. They carry the `eos_server` marker, set automatically for every test that uses the
+`xprocess` fixture, and share one xdist group, which `--dist loadgroup` keeps on one worker.
+Without `--dist loadgroup` these tests collide. Give a test that binds the ports without the
+fixture the marker itself (`@pytest.mark.eos_server`).
+
 ### Follow Coding Standards
 
 Keep your code consistent with existing style and conventions.

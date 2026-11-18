@@ -133,8 +133,38 @@ def pytest_addoption(parser):
     )
 
 
+SERVER_MARKER = "eos_server"
+
+
+def mark_server_tests(items: Sequence[pytest.Item]) -> None:
+    """Mark the tests that start a real EOS or EOSdash server.
+
+    The servers listen on fixed ports, so these tests must not run next to each other. A test
+    belongs to them if it uses the ``xprocess`` fixture, directly or through the server fixtures,
+    or if it already carries the ``eos_server`` marker (a test that binds the ports without a
+    fixture). Each of them gets the marker, which ``-m eos_server`` selects, and the same
+    ``xdist_group``, which keeps them on one worker under ``pytest -n ... --dist loadgroup``.
+
+    Args:
+        items: The collected test items.
+    """
+    for item in items:
+        uses_server = "xprocess" in getattr(item, "fixturenames", ())
+        if uses_server and item.get_closest_marker(SERVER_MARKER) is None:
+            item.add_marker(SERVER_MARKER)
+        if item.get_closest_marker(SERVER_MARKER) is not None:
+            item.add_marker(pytest.mark.xdist_group(SERVER_MARKER))
+
+
+@pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip the browser tests unless --browser-test is given."""
+    """Mark the server tests, and skip the browser tests unless --browser-test is given.
+
+    Runs first: pytest-xdist reads the ``xdist_group`` marker in its own hook of this name. That
+    plugin is registered after this file, so without ``tryfirst`` its hook runs before the marker
+    is set here and the group has no effect.
+    """
+    mark_server_tests(items)
     if config.getoption("--browser-test"):
         return
     skip_browser = pytest.mark.skip(reason="browser test: enable with --browser-test")
