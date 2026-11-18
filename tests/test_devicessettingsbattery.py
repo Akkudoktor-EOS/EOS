@@ -276,10 +276,16 @@ def broken_profile_loader(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(get_profile_store(), "get", missing)
 
 
+@pytest.fixture(scope="module")
+def _plain_profile() -> BatteryProfile:
+    """Compile the plain profile once; a compiled profile is frozen and may be shared."""
+    return make_profile()
+
+
 @pytest.fixture(autouse=True)
-def _plain_default_profile(install_profile) -> None:
+def _plain_default_profile(install_profile, _plain_profile: BatteryProfile) -> None:
     """Install the plain profile that settings use unless a test installs another."""
-    install_profile(make_profile())
+    install_profile(_plain_profile)
 
 
 @pytest.fixture

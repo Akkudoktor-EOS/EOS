@@ -133,6 +133,8 @@ class TestEOSDash:
 
     def test_ingress_safe_links(self, server_setup_for_class, monkeypatch, tmp_path):
         base = server_setup_for_class["eosdash_server"]
+        # The fixture waits for EOS only; EOS starts EOSdash after its own startup.
+        self._assert_server_alive(base, server_setup_for_class["timeout"])
 
         with patch("akkudoktoreos.server.dash.context.ROOT_PATH", "/api/hassio_ingress/TOKEN/"):
             eos_dir = tmp_path
