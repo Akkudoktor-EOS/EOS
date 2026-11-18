@@ -11,6 +11,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
+# Local Sphinx extensions
+sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
 # Tell akkudoktoreos that it is imported for the documentation build
 # (see ConfigEOS.documentation_mode()).
@@ -38,6 +40,7 @@ extensions = [
     "myst_parser",
     "sphinx_tabs.tabs",
     "sphinxcontrib.mermaid",
+    "pyxrefindex",  # faster Python cross-reference search, see docs/_ext/pyxrefindex.py
 ]
 
 templates_path = ["_templates"]

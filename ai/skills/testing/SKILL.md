@@ -24,6 +24,11 @@ description: Use when adding or updating pytest tests, fixing bugs, or changing 
   (use synthetic timestamps), no full cartesian `parametrize` over independent
   axes, and extend an existing parametrized test before writing a new one.
   The CI log lists the 25 slowest tests (`--durations=25`).
+- A test that starts an EOS or EOSdash server on the fixed ports uses the server
+  fixtures (`server_setup_for_class`, `server_setup_for_function`), which mark it
+  `eos_server` through the `xprocess` fixture. If a test must bind these ports
+  without them, mark it `@pytest.mark.eos_server` itself: CI runs these tests in
+  their own job, all others in parallel.
 
 ## Verify
 

@@ -40,7 +40,8 @@ help:
 	@echo "  test          - Run tests."
 	@echo "  test-finalize - Run all tests (e.g. to finalize a commit)."
 	@echo "  test-system   - Run tests with system tests enabled."
-	@echo "  test-ci       - Run tests as CI does. No user config file allowed."
+	@echo "  test-ci       - Run tests as CI does (server tests, other tests in parallel, docs, Docker)."
+	@echo "                  No user config file allowed."
 	@echo "  test-browser  - Run the EOSdash browser tests in headless Chromium (installs Chromium)."
 	@echo "  test-profile  - Run single test optimization with profiling."
 	@echo "  dist          - Create distribution (in dist/)."
@@ -135,10 +136,18 @@ test:
 	@echo "Running tests..."
 	$(PYTEST) -vs --cov src --cov-report term-missing
 
-# Target to run tests as done by CI on Github.
+# Target to run tests as done by CI on Github (.github/workflows/pytest.yml), one part after
+# the other: the server tests (test-server), the other tests on all cores (test-shard, without
+# splitting them into shards), the Sphinx build (docs-test) and the Docker checks (docker-test).
+# Every test runs once. The coverage report covers the first two parts, like the test job.
+# The browser tests (browser-test) have their own target test-browser.
+test-ci: export COVERAGE_CORE := sysmon
 test-ci:
 	@echo "Running tests as CI..."
-	$(PYTEST) --finalize --check-config-side-effect -vs --cov src --cov-report term-missing
+	$(PYTEST) --finalize --check-config-side-effect -m "eos_server and not docs and not docker" -vs --durations=25 --cov src --cov-report=
+	$(PYTEST) --finalize --check-config-side-effect -m "not eos_server and not docs and not docker" -n auto -v --durations=25 --cov src --cov-append --cov-report term-missing
+	$(PYTEST) --finalize --check-config-side-effect -m docs -vs
+	$(PYTEST) --finalize --check-config-side-effect -m docker -vs
 
 # Target to run the EOSdash browser tests in headless Chromium.
 # The browser is installed for the user (~/.cache/ms-playwright), not in the virtual environment.

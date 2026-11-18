@@ -8,9 +8,34 @@ on:
   push:
     branches: [main]
 
+# The tests run in several jobs at the same time, and every test runs exactly once:
+#   test-shard   the tests without a real server, in four shards of about equal runtime
+#                (scripts/shard_test_files.py), each on all cores with pytest-xdist
+#   test-server  the tests that start an EOS or EOSdash server on the fixed ports
+#                (marker 'eos_server'), one after the other
+#   test-count   checks that these parts add up to the tests of one plain run
+#   test         prints the coverage report of all parts and fails if one of the jobs above,
+#                'docs-test' or 'docker-test' failed. It is the required check, and on main
+#                the single test job ran the docs and Docker tests as well.
+# The Sphinx build ('docs') and the Docker checks ('docker') have their own jobs below.
+
+env:
+  # Line coverage through sys.monitoring instead of the default sys.settrace
+  # tracer: the report stays the same, the tracing overhead mostly goes away.
+  # Branch coverage (--cov-branch) needs Python 3.14 with this core.
+  COVERAGE_CORE: sysmon
+
 jobs:
-  test:
+  test-shard:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The number of shards also appears in the calls of scripts/shard_test_files.py
+        # in this job and in test-count.
+        shard: [0, 1, 2, 3]
+    env:
+      COVERAGE_FILE: covdata.shard${{ matrix.shard }}
 
     steps:
       - name: Checkout code
@@ -31,16 +56,227 @@ jobs:
           uv sync --extra dev
 
       - name: Run tests
+        # --durations lists the slowest tests of the shard. The junit report holds the
+        # runtimes that scripts/shard_test_files.py --update reads.
         run: |
-          uv run pytest --finalize --check-config-side-effect -vs --cov src --cov-report term-missing
+          FILES=$(uv run python scripts/shard_test_files.py 4 ${{ matrix.shard }})
+          test -n "$FILES"
+          uv run pytest --finalize --check-config-side-effect -m "not eos_server and not docs and not docker" -n auto -v --durations=25 --cov src --cov-report= --junitxml=junit-shard-${{ matrix.shard }}.xml $FILES
+
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: covdata-shard-${{ matrix.shard }}
+          path: covdata.shard${{ matrix.shard }}
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Upload junit report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-shard-${{ matrix.shard }}
+          path: junit-shard-${{ matrix.shard }}.xml
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload test artifacts
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: optimize-results
+          name: optimize-results-shard-${{ matrix.shard }}
           path: tests/testdata/**/new_optimize_result*
           if-no-files-found: ignore
+
+  test-server:
+    # These tests start real servers on fixed ports, so they run one after the other
+    # and on a machine of their own.
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_FILE: covdata.server
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.15"
+
+      - name: Install uv
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Sync environment with uv
+        run: |
+          uv sync --extra dev
+
+      - name: Run server tests
+        run: |
+          uv run pytest --finalize --check-config-side-effect -m "eos_server and not docs and not docker" -vs --durations=25 --cov src --cov-report=
+
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: covdata-server
+          path: covdata.server
+          if-no-files-found: warn
+          retention-days: 1
+
+  test-count:
+    # No test may get lost between the parts: the server tests and the tests of the four
+    # shards must add up to the tests of one plain run. The marker of the server tests is
+    # derived from the xprocess fixture; if that stopped working, they would run inside
+    # the shards, so one of them is checked by name.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.15"
+
+      - name: Install uv
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Sync environment with uv
+        run: |
+          uv sync --extra dev
+
+      - name: Count the collected tests
+        run: |
+          count() {
+            # A collection error must fail the job, not just skew the numbers.
+            local output
+            output=$(uv run pytest --collect-only -q --finalize "$@") || return 1
+            echo "$output" | tail -n 1 | grep -oE '^[0-9]+'
+          }
+          total=$(count -m "not docs and not docker")
+          server=$(count -m "eos_server and not docs and not docker")
+          sum=$server
+          for shard in 0 1 2 3; do
+            files=$(uv run python scripts/shard_test_files.py 4 $shard)
+            part=$(count -m "not eos_server and not docs and not docker" $files)
+            echo "shard $shard: $part tests"
+            sum=$((sum + part))
+          done
+          echo "plain run: $total tests, server: $server tests, sum of all parts: $sum tests"
+          test "$total" -gt 0
+          test "$server" -gt 0
+          test "$sum" -eq "$total"
+          uv run pytest --collect-only -q --finalize -m "eos_server" tests/test_server.py | grep -q "TestServer::test_server_setup_for_class"
+
+  test:
+    # The result of all test jobs under the name of the former single test job. The
+    # coverage report is printed even if a job failed; the last step then fails this job.
+    needs: [test-shard, test-server, test-count, docs-test, docker-test]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.15"
+
+      - name: Install uv
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Sync environment with uv
+        run: |
+          uv sync --extra dev
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v8
+        with:
+          pattern: covdata-*
+          path: covdata
+          merge-multiple: true
+
+      - name: Coverage report
+        run: |
+          uv run coverage combine covdata/covdata.*
+          uv run coverage report -m
+
+      - name: Check the test jobs
+        if: always()
+        run: |
+          echo "test-shard: ${{ needs.test-shard.result }}"
+          echo "test-server: ${{ needs.test-server.result }}"
+          echo "test-count: ${{ needs.test-count.result }}"
+          echo "docs-test: ${{ needs.docs-test.result }}"
+          echo "docker-test: ${{ needs.docker-test.result }}"
+          test "${{ needs.test-shard.result }}" = "success"
+          test "${{ needs.test-server.result }}" = "success"
+          test "${{ needs.test-count.result }}" = "success"
+          test "${{ needs.docs-test.result }}" = "success"
+          test "${{ needs.docker-test.result }}" = "success"
+
+  docs-test:
+    # Full Sphinx HTML build (tests marked 'docs'), split off the test job.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.15"
+
+      - name: Install uv
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Sync environment with uv
+        run: |
+          uv sync --extra dev
+
+      - name: Run Sphinx build test
+        run: |
+          uv run pytest --finalize --check-config-side-effect -m docs -vs
+
+  docker-test:
+    # Docker image and Home Assistant add-on builder checks (tests marked 'docker').
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13.15"
+
+      - name: Install uv
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Sync environment with uv
+        run: |
+          uv sync --extra dev
+
+      - name: Run Docker tests
+        run: |
+          uv run pytest --finalize --check-config-side-effect -m docker -vs
 
   browser-test:
     # EOSdash in headless Chromium (tests marked 'browser', enabled by --browser-test).

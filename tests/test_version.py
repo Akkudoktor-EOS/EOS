@@ -22,6 +22,7 @@ from akkudoktoreos.core.version import (
     _version_date_hash,
     collect_files,
     hash_files,
+    version,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -230,6 +231,28 @@ def test_version_date_hash() -> None:
 
 
 # --- Test version helpers ---
+@pytest.mark.parametrize(
+    ("version_string", "expected"),
+    [
+        ("0.4.0", {"base": "0.4.0", "date": None, "hash": None}),
+        ("0.4.0.dev26111612", {"base": "0.4.0", "date": "26111612", "hash": None}),
+        ("0.4.0.dev26111612a96a65", {"base": "0.4.0", "date": "26111612", "hash": "a96a65"}),
+    ],
+)
+def test_version_parses_version_string(monkeypatch, version_string, expected):
+    """version() splits __version__ into base, date and hash."""
+    monkeypatch.setattr("akkudoktoreos.core.version.__version__", version_string)
+
+    assert version() == {**expected, "version": version_string}
+
+
+def test_version_rejects_invalid_version_string(monkeypatch):
+    monkeypatch.setattr("akkudoktoreos.core.version.__version__", "0.4")
+
+    with pytest.raises(ValueError, match="Invalid version format"):
+        version()
+
+
 def test_version_non_dev(monkeypatch):
     """If VERSION_BASE does not end with 'dev', no hash digits are appended."""
     monkeypatch.setattr("akkudoktoreos.core.version.VERSION_BASE", "0.2.0")

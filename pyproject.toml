@@ -84,6 +84,7 @@ dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.1",
     "pytest-cov==7.1.0",
+    "pytest-xdist==3.8.0",
     "pytest-xprocess==1.0.2",
     "coverage==7.16.2",
     "pypdf==7.0.0",
@@ -165,7 +166,9 @@ pythonpath = [ "src", ]
 testpaths = [ "tests", ]
 markers = [
     "docker: marks tests that require a local Docker engine",
+    "docs: marks the Sphinx documentation build test",
     "browser: marks EOSdash tests that run in a headless browser (enable with --browser-test)",
+    "eos_server: marks tests that start an EOS or EOSdash server on the fixed ports (set for all tests using the xprocess fixture)",
 ]
 filterwarnings = [
     # Treat pandas 4 deprecations in EOS code as errors; upstream callers remain visible.
