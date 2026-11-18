@@ -851,6 +851,63 @@ def to_time(
         raise ValueError(f"Invalid time value: {value!r} of type: {type(value)}") from e
 
 
+# ISO 8601 date-times that name one instant: an explicit "Z" or UTC offset, e.g.
+# "2024-10-13T15:30:00Z", "2024-10-13T15:30:00.250+02:00", or the basic form
+# "20241013T153000Z" of database timestamps.
+_ISO_INSTANT_EXTENDED = re.compile(
+    r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})",
+    re.ASCII,
+)
+_ISO_INSTANT_BASIC = re.compile(r"(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)", re.ASCII)
+
+
+def _parse_iso_instant(value: str) -> Optional[pendulum.DateTime]:
+    """Parse an ISO 8601 date-time with an explicit UTC designator or offset.
+
+    These strings match none of the formats that `to_datetime` tries first (each is
+    combined with a timezone name), so they used to reach `pendulum.parse` only after
+    every format had failed. Parsing them directly gives the same instant at a
+    fraction of the cost; this path carries most string conversions in EOS, such as
+    database timestamps and API date-times.
+
+    Args:
+        value: The date-time string.
+
+    Returns:
+        The parsed date-time in the given offset, or None if `value` has another form
+        or an out-of-range field, so the caller can fall back to the generic parser.
+    """
+    match = _ISO_INSTANT_EXTENDED.fullmatch(value) or _ISO_INSTANT_BASIC.fullmatch(value)
+    if match is None:
+        return None
+    year, month, day, hour, minute, second = (int(match.group(i)) for i in range(1, 7))
+    fraction = match.group(7) if match.re is _ISO_INSTANT_EXTENDED else None
+    offset = match.group(match.re.groups)
+    tzinfo: Timezone | pendulum.FixedTimezone
+    if offset == "Z":
+        tzinfo = UTC
+    else:
+        offset_minutes = int(offset[1:3]) * 60 + int(offset[4:6])
+        if offset_minutes >= 24 * 60:
+            return None
+        tzinfo = pendulum.FixedTimezone((-1 if offset[0] == "-" else 1) * offset_minutes * 60)
+    try:
+        # pendulum.datetime() is the factory pendulum.parse() uses, so the result also
+        # keeps the fold attribute that the generic path returns.
+        return pendulum.datetime(
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+            int(fraction.ljust(6, "0")) if fraction else 0,
+            tz=tzinfo,
+        )
+    except ValueError:
+        return None
+
+
 @overload
 def to_datetime(
     date_input: Optional[Any] = None,
@@ -963,6 +1020,10 @@ def to_datetime(
             dt = dt.end_of("day")
         else:
             dt = dt.start_of("day")
+    elif (
+        isinstance(date_input, str) and (iso_instant := _parse_iso_instant(date_input)) is not None
+    ):
+        dt = iso_instant
     elif isinstance(date_input, str):
         # Convert to timezone aware datetime
         dt = None

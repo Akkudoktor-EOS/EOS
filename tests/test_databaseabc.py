@@ -362,6 +362,39 @@ async def seq_sparse():
 
 
 # ---------------------------------------------------------------------------
+# DatabaseTimestamp
+# ---------------------------------------------------------------------------
+
+
+class TestDatabaseTimestamp:
+    @pytest.mark.parametrize(
+        ("local", "timezone", "expected"),
+        [
+            # 02:30:59 occurs twice on the day DST ends.
+            ("2024-10-27T02:30:59+02:00", "Europe/Berlin", "20241027T003059Z"),
+            ("2024-10-27T02:30:59+01:00", "Europe/Berlin", "20241027T013059Z"),
+            ("2026-01-01T00:00:00+14:00", "Pacific/Kiritimati", "20251231T100000Z"),
+            ("2026-01-01T23:59:59-12:00", "Etc/GMT+12", "20260102T115959Z"),
+        ],
+    )
+    def test_round_trip(self, local: str, timezone: str, expected: str) -> None:
+        dt = to_datetime(local, in_timezone=timezone)
+        db_ts = DatabaseTimestamp.from_datetime(dt.add(microseconds=999))
+
+        assert db_ts == expected
+        assert db_ts == dt.in_timezone("UTC").format("YYYYMMDDTHHmmss[Z]")
+        parsed = db_ts.to_datetime()
+        # Compare in UTC: an inter-zone comparison is never equal for the
+        # second (fold=1) occurrence of an ambiguous local time.
+        assert parsed == dt.in_timezone("UTC")
+        assert parsed.timezone_name == "UTC"
+
+    def test_naive_datetime_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            DatabaseTimestamp.from_datetime(DateTime(2024, 1, 1))
+
+
+# ---------------------------------------------------------------------------
 # Core mixin tests
 # ---------------------------------------------------------------------------
 
