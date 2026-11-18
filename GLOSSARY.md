@@ -6,6 +6,40 @@ user-facing docs use another name, it is listed under _Avoid_.
 
 ## Optimization
 
+**Optimizer**:
+One optimization algorithm (such as GENETIC or GENETIC0) together with its parameter preparation,
+simulation, simulation devices and solution conversion.
+_Avoid_: optimization algorithm (for the whole), optimization
+
+**Parameter preparation**:
+The part of an optimizer that derives its optimization parameters from configuration, predictions,
+measurements, the run start and the warm start, once before each optimization run; the only part of
+an optimizer that reads configuration, predictions or measurements.
+_Avoid_: parameter creation, request building
+
+**Solution conversion**:
+The part of an optimizer that turns the outcome of an optimization run into the optimization
+solution and the energy management plan.
+_Avoid_: solution post-processing
+
+**Optimization request**:
+The input a client sends to start an optimization run through the API; parameter preparation
+completes it into optimization parameters.
+_Avoid_: optimization parameters (for client input)
+
+**Optimization result**:
+The output of an optimizer's run, specific to that optimizer, before solution conversion.
+_Avoid_: solution (for this)
+
+**Optimization solution**:
+The optimizer-independent outcome of an optimization run that the energy management publishes,
+together with the energy management plan.
+_Avoid_: result (for this)
+
+**Warm start**:
+The result of an optimizer's previous optimization run, used to seed its next run.
+_Avoid_: start solution, previous solution
+
 **Optimization parameters**:
 The complete, valid input set handed to one optimizer for one optimization run.
 _Avoid_: optimization input, request parameters
