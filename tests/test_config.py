@@ -1,6 +1,7 @@
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -1042,3 +1043,15 @@ class TestConfigSetup:
 
         with pytest.raises(RuntimeError, match="before its settings are loaded"):
             coreabc.get_config(init=True)
+
+    def test_access_after_settings_are_loaded_returns_config_in_setup(
+        self, uncreated_config, monkeypatch
+    ):
+        """During creation the configuration is returned once its settings are loaded."""
+        from akkudoktoreos.core import coreabc
+
+        config_in_setup = SimpleNamespace(_initialized=True)
+        monkeypatch.setattr(coreabc, "_config_eos_setup_running", True)
+        monkeypatch.setitem(ConfigEOS._instances, ConfigEOS, config_in_setup)
+
+        assert coreabc.get_config(init=True) is config_in_setup

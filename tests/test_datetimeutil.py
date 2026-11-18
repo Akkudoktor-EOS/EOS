@@ -963,6 +963,49 @@ def test_to_datetime_explicit_offset_preserves_instant(
     assert actual.timezone_name == "Europe/Berlin"
 
 
+@pytest.mark.parametrize("in_timezone", ["UTC", "Europe/Berlin", "Pacific/Kiritimati", "Etc/GMT+12"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-10-27T00:30:00Z",  # 02:30 CEST in Berlin, first occurrence
+        "2024-10-27T01:30:00Z",  # 02:30 CET in Berlin, second occurrence
+        "2024-10-27T02:30:00.25+01:00",
+        "2025-12-31T23:59:59.999999-12:00",
+        "2026-01-01T00:00:00+14:00",
+        "2024-06-15T12:00:00+05:45",
+        "20241027T013000Z",  # basic form of database timestamps
+    ],
+)
+def test_to_datetime_iso_instant_matches_generic_parser(value: str, in_timezone: str) -> None:
+    """ISO 8601 instants skip the format search and still match pendulum.parse, fold included."""
+    expected = cast(pendulum.DateTime, pendulum.parse(value)).in_timezone(in_timezone)
+
+    actual = to_datetime(value, in_timezone=in_timezone)
+    naive = to_datetime(value, in_timezone=in_timezone, to_naiv=True)
+
+    assert actual.isoformat() == expected.isoformat()
+    assert actual.fold == expected.fold
+    assert actual.timezone_name == in_timezone
+    assert naive.isoformat() == expected.naive().isoformat()
+    assert naive.fold == expected.naive().fold
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "2024-13-01T00:00:00Z",
+        "2024-02-30T12:00:00+01:00",
+        "20241327T000000Z",
+        "2024-01-01T00:00:00+24:00",
+    ],
+    ids=["month-13", "february-30", "basic-month-13", "offset-24h"],
+)
+def test_to_datetime_iso_instant_out_of_range_raises(value: str) -> None:
+    """An ISO 8601 instant with an out-of-range field is still rejected."""
+    with pytest.raises(ValueError):
+        to_datetime(value, in_timezone="UTC")
+
+
 @pytest.mark.parametrize(
     "value",
     [1768517100, 1768517100.123456, "1768517100.123456"],

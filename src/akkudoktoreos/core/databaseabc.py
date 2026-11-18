@@ -299,7 +299,7 @@ class DatabaseTimestamp(str):
     Must always be in UTC and lexicographically sortable.
 
     Example:
-        "20241027T123456[Z]" # 2024-10-27 12:34:56
+        "20241027T123456Z" # 2024-10-27 12:34:56 UTC
     """
 
     __slots__ = ()
@@ -309,9 +309,16 @@ class DatabaseTimestamp(str):
         if dt is None or dt.tz is None:
             raise ValueError("Timezone-aware datetime required")
 
-        return cls(dt.in_timezone("UTC").format("YYYYMMDDTHHmmss[Z]"))
+        # Same result as format("YYYYMMDDTHHmmss[Z]") for 4-digit years, without
+        # pendulum's format-token parser (called for every record access).
+        utc = dt.in_timezone("UTC")
+        return cls(
+            f"{utc.year:04d}{utc.month:02d}{utc.day:02d}"
+            f"T{utc.hour:02d}{utc.minute:02d}{utc.second:02d}Z"
+        )
 
     def to_datetime(self) -> DateTime:
+        # to_datetime() parses the canonical form directly (ISO 8601 instant fast path).
         return to_datetime(self, in_timezone="UTC")
 
 
