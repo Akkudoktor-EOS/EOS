@@ -601,6 +601,29 @@ class TestSQLiteDatabase:
         await db.close()
 
     @pytest.mark.asyncio
+    async def test_sqlite_reopen_uses_current_data_folder(self, config_eos, tmp_path):
+        """A reopen after a data folder change must not reconnect to the old file."""
+        config_eos.database.provider = "SQLite"
+        db = get_database()
+        await db.open()
+        await db.save_records([(b"2024-01-01T00:00:00+00:00", b"old")])
+        backend = db._db
+        assert isinstance(backend, SQLiteDatabase)
+        old_file = backend.db_file
+        await db.close()
+
+        config_eos.general.data_folder_path = tmp_path / "other"
+        await db.open()
+
+        # The provider did not change, so the same backend object is opened again.
+        assert db._db is backend
+        assert backend.db_file == tmp_path / "other" / "db" / "sqlitedatabase" / "data.db"
+        assert backend.db_file != old_file
+        assert await db.count_records() == 0
+
+        await db.close()
+
+    @pytest.mark.asyncio
     async def test_sqlite_namespace_isolation(self, config_eos):
         """Records in different namespaces must not interfere."""
 

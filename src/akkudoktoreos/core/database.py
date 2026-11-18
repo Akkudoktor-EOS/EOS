@@ -688,6 +688,9 @@ class SQLiteDatabase(DatabaseBackendABC):
         if self.is_open:
             return
 
+        # Resolve the file on every open, like LMDB does with its directory: the
+        # data folder may have changed since this backend was created.
+        self.db_file = self.storage_path / "data.db"
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
         self.conn = sqlite3.connect(
