@@ -138,6 +138,8 @@ See `.github/workflows/bump-version.yml` for details.
 The workflow tags the release commit `vX.Y.Z` and starts `.github/workflows/docker-build.yml` for
 the tag. That run pushes the Docker images with the tags `X.Y.Z` and `X.Y` to Docker Hub
 (`akkudoktor/eos`) and GHCR (`ghcr.io/akkudoktor-eos/eos`). Check that both tags exist after the run.
+If they are missing, rerun the `Bump Version` workflow run of the release commit, or start the build
+for the tag by hand: `gh workflow run docker-build.yml --ref vX.Y.Z`.
 
 ### 5️⃣ CI: Open Pull Request for Development Version Marker
 

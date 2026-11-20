@@ -63,12 +63,17 @@ jobs:
             git push origin "$TAG"
             echo "tagged=true" >> "$GITHUB_OUTPUT"
           fi
+          # Also true on a rerun of this job, which finds the tag it pushed before.
+          if [ "$(git rev-parse "$TAG^{commit}")" = "$(git rev-parse HEAD)" ]; then
+            echo "release_commit=true" >> "$GITHUB_OUTPUT"
+          fi
 
       # --- Step 6: Build the Docker images of the release ---
       # The tag pushed with GITHUB_TOKEN does not trigger docker-build.yml; a workflow_dispatch
-      # event does. Runs before the dev version PR, so a failing PR step does not skip it.
+      # event does. Runs before the dev version PR, so a failing PR step does not skip it, and
+      # again when the job is rerun.
       - name: Start Docker image build for the release tag
-        if: steps.tagging.outputs.tagged == 'true'
+        if: steps.tagging.outputs.release_commit == 'true'
         run: |
           gh workflow run docker-build.yml --ref "$TAG"
         env:
