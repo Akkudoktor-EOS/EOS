@@ -1,15 +1,24 @@
 """Architecture test for the optimizer boundaries (ADR 0003 to 0011).
 
-Parses the imports of ``src/akkudoktoreos`` and checks four rules:
+Parses the imports of ``src/akkudoktoreos`` and checks these rules:
 
 - ``cross-optimizer``: an optimizer never imports another optimizer.
 - ``internals``: code outside an optimizer imports only the optimizer's package
   (its ``__init__.py``), never its modules.
+- ``shared-config``: the shared device configuration never imports an
+  optimizer, not even its package; settings do not build optimization
+  parameters (ADR 0004).
 - ``world-access``: only the parameter preparation of an optimizer
   (``<name>prepare.py`` or a ``prepare`` subpackage) reads configuration,
-  predictions, measurements or EMS state. The optimizer's settings model
+  predictions and measurements; no module of an optimizer, the preparation
+  included, reads EMS state or the server. The optimizer's settings model
   (``<name>settings.py``) may import ``akkudoktoreos.config.configabc`` to define
   ``optimization.<name>``.
+- ``preparation``: inside an optimizer only ``<name>optimizer.py``, the
+  package ``__init__.py`` and the parameter preparation itself import the
+  parameter preparation, so no other module reaches the configuration through
+  it. The package may re-export the preparation, so the other modules do not
+  import the package either.
 - ``pydantic``: only the settings, request, preparation and API modules of an
   optimizer import Pydantic; optimization parameters are dataclasses.
 
@@ -23,12 +32,14 @@ uses it reveals (ADR 0007).
 import ast
 import functools
 from pathlib import Path
-from typing import Iterable, Iterator, NamedTuple, Optional
+from typing import Iterable, Iterator, Mapping, NamedTuple, Optional
 
 import pytest
 
 PACKAGE = "akkudoktoreos"
 SRC_DIR = Path(__file__).parent.parent / "src"
+
+Optimizers = Mapping[str, tuple[str, ...]]
 
 
 def _is_package(path: Path) -> bool:
@@ -36,12 +47,12 @@ def _is_package(path: Path) -> bool:
     return path.is_dir() and any(path.rglob("*.py"))
 
 
-def _is_module(module: str) -> bool:
-    path = SRC_DIR / Path(*module.split("."))
+def _is_module(module: str, src_dir: Path = SRC_DIR) -> bool:
+    path = src_dir / Path(*module.split("."))
     return path.with_suffix(".py").is_file() or _is_package(path)
 
 
-def _discover_optimizers() -> dict[str, tuple[str, ...]]:
+def _discover_optimizers(src_dir: Path = SRC_DIR) -> dict[str, tuple[str, ...]]:
     """Optimizer name -> packages that belong to it.
 
     Every subpackage ``optimization/<name>`` is an optimizer; ``devices/<name>``
@@ -49,12 +60,12 @@ def _discover_optimizers() -> dict[str, tuple[str, ...]]:
     removing an optimizer does not touch this test.
     """
     optimizers: dict[str, tuple[str, ...]] = {}
-    for path in sorted((SRC_DIR / PACKAGE / "optimization").iterdir()):
+    for path in sorted((src_dir / PACKAGE / "optimization").iterdir()):
         if not _is_package(path):
             continue
         name = path.name
         packages = [f"{PACKAGE}.optimization.{name}"]
-        if _is_module(f"{PACKAGE}.devices.{name}"):
+        if _is_module(f"{PACKAGE}.devices.{name}", src_dir):
             packages.append(f"{PACKAGE}.devices.{name}")
         optimizers[name] = tuple(packages)
     return optimizers
@@ -63,8 +74,8 @@ def _discover_optimizers() -> dict[str, tuple[str, ...]]:
 OPTIMIZERS: dict[str, tuple[str, ...]] = _discover_optimizers()
 
 # Modules an optimizer reads only during parameter preparation: configuration,
-# predictions, measurements, EMS state, and the shared device configuration
-# (device settings, profiles, operation-mode enums).
+# predictions, measurements, EMS state, the server, and the shared device
+# configuration (device settings, profiles, operation-mode enums).
 WORLD_MODULES: tuple[str, ...] = (
     "akkudoktoreos.config",
     "akkudoktoreos.prediction",
@@ -78,6 +89,7 @@ WORLD_MODULES: tuple[str, ...] = (
     "akkudoktoreos.core.dataabc",
     "akkudoktoreos.core.cache",
     "akkudoktoreos.adapter",
+    "akkudoktoreos.server",
     "akkudoktoreos.devices.settings",
     "akkudoktoreos.devices.profile",
     "akkudoktoreos.devices.devices",
@@ -107,22 +119,43 @@ WORLD_NAMES: dict[str, frozenset[str]] = {
         }
     ),
     "akkudoktoreos.optimization.optimizationabc": frozenset({"OptimizationBase"}),
-    "akkudoktoreos.optimization.optimization": frozenset({"OptimizationCommonSettings"}),
     "akkudoktoreos.utils.gridinterpolator": frozenset({"configured_grid_interpolator_backend"}),
 }
 
-# EMS state, banned in parameter preparation too: the energy management passes
-# the run start and the warm start as arguments (ADR 0006).
-EMS_MODULES: tuple[str, ...] = ("akkudoktoreos.core.ems", "akkudoktoreos.core.cache")
-EMS_NAMES: dict[str, frozenset[str]] = {
+# Modules that mix the output contract with configuration: outside parameter
+# preparation an optimizer imports only the listed contract names (ADR 0004).
+CONTRACT_NAMES: dict[str, frozenset[str]] = {
+    "akkudoktoreos.optimization.optimization": frozenset({"OptimizationSolution"}),
+}
+
+# EMS state and the server, banned in parameter preparation too: the energy
+# management passes the run start and the warm start as arguments (ADR 0006),
+# and the optimizer never imports server code (ADR 0011).
+PREPARATION_BANNED_MODULES: tuple[str, ...] = (
+    "akkudoktoreos.core.ems",
+    "akkudoktoreos.core.cache",
+    "akkudoktoreos.server",
+)
+PREPARATION_BANNED_NAMES: dict[str, frozenset[str]] = {
     "akkudoktoreos.core.coreabc": frozenset(
         {"EnergyManagementSystemMixin", "StartMixin", "get_ems"}
     ),
 }
 
+# The shared device configuration: never imports an optimizer (ADR 0004).
+SHARED_CONFIG_MODULES: tuple[str, ...] = (
+    "akkudoktoreos.devices.settings",
+    "akkudoktoreos.devices.profile",
+    "akkudoktoreos.devices.devices",
+    "akkudoktoreos.devices.devicesabc",
+)
+
 # Pydantic, allowed only where external input arrives (ADR 0009, 0010).
 PYDANTIC_MODULES: tuple[str, ...] = ("pydantic", "akkudoktoreos.core.pydantic")
 PYDANTIC_ROLES: tuple[str, ...] = ("settings", "request", "api")
+
+# Modules of an optimizer that may import its parameter preparation.
+PREPARATION_IMPORTER_ROLES: tuple[str, ...] = ("optimizer",)
 
 # What an optimizer's settings model may import beyond the generic rules.
 SETTINGS_ALLOWED_MODULES: tuple[str, ...] = ("akkudoktoreos.config.configabc",)
@@ -140,23 +173,33 @@ def _within(module: str, package: str) -> bool:
     return module == package or module.startswith(package + ".")
 
 
-def _module_name(path: Path) -> str:
-    parts = list(path.relative_to(SRC_DIR).with_suffix("").parts)
+def _within_any(module: str, packages: Iterable[str]) -> bool:
+    return any(_within(module, package) for package in packages)
+
+
+def _module_name(path: Path, src_dir: Path = SRC_DIR) -> str:
+    parts = list(path.relative_to(src_dir).with_suffix("").parts)
     if parts[-1] == "__init__":
         parts.pop()
     return ".".join(parts)
 
 
-def _optimizer_of(module: str) -> Optional[str]:
-    for name, packages in OPTIMIZERS.items():
-        if any(_within(module, package) for package in packages):
+def _optimizer_of(module: str, optimizers: Optimizers) -> Optional[str]:
+    for name, packages in optimizers.items():
+        if _within_any(module, packages):
             return name
     return None
 
 
-def _is_preparation(module: str, optimizer: str) -> bool:
+def _is_preparation(module: str, optimizer: str, src_dir: Path = SRC_DIR) -> bool:
+    """``optimization/<name>/<name>prepare.py`` or a package ``optimization/<name>/prepare/``."""
     package = f"akkudoktoreos.optimization.{optimizer}"
-    return module == f"{package}.{optimizer}prepare" or _within(module, f"{package}.prepare")
+    subpackage = f"{package}.prepare"
+    return (
+        module == f"{package}.{optimizer}prepare"
+        or module.startswith(subpackage + ".")
+        or (module == subpackage and _is_package(src_dir / Path(*subpackage.split("."))))
+    )
 
 
 def _has_role(module: str, optimizer: str, role: str) -> bool:
@@ -164,8 +207,10 @@ def _has_role(module: str, optimizer: str, role: str) -> bool:
     return module == f"akkudoktoreos.optimization.{optimizer}.{optimizer}{role}"
 
 
-def _is_settings(module: str, optimizer: str) -> bool:
-    return _has_role(module, optimizer, "settings")
+def _names_hit(names: Mapping[str, frozenset[str]], source: str, name: str) -> bool:
+    """``source:name`` is one of ``names``; ``*`` hits every module that has some."""
+    listed = names.get(source, frozenset())
+    return name in listed or (name == "*" and bool(listed))
 
 
 def _imports(path: Path, module: str) -> Iterator[str]:
@@ -201,24 +246,29 @@ def _imports(path: Path, module: str) -> Iterator[str]:
                     yield f"{source}:{alias.name}"
 
 
-def _check(module: str, imported: str) -> Iterator[Violation]:
+def _check(module: str, imported: str, optimizers: Optimizers) -> Iterator[Violation]:
     source, _, name = imported.partition(":")
-    own = _optimizer_of(module)
+    own = _optimizer_of(module, optimizers)
     if (
         own is not None
         and not name
-        and any(_within(source, pydantic) for pydantic in PYDANTIC_MODULES)
+        and _within_any(source, PYDANTIC_MODULES)
         and not _is_preparation(module, own)
         and not any(_has_role(module, own, role) for role in PYDANTIC_ROLES)
     ):
         yield Violation("pydantic", module, source)
     if not _within(source, PACKAGE):
         return
-    other = _optimizer_of(source)
+    other = _optimizer_of(source, optimizers)
 
     if own is None:
-        # Outside code may import an optimizer's package, not its modules.
-        if other is not None and source not in OPTIMIZERS[other]:
+        if other is None:
+            return
+        if _within_any(module, SHARED_CONFIG_MODULES):
+            # Settings never build an optimizer's parameters.
+            yield Violation("shared-config", module, source)
+        elif source not in optimizers[other]:
+            # Outside code may import an optimizer's package, not its modules.
             yield Violation("internals", module, source)
         return
 
@@ -227,21 +277,26 @@ def _check(module: str, imported: str) -> Iterator[Violation]:
         return
 
     if _is_preparation(module, own):
-        ems_names = EMS_NAMES.get(source, frozenset())
-        if name in ems_names or (name == "*" and ems_names):
-            yield Violation("world-access", module, imported)
-        elif not name and any(_within(source, ems) for ems in EMS_MODULES):
-            yield Violation("world-access", module, source)
+        if _names_hit(PREPARATION_BANNED_NAMES, source, name) or (
+            not name and _within_any(source, PREPARATION_BANNED_MODULES)
+        ):
+            yield Violation("world-access", module, imported if name else source)
+        return
+    package = f"akkudoktoreos.optimization.{own}"
+    if not name and (_is_preparation(source, own) or source == package):
+        if module != package and not any(
+            _has_role(module, own, role) for role in PREPARATION_IMPORTER_ROLES
+        ):
+            yield Violation("preparation", module, source)
         return
     if name:
-        world_names = WORLD_NAMES.get(source, frozenset())
-        if name in world_names or (name == "*" and world_names):
+        if _names_hit(WORLD_NAMES, source, name) or (
+            source in CONTRACT_NAMES and name not in CONTRACT_NAMES[source]
+        ):
             yield Violation("world-access", module, imported)
         return
-    if any(_within(source, world) for world in WORLD_MODULES):
-        if _is_settings(module, own) and any(
-            _within(source, allowed) for allowed in SETTINGS_ALLOWED_MODULES
-        ):
+    if _within_any(source, WORLD_MODULES):
+        if _has_role(module, own, "settings") and _within_any(source, SETTINGS_ALLOWED_MODULES):
             return
         yield Violation("world-access", module, source)
 
@@ -253,7 +308,7 @@ def collect_violations() -> frozenset[Violation]:
     for path in sorted((SRC_DIR / PACKAGE).rglob("*.py")):
         module = _module_name(path)
         for imported in _imports(path, module):
-            violations.update(_check(module, imported))
+            violations.update(_check(module, imported, OPTIMIZERS))
     return frozenset(violations)
 
 
@@ -305,36 +360,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "internals",
             "akkudoktoreos.core.ems",
             "akkudoktoreos.optimization.genetic0.genetic0solution",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.devices.settings.batterysettings",
-            "akkudoktoreos.devices.genetic.battery",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.devices.settings.batterysettings",
-            "akkudoktoreos.devices.genetic0.genetic0battery",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.devices.settings.homeappliancesettings",
-            "akkudoktoreos.devices.genetic.homeappliance",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.devices.settings.homeappliancesettings",
-            "akkudoktoreos.devices.genetic0.genetic0homeappliance",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.devices.settings.invertersettings",
-            "akkudoktoreos.devices.genetic.inverter",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.devices.settings.invertersettings",
-            "akkudoktoreos.devices.genetic0.genetic0inverter",
         ),
         Violation(
             "internals",
@@ -505,6 +530,36 @@ BASELINE: frozenset[Violation] = frozenset(
             "pydantic",
             "akkudoktoreos.optimization.genetic0.genetic0solution",
             "pydantic",
+        ),
+        Violation(
+            "shared-config",
+            "akkudoktoreos.devices.settings.batterysettings",
+            "akkudoktoreos.devices.genetic.battery",
+        ),
+        Violation(
+            "shared-config",
+            "akkudoktoreos.devices.settings.batterysettings",
+            "akkudoktoreos.devices.genetic0.genetic0battery",
+        ),
+        Violation(
+            "shared-config",
+            "akkudoktoreos.devices.settings.homeappliancesettings",
+            "akkudoktoreos.devices.genetic.homeappliance",
+        ),
+        Violation(
+            "shared-config",
+            "akkudoktoreos.devices.settings.homeappliancesettings",
+            "akkudoktoreos.devices.genetic0.genetic0homeappliance",
+        ),
+        Violation(
+            "shared-config",
+            "akkudoktoreos.devices.settings.invertersettings",
+            "akkudoktoreos.devices.genetic.inverter",
+        ),
+        Violation(
+            "shared-config",
+            "akkudoktoreos.devices.settings.invertersettings",
+            "akkudoktoreos.devices.genetic0.genetic0inverter",
         ),
         Violation(
             "world-access",
@@ -704,25 +759,24 @@ BASELINE: frozenset[Violation] = frozenset(
     }
 )
 
+# Made-up optimizers for the rule checks, so no real one is named in them.
+SYNTHETIC_OPTIMIZERS: dict[str, tuple[str, ...]] = {
+    "alpha": ("akkudoktoreos.optimization.alpha", "akkudoktoreos.devices.alpha"),
+    "beta": ("akkudoktoreos.optimization.beta", "akkudoktoreos.devices.beta"),
+}
+
 
 def _format(violations: Iterable[Violation]) -> str:
     return "\n".join(f"  {v.rule}: {v.module} -> {v.imported}" for v in sorted(violations))
 
 
+def _write(path: Path, text: str = "") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
 class TestOptimizerArchitecture:
     """Optimizer boundaries of ADR 0003 to 0011."""
-
-    @pytest.fixture
-    def synthetic_optimizers(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Rule checks run against made-up optimizers, so no real one is named here."""
-        monkeypatch.setitem(
-            globals(),
-            "OPTIMIZERS",
-            {
-                "alpha": ("akkudoktoreos.optimization.alpha", "akkudoktoreos.devices.alpha"),
-                "beta": ("akkudoktoreos.optimization.beta", "akkudoktoreos.devices.beta"),
-            },
-        )
 
     def test_no_new_violations(self) -> None:
         new = collect_violations() - BASELINE
@@ -754,6 +808,17 @@ class TestOptimizerArchitecture:
                 "akkudoktoreos.optimization.alpha.alpha",
                 "internals",
             ),
+            # The shared device configuration importing an optimizer, even its package.
+            (
+                "akkudoktoreos.devices.settings.batterysettings",
+                "akkudoktoreos.devices.alpha.battery",
+                "shared-config",
+            ),
+            (
+                "akkudoktoreos.devices.devicesabc",
+                "akkudoktoreos.optimization.alpha",
+                "shared-config",
+            ),
             # The simulation reading predictions.
             (
                 "akkudoktoreos.devices.alpha.inverter",
@@ -778,9 +843,32 @@ class TestOptimizerArchitecture:
                 "akkudoktoreos.core.coreabc:StartMixin",
                 "world-access",
             ),
+            # The API or visualization reaching configuration through a server helper.
+            (
+                "akkudoktoreos.optimization.alpha.alphaapi",
+                "akkudoktoreos.server.rest.error",
+                "world-access",
+            ),
+            # Configuration settings next to the output contract.
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "akkudoktoreos.optimization.optimization:OptimizationCommonSettings",
+                "world-access",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "akkudoktoreos.optimization.optimization:*",
+                "world-access",
+            ),
             # A module that only ends in "prepare" is not parameter preparation.
             (
                 "akkudoktoreos.optimization.alpha.unprepare",
+                "akkudoktoreos.config.config",
+                "world-access",
+            ),
+            # Neither is a plain module prepare.py.
+            (
+                "akkudoktoreos.optimization.alpha.prepare",
                 "akkudoktoreos.config.config",
                 "world-access",
             ),
@@ -807,6 +895,29 @@ class TestOptimizerArchitecture:
                 "akkudoktoreos.utils.gridinterpolator:configured_grid_interpolator_backend",
                 "world-access",
             ),
+            # Configuration reached through the parameter preparation.
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "akkudoktoreos.optimization.alpha.alphaprepare",
+                "preparation",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.alphavisualize",
+                "akkudoktoreos.optimization.alpha.prepare.alphadevices",
+                "preparation",
+            ),
+            # The parameter preparation reaching the server.
+            (
+                "akkudoktoreos.optimization.alpha.alphaprepare",
+                "akkudoktoreos.server.rest.error",
+                "world-access",
+            ),
+            # The package may re-export the preparation.
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "akkudoktoreos.optimization.alpha",
+                "preparation",
+            ),
             # Pydantic in the simulation.
             (
                 "akkudoktoreos.optimization.alpha.devices.alphabattery",
@@ -826,9 +937,8 @@ class TestOptimizerArchitecture:
             ),
         ],
     )
-    @pytest.mark.usefixtures("synthetic_optimizers")
     def test_detects_violation(self, module: str, imported: str, rule: str) -> None:
-        assert [v.rule for v in _check(module, imported)] == [rule]
+        assert [v.rule for v in _check(module, imported, SYNTHETIC_OPTIMIZERS)] == [rule]
 
     @pytest.mark.parametrize(
         ("module", "imported"),
@@ -843,14 +953,39 @@ class TestOptimizerArchitecture:
                 "akkudoktoreos.optimization.alpha.alphaprepare",
                 "akkudoktoreos.core.coreabc:get_prediction",
             ),
+            (
+                "akkudoktoreos.optimization.alpha.alphaprepare",
+                "akkudoktoreos.optimization.optimization:OptimizationCommonSettings",
+            ),
             # The settings model defines optimization.<name>.
             (
                 "akkudoktoreos.optimization.alpha.alphasettings",
                 "akkudoktoreos.config.configabc",
             ),
+            # The optimizer, the package and the preparation itself use the preparation.
+            (
+                "akkudoktoreos.optimization.alpha.alphaoptimizer",
+                "akkudoktoreos.optimization.alpha.alphaprepare",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha",
+                "akkudoktoreos.optimization.alpha.alphaprepare",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.prepare.alphadevices",
+                "akkudoktoreos.optimization.alpha.alphaprepare",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.alphaoptimizer",
+                "akkudoktoreos.optimization.alpha",
+            ),
             # Generic utilities and the output contract.
             ("akkudoktoreos.devices.alpha.battery", "akkudoktoreos.utils.datetimeutil"),
             ("akkudoktoreos.optimization.alpha.alphasolution", "akkudoktoreos.core.emplan"),
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "akkudoktoreos.optimization.optimization:OptimizationSolution",
+            ),
             # Outside code importing the optimizer's package.
             ("akkudoktoreos.core.ems", "akkudoktoreos.optimization.alpha"),
             ("akkudoktoreos.core.ems", "akkudoktoreos.optimization.alpha:AlphaOptimizer"),
@@ -870,21 +1005,44 @@ class TestOptimizerArchitecture:
             ("akkudoktoreos.devices.alpha.battery", "numpy"),
         ],
     )
-    @pytest.mark.usefixtures("synthetic_optimizers")
     def test_allows(self, module: str, imported: str) -> None:
-        assert list(_check(module, imported)) == []
+        assert list(_check(module, imported, SYNTHETIC_OPTIMIZERS)) == []
 
-    def test_discovers_optimizers(self) -> None:
-        assert OPTIMIZERS
-        for name, packages in OPTIMIZERS.items():
-            assert packages[0] == f"akkudoktoreos.optimization.{name}"
+    def test_discovers_optimizers(self, tmp_path: Path) -> None:
+        """Packages under ``optimization/`` are optimizers, with ``devices/<name>`` if present."""
+        package = tmp_path / PACKAGE
+        _write(package / "optimization" / "optimization.py")
+        _write(package / "optimization" / "alpha" / "__init__.py")
+        _write(package / "optimization" / "beta" / "betaoptimizer.py")
+        (package / "optimization" / "empty").mkdir()
+        _write(package / "devices" / "alpha" / "battery.py")
+        assert _discover_optimizers(tmp_path) == {
+            "alpha": ("akkudoktoreos.optimization.alpha", "akkudoktoreos.devices.alpha"),
+            "beta": ("akkudoktoreos.optimization.beta",),
+        }
 
-    @pytest.mark.usefixtures("synthetic_optimizers")
+    def test_recognises_preparation_package(self, tmp_path: Path) -> None:
+        """``prepare/`` counts as parameter preparation only as a package."""
+        module = "akkudoktoreos.optimization.alpha.prepare"
+        assert not _is_preparation(module, "alpha", tmp_path)
+        _write(tmp_path / PACKAGE / "optimization" / "alpha" / "prepare" / "__init__.py")
+        assert _is_preparation(module, "alpha", tmp_path)
+
     def test_settings_imports_configabc_as_module(self, tmp_path: Path) -> None:
         """``from akkudoktoreos.config import configabc`` depends on configabc only."""
         path = tmp_path / "alphasettings.py"
-        path.write_text("from akkudoktoreos.config import configabc\n", encoding="utf-8")
+        _write(path, "from akkudoktoreos.config import configabc\n")
         module = "akkudoktoreos.optimization.alpha.alphasettings"
         imported = list(_imports(path, module))
         assert "akkudoktoreos.config" not in imported
-        assert [v for i in imported for v in _check(module, i)] == []
+        assert [v for i in imported for v in _check(module, i, SYNTHETIC_OPTIMIZERS)] == []
+
+    def test_resolves_relative_imports(self, tmp_path: Path) -> None:
+        """A relative import is checked like the absolute one it stands for."""
+        path = tmp_path / "alphaconvert.py"
+        _write(path, "from ...config import config\n")
+        module = "akkudoktoreos.optimization.alpha.alphaconvert"
+        imported = list(_imports(path, module))
+        assert "akkudoktoreos.config.config" in imported
+        violations = {v for i in imported for v in _check(module, i, SYNTHETIC_OPTIMIZERS)}
+        assert violations == {Violation("world-access", module, "akkudoktoreos.config.config")}
