@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS, GeneralSettings
+from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import DevicesCommonSettings
 
 
@@ -840,6 +841,90 @@ class TestConfigEOSToConfigFile:
 
         assert reloaded.general.latitude == 48.0
         assert reloaded.server.port == 9000
+
+
+class TestUnreadableConfigFile:
+    """A configuration file that can not be loaded is never replaced by the defaults.
+
+    EOS falls back to the default configuration if its configuration file can not be read or
+    migrated. The automatic save must not write these defaults over the file of the user.
+    """
+
+    # A trailing comma - a typical manual editing error.
+    UNREADABLE = (
+        '{"general": {"version": "' + __version__ + '", "latitude": 48.1},\n'
+        ' "server": {"port": 9999},}\n'
+    ).encode("utf-8")
+
+    @pytest.fixture
+    def unreadable_config_file(
+        self, uncreated_config: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> Path:
+        """Write an unreadable config file; get_config(init=True) starts from it."""
+        uncreated_config.write_bytes(self.UNREADABLE)
+        # Forget the last automatic save of another test.
+        monkeypatch.setattr(ConfigEOS, "_config_autosave", "")
+        return uncreated_config
+
+    def test_autosave_keeps_unreadable_file(self, unreadable_config_file: Path) -> None:
+        from akkudoktoreos.core.coreabc import get_config
+
+        config = get_config(init=True)
+        assert config.general.latitude == GeneralSettings.model_fields["latitude"].default
+
+        config.autosave()
+        config.merge_settings_from_dict({"general": {"longitude": 11.5}})
+        config.autosave()
+
+        assert unreadable_config_file.read_bytes() == self.UNREADABLE
+
+    def test_autosave_keeps_file_of_failed_migration(
+        self, uncreated_config: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from akkudoktoreos.config import configmigrate
+        from akkudoktoreos.core.coreabc import get_config
+
+        content = json.dumps({"general": {"version": "0.0.0-old", "latitude": 48.1}}).encode()
+        uncreated_config.write_bytes(content)
+        monkeypatch.setattr(ConfigEOS, "_config_autosave", "")
+        monkeypatch.setattr(
+            configmigrate, "migrate_config_data", Mock(side_effect=RuntimeError("migration failed"))
+        )
+
+        config = get_config(init=True)
+        config.autosave()
+
+        assert uncreated_config.read_bytes() == content
+
+    def test_save_keeps_copy_of_unreadable_file(self, unreadable_config_file: Path) -> None:
+        """An explicit save replaces the file, but keeps a copy of it."""
+        from akkudoktoreos.core.coreabc import get_config
+
+        config = get_config(init=True)
+        config.merge_settings_from_dict({"general": {"longitude": 11.5}})
+
+        config.to_config_file()
+
+        saved = json.loads(unreadable_config_file.read_text(encoding="utf-8"))
+        assert saved["general"]["longitude"] == 11.5
+        copies = list(unreadable_config_file.parent.glob("EOS.config.unreadable.*"))
+        assert [copy.read_bytes() for copy in copies] == [self.UNREADABLE]
+
+    def test_autosave_resumes_when_file_is_loaded(self, unreadable_config_file: Path) -> None:
+        from akkudoktoreos.core.coreabc import get_config
+
+        config = get_config(init=True)
+        unreadable_config_file.write_text(
+            json.dumps({"general": {"version": __version__, "latitude": 48.1}}), encoding="utf-8"
+        )
+
+        config.reset_settings()
+        config.merge_settings_from_dict({"general": {"longitude": 11.5}})
+        config.autosave()
+
+        saved = json.loads(unreadable_config_file.read_text(encoding="utf-8"))
+        assert saved["general"]["latitude"] == 48.1
+        assert saved["general"]["longitude"] == 11.5
 
 
 class TestDeviceSettings:

@@ -11,6 +11,7 @@ Key features:
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 from copy import deepcopy
@@ -463,6 +464,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         "with_file_secret_settings": True,
     }
     _config_file_path: ClassVar[Optional[Path]] = None
+    # Why the configuration file could not be loaded, None if it was loaded. The automatic save
+    # never replaces such a file by the default configuration EOS falls back to.
+    _config_file_load_error: ClassVar[Optional[str]] = None
     _config_autosave: ClassVar[str] = ""
     # Settings provided at runtime, e.g. by the REST interface. Highest priority after CLI.
     _runtime_settings: ClassVar[dict[str, Any]] = {}
@@ -707,6 +711,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
             Ensures the config file exists and creates a backup if necessary.
             """
+            cls._config_file_load_error = None
             if not cls._init_config_eos.get("with_file_settings", True):
                 logger.debug("Config initialisation with file settings is disabled.")
                 return {}
@@ -724,9 +729,17 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                     settings = pydantic_settings.JsonConfigSettingsSource(
                         settings_cls, json_file=config_file
                     )()
+                else:
+                    cls._config_file_load_error = "the file could not be read or migrated"
             except Exception as ex:
+                cls._config_file_load_error = str(ex)
+            if cls._config_file_load_error is not None:
                 logger.error(
-                    f"Error reading config file '{config_file}' (falling back to default config): {ex}"
+                    f"Error reading config file '{config_file}' (falling back to default config): "
+                    f"{cls._config_file_load_error}. The configuration is not saved automatically "
+                    "until the file is loaded, so the file is kept. Fix the file and reload it "
+                    "(POST /v1/config/reset or restart EOS), or save the current configuration "
+                    "explicitly (PUT /v1/config/file), which keeps a copy of the file."
                 )
 
             return settings
@@ -1227,23 +1240,42 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     def to_config_file(self) -> None:
         """Saves the current configuration to the configuration file.
 
-        Also updates the configuration file settings.
+        Also updates the configuration file settings. If the configuration file could not be
+        loaded, a copy of it is kept as ``<stem>.unreadable.<timestamp>`` next to it.
 
         Raises:
             ValueError: If the configuration file path is not specified or can not be written to.
+            OSError: If the copy of a configuration file that could not be loaded fails.
         """
-        if not self.general.config_file_path:
+        config_file_path = self.general.config_file_path
+        if not config_file_path:
             raise ValueError("Configuration file path unknown.")
-        with self.general.config_file_path.open("w", encoding="utf-8", newline="\n") as f_out:
-            f_out.write(self.to_config_json())
-        logger.info(f"Saved configuration to '{self.general.config_file_path}'.")
+        config_json = self.to_config_json()
+        if ConfigEOS._config_file_load_error is not None and config_file_path.exists():
+            # The current configuration does not hold the content of the file - keep it.
+            unreadable_file_path = config_file_path.with_name(
+                f"{config_file_path.stem}.unreadable.{to_datetime(as_string='YYYYMMDDHHmmss')}"
+            )
+            shutil.copy2(config_file_path, unreadable_file_path)
+            logger.warning(
+                f"Kept a copy of the configuration file that could not be loaded "
+                f"as '{unreadable_file_path}'."
+            )
+        with config_file_path.open("w", encoding="utf-8", newline="\n") as f_out:
+            f_out.write(config_json)
+        ConfigEOS._config_file_load_error = None
+        logger.info(f"Saved configuration to '{config_file_path}'.")
 
     def autosave(self) -> None:
         """Saves the current configuration if AUTOMATIC save mode is configured.
 
         Tries to avoid save operation if there are no changes between last and actual save.
+        A configuration file that could not be loaded is never saved automatically: the current
+        configuration fell back to the defaults and would replace the content of the file.
         """
         if self.general.config_save_mode != ConfigSaveMode.AUTOMATIC:
+            return
+        if ConfigEOS._config_file_load_error is not None:
             return
 
         config_str = self.to_config_json()

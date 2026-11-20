@@ -98,6 +98,17 @@ found, a default configuration file is created, and the default settings are wri
 location of the created configuration file follows the same order in which EOS searches for
 configuration files, and it depends on whether the relevant environment variables are set.
 
+A configuration file of an older EOS version is migrated to the current version. The old file is
+kept as a backup next to it (`EOS.config.<timestamp>`). If the migration fails, the file is left
+as it is.
+
+If the configuration file cannot be loaded, e.g. because of a JSON syntax error or a failed
+migration, EOS logs an error and runs with the default configuration. It then does not save the
+configuration automatically, so the defaults never replace the file. Fix the file and reload it
+with `POST /v1/config/reset` or a restart of EOS. `PUT /v1/config/file` saves the current
+configuration anyway; it keeps a copy of the file that could not be loaded as
+`EOS.config.unreadable.<timestamp>`.
+
 Use the following endpoints to interact with the configuration file:
 
 - `PUT /v1/config/file`: Save the current configuration to the configuration file.
