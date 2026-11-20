@@ -2483,13 +2483,18 @@ class DataContainer(SingletonMixin, DataABC, Generic[DataProviderT]):
         concurrent writes or other bulk operations can interleave with the
         provider updates.
 
+        A failing provider does not stop the update: the remaining providers are
+        updated first, then the failures of the enabled providers are raised together.
+
         Args:
             force_enable: If True, forces the update even if a provider is disabled.
             force_update: If True, forces providers to update even if data is cached.
 
         Raises:
-            RuntimeError: If an enabled provider fails during update.
+            RuntimeError: If one or more enabled providers fail during update, after
+                all providers have been updated.
         """
+        errors: list[str] = []
         async with self._container_lock:
             for provider in self.providers:
                 try:
@@ -2504,13 +2509,16 @@ class DataContainer(SingletonMixin, DataABC, Generic[DataProviderT]):
                         f":\n{e}\n{trace}"
                     )
                     if provider.enabled():
-                        # The active provider failed — this is a real error worth propagating.
+                        # The active provider failed — this is a real error worth propagating,
+                        # but only after the remaining providers were updated.
                         logger.error(error)
-                        raise RuntimeError(error)
+                        errors.append(error)
                     else:
                         # A non-active provider failed (e.g. missing config while force_enable=True).
                         # Log as warning and continue so the remaining providers still run.
                         logger.warning(error)
+        if errors:
+            raise RuntimeError("\n".join(errors))
 
     async def key_to_raw_series(
         self,
