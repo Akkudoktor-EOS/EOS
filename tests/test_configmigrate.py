@@ -1,5 +1,6 @@
 # Test data directory and known migration pairs
 import copy
+import errno
 import json
 import os
 import shutil
@@ -180,14 +181,29 @@ class TestConfigMigration:
     def test_migrate_config_file_write_failure_keeps_original(
         self, tmp_config_file: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A migrated file that can not replace the old one leaves the old file in place."""
+        """A migrated configuration that can not be written leaves the old file in place."""
         original = tmp_config_file.read_bytes()
         backup_file = tmp_config_file.with_suffix(".bak")
-        monkeypatch.setattr(os, "replace", Mock(side_effect=OSError("replace failed")))
+        monkeypatch.setattr(os, "fsync", Mock(side_effect=OSError("disk full")))
 
         assert configmigrate.migrate_config_file(tmp_config_file, backup_file) is False
 
         assert tmp_config_file.read_bytes() == original
+        assert not list(tmp_config_file.parent.glob("*.tmp"))
+
+    def test_migrate_config_file_writes_in_place_if_not_replaceable(
+        self, tmp_config_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A file that can not be replaced, e.g. a single-file bind mount, is written in place."""
+        original = tmp_config_file.read_bytes()
+        backup_file = tmp_config_file.with_suffix(".bak")
+        monkeypatch.setattr(os, "replace", Mock(side_effect=OSError(errno.EBUSY, "busy")))
+
+        assert configmigrate.migrate_config_file(tmp_config_file, backup_file) is True
+
+        assert backup_file.read_bytes() == original
+        migrated_data = json.loads(tmp_config_file.read_text(encoding="utf-8"))
+        assert migrated_data["general"]["version"] == __version__
         assert not list(tmp_config_file.parent.glob("*.tmp"))
 
 

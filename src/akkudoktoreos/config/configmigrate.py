@@ -615,18 +615,19 @@ def remove_empty(obj: dict) -> dict:
 
 
 def _replace_config_file(config_file: Path, content: str) -> None:
-    """Replace the configuration file atomically.
+    """Replace the content of the configuration file, atomically where possible.
 
     The content is written to a temporary file next to the configuration file, which then
     replaces it. If writing fails, the configuration file is left untouched. The new file keeps
-    the permission bits of the old one.
+    the permission bits of the old one. A file that can not be replaced, e.g. a single-file
+    bind mount of a container, is written in place instead.
 
     Args:
         config_file (Path): The existing configuration file.
         content (str): The new content of the configuration file.
 
     Raises:
-        OSError: If the temporary file can not be written or can not replace the file.
+        OSError: If the content can not be written.
     """
     fd, tmp_name = tempfile.mkstemp(
         dir=config_file.parent, prefix=f".{config_file.name}.", suffix=".tmp"
@@ -637,10 +638,14 @@ def _replace_config_file(config_file: Path, content: str) -> None:
             f_out.flush()
             os.fsync(f_out.fileno())
         os.chmod(tmp_name, stat.S_IMODE(config_file.stat().st_mode))
-        os.replace(tmp_name, config_file)
-    except BaseException:
+        try:
+            os.replace(tmp_name, config_file)
+        except OSError as e:
+            logger.debug(f"Could not replace '{config_file}' ({e}), writing it in place.")
+            with config_file.open("w", encoding="utf-8") as f_out:
+                f_out.write(content)
+    finally:
         Path(tmp_name).unlink(missing_ok=True)
-        raise
 
 
 def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
