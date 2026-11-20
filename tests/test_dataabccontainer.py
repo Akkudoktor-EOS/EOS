@@ -63,6 +63,27 @@ class DerivedDataProvider(DataProvider[DerivedRecord]):
         DerivedDataProvider.provider_updated = True
 
 
+class FailingDataProvider(DataProvider[DerivedRecord]):
+    """Enabled DataProvider whose update fails, like a remote API answering HTTP 500."""
+
+    records: List[DerivedRecord] = Field(
+        default_factory=list, description="List of DerivedRecord records"
+    )
+
+    @classmethod
+    def record_class(cls) -> Any:
+        return DerivedRecord
+
+    def provider_id(self) -> str:
+        return "FailingDataProvider"
+
+    def enabled(self) -> bool:
+        return True
+
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
+        raise RuntimeError("500 Server Error")
+
+
 class DerivedDataContainer(DataContainer):
     providers: List[Union[DerivedDataProvider, DataProvider]] = Field(
         default_factory=list, description="List of data providers"
@@ -259,6 +280,17 @@ class TestDataContainer:
         await populated.update_data(force_enable=True)
         assert DerivedDataProvider.provider_updated is True
         DerivedDataProvider.provider_enabled = True  # restore
+
+    async def test_update_data_failing_provider_does_not_skip_the_others(
+        self, populated
+    ) -> None:
+        """A failing enabled provider is reported after all others were updated (#1571)."""
+        populated.providers.insert(0, FailingDataProvider())
+        DerivedDataProvider.provider_enabled = True
+        DerivedDataProvider.provider_updated = False
+        with pytest.raises(RuntimeError, match="Provider FailingDataProvider fails on update"):
+            await populated.update_data()
+        assert DerivedDataProvider.provider_updated is True
 
     # -----------------------------------------------------------------------
     # save / load
