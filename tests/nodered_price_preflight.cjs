@@ -223,3 +223,19 @@ test('a recovery without an answer holds optimization for at most five minutes',
     h.advance(1);
     assert.deepEqual(h.call('rc_price_raw_check', h.response()), [null, {topic: 'rc_optimize'}]);
 });
+
+test('a day that starts at 01:00 after a DST change at midnight ends at the next midnight', () => {
+    const timezone = process.env.TZ;
+    process.env.TZ = 'America/Santiago';
+    try {
+        const h = harness('2026-09-06T10:00:00-03:00');
+        const msg = h.response();
+        assert.equal(new Date(msg.rcPriceWindow.start).toISOString(), '2026-09-06T04:00:00.000Z');
+        assert.equal(new Date(msg.rcPriceWindow.end).toISOString(), '2026-09-07T03:00:00.000Z');
+        assert.equal(Object.keys(msg.payload.data).length, 92);
+        assert.deepEqual(h.call('rc_price_raw_check', msg), [null, {topic: 'rc_optimize'}]);
+        assert.equal(h.flow.get('rcPriceCoverage').expected_slots, 92);
+    } finally {
+        process.env.TZ = timezone;
+    }
+});
