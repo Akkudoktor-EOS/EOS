@@ -178,10 +178,31 @@ class TestPredictionProvider:
             "Keep datetime is not calculated correctly."
         )
 
+    @pytest.mark.parametrize(
+        "timezone, end, total_hours",
+        [
+            # No DST change within the 48 hours.
+            ("Europe/Berlin", "2024-11-03 13:00:00", 48),
+            # DST ends on 2024-11-03: the window ends at the same wall-clock time,
+            # 49 hours after the start (#1570).
+            ("America/Los_Angeles", "2024-11-03 05:00:00", 49),
+        ],
+    )
     async def test_update_method_with_defaults(
-        self, provider, sample_start_datetime, config_eos, monkeypatch
-    ):
-        """Test the `update` method with default parameters."""
+        self,
+        provider,
+        sample_start_datetime,
+        config_eos,
+        monkeypatch,
+        timezone: str,
+        end: str,
+        total_hours: int,
+    ) -> None:
+        """Test the `update` method with default parameters.
+
+        The start is given in a fixed zone, so the result does not depend on the local zone
+        of the test run.
+        """
         # EOS config supersedes
         ems_eos = get_ems()
         # The following values are currently not set in EOS config, we can override
@@ -189,16 +210,17 @@ class TestPredictionProvider:
         assert os.getenv("EOS_PREDICTION__HISTORIC_HOURS") == "2"
         provider.config.reset_settings()
 
-        ems_eos.set_start_datetime(sample_start_datetime)
+        start = to_datetime(sample_start_datetime, in_timezone=timezone)
+        ems_eos.set_start_datetime(start)
         await provider.update_data()
 
-        assert provider.config.prediction.hours == config_eos.prediction.hours
+        # Default prediction horizon: 48 hours
+        assert provider.config.prediction.hours == config_eos.prediction.hours == 48
         assert provider.config.prediction.historic_hours == 2
-        assert provider.ems_start_datetime == sample_start_datetime
-        assert provider.end_datetime == sample_start_datetime + to_duration(
-            f"{provider.config.prediction.hours} hours"
-        )
-        assert provider.keep_datetime == sample_start_datetime - to_duration("2 hours")
+        assert provider.ems_start_datetime == start
+        assert provider.end_datetime == to_datetime(end, in_timezone=timezone)
+        assert provider.total_hours == total_hours
+        assert provider.keep_datetime == start - to_duration("2 hours")
 
     async def test_update_method_force_enable(self, provider, monkeypatch):
         """Test that `update` executes when `force_enable` is True, even if `enabled` is False."""
