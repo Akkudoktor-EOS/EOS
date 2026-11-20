@@ -636,10 +636,16 @@ CI runs every test exactly once, spread over several jobs:
 
 `make test-ci` runs the tests of the jobs `test-server`, `test-shard`, `docs-test` and
 `docker-test` locally, with the markers and options of these jobs and one part after the other:
-the server tests, the other tests with pytest-xdist on all cores (not split into shards), the
-Sphinx build and the Docker checks. It prints the coverage report of the first two parts and stops
-at the first part that fails. The browser tests of the `browser-test` job have their own target,
+the server tests, the other tests with pytest-xdist (not split into shards), the Sphinx build and
+the Docker checks. It prints the coverage report of the first two parts and stops at the first
+part that fails. The browser tests of the `browser-test` job have their own target,
 `make test-browser`.
+
+The parallel part of `make test-ci` starts one worker per core, but at most eight. Without the
+limit a machine with many cores can run out of memory or threads: a machine with 32 cores and
+16 GB of memory did, and passed with eight workers. Change the limit with
+`make test-ci TEST_CI_MAX_WORKERS=<n>`. CI is not affected: its jobs call pytest themselves, on
+runners with four cores.
 
 The coverage report of the `test` job is combined from the parts. It differs from the report of
 one plain run in a few lines, and not in exactly the same ones in every run: lines that are only
@@ -663,6 +669,11 @@ other. They carry the `eos_server` marker, set automatically for every test that
 `xprocess` fixture, and share one xdist group, which `--dist loadgroup` keeps on one worker.
 Without `--dist loadgroup` these tests collide. Give a test that binds the ports without the
 fixture the marker itself (`@pytest.mark.eos_server`).
+
+`-n auto` starts one worker per core. On a machine with many cores, limit the workers with
+`--maxprocesses=<n>`, or set the environment variable `PYTEST_XDIST_AUTO_NUM_WORKERS=<n>`, which
+replaces the number of cores that `-n auto` detects. `--maxprocesses` also limits a number set by
+the variable, so in `make test-ci` the variable can only lower the number of workers.
 
 ### Follow Coding Standards
 

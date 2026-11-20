@@ -137,15 +137,18 @@ test:
 	$(PYTEST) -vs --cov src --cov-report term-missing
 
 # Target to run tests as done by CI on Github (.github/workflows/pytest.yml), one part after
-# the other: the server tests (test-server), the other tests on all cores (test-shard, without
+# the other: the server tests (test-server), the other tests in parallel (test-shard, without
 # splitting them into shards), the Sphinx build (docs-test) and the Docker checks (docker-test).
 # Every test runs once. The coverage report covers the first two parts, like the test job.
 # The browser tests (browser-test) have their own target test-browser.
+# The parallel part starts one pytest-xdist worker per core, but at most TEST_CI_MAX_WORKERS:
+# one worker per core runs out of memory or threads on machines with many cores.
+TEST_CI_MAX_WORKERS ?= 8
 test-ci: export COVERAGE_CORE := sysmon
 test-ci:
 	@echo "Running tests as CI..."
 	$(PYTEST) --finalize --check-config-side-effect -m "eos_server and not docs and not docker" -vs --durations=25 --cov src --cov-report=
-	$(PYTEST) --finalize --check-config-side-effect -m "not eos_server and not docs and not docker" -n auto -v --durations=25 --cov src --cov-append --cov-report term-missing
+	$(PYTEST) --finalize --check-config-side-effect -m "not eos_server and not docs and not docker" -n auto --maxprocesses=$(TEST_CI_MAX_WORKERS) -v --durations=25 --cov src --cov-append --cov-report term-missing
 	$(PYTEST) --finalize --check-config-side-effect -m docs -vs
 	$(PYTEST) --finalize --check-config-side-effect -m docker -vs
 
