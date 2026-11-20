@@ -796,6 +796,10 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                 try:
                     # Windows cannot unlink a file while the store still holds it open.
                     search_item.cache_file.close()
+                except OSError as e:
+                    # A failed flush still releases the handle; remove the file anyway.
+                    logger.error(f"Error closing cache file {file_path}: {e}")
+                try:
                     if file_path and os.path.exists(file_path):
                         os.remove(file_path)
                         logger.debug(f"Deleted cache file: {file_path}")
@@ -860,6 +864,10 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                     try:
                         # Close first, including files that disappear on close.
                         cache_item.cache_file.close()
+                    except OSError as e:
+                        # A failed flush still releases the handle; remove the file anyway.
+                        logger.error(f"Error closing cache file {file_path}: {e}")
+                    try:
                         if not os.path.exists(file_path):
                             # Already deleted
                             logger.debug(f"The cache file '{file_path}' was already deleted.")

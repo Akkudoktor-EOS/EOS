@@ -523,6 +523,30 @@ class TestCacheFileStore:
             assert not retained_file.closed
             assert cache_file_store.get("retained") is retained_file
 
+    @pytest.mark.parametrize("operation", ["delete", "clear_expired"])
+    def test_cache_removal_deletes_disk_file_when_close_fails(
+        self, cache_file_store: CacheFileStore, monkeypatch: pytest.MonkeyPatch, operation: str
+    ) -> None:
+        """A flush error on close still releases the handle, so the file is removed as well."""
+        expiry = to_datetime().subtract(hours=1)
+        cache_file = cache_file_store.create("expired", until_datetime=expiry)
+        file_path = Path(cache_file.name)
+        close = cache_file.close
+
+        def close_with_flush_error() -> None:
+            close()
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(cache_file, "close", close_with_flush_error)
+
+        if operation == "delete":
+            cache_file_store.delete("expired")
+        else:
+            cache_file_store.clear(before_datetime=to_datetime())
+
+        assert cache_file.closed
+        assert not file_path.exists()
+
     def test_cache_file_with_date(self, cache_file_store):
         """Test creating and retrieving cache files with a specific date."""
         # Use a specific date for cache file creation
