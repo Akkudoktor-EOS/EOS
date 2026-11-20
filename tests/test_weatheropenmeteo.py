@@ -12,7 +12,7 @@ from loguru import logger
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.weatheropenmeteo import WeatherOpenMeteo
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
@@ -66,7 +66,7 @@ def clear_sky_openmeteo_json(openmeteo_json: dict[str, Any]) -> dict[str, Any]:
     hourly = data["hourly"]
     stamps = pd.DatetimeIndex(hourly["time"], tz=data["timezone"])
     location = pvlib.location.Location(data["latitude"], data["longitude"])
-    minutes = pd.date_range(stamps[0] - pd.Timedelta(hours=1), stamps[-1], freq="1min")
+    minutes = pd.date_range(stamps[0] - to_duration("1 hour"), stamps[-1], freq="1min")
     irradiance = location.get_clearsky(minutes, model="ineichen")
     zenith = location.get_solarposition(minutes)["apparent_zenith"]
     irradiance["bhi"] = irradiance["dni"] * np.cos(np.radians(zenith)).clip(lower=0.0)
@@ -260,17 +260,22 @@ class TestOpenMeteoIrradiance:
     """Irradiance describes the record time, DNI the beam on the plane normal to the sun."""
 
     @staticmethod
-    async def _update(provider: WeatherOpenMeteo, openmeteo_json: dict[str, Any]) -> None:
-        """Update the provider from an Open-Meteo response, without network access."""
+    def _response(openmeteo_json: dict[str, Any]) -> Mock:
+        """Return a mocked HTTP response carrying an Open-Meteo response."""
         response = Mock()
         response.status_code = 200
         response.json.return_value = openmeteo_json
         response.content = json.dumps(openmeteo_json)
+        return response
+
+    @classmethod
+    async def _update(cls, provider: WeatherOpenMeteo, openmeteo_json: dict[str, Any]) -> None:
+        """Update the provider from an Open-Meteo response, without network access."""
         CacheFileStore().clear(clear_all=True)
         get_ems().set_start_datetime(
             to_datetime("2026-03-02 09:00:00+01:00", in_timezone="Europe/Berlin")
         )
-        with patch("requests.get", return_value=response):
+        with patch("requests.get", return_value=cls._response(openmeteo_json)):
             await provider.update_data(force_enable=True, force_update=True)
 
     @staticmethod
@@ -284,10 +289,7 @@ class TestOpenMeteoIrradiance:
         self, provider: WeatherOpenMeteo, sample_openmeteo_1_json: dict[str, Any]
     ) -> None:
         """Request GHI, DNI and DHI at the indicated time, DNI on the normal plane."""
-        response = Mock()
-        response.status_code = 200
-        response.json.return_value = sample_openmeteo_1_json
-        response.content = json.dumps(sample_openmeteo_1_json)
+        response = self._response(sample_openmeteo_1_json)
         with patch("requests.get", return_value=response) as mock_get:
             provider._request_forecast(force_update=True)  # type: ignore[call-arg]
 
@@ -343,13 +345,13 @@ class TestOpenMeteoIrradiance:
 
         # Late morning and noon: the value at the stamp, not the lower preceding-hour mean.
         for stamp in ("2026-03-02 11:00:00+01:00", "2026-03-02 12:00:00+01:00"):
-            moment = pd.Timestamp(stamp).tz_convert("UTC")
+            moment = to_datetime(stamp)
             assert ghi[moment] == pytest.approx(clear_sky_ghi[moment], rel=0.01)
 
         # After sunset there is no irradiance, although the preceding hour had sun.
         stamps = pd.DatetimeIndex(ghi.index)
         elevation = location.get_solarposition(stamps)["apparent_elevation"].to_numpy()
-        elevation_hour_before = location.get_solarposition(stamps - pd.Timedelta(hours=1))[
+        elevation_hour_before = location.get_solarposition(stamps - to_duration("1 hour"))[
             "apparent_elevation"
         ].to_numpy()
         after_sunset = (elevation < 0.0) & (elevation_hour_before > 0.0)
