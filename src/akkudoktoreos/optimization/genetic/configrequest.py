@@ -17,8 +17,10 @@ from akkudoktoreos.devices.settings.batteryresolution import BatteryFullCharge
 from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic.fullcharge import (
+    completion_counter_deadline,
     enforced_full_charge_deadline,
     full_charge_deadline,
+    full_charge_hold_start,
 )
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticparams import (
@@ -195,6 +197,18 @@ class ConfigOptimizationRequest(
                 )
                 return 0
 
+        async def history(key: str, start_datetime: DateTime) -> tuple[list[DateTime], list[Any]]:
+            """Measured values of ``key`` from ``start_datetime`` up to now, empty if unknown."""
+            try:
+                return await self.measurement.key_to_lists(
+                    key=key,
+                    start_datetime=start_datetime,
+                    end_datetime=observation_time.add(seconds=1),
+                    dropna=False,
+                )
+            except KeyError:
+                return [], []
+
         async def full_charge(
             device: BatteriesCommonSettings, policy: BatteryFullCharge
         ) -> Optional[DateTime]:
@@ -202,27 +216,97 @@ class ConfigOptimizationRequest(
             interval_days = policy.interval_days
             if interval_days is None:
                 return None
-            try:
-                dates, values = await self.measurement.key_to_lists(
-                    key=device.measurement_key_soc_factor,
-                    start_datetime=observation_time.subtract(days=math.ceil(interval_days)),
-                    end_datetime=observation_time.add(seconds=1),
-                    dropna=False,
-                )
-            except KeyError:
-                dates, values = [], []
-            deadline = full_charge_deadline(
-                zip(dates, values),
-                now=observation_time,
-                interval_days=interval_days,
-                detect_percentage=policy.detect_percentage,
+            dates, values = await history(
+                device.measurement_key_soc_factor,
+                observation_time.subtract(days=math.ceil(interval_days)),
             )
+            if device.full_charge_completion == "measurement":
+                # One extra day, so that an increase right at the start of the
+                # interval is still seen as an increase.
+                counter_dates, counter_values = await history(
+                    device.measurement_key_full_charge_completed,
+                    observation_time.subtract(days=math.ceil(interval_days) + 1),
+                )
+                deadline = completion_counter_deadline(
+                    zip(counter_dates, counter_values),
+                    now=observation_time,
+                    interval_days=interval_days,
+                )
+                if deadline is None:
+                    logger.warning(
+                        "No readings of the full charge completion counter {} of {}; "
+                        "counting the interval from the oldest state of charge sample.",
+                        device.measurement_key_full_charge_completed,
+                        device.device_id,
+                    )
+                    # A threshold above 100 % never counts a sample as full.
+                    deadline = full_charge_deadline(
+                        zip(dates, values),
+                        now=observation_time,
+                        interval_days=interval_days,
+                        detect_percentage=101,
+                    )
+            else:
+                deadline = full_charge_deadline(
+                    zip(dates, values),
+                    now=observation_time,
+                    interval_days=interval_days,
+                    detect_percentage=policy.detect_percentage,
+                )
             if deadline is None:
                 logger.warning(
                     "No state of charge history for {}; cannot schedule its periodic full charge.",
                     device.device_id,
                 )
             return deadline
+
+        async def full_charge_hold(
+            device: BatteriesCommonSettings, policy: BatteryFullCharge, soc_percentage: int
+        ) -> tuple[Optional[DateTime], Optional[float]]:
+            """Hold of a full charge that waits for its completion counter.
+
+            Returns:
+                ``(hold_until, remaining_hold_hours)``. ``hold_until`` is None if
+                the battery is not being held. ``remaining_hold_hours`` is the
+                planning estimate still to go, None without an estimate.
+            """
+            estimate = device.full_charge_hold_hours
+            if soc_percentage < policy.detect_percentage:
+                return None, estimate
+            max_hold_hours = device.full_charge_max_hold_hours
+            # One hour more than the limit, so that a run of full samples longer
+            # than the limit is not cut at the window start.
+            dates, values = await history(
+                device.measurement_key_soc_factor,
+                observation_time.subtract(seconds=round((max_hold_hours + 1) * 3600)),
+            )
+            started = full_charge_hold_start(
+                zip(dates, values),
+                now=observation_time,
+                detect_percentage=policy.detect_percentage,
+            )
+            if started is None:
+                started = observation_time
+            held_hours = (observation_time.timestamp() - started.timestamp()) / 3600
+            if held_hours >= max_hold_hours:
+                logger.error(
+                    "Full charge of {} held for {:.1f} h without an increase of {}; "
+                    "no longer holding it (full_charge_max_hold_hours = {} h).",
+                    device.device_id,
+                    held_hours,
+                    device.measurement_key_full_charge_completed,
+                    max_hold_hours,
+                )
+                return None, None
+            limit = started.add(seconds=round(max_hold_hours * 3600))
+            remaining = None
+            hold_until = observation_time
+            if estimate is not None:
+                remaining = max(estimate - held_hours, 0.0)
+                hold_until = observation_time.add(seconds=round(remaining * 3600))
+            if hold_until.timestamp() > limit.timestamp():
+                hold_until = limit
+            return hold_until, remaining
 
         # A battery configuration error does not cancel the run: the battery gets
         # default values for what cannot be resolved, and an error is logged.
@@ -255,6 +339,20 @@ class ConfigOptimizationRequest(
                         deadline,
                         enforced,
                     )
+                    if device.full_charge_completion == "measurement":
+                        hold_until, hold_hours = await full_charge_hold(
+                            device, policy, battery.initial_soc_percentage
+                        )
+                        battery.full_charge_hold_hours = hold_hours
+                        battery.full_charge_hold_until_datetime = hold_until
+                        if hold_until is not None:
+                            logger.info(
+                                "Holding the full charge of {} until {} at the earliest; "
+                                "waiting for {} to increase.",
+                                device.device_id,
+                                hold_until,
+                                device.measurement_key_full_charge_completed,
+                            )
                 else:
                     logger.info(
                         "Periodic full charge of {} to {}% due by {}; PV surplus only.",

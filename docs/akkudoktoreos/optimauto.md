@@ -216,7 +216,8 @@ The behavior of the genetic algorithm can be customized using the following conf
 
 - `battery_full_charge_miss`:
   Applies a penalty per percent the battery stays below its target when a periodic full
-  charge is due and enforced (see [Periodic full charge](#periodic-full-charge)).
+  charge is due and enforced (see [Periodic full charge](#periodic-full-charge)). With
+  `full_charge_hold_hours`, the battery has to stay at that level for the estimated hold time.
   Default: `10`.
 :::
 
@@ -453,6 +454,72 @@ a close or overdue full charge can still use the cheapest time.
                 },
                 "max_soc_percentage": 90,
                 "full_charge_allow_grid": true
+            }
+        }
+    }
+}
+```
+
+###### Completion reported by your own script
+
+Reaching the detection threshold once is enough to recalibrate the state of charge. Cell
+balancing usually needs more: the battery management system balances only while the pack stays
+near the top, often for hours, and when balancing is done depends on the battery management
+system. One balances from a certain cell voltage at reduced current, another one only needs to
+reach 100 % once. A script that talks to the battery management system can see the cell voltages
+or the balancing state; EOS can't. So EOS can leave the decision to that script:
+
+- `full_charge_completion` (default `soc`): `soc` keeps the behaviour described above.
+  `measurement` waits for a completion counter instead.
+- `full_charge_completed_measurement_key` (default `null`, i.e. `<device_id>-full-charge-completed`):
+  the measurement key of the counter. Your script (Node-RED, ioBroker, a Home Assistant
+  automation, ...) increments it whenever it considers the full charge done. EOS takes the time
+  of the last increase as the last full charge; a counter that goes down, e.g. after a reset,
+  counts as no full charge. Without any reading of the counter, the interval counts from the
+  oldest state of charge sample and EOS logs a warning.
+- `full_charge_hold_hours` (default `null`): how long you expect the battery to stay full until the
+  script reports completion. It is only a planning estimate: the optimizer then plans the
+  battery to stay at the target for that many hours before the deadline, so the full charge
+  and the hold can be placed in cheap hours or under PV. Whether the full charge is done still
+  comes only from the counter.
+- `full_charge_max_hold_hours` (default `12`): a safety limit, see below.
+
+While a full charge is due and enforced (`full_charge_allow_grid: true`), the counter has not
+gone up yet, and the measured state of charge is at or above `full_charge_detect_percentage`,
+EOS holds the battery full: the first slot of the plan, and with `full_charge_hold_hours` the
+remaining estimated hold time, stays in a charging state without discharge (`FORCED_CHARGE`, or
+`GRID_SUPPORT_IMPORT` with direct marketing). The simulation assumes the same, so the planned
+state of charge and cost match what happens. EOS checks this again in every run until the
+counter goes up. Note that `FORCED_CHARGE` may mean that the house runs from the grid on some
+inverters while the battery is held.
+
+Once the battery has been at or above the detection threshold for `full_charge_max_hold_hours`
+without an increase of the counter, EOS stops holding it and logs an ERROR in every run, so that
+a script that never reports does not keep the battery full forever. Check the script in that
+case.
+
+Rules for the script, depending on what it can see:
+
+- With cell voltages: e.g. count the full charge as done once the difference between the
+  highest and the lowest cell voltage stays below a limit for some time, or once the battery
+  management system reports that balancing has finished.
+- With only the combined data of the battery management system (e.g. an inverter that gets the
+  pack data over CAN): count the full charge as done once the state of charge has been at or
+  above `full_charge_detect_percentage` for N hours without interruption. This is a valid
+  fallback.
+
+Send the counter like any other measurement, e.g. with `PUT /v1/measurement/value` or the
+`device_measurement_entity_ids` of the Home Assistant adapter:
+
+```json
+{
+    "devices": {
+        "batteries": {
+            "battery1": {
+                "full_charge_allow_grid": true,
+                "full_charge_completion": "measurement",
+                "full_charge_hold_hours": 4,
+                "full_charge_max_hold_hours": 12
             }
         }
     }
