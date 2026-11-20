@@ -1416,7 +1416,13 @@ class DatabaseRecordProtocolMixin(
         # load the relevant range
         # in case of unbounded escalates to FULL
         search_start, search_end = self._search_window(target_timestamp, time_window)
-        await self._db_ensure_loaded(search_start, search_end, center_timestamp=target_timestamp)
+        # The window is closed: also load the records of its last second.
+        load_end = (
+            self._db_timestamp_after(search_end)
+            if isinstance(search_end, DatabaseTimestamp)
+            else search_end
+        )
+        await self._db_ensure_loaded(search_start, load_end, center_timestamp=target_timestamp)
 
         # Exact match first (works for all three cases once loaded)
         record = self._db_record_index.get(target_timestamp, None)
