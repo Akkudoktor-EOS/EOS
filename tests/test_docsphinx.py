@@ -5,11 +5,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 import pytest
+import yaml
 
 from akkudoktoreos.core.coreabc import singletons_init
 
@@ -24,6 +26,7 @@ DIR_DOCS = DIR_PROJECT_ROOT / "docs"
 DIR_SRC = DIR_PROJECT_ROOT / "src"
 
 HASH_FILE = DIR_BUILD / ".sphinx_hash.json"
+READTHEDOCS_CONFIG = DIR_PROJECT_ROOT / ".readthedocs.yaml"
 
 # Parallel jobs of the Sphinx build. Sphinx reads the sources and writes the pages in several
 # processes; resolving the cross-references stays in the main process. With the EOS API
@@ -201,6 +204,42 @@ class TestSphinxDocumentation:
         # Update stored hash
         HASH_FILE.parent.mkdir(parents=True, exist_ok=True)
         HASH_FILE.write_text(json.dumps({"hash": sphinx_changed}, indent=2))
+
+
+class TestReadTheDocsConfig:
+    """Verify the Read the Docs configuration in .readthedocs.yaml.
+
+    Read the Docs builds the published documentation with its own install steps. CI builds
+    the documentation in the development environment, so it does not notice when these
+    steps refer to something the repository no longer has.
+    """
+
+    def test_references_exist(self) -> None:
+        """Every file, path and extra the Read the Docs build refers to exists."""
+        config = yaml.safe_load(READTHEDOCS_CONFIG.read_text(encoding="utf-8"))
+        pyproject = tomllib.loads((DIR_PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        defined_extras = set(pyproject["project"]["optional-dependencies"])
+
+        missing: list[str] = []
+        sphinx_config = config["sphinx"]["configuration"]
+        if not (DIR_PROJECT_ROOT / sphinx_config).is_file():
+            missing.append(f"sphinx.configuration '{sphinx_config}'")
+        for install in config["python"]["install"]:
+            requirements = install.get("requirements")
+            if requirements is not None and not (DIR_PROJECT_ROOT / requirements).is_file():
+                missing.append(f"python.install requirements '{requirements}'")
+            path = install.get("path", ".")
+            if not (DIR_PROJECT_ROOT / path).is_dir():
+                missing.append(f"python.install path '{path}'")
+            extras = install.get("extras", install.get("extra_requirements", []))
+            if extras != "all":
+                missing.extend(
+                    f"python.install extra '{extra}'"
+                    for extra in extras
+                    if extra not in defined_extras
+                )
+
+        assert not missing, f"{READTHEDOCS_CONFIG.name} refers to missing items: {missing}"
 
 
 # --- Local Sphinx extension docs/_ext/pyxrefindex.py --------------------------------
