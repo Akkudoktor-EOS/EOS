@@ -40,8 +40,9 @@ parameters**, **solution conversion**, **warm start**. The decisions and their r
   an optimizer, its preparation included, imports `akkudoktoreos.server`.
 - Only `<name>optimizer.py`, the package `__init__.py` and the parameter
   preparation itself import the parameter preparation. Any other module would
-  reach the configuration through it. The package may re-export the
-  preparation, so the other modules do not import their own package either.
+  reach the configuration through it. The package and `<name>optimizer.py`
+  may re-export the preparation, so the other modules import neither; only
+  the package imports `<name>optimizer.py`.
 
 ## The interface
 

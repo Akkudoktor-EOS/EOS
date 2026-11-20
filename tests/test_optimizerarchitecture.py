@@ -17,8 +17,9 @@ Parses the imports of ``src/akkudoktoreos`` and checks these rules:
 - ``preparation``: inside an optimizer only ``<name>optimizer.py``, the
   package ``__init__.py`` and the parameter preparation itself import the
   parameter preparation, so no other module reaches the configuration through
-  it. The package may re-export the preparation, so the other modules do not
-  import the package either.
+  it. The package and ``<name>optimizer.py`` may re-export the preparation, so
+  the other modules import neither; only the package imports
+  ``<name>optimizer.py``.
 - ``pydantic``: only the settings, request, preparation and API modules of an
   optimizer import Pydantic; optimization parameters are dataclasses.
 
@@ -154,9 +155,6 @@ SHARED_CONFIG_MODULES: tuple[str, ...] = (
 PYDANTIC_MODULES: tuple[str, ...] = ("pydantic", "akkudoktoreos.core.pydantic")
 PYDANTIC_ROLES: tuple[str, ...] = ("settings", "request", "api")
 
-# Modules of an optimizer that may import its parameter preparation.
-PREPARATION_IMPORTER_ROLES: tuple[str, ...] = ("optimizer",)
-
 # What an optimizer's settings model may import beyond the generic rules.
 SETTINGS_ALLOWED_MODULES: tuple[str, ...] = ("akkudoktoreos.config.configabc",)
 
@@ -282,10 +280,13 @@ def _check(module: str, imported: str, optimizers: Optimizers) -> Iterator[Viola
         ):
             yield Violation("world-access", module, imported if name else source)
         return
+    # The preparation and the modules that may re-export it: the package and
+    # <name>optimizer.py. Only the package imports the optimizer module.
     package = f"akkudoktoreos.optimization.{own}"
-    if not name and (_is_preparation(source, own) or source == package):
-        if module != package and not any(
-            _has_role(module, own, role) for role in PREPARATION_IMPORTER_ROLES
+    source_is_optimizer = _has_role(source, own, "optimizer")
+    if not name and (_is_preparation(source, own) or source == package or source_is_optimizer):
+        if module != package and not (
+            _has_role(module, own, "optimizer") and not source_is_optimizer
         ):
             yield Violation("preparation", module, source)
         return
@@ -918,6 +919,17 @@ class TestOptimizerArchitecture:
                 "akkudoktoreos.optimization.alpha",
                 "preparation",
             ),
+            # The optimizer module may re-export the preparation.
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "akkudoktoreos.optimization.alpha.alphaoptimizer",
+                "preparation",
+            ),
+            (
+                "akkudoktoreos.devices.alpha.battery",
+                "akkudoktoreos.optimization.alpha.alphaoptimizer",
+                "preparation",
+            ),
             # Pydantic in the simulation.
             (
                 "akkudoktoreos.optimization.alpha.devices.alphabattery",
@@ -979,6 +991,7 @@ class TestOptimizerArchitecture:
                 "akkudoktoreos.optimization.alpha.alphaoptimizer",
                 "akkudoktoreos.optimization.alpha",
             ),
+            ("akkudoktoreos.optimization.alpha", "akkudoktoreos.optimization.alpha.alphaoptimizer"),
             # Generic utilities and the output contract.
             ("akkudoktoreos.devices.alpha.battery", "akkudoktoreos.utils.datetimeutil"),
             ("akkudoktoreos.optimization.alpha.alphasolution", "akkudoktoreos.core.emplan"),

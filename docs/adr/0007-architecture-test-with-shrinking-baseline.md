@@ -13,8 +13,9 @@ parses the imports of the source tree with `ast` and fails when
   reads configuration, predictions, measurements or EMS state,
 - parameter preparation imports EMS state or the server,
 - a module of an optimizer other than `<name>optimizer.py`, its package `__init__.py` and the
-  parameter preparation itself imports the parameter preparation or the optimizer's own package
-  (which may re-export it), so no other module reaches the configuration through it,
+  parameter preparation itself imports the parameter preparation, the optimizer's own package or
+  `<name>optimizer.py` (both may re-export it; only the package imports `<name>optimizer.py`), so
+  no other module reaches the configuration through it,
 - a module other than settings, request, preparation and API
   ([0010](0010-one-directory-and-one-naming-scheme-per-optimizer.md)) imports Pydantic
   ([0009](0009-optimization-parameters-are-dataclasses.md)).
