@@ -14,9 +14,10 @@ and how to set a **development version** after the release.
 | 1    | Contributor | Prepare a release branch **in your fork** |
 | 2    | Contributor | Open a **Pull Request to upstream** (`Akkudoktor-EOS/EOS`) |
 | 3    | Maintainer  | Review and **merge the release PR** |
-| 4    | CI          | Create the **GitHub Release and tag** |
+| 4    | CI          | Create the **release tag** and build the **Docker images** |
 | 5    | CI          | Open a **Pull Request to set the development version marker** |
 | 6    | Maintainer  | Review and **merge the development version PR** |
+| 7    | Maintainer  | Publish the **GitHub Release** for the tag |
 
 ## 🔄 Detailed Workflow
 
@@ -130,16 +131,17 @@ See `CHANGELOG.md` for full details.
 - Prefer **Merge Commit** (or **Squash Merge**, per project preference)
 - Use commit message: `chore: Prepare Release vX.Y.Z`
 
-### 4️⃣ CI: Publish the GitHub Release
+### 4️⃣ CI: Tag the Release and Build the Docker Images
 
-The new release will automatically be published by the GitHub CI action.
-See `.github/workflows/bump-version.yml` for details.
+The CI runs `.github/workflows/bump-version.yml` for the release commit.
 
 The workflow tags the release commit `vX.Y.Z` and starts `.github/workflows/docker-build.yml` for
 the tag. That run pushes the Docker images with the tags `X.Y.Z` and `X.Y` to Docker Hub
 (`akkudoktor/eos`) and GHCR (`ghcr.io/akkudoktor-eos/eos`). Check that both tags exist after the run.
 If they are missing, rerun the `Bump Version` workflow run of the release commit, or start the build
 for the tag by hand: `gh workflow run docker-build.yml --ref vX.Y.Z`.
+
+The CI does not create the GitHub Release; a maintainer publishes it in step 7.
 
 ### 5️⃣ CI: Open Pull Request for Development Version Marker
 
@@ -166,6 +168,11 @@ chore: bump dev version to vX.Y+1.0.dev
 - Prefer **Merge Commit** (or **Squash Merge**, per project preference)
 - Use commit message: `chore: bump dev version to vX.Y+1.0.dev`
 
+### 7️⃣ Maintainer: Publish the GitHub Release
+
+The CI does not create the GitHub Release. Publish it on GitHub for the tag `vX.Y.Z`
+(**Releases → Draft a new release**). Mark a release candidate (`vX.Y.ZrcN`) as a pre-release.
+
 ## ✅ Quick Reference
 
 | Step | Actor | Action |
@@ -173,6 +180,7 @@ chore: bump dev version to vX.Y+1.0.dev
 | **1. Prepare release branch** | Contributor | Bump version & changelog |
 | **2. Open release PR** | Contributor | Submit release for review |
 | **3. Review & merge release PR** | Maintainer | Finalize changes into `main` |
-| **4. Publish GitHub Release** | CI | Create tag & notify users |
+| **4. Tag release & build images** | CI | Create tag & push Docker images |
 | **5. Open development version PR** | CI | Open PR to set development marker |
 | **6. Review & merge development version PR** | Maintainer | Merge `.dev` version into `main` |
+| **7. Publish GitHub Release** | Maintainer | Publish release for the tag & notify users |
