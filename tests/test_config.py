@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from akkudoktoreos.config.config import ConfigEOS, GeneralSettings
+from akkudoktoreos.config.config import ConfigEOS, GeneralSettings, SettingsEOS
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import DevicesCommonSettings
 
@@ -949,6 +949,88 @@ class TestUnreadableConfigFile:
         saved = json.loads(unreadable_config_file.read_text(encoding="utf-8"))
         assert saved["general"]["latitude"] == 48.1
         assert saved["general"]["longitude"] == 11.5
+
+
+class TestConfigFileSources:
+    """The configuration file holds its own content and the changes made at runtime.
+
+    Values that only come from the environment or the command line, e.g. a token passed to a
+    container as environment variable, are not written to the file.
+    """
+
+    TOKEN = "test-token"
+
+    @pytest.fixture(autouse=True)
+    def config_mixin(self) -> None:
+        """Let config_eos_file create the configuration, without the ConfigMixin patch."""
+
+    @staticmethod
+    def saved_config(config: ConfigEOS) -> dict[str, Any]:
+        """Save the configuration and return the content of the configuration file."""
+        config.to_config_file()
+        config_file_path = config.general.config_file_path
+        assert config_file_path is not None
+        return json.loads(config_file_path.read_text(encoding="utf-8"))
+
+    def test_autosave_leaves_environment_value_out(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("EOS_ELECPRICE__TIBBER__ACCESS_TOKEN", self.TOKEN)
+        config_eos_file.reset_settings()
+        assert config_eos_file.elecprice.tibber.access_token == self.TOKEN
+        monkeypatch.setattr(ConfigEOS, "_config_autosave", "")
+
+        config_eos_file.autosave()
+
+        config_file_path = config_eos_file.general.config_file_path
+        assert config_file_path is not None
+        assert self.TOKEN not in config_file_path.read_text(encoding="utf-8")
+
+    def test_save_keeps_file_value_shadowed_by_environment(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        write_config_file(config_eos_file, {"server": {"port": 9000}})
+        monkeypatch.setenv("EOS_SERVER__PORT", "9500")
+        config_eos_file.reset_settings()
+        assert config_eos_file.server.port == 9500
+
+        assert self.saved_config(config_eos_file)["server"]["port"] == 9000
+
+        monkeypatch.delenv("EOS_SERVER__PORT")
+        config_eos_file.reset_settings()
+        assert config_eos_file.server.port == 9000
+
+    def test_save_leaves_command_line_value_out(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("sys.argv", ["eos.py", "--port", "9002"])
+        config_eos_file.reset_settings()
+        assert config_eos_file.server.port == 9002
+
+        assert "port" not in self.saved_config(config_eos_file).get("server", {})
+
+    def test_save_keeps_runtime_change_of_environment_value(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("EOS_SERVER__PORT", "9500")
+        config_eos_file.reset_settings()
+
+        config_eos_file.set_nested_value("server/port", 9600)
+
+        assert self.saved_config(config_eos_file)["server"]["port"] == 9600
+
+    def test_settings_update_takes_no_environment_values(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Settings given e.g. by PUT /v1/config hold only the given values."""
+        monkeypatch.setenv("EOS_ELECPRICE__TIBBER__ACCESS_TOKEN", self.TOKEN)
+        config_eos_file.reset_settings()
+
+        config_eos_file.merge_settings(SettingsEOS.model_validate({"general": {"latitude": 50.0}}))
+
+        saved = self.saved_config(config_eos_file)
+        assert saved["general"]["latitude"] == 50.0
+        assert self.TOKEN not in json.dumps(saved)
 
 
 class TestDeviceSettings:

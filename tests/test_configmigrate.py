@@ -243,6 +243,24 @@ class TestConfigMigration:
         assert result is False
         assert tmp_config_file.read_bytes() == original
 
+    def test_migrate_config_file_leaves_environment_values_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The migrated file holds the migrated content, not values of the environment."""
+        monkeypatch.setenv("EOS_ELECPRICE__TIBBER__ACCESS_TOKEN", "test-token")
+        monkeypatch.setenv("EOS_SERVER__PORT", "9001")
+        config_file = tmp_path / ConfigEOS.CONFIG_FILE_NAME
+        config_file.write_text(
+            json.dumps({"general": {"version": "0.0.0-old", "latitude": 48.1}}), encoding="utf-8"
+        )
+
+        assert configmigrate.migrate_config_file(config_file, tmp_path / "EOS.config.bak")
+
+        migrated_data = json.loads(config_file.read_text(encoding="utf-8"))
+        assert migrated_data["general"]["latitude"] == 48.1
+        assert "port" not in migrated_data.get("server", {})
+        assert "test-token" not in json.dumps(migrated_data)
+
 
     @pytest.mark.parametrize("old_file, expected_file", MIGRATION_PAIRS)
     def test_migrate_old_version_config(self, tmp_path: Path, old_file: Path, expected_file: Path):
