@@ -904,6 +904,27 @@ class TestCacheFileDecorators:
         assert f() == "result"
         assert len(calls) == 2
 
+    def test_failed_call_leaves_no_cache_file(self, cache_file_store, caplog) -> None:
+        """A call that raises caches nothing, so the next call reads no empty file (#1571)."""
+        cache_file_store.clear(clear_all=True)
+        responses: list[Exception | str] = [RuntimeError("500 Server Error"), "result"]
+
+        @cache_in_file(with_ttl="1 hour")
+        def fetch() -> str:
+            response = responses.pop(0)
+            if isinstance(response, Exception):
+                raise response
+            return response
+
+        with pytest.raises(RuntimeError, match="500 Server Error"):
+            fetch()
+        assert len(cache_file_store._store) == 0
+
+        assert fetch() == "result"
+        assert "Read failed" not in caplog.text
+        assert fetch() == "result"
+        assert responses == []
+
     def test_var_positional_arguments_are_part_of_the_key(self, cache_file_store):
         cache_file_store.clear(clear_all=True)
 

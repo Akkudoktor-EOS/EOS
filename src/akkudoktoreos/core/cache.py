@@ -1096,7 +1096,9 @@ def cache_in_file(
                     # Fail gracefully - recreate the cache file in this call
                     call_force_update = True
             if call_force_update or cache_file is None:
-                # Otherwise, call the function and save its result to the cache
+                # Otherwise, call the function and save its result to the cache.
+                # Call first: a call that raises leaves no empty cache file behind.
+                result = func(*args, **kwargs)
                 logger.debug("Created cache file for function: " + func.__name__)
                 cache_file = CacheFileStore().create(
                     key,
@@ -1107,7 +1109,6 @@ def cache_in_file(
                     until_date=expiry["until_date"],
                     with_ttl=expiry["with_ttl"],
                 )
-                result = func(*args, **kwargs)
                 try:
                     # Assure we have an empty file
                     cache_file.truncate(0)
