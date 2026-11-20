@@ -1043,6 +1043,17 @@ class TestConfigFileSources:
         saved = self.saved_config(config_eos_file)
         assert saved["server"] == {"eosdash_port": 9700}
 
+    def test_save_leaves_section_from_environment_out(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A section only the environment sets is left out with the values derived from it."""
+        monkeypatch.setenv("EOS_DEVICES__BATTERIES__HOUSE__MIN_SOC_PERCENTAGE", "20")
+        config_eos_file.reset_settings()
+        assert config_eos_file.devices.batteries is not None
+        assert config_eos_file.devices.batteries["house"].device_id == "house"
+
+        assert "devices" not in self.saved_config(config_eos_file)
+
     def test_save_keeps_value_changed_after_setup(
         self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
     ) -> None:

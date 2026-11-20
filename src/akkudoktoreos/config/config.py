@@ -139,7 +139,9 @@ def _keep_out_of_config_file(
     ``unsaved`` holds the settings of a source whose values are not saved to the configuration
     file, e.g. the environment variables. Where the configuration to save still has the value
     it was built with, it gets the value of the configuration file, or none if the file has
-    none. Values set at runtime or changed since the configuration was built are kept.
+    none. A section that neither the file nor the runtime settings hold is left out as a whole,
+    with the values derived from the source, e.g. the ID of a device. Values set at runtime or
+    changed since the configuration was built are kept.
 
     Args:
         config (dict[str, Any]): The configuration to save, changed in place.
@@ -161,18 +163,24 @@ def _keep_out_of_config_file(
             continue  # Set at runtime
         config_value = config.get(key, _MISSING)
         built_value = child(built, key)
-        if isinstance(value, dict) and value:
+        file_value = child(file, key)
+        unchanged = config_value == built_value
+        if (
+            isinstance(value, dict)
+            and value
+            and (file_value is not _MISSING or runtime_value is not _MISSING or not unchanged)
+        ):
+            # Other values may be next to the ones of the source: only take out the latter.
             if config_value is _MISSING and built_value is not _MISSING:
                 continue  # Removed since the configuration was built
             if config_value is _MISSING or isinstance(config_value, dict):
                 node: dict[str, Any] = config_value if isinstance(config_value, dict) else {}
-                _keep_out_of_config_file(node, value, built_value, child(file, key), runtime_value)
+                _keep_out_of_config_file(node, value, built_value, file_value, runtime_value)
                 if node:
                     config[key] = node
                 continue
-        if config_value != built_value:
+        if not unchanged:
             continue  # Changed since the configuration was built
-        file_value = child(file, key)
         if file_value is _MISSING:
             config.pop(key, None)
         else:
@@ -843,6 +851,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
             @functools.wraps(source)
             def remembered_source() -> dict:
+                """Settings of the source, remembered for to_config_json()."""
                 settings = source()
                 cls._unsaved_settings[source.__name__] = deepcopy(settings)
                 return settings
