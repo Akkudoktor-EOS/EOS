@@ -206,6 +206,43 @@ class TestConfigMigration:
         assert migrated_data["general"]["version"] == __version__
         assert not list(tmp_config_file.parent.glob("*.tmp"))
 
+    def test_migrate_config_file_writes_in_place_only_with_backup(
+        self, tmp_config_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A file that can not be replaced and not be backed up is left as it is."""
+        original = tmp_config_file.read_bytes()
+        monkeypatch.setattr(os, "replace", Mock(side_effect=OSError(errno.EBUSY, "busy")))
+        monkeypatch.setattr(shutil, "copy2", Mock(side_effect=OSError(errno.EACCES, "denied")))
+
+        result = configmigrate.migrate_config_file(
+            tmp_config_file, tmp_config_file.with_suffix(".bak")
+        )
+
+        assert result is False
+        assert tmp_config_file.read_bytes() == original
+
+    def test_migrate_config_file_restores_backup_if_writing_in_place_fails(
+        self, tmp_config_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        original = tmp_config_file.read_bytes()
+        monkeypatch.setattr(os, "replace", Mock(side_effect=OSError(errno.EBUSY, "busy")))
+        path_open = Path.open
+
+        def open_full_disk(path: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+            if path == tmp_config_file and "w" in mode:
+                path_open(path, "w").close()
+                raise OSError(errno.ENOSPC, "No space left on device")
+            return path_open(path, mode, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", open_full_disk)
+
+        result = configmigrate.migrate_config_file(
+            tmp_config_file, tmp_config_file.with_suffix(".bak")
+        )
+
+        assert result is False
+        assert tmp_config_file.read_bytes() == original
+
 
     @pytest.mark.parametrize("old_file, expected_file", MIGRATION_PAIRS)
     def test_migrate_old_version_config(self, tmp_path: Path, old_file: Path, expected_file: Path):
