@@ -5,7 +5,8 @@
 
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  # uv updates uv.lock together with pyproject.toml; CI checks the lockfile with --locked.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
