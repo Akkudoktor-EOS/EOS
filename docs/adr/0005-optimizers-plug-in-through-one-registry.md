@@ -9,12 +9,13 @@ package itself (`__init__.py`), which exports what the registry and the settings
 The optimizer's package owns everything specific to it: its settings model
 (`optimization.<name>`) including the validation of its horizons, its parameter preparation, run
 and solution conversion, its own REST endpoints (contributed as a router), its visualization and
-its wizard steps and its simulation devices. Removing an optimizer touches exactly four places: its package, its registry
-entry, its settings field in `OptimizationCommonSettings`, and a configuration migration step that
-drops `optimization.<name>` from existing configurations and switches `optimization.algorithm` to a
-remaining optimizer. While the baseline of the architecture test
-([0007](0007-architecture-test-with-shrinking-baseline.md)) still lists violations of the
-optimizer, their entries are deleted with it. The tests of the remaining optimizers pass unchanged.
+its wizard steps and its simulation devices. Removing an optimizer touches exactly four places in
+the production code: its package, its registry entry, its settings field in
+`OptimizationCommonSettings`, and a configuration migration step that drops `optimization.<name>`
+from existing configurations and switches `optimization.algorithm` to a remaining optimizer. What
+belongs only to the optimizer goes with it: its tests, its test data and, while the baseline of the
+architecture test ([0007](0007-architecture-test-with-shrinking-baseline.md)) still lists
+violations of the optimizer, their entries. The tests of the remaining optimizers pass unchanged.
 
 ## Considered Options
 

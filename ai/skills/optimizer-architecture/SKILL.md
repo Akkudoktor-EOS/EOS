@@ -26,18 +26,26 @@ parameters**, **solution conversion**, **warm start**. The decisions and their r
   used travel in the optimization parameters. The modules and names this
   covers are listed once, in `WORLD_MODULES`, `WORLD_NAMES` and `EMS_*` of
   `tests/test_optimizerarchitecture.py`; that list is authoritative. Among
-  them: `config`, `prediction`, `measurement`, `adapter`, `core.ems`,
-  `core.cache`, the `core.*settings` and database modules, the `core.coreabc`
-  mixins and getters, `OptimizationBase`, `OptimizationCommonSettings` and the
-  shared device configuration (`devices.settings`, `devices.profile`,
-  `devices.devices`, `devices.devicesabc`).
+  them: `config`, `prediction`, `measurement`, `adapter`, `server`,
+  `core.ems`, `core.cache`, the `core.*settings` and database modules, the
+  `core.coreabc` mixins and getters, `OptimizationBase` and the shared device
+  configuration (`devices.settings`, `devices.profile`, `devices.devices`,
+  `devices.devicesabc`). From `optimization.optimization` only the contract
+  class `OptimizationSolution` may be imported (`CONTRACT_NAMES`).
 - Parameter preparation runs once per run, never fails, never returns `None` and follows the
   "Optimization parameters are always valid" rules of the `energy-domain` skill.
 - Parameter preparation does not read EMS state either (`core.ems`,
   `get_ems()`, `EnergyManagementSystemMixin`, `StartMixin`); the energy
-  management passes the run start and the warm start as arguments.
+  management passes the run start and the warm start as arguments. No part of
+  an optimizer, its preparation included, imports `akkudoktoreos.server`.
+- Only `<name>optimizer.py`, the package `__init__.py` and the parameter
+  preparation itself import the parameter preparation. Any other module would
+  reach the configuration through it. The package may re-export the
+  preparation, so the other modules do not import their own package either.
 
 ## The interface
+
+This is the one maintained copy of the interface; ADR 0006 records the decision and links here.
 
 ```python
 class Optimizer(Protocol[P, Q, R]):
@@ -73,7 +81,7 @@ class Optimizer(Protocol[P, Q, R]):
 Everything of an optimizer lives in `src/akkudoktoreos/optimization/<name>/`,
 `<name>` being the optimizer's name in lowercase (`genetic`, `genetic0`); its
 simulation devices in `devices/` below it. Modules are `<name><role>.py`,
-classes `<Name><Role>`:
+classes `<Name><Role>`. This table is the one maintained copy; ADR 0010 links here.
 
 | Role | Module | Class | Kind |
 |---|---|---|---|
@@ -86,13 +94,13 @@ classes `<Name><Role>`:
 | result | `<name>result.py` | `<Name>Result` | dataclass, output of `run()` |
 | simulation | `<name>simulation.py`, `devices/<name><device>.py` | `<Name><Device>`, `<Name><Device>Parameters` | dataclass parameters |
 | conversion | `<name>convert.py` | `convert()` | |
-| visualization | `<name>visualize.py` | | |
-| API | `<name>api.py` | REST router | |
+| visualization | `<name>visualize.py` | | renders parameters and result |
+| API | `<name>api.py` | REST router | fed by FastAPI dependencies |
 
 - A new module that fits no role still gets the `<name>` prefix. Do not
   invent a second name for an existing role.
-- Dataclasses are `@dataclass(frozen=True, slots=True)`; time series are
-  NumPy arrays. A run never changes its inputs.
+- Dataclasses are `@dataclass(frozen=True, slots=True)`. A run never changes
+  its inputs.
 - Only `<name>settings.py`, `<name>request.py`, parameter preparation and
   `<name>api.py` may import `pydantic` or `akkudoktoreos.core.pydantic`.
 
@@ -113,7 +121,9 @@ classes `<Name><Role>`:
   (`optimization/<name>/__init__.py`), which exports what the registry and the
   settings field need. Converting device
   settings into an optimizer's device parameters belongs to that optimizer's parameter
-  preparation, not to `devices/settings/`.
+  preparation, not to `devices/settings/`: the shared device configuration
+  (`devices.settings`, `devices.profile`, `devices.devices`, `devices.devicesabc`)
+  never imports an optimizer, not even its package.
 
 ## What an optimizer owns
 
@@ -127,19 +137,21 @@ None of these gets an exception from the hard rule (ADR 0011):
 
 - `<name>visualize.py` renders from the optimization parameters and result
   only, like `convert()`.
-- `<name>api.py` fetches nothing itself: the generic server injects the last
-  parameters and result and the run trigger as FastAPI dependencies. It
-  imports FastAPI, Pydantic and its request, never configuration or EMS.
+- `<name>api.py` fetches nothing itself. It declares placeholder dependency
+  functions for the last parameters and result and the run trigger; the
+  generic server fills them in through `app.dependency_overrides` from the
+  registry. It imports FastAPI, Pydantic and its request, never
+  configuration, EMS state or `akkudoktoreos.server`.
 - Wizard steps are field metadata in `<name>settings.py` that EOSdash reads;
   no EOSdash code inside an optimizer.
 
-Removing an optimizer touches exactly: its directory, its registry entry, its static settings field
-in `OptimizationCommonSettings`, and a configuration migration step that drops
-`optimization.<name>` and switches `optimization.algorithm` to a remaining optimizer. If a change
-makes removal need anything else, it breaks this rule. (While the
-architecture test's `BASELINE` lists violations of the optimizer, delete those
-entries too.) The remaining optimizers' tests pass
-unchanged.
+Removing an optimizer touches exactly four places in the production code: its directory, its
+registry entry, its static settings field in `OptimizationCommonSettings`, and a configuration
+migration step that drops `optimization.<name>` and switches `optimization.algorithm` to a
+remaining optimizer. If a change makes removal need anything else, it breaks this rule. What
+belongs only to the optimizer goes with it: its tests, its test data and, while the architecture
+test's `BASELINE` lists violations of the optimizer, those entries. The remaining optimizers'
+tests pass unchanged.
 
 ## Enforcement
 
@@ -148,8 +160,9 @@ against `BASELINE`, the violations that existed when it was introduced.
 
 - Parameter preparation is recognised by file name:
   `optimization/<name>/<name>prepare.py` or a subpackage
-  `optimization/<name>/prepare/`. Only there may an optimizer import the
-  modules and names of the hard rule, except EMS state.
+  `optimization/<name>/prepare/` (a package; a plain `prepare.py` does not
+  count). Only there may an optimizer import the modules and names of the hard
+  rule, except EMS state and the server.
 - When you find another module or helper that reads configuration,
   predictions, measurements or EMS state, add it to the list in the test.
   That is the only case in which `BASELINE` may grow: by the existing uses the

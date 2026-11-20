@@ -1,18 +1,12 @@
 # Optimizers implement prepare, run and convert
 
 Every optimizer follows the same three-step interface, so the energy management can drive any of
-them the same way and every run can be replayed from its optimization parameters:
-
-```python
-class Optimizer(Protocol[P, Q, R]):
-    name: str
-    async def prepare(self, start_datetime: DateTime, warm_start: R | None) -> P
-    async def prepare_from_request(
-        self, request: Q, start_datetime: DateTime, warm_start: R | None
-    ) -> P
-    def run(self, parameters: P) -> R
-    def convert(self, parameters: P, result: R) -> tuple[OptimizationSolution, EnergyManagementPlan]
-```
+them the same way and every run can be replayed from its optimization parameters. The interface is
+a `Protocol` generic in the optimizer's optimization parameters `P`, optimization request `Q` and
+optimization result `R`, with `prepare()` and `prepare_from_request()` (asynchronous, given the run
+start and the warm start), `run()` and `convert()`, the latter returning the optimization solution
+and the energy management plan. Its current signature is kept in one place, the
+`optimizer-architecture` skill (`ai/skills/optimizer-architecture/SKILL.md`).
 
 - `prepare()` is the parameter preparation. It never fails and never returns `None` (see the
   `energy-domain` skill); the energy management never cancels a run because of it.

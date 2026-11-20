@@ -7,17 +7,26 @@ parses the imports of the source tree with `ast` and fails when
 
 - an optimizer imports another optimizer,
 - code outside an optimizer imports anything from it but its packages themselves (`__init__.py`),
+- the shared device configuration imports an optimizer at all, so settings cannot build optimization
+  parameters ([0004](0004-optimizers-duplicate-code-instead-of-sharing-it.md)),
 - a module of an optimizer other than its parameter preparation imports a module or name that
   reads configuration, predictions, measurements or EMS state,
-- parameter preparation imports EMS state,
+- parameter preparation imports EMS state or the server,
+- a module of an optimizer other than `<name>optimizer.py`, its package `__init__.py` and the
+  parameter preparation itself imports the parameter preparation or the optimizer's own package
+  (which may re-export it), so no other module reaches the configuration through it,
 - a module other than settings, request, preparation and API
   ([0010](0010-one-directory-and-one-naming-scheme-per-optimizer.md)) imports Pydantic
   ([0009](0009-optimization-parameters-are-dataclasses.md)).
 
 The test holds the one authoritative list of these modules and names, including helpers that read
-the configuration and the shared device configuration (`devices.settings`, `devices.profile`,
-`devices.devices`, `devices.devicesabc`). Parameter preparation is recognized by its file name,
-`optimization/<name>/<name>prepare.py` or a subpackage `optimization/<name>/prepare/`; the settings
+the configuration, the server (`akkudoktoreos.server`,
+[0011](0011-optimizer-api-visualization-and-wizard-get-no-exception.md)), the shared device
+configuration (`devices.settings`, `devices.profile`, `devices.devices`, `devices.devicesabc`) and
+the contract classes that may be imported from a module that mixes them with configuration
+(`optimization.optimization`). Parameter preparation is recognized by its file name,
+`optimization/<name>/<name>prepare.py` or a subpackage `optimization/<name>/prepare/` (a plain
+module `prepare.py` does not count); the settings
 model `optimization/<name>/<name>settings.py` may import `config.configabc` to define
 `optimization.<name>`. The test discovers the optimizers (every package under `optimization/`), so
 adding one does not touch it; until the simulation devices have moved into the optimizer

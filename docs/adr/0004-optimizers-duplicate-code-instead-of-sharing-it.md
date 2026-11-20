@@ -10,7 +10,8 @@ predictions and measurements. It never imports another optimizer, and it does no
 physics: helpers such as efficiency curve interpolation or the AC/DC energy solvers are copied into
 each optimizer that needs them. Code outside an optimizer never imports the optimizer's internals;
 converting device settings into an optimizer's device parameters is part of that optimizer's
-parameter preparation, not of the settings.
+parameter preparation, not of the settings: the shared device configuration never imports an
+optimizer, not even its package.
 
 ## Considered Options
 
@@ -27,7 +28,8 @@ parameter preparation, not of the settings.
   that optimizer.
 - The output contract still lives in `optimization/optimization.py` together with
   `OptimizationCommonSettings`; it moves to a module of its own during the migration. Until then
-  only the contract classes may be imported from there outside parameter preparation.
+  only the contract classes (`OptimizationSolution`) may be imported from there outside parameter
+  preparation; the architecture test lists them.
 - The operation-mode enums and settings-side resolution stay shared because they describe the
   configuration, not an optimizer; an optimizer translates them into its own types during
   parameter preparation.

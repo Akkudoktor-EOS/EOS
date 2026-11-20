@@ -44,6 +44,26 @@ _Avoid_: start solution, previous solution
 The complete, valid input set handed to one optimizer for one optimization run.
 _Avoid_: optimization input, request parameters
 
+**Simulation device**:
+An optimizer's own model of a device (battery, inverter, home appliance, ...) that its simulation
+steps through an optimization run, built only from the optimization parameters.
+_Avoid_: device (for this), device settings
+
+**EMS state**:
+What the energy management keeps between optimization runs, such as the run start, the last
+results and the run cache; it reaches an optimizer only as arguments of parameter preparation.
+_Avoid_: EMS data
+
+**Golden input**:
+A stored optimizer input whose expected output (optimization solution or optimization result) is
+kept with it, so a test can show that a refactoring does not change results.
+_Avoid_: test fixture (for this), reference data
+
+**Replay file**:
+A golden input made of complete optimization parameters plus the expected optimization result, so
+an optimization run can be repeated without configuration, predictions or measurements.
+_Avoid_: snapshot, recording
+
 **Fallback value**:
 A default or heuristic value that replaces an invalid or missing input while the optimization
 parameters are prepared, always reported as an error.
