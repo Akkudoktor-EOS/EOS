@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write   # Required for pushing commits and tags
   pull-requests: write   # Required to create a pull request
+  actions: write   # Required to start the Docker image build for the release tag
 
 concurrency:
   group: bump-version-main
@@ -63,7 +64,18 @@ jobs:
             echo "tagged=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # --- Step 6: Create PR to bump to dev version ---
+      # --- Step 6: Build the Docker images of the release ---
+      # The tag pushed with GITHUB_TOKEN does not trigger docker-build.yml; a workflow_dispatch
+      # event does. Runs before the dev version PR, so a failing PR step does not skip it.
+      - name: Start Docker image build for the release tag
+        if: steps.tagging.outputs.tagged == 'true'
+        run: |
+          gh workflow run docker-build.yml --ref "$TAG"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.calc.outputs.version }}
+
+      # --- Step 7: Create PR to bump to dev version ---
       - name: Bump dev version and create PR
         if: "!contains(steps.calc.outputs.version, 'dev')"
         run: |
