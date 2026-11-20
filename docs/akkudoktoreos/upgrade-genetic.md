@@ -30,9 +30,10 @@ Device collections now use stable names. For example, `devices.batteries.0` beco
 your migrated configuration; do not assume the example name. An explicit `device_id`
 must match its map key, and the inverter must refer to the correct battery ID.
 
-Supported old device lists migrate automatically. External configuration paths in
-automations and scripts do not. Check those paths and the saved configuration after
-migration. Battery wear cost is named `levelized_cost_of_storage_amt_kwh`.
+Supported old device lists migrate automatically. The configuration paths of the Home
+Assistant adapter (`adapter.homeassistant.config_entity_ids`) follow the device IDs.
+External configuration paths in automations and scripts do not. Check those paths and the
+saved configuration after migration. Battery wear cost is named `levelized_cost_of_storage_amt_kwh`.
 
 The new GENETIC currently supports one inverter, one stationary battery, one EV and
 multiple household appliances. Surplus devices and a battery not linked to the inverter are
