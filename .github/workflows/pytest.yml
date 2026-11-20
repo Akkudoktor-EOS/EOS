@@ -53,7 +53,7 @@ jobs:
 
       - name: Sync environment with uv
         run: |
-          uv sync --extra dev
+          uv sync --locked --extra dev
 
       - name: Run tests
         # --durations lists the slowest tests of the shard. The junit report holds the
@@ -298,7 +298,7 @@ jobs:
 
       - name: Sync environment with uv
         run: |
-          uv sync --extra dev
+          uv sync --locked --extra dev
 
       - name: Install Chromium with its system libraries
         run: |
