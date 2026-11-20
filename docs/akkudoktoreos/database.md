@@ -373,7 +373,7 @@ db_insert_record(record, mark_dirty=True)
 ### Retrieval
 
 ```python
-db_get_record(target_timestamp, time_window=None)
+db_get_record(target_timestamp, time_window=None, record_filter=None)
 ```
 
 **Search Strategies:**
@@ -383,6 +383,10 @@ db_get_record(target_timestamp, time_window=None)
 | `None` | Exact match only |
 | `UNBOUND_WINDOW` | Nearest record (unlimited search) |
 | `Duration` | Nearest within symmetric window |
+
+With `record_filter`, only records for which the filter returns `True` count, e.g. records
+holding a value for a key (`key_to_value` uses this). The nearest-record search walks outwards
+from the target to the first matching record on each side, within the window.
 
 **Memory-First:** Checks in-memory index before querying database.
 

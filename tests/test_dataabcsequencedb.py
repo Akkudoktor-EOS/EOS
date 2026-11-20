@@ -300,6 +300,34 @@ class TestDataSequenceDatabaseProtocol:
         assert sequence.records[0].temperature == 23.0
         assert sequence.records[-1].temperature == 26.0
 
+    async def test_key_to_value_reads_the_window_end_from_storage(
+        self, async_database_instance
+    ) -> None:
+        """A stored value at the closed upper window bound is found with a cold cache."""
+        sequence = SampleDataSequence()
+        await _reset_sequence_state(sequence)
+        target = to_datetime("2024-01-01T10:00:00Z")
+        await sequence.db_insert_record(
+            SampleDataRecord(date_time=target.add(seconds=2), temperature=21.0)
+        )
+        await sequence.db_insert_record(
+            SampleDataRecord(
+                date_time=target.add(hours=1, seconds=1, microseconds=500000), temperature=22.0
+            )
+        )
+        await sequence.db_save_records()
+
+        # 4 s window: the value 2 s after the target is on the upper bound.
+        await _reset_sequence_state(sequence)
+        value = await sequence.key_to_value("temperature", target, time_window=to_duration(4))
+        assert value == 21.0
+        # 3.6 s window: the value 1.5 s after the target is in the last second of the window.
+        await _reset_sequence_state(sequence)
+        value = await sequence.key_to_value(
+            "temperature", target.add(hours=1), time_window=to_duration(3.6)
+        )
+        assert value == 22.0
+
     async def test_iterate_records_triggers_lazy_load(self, async_database_instance):
         sequence = SampleDataSequence()
         await _reset_sequence_state(sequence)

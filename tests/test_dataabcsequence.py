@@ -956,6 +956,64 @@ class TestDataSequence:
         result = await sequence.key_to_value("data_value", datetime(2023, 11, 5, 12), time_window=to_duration("48 hours"))
         assert result == 1.0
 
+    async def test_key_to_value_skips_nearer_record_without_the_key(self, sequence) -> None:
+        """A record written for another key a second later does not hide the value.
+
+        Feeders write measurement keys one at a time, seconds apart. Every write
+        creates its own record, in which all other keys are None.
+        """
+        t0 = to_datetime("2024-01-15T10:00:00+00:00")
+        await sequence.update_value(t0, "temp", 3.0)
+        await sequence.update_value(t0.add(seconds=1), "data_value", 0.5)
+
+        window = to_duration("1 hour")
+        assert await sequence.key_to_value("temp", t0.add(minutes=1), time_window=window) == 3.0
+        assert await sequence.key_to_value("temp", t0.add(seconds=1), time_window=window) == 3.0
+        assert await sequence.key_to_value("data_value", t0, time_window=window) == 0.5
+
+    async def test_key_to_value_skips_nan_and_takes_nearest_valid_side(self, sequence) -> None:
+        """NaN counts as missing; the nearest valid value wins on either side."""
+        t0 = to_datetime("2024-01-15T10:00:00+00:00")
+        await sequence.update_value(t0, "temp", 3.0)
+        await sequence.update_value(t0.add(minutes=4), "temp", float("nan"))
+        await sequence.update_value(t0.add(minutes=6), "temp", 7.0)
+
+        window = to_duration("1 hour")
+        # The NaN at 10:04 is skipped: 10:06 is nearer to 10:04 than 10:00 ...
+        assert await sequence.key_to_value("temp", t0.add(minutes=4), time_window=window) == 7.0
+        # ... and 10:00 is nearer to 10:02 than 10:06.
+        assert await sequence.key_to_value("temp", t0.add(minutes=2), time_window=window) == 3.0
+
+    async def test_key_to_value_keeps_fractional_seconds(self, sequence) -> None:
+        """Distances keep fractional seconds, for the nearest value and the window bounds."""
+        t0 = to_datetime("2024-01-15T10:00:00+00:00")
+        await sequence.update_value(t0, "data_value", 0.5)
+        await sequence.update_value(t0.subtract(microseconds=100000), "temp", 1.0)
+        await sequence.update_value(t0.add(seconds=1, microseconds=900000), "temp", 2.0)
+        await sequence.update_value(t0.subtract(seconds=2, microseconds=100000), "solar_power", 3.0)
+        await sequence.update_value(t0.add(seconds=1, microseconds=900000), "solar_power", 4.0)
+
+        # 09:59:59.9 is 0.1 s before the target, 10:00:01.9 is 1.9 s after it.
+        assert await sequence.key_to_value("temp", t0, time_window=to_duration(4)) == 1.0
+        # Both values are more than 1.8 s away (2.1 s and 1.9 s).
+        assert await sequence.key_to_value("solar_power", t0, time_window=to_duration(3.6)) is None
+        assert await sequence.key_to_value("solar_power", t0, time_window=to_duration(4)) == 4.0
+
+    async def test_key_to_value_ignores_values_outside_the_window(self, sequence) -> None:
+        """A valid value outside the window stays out, even with other records inside."""
+        t0 = to_datetime("2024-01-15T10:00:00+00:00")
+        await sequence.update_value(t0, "temp", 3.0)
+        await sequence.update_value(t0.add(minutes=50), "data_value", 0.5)
+
+        # The 1 hour window spans 10:30 ... 11:30 around 11:00.
+        result = await sequence.key_to_value(
+            "temp", t0.add(hours=1), time_window=to_duration("1 hour")
+        )
+        assert result is None
+        # Exact match only without a window.
+        assert await sequence.key_to_value("temp", t0.add(minutes=50)) is None
+        assert await sequence.key_to_value("temp", t0) == 3.0
+
     async def test_key_to_dict(self, sequence):
         record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
         record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)

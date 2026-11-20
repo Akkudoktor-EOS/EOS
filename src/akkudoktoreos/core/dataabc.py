@@ -1077,12 +1077,17 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecordT], Generic[Da
     ) -> Optional[float]:
         """Returns the value corresponding to the specified key that is nearest to the given datetime.
 
+        Only records with a value for the key count. Records where the key is None
+        or NaN are skipped, e.g. a record that was written for another key a few
+        seconds later.
+
         Args:
             key (str): The key of the attribute in DataRecord to extract.
             target_datetime (datetime): The datetime to search for.
             time_window: Optional total width of the symmetric search window centered on
-                ``target_datetime``. If provided and no exact match exists, the nearest
-                record within this window is returned.
+                ``target_datetime``. If provided, the nearest valid value within this
+                window is returned; of two equally near values the later one. If not
+                provided, only a record at exactly ``target_datetime`` counts.
 
         Returns:
             Optional[float]: The value nearest to the given datetime, or None if no valid records are found.
@@ -1095,7 +1100,11 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecordT], Generic[Da
         # Ensure datetime objects are normalized
         db_target = DatabaseTimestamp.from_datetime(to_datetime(target_datetime))
 
-        record = await self.db_get_record(db_target, time_window=time_window)
+        record = await self.db_get_record(
+            db_target,
+            time_window=time_window,
+            record_filter=lambda record: not pd.isna(getattr(record, key, None)),
+        )
 
         return getattr(record, key, None)
 

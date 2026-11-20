@@ -137,7 +137,7 @@ These methods do not modify sequence state and require no locking:
 | `key_to_lists(key, ...)` | Extract parallel date and value lists. |
 | `key_to_series(key, ...)` | Extract a `pd.Series` indexed by datetime. |
 | `key_to_array(key, ...)` | Extract a resampled `np.ndarray` at a fixed interval. |
-| `key_to_value(key, dt)` | Scalar lookup nearest to a datetime. |
+| `key_to_value(key, dt)` | Nearest valid value of a key to a datetime (records without the key are skipped). |
 | `to_dataframe(...)` | Convert all records to a `pd.DataFrame`. |
 | `delete_by_datetime(...)` | Delete records within a datetime range. |
 | `key_delete_by_datetime(key, ...)` | Set a field to `None` across a datetime range. |
