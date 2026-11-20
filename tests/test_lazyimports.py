@@ -31,12 +31,15 @@ LAZY_MODULES = [
 
 PROBE = """
 import json
+import os
 import sys
+from pathlib import Path
 
 import akkudoktoreos.server.eos  # noqa: F401
 from akkudoktoreos.core.coreabc import get_config, get_prediction, singletons_init
 
 config = get_config(init=True)
+assert config.general.config_file_path.parent.resolve() == Path(os.environ["EOS_CONFIG_DIR"]).resolve()
 singletons_init()
 get_prediction()
 assert config.general.timezone == "Europe/Berlin", config.general.timezone
@@ -46,6 +49,8 @@ print("LOADED_MODULES=" + json.dumps(loaded))
 
 
 def _loaded_modules(tmp_path: Path, extra_env: dict[str, str]) -> list[str]:
+    # An existing file keeps discovery from falling back to the user's configuration.
+    (tmp_path / "EOS.config.json").write_text("{}", encoding="utf-8")
     env = {key: value for key, value in os.environ.items() if not key.startswith("EOS_")}
     env.update(
         {
