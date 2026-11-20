@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -112,7 +112,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = "==2.4.1" },
     { name = "myst-parser", marker = "extra == 'dev'", specifier = "==5.1.0" },
     { name = "numpy", specifier = "==2.4.6" },
-    { name = "numpydantic", specifier = "==1.10.0" },
+    { name = "numpydantic", specifier = "==2.0.0" },
     { name = "pandas", specifier = "==3.1.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'", specifier = "==3.0.5.260914" },
     { name = "pendulum", specifier = "==3.3.0" },
@@ -2411,15 +2411,15 @@ wheels = [
 
 [[package]]
 name = "numpydantic"
-version = "1.10.0"
+version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/5c/0cfed22c6483338c73d2faf182d863c47836e5f8f34e65b70aea345e7b72/numpydantic-1.10.0.tar.gz", hash = "sha256:a17d5ccc3b893c4a2e539c81c2f18960d70884ad7fcaa09c9eb56a95e8daf4a3", size = 98771, upload-time = "2026-06-22T22:04:46.251Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/58/2e793ce9251635a1bef0e710d6d4edc942e8a8fee87101efdc7bce2d2293/numpydantic-2.0.0.tar.gz", hash = "sha256:453f79b6baa99ee7da9c93e5ca8ae3d27ec50f047017cd55837f0756f512165e", size = 121478, upload-time = "2026-11-06T01:35:51.815Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/15/0dd8e1ff306f97bee18a3ef024bb694f9043ee57474c57f7330f90804cae/numpydantic-1.10.0-py3-none-any.whl", hash = "sha256:1c62a445d305da69a5fa4510f7e7e1c25218f58fe462e5d59548042f1f769e66", size = 101858, upload-time = "2026-06-22T22:04:44.918Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/4f/d94494727776a175def405c558b6fbaa1d66f0628df88c4aadaa10abd35f/numpydantic-2.0.0-py3-none-any.whl", hash = "sha256:244453a66fd138e0cceaac123edb6041be6d3b6a50ddcdb3b7b87de333860b03", size = 89063, upload-time = "2026-11-06T01:35:50.473Z" },
 ]
 
 [[package]]
