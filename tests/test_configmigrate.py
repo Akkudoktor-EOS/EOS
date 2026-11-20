@@ -561,6 +561,123 @@ class TestDeviceMigration:
             "general/latitude": "sensor.latitude",
         }
 
+    def test_migration_of_home_assistant_config_paths_with_list_positions(self) -> None:
+        """Devices were lists: config paths with a list position follow the device id."""
+        raw = {
+            "devices": {
+                "batteries": [{"device_id": "battery1", "capacity_wh": 10000}],
+                # No device_id: the device migrates to the key "ev0".
+                "electric_vehicles": [{"capacity_wh": 60000}],
+                "inverters": [{"device_id": "inverter1", "max_power_w": 8000}],
+                "home_appliances": [
+                    {"device_id": "dishwasher", "consumption_wh": 2000, "duration_h": 3},
+                ],
+            },
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/0/capacity_wh": "input_number.capacity",
+                        "devices/batteries/0/min_soc_percentage": "input_number.min_soc",
+                        "devices/batteries/0/max_charge_power_w": "input_number.charge_limit",
+                        "devices/electric_vehicles/0/min_soc_percentage": "input_number.ev_min_soc",
+                        "devices/inverters/0/max_power_w": "input_number.inverter_power",
+                        "devices/home_appliances/0/consumption_wh": "input_number.dishwasher_wh",
+                        # Already addressed by device id.
+                        "devices/batteries/battery1/max_soc_percentage": "input_number.max_soc",
+                    }
+                }
+            },
+        }
+        migrated = migrate_config_data(raw)
+        entity_ids = migrated.adapter.homeassistant.config_entity_ids
+        assert entity_ids == {
+            "devices/batteries/battery1/profile_adjustment/nominal_capacity_wh": (
+                "input_number.capacity"
+            ),
+            "devices/batteries/battery1/min_soc_percentage": "input_number.min_soc",
+            "devices/batteries/battery1/profile_adjustment/max_charge_power_w": (
+                "input_number.charge_limit"
+            ),
+            "devices/batteries/battery1/profile_adjustment/max_discharge_power_w": (
+                "input_number.charge_limit"
+            ),
+            "devices/electric_vehicles/ev0/min_soc_percentage": "input_number.ev_min_soc",
+            "devices/inverters/inverter1/profile_adjustment/nominal_power_w": (
+                "input_number.inverter_power"
+            ),
+            "devices/home_appliances/dishwasher/consumption_wh": "input_number.dishwasher_wh",
+            "devices/batteries/battery1/max_soc_percentage": "input_number.max_soc",
+        }
+        # Every path names an existing setting, as the Home Assistant adapter requires.
+        assert entity_ids is not None
+        for path in entity_ids:
+            migrated.get_nested_value(path)
+
+    def test_migration_keeps_home_assistant_config_paths_of_device_maps(self) -> None:
+        """Device maps are keyed by device id already, also when an id looks like a position."""
+        raw = {
+            "devices": {"batteries": {"0": {"device_id": "0", "min_soc_percentage": 10}}},
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/0/min_soc_percentage": "input_number.min_soc",
+                    }
+                }
+            },
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/0/min_soc_percentage": "input_number.min_soc",
+        }
+
+    def test_migration_warns_about_a_home_assistant_config_path_without_device(self) -> None:
+        """A list position without a device is kept and named in a warning."""
+        from loguru import logger
+
+        raw = {
+            "devices": {"batteries": [{"device_id": "battery1"}]},
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/1/min_soc_percentage": "input_number.min_soc",
+                        "devices/electric_vehicles/0/min_soc_percentage": "input_number.ev",
+                    }
+                }
+            },
+        }
+        messages: list[str] = []
+        sink_id = logger.add(
+            lambda message: messages.append(message.record["message"]), level="WARNING"
+        )
+        try:
+            migrated = migrate_config_data(raw)
+        finally:
+            logger.remove(sink_id)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/1/min_soc_percentage": "input_number.min_soc",
+            "devices/electric_vehicles/0/min_soc_percentage": "input_number.ev",
+        }
+        assert any("devices/batteries/1/min_soc_percentage" in m for m in messages)
+        assert any("devices/electric_vehicles/0/min_soc_percentage" in m for m in messages)
+
+    def test_migration_prefers_the_home_assistant_config_path_with_list_position(self) -> None:
+        """With device lists only the list position addressed a device; it wins over the id."""
+        raw = {
+            "devices": {"batteries": [{"device_id": "battery1"}]},
+            "adapter": {
+                "homeassistant": {
+                    "config_entity_ids": {
+                        "devices/batteries/battery1/min_soc_percentage": "input_number.by_id",
+                        "devices/batteries/0/min_soc_percentage": "input_number.by_position",
+                    }
+                }
+            },
+        }
+        migrated = migrate_config_data(raw)
+        assert migrated.adapter.homeassistant.config_entity_ids == {
+            "devices/batteries/battery1/min_soc_percentage": "input_number.by_position",
+        }
+
     def test_migrate_config_file_keeps_charge_power_limit(self, tmp_path: Path):
         """The legacy charge power limit survives the file migration."""
         config_file = tmp_path / "EOS.config.json"

@@ -30,10 +30,27 @@ if TYPE_CHECKING:
 
 _KEEP_DEFAULT = object()
 
+# Device collections that were lists and are maps keyed by device id now, with the
+# prefix of the key a device without device_id gets: "bat" + list position -> "bat0".
+_DEVICE_KEY_PREFIXES = {
+    "batteries": "bat",
+    "electric_vehicles": "ev",
+    "inverters": "inv",
+    "home_appliances": "appliance",
+}
+
 
 # -----------------------------
 # Migration helpers
 # -----------------------------
+
+
+def _device_key(item: Dict[str, Any], prefix: str, index: int) -> Any:
+    """Return the map key of the device at list position *index* of an old device list.
+
+    The key is the device's own ``device_id``, otherwise *prefix* + *index*.
+    """
+    return item.get("device_id") or f"{prefix}{index}"
 
 
 def _list_to_device_dict(
@@ -60,9 +77,7 @@ def _list_to_device_dict(
             if not isinstance(original, dict):
                 raise ValueError("Device settings must be an object")
             item = dict(original)
-            key = (
-                (item.get("device_id") or f"{prefix}{index}") if isinstance(value, list) else index
-            )
+            key = _device_key(item, prefix, index) if isinstance(value, list) else index
             if not isinstance(key, str):
                 raise ValueError("Device identifiers must be strings")
             if key in result:
@@ -295,6 +310,76 @@ def _migrate_config_entity_ids(value: Any) -> Any:
     return result
 
 
+def _migrate_config_entity_device_positions(config_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Rewrite Home Assistant config paths that address a device by its list position.
+
+    Device collections were lists, so ``devices/batteries/0/min_soc_percentage`` addressed the
+    first battery. The path gets the key the device migrates to (see `_list_to_device_dict`),
+    e.g. ``devices/batteries/battery1/min_soc_percentage``. Paths of collections that are maps
+    already are kept. A list position without a device is kept and logged as warning. If a
+    rewritten path is configured by device id as well, the rewritten one wins, as only the
+    list position addressed a device in a list.
+
+    Args:
+        config_data (Dict[str, Any]): The configuration data to migrate.
+
+    Returns:
+        Dict[str, Any]: The configuration data, with the rewritten paths in a copy.
+    """
+    adapter = config_data.get("adapter")
+    if not isinstance(adapter, dict):
+        return config_data
+    homeassistant = adapter.get("homeassistant")
+    if not isinstance(homeassistant, dict):
+        return config_data
+    entity_ids = homeassistant.get("config_entity_ids")
+    if not isinstance(entity_ids, dict):
+        return config_data
+    devices = config_data.get("devices")
+    if not isinstance(devices, dict):
+        devices = {}
+
+    result: Dict[str, Any] = {}
+    by_position: Dict[str, Any] = {}
+    for path, entity_id in entity_ids.items():
+        parts = path.strip("/").split("/") if isinstance(path, str) else []
+        if not (
+            len(parts) >= 3
+            and parts[0] == "devices"
+            and parts[1] in _DEVICE_KEY_PREFIXES
+            and parts[2].isdecimal()
+            and not isinstance(devices.get(parts[1]), dict)
+        ):
+            result[path] = entity_id
+            continue
+        index = int(parts[2])
+        items = devices.get(parts[1])
+        item = items[index] if isinstance(items, list) and index < len(items) else None
+        key = (
+            _device_key(item, _DEVICE_KEY_PREFIXES[parts[1]], index)
+            if isinstance(item, dict)
+            else None
+        )
+        if not isinstance(key, str):
+            logger.warning(
+                f"Home Assistant config entity '{entity_id}' for '{path}': there is no device "
+                f"at list position {index}. Address the device by its device_id."
+            )
+            result[path] = entity_id
+            continue
+        by_position["/".join(["devices", parts[1], key, *parts[3:]])] = entity_id
+    for path, entity_id in by_position.items():
+        if result.get(path, entity_id) != entity_id:
+            logger.warning(
+                f"Home Assistant config entity '{result[path]}' for '{path}' is replaced by "
+                f"'{entity_id}', which addressed the device by its list position."
+            )
+        result[path] = entity_id
+
+    homeassistant = {**homeassistant, "config_entity_ids": result}
+    return {**config_data, "adapter": {**adapter, "homeassistant": homeassistant}}
+
+
 # -----------------------------
 # Global migration map constant
 # -----------------------------
@@ -335,14 +420,14 @@ MIGRATION_MAP: Dict[
     #   fields that are computed now are dropped
     "devices/batteries": (
         "devices/batteries",
-        _list_to_device_dict("bat", _migrate_battery_item),
+        _list_to_device_dict(_DEVICE_KEY_PREFIXES["batteries"], _migrate_battery_item),
     ),
     "devices/batteries/0/initial_soc_percentage": None,
     # - electric_vehicles
     #   same item migration as for batteries
     "devices/electric_vehicles": (
         "devices/electric_vehicles",
-        _list_to_device_dict("ev", _migrate_battery_item),
+        _list_to_device_dict(_DEVICE_KEY_PREFIXES["electric_vehicles"], _migrate_battery_item),
     ),
     "devices/electric_vehicles/0/initial_soc_percentage": None,
     # - inverters
@@ -350,12 +435,12 @@ MIGRATION_MAP: Dict[
     #   efficiencies come from the inverter profile now
     "devices/inverters": (
         "devices/inverters",
-        _list_to_device_dict("inv", _migrate_inverter_item),
+        _list_to_device_dict(_DEVICE_KEY_PREFIXES["inverters"], _migrate_inverter_item),
     ),
     # - home_appliances
     "devices/home_appliances": (
         "devices/home_appliances",
-        _list_to_device_dict("appliance"),
+        _list_to_device_dict(_DEVICE_KEY_PREFIXES["home_appliances"]),
     ),
     # elecfee
     # =======
@@ -509,6 +594,8 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     pv_settings = normalize_akkudoktor_settings(config_data.get("pvforecast"))
     if isinstance(pv_settings, dict):
         config_data["pvforecast"] = pv_settings
+    # Before the device lists become maps: config paths with list positions follow the device id.
+    config_data = _migrate_config_entity_device_positions(config_data)
 
     new_config = SettingsEOSDefaults()
     if isinstance(pv_settings, dict) and "akkudoktor" in pv_settings:
