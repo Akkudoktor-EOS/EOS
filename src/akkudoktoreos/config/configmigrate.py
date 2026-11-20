@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Optional,
     Set,
     Tuple,
     Union,
@@ -614,17 +615,21 @@ def remove_empty(obj: dict) -> dict:
         return obj
 
 
-def _replace_config_file(config_file: Path, content: str) -> None:
+def _replace_config_file(config_file: Path, content: str, backup_file: Optional[Path]) -> None:
     """Replace the content of the configuration file, atomically where possible.
 
     The content is written to a temporary file next to the configuration file, which then
     replaces it. If writing fails, the configuration file is left untouched. The new file keeps
-    the permission bits of the old one. A file that can not be replaced, e.g. a single-file
-    bind mount of a container, is written in place instead.
+    the permission bits of the old one.
+
+    A file that can not be replaced, e.g. a single-file bind mount of a container, is written in
+    place instead, but only if there is a backup of it. If writing in place fails, the file is
+    restored from the backup.
 
     Args:
         config_file (Path): The existing configuration file.
         content (str): The new content of the configuration file.
+        backup_file (Optional[Path]): A copy of the configuration file, None if there is none.
 
     Raises:
         OSError: If the content can not be written.
@@ -641,9 +646,15 @@ def _replace_config_file(config_file: Path, content: str) -> None:
         try:
             os.replace(tmp_name, config_file)
         except OSError as e:
+            if backup_file is None:
+                raise
             logger.debug(f"Could not replace '{config_file}' ({e}), writing it in place.")
-            with config_file.open("w", encoding="utf-8") as f_out:
-                f_out.write(content)
+            try:
+                with config_file.open("w", encoding="utf-8") as f_out:
+                    f_out.write(content)
+            except OSError:
+                shutil.copyfile(backup_file, config_file)
+                raise
     finally:
         Path(tmp_name).unlink(missing_ok=True)
 
@@ -703,8 +714,10 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
 
         # Backup existing file - we already know it is existing. Copy it: the file stays in
         # place until the migrated configuration replaces it.
+        backed_up_file: Optional[Path] = None
         try:
             shutil.copy2(config_file, backup_file)
+            backed_up_file = backup_file
             logger.info(f"Backed up old configuration to '{backup_file}'.")
         except Exception as e_copy:
             logger.warning(
@@ -713,7 +726,7 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
 
         # Write migrated configuration
         try:
-            _replace_config_file(config_file, json_str)
+            _replace_config_file(config_file, json_str, backed_up_file)
         except Exception as e_write:
             logger.error(f"Failed to write migrated configuration to '{config_file}': {e_write}")
             return False
