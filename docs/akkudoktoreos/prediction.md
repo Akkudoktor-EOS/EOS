@@ -106,6 +106,8 @@ optimization. Key considerations for updates include:
 - Only predictions with a configured provider are updated.
 - Some providers may not support all generic prediction keys, leading to potential gaps
   in updated predictions even after update.
+- A provider that fails to update does not stop the update: the other providers are still
+  updated, and the failure is reported after all providers were updated.
 
 ## Accessing Predictions
 
