@@ -149,7 +149,8 @@ of total history length.
 cheap when run frequently on small new windows.
 
 **Set to a shorter interval** (e.g. `86400`, daily) if your device records at very high
-frequency (sub-minute) and disk space is a concern.
+frequency (sub-minute) and disk space is a concern. Measurements are not compacted (see
+[Compaction](#compaction)); `keep_duration_h` limits their history.
 
 **Set to `None`** only if you have a custom retention policy and manage downsampling manually,
 or if you store data that must not be averaged (e.g. raw event logs where mean resampling
@@ -498,6 +499,10 @@ class EventLogProvider(DataProvider):
     def db_compact_tiers(self):
         return []  # Raw events must not be averaged
 ```
+
+The measurement store (`Measurement`) is never compacted this way. Averaging and interpolation would
+invent energy in meter gaps, shift cumulative meter readings, shrink `interval_energy` channels and
+drop the sample quality. Only `keep_duration_h` limits its size.
 
 ### Manual Invocation
 
