@@ -13,6 +13,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
+    Callable,
     Final,
     Generic,
     Iterable,
@@ -1370,6 +1371,7 @@ class DatabaseRecordProtocolMixin(
         target_timestamp: DatabaseTimestamp,
         *,
         time_window: DatabaseTimeWindowType = None,
+        record_filter: Optional[Callable[[T_Record], bool]] = None,
     ) -> Optional[T_Record]:
         """Get the record at or nearest to the specified timestamp.
 
@@ -1383,11 +1385,16 @@ class DatabaseRecordProtocolMixin(
         Args:
             target_timestamp: The timestamp to search for.
             time_window: Controls the search strategy (None, UNBOUND_WINDOW, Duration).
+            record_filter: Optional condition a record must meet, e.g. holding a value for
+                a key. Records that do not meet it are skipped.
 
         Returns:
             Exact match, nearest record within the window, or None.
         """
         await self._db_ensure_initialized()
+
+        def accepted(record: Optional[T_Record]) -> bool:
+            return record is not None and (record_filter is None or record_filter(record))
 
         if time_window is None:
             # Exact match only — load the minimal range containing this point
@@ -1396,7 +1403,8 @@ class DatabaseRecordProtocolMixin(
                 self._db_timestamp_after(target_timestamp),
                 center_timestamp=target_timestamp,
             )
-            return self._db_record_index.get(target_timestamp, None)
+            record = self._db_record_index.get(target_timestamp, None)
+            return record if accepted(record) else None
 
         # load the relevant range
         # in case of unbounded escalates to FULL
@@ -1405,16 +1413,28 @@ class DatabaseRecordProtocolMixin(
 
         # Exact match first (works for all three cases once loaded)
         record = self._db_record_index.get(target_timestamp, None)
-        if record is not None:
+        if accepted(record):
             return record
 
-        # Nearest-neighbour search
-        idx = bisect.bisect_left(self._db_sorted_timestamps, target_timestamp)
-        candidates = []
-        if idx < len(self._db_sorted_timestamps):
-            candidates.append(self.records[idx])
-        if idx > 0:
-            candidates.append(self.records[idx - 1])
+        # Nearest-neighbour search: walk outwards from the target on each side to the
+        # first accepted record, within the search window.
+        timestamps = self._db_sorted_timestamps
+
+        def in_window(index: int) -> bool:
+            # Window bounds on the left, so that unbounded sentinels compare correctly.
+            return (
+                0 <= index < len(timestamps)
+                and search_start <= timestamps[index]
+                and search_end >= timestamps[index]
+            )
+
+        after = bisect.bisect_left(timestamps, target_timestamp)
+        before = after - 1
+        while in_window(after) and not accepted(self.records[after]):
+            after += 1
+        while in_window(before) and not accepted(self.records[before]):
+            before -= 1
+        candidates = [self.records[index] for index in (after, before) if in_window(index)]
         if not candidates:
             return None
 
