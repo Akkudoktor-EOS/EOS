@@ -135,6 +135,10 @@ See `CHANGELOG.md` for full details.
 The new release will automatically be published by the GitHub CI action.
 See `.github/workflows/bump-version.yml` for details.
 
+The workflow tags the release commit `vX.Y.Z` and starts `.github/workflows/docker-build.yml` for
+the tag. That run pushes the Docker images with the tags `X.Y.Z` and `X.Y` to Docker Hub
+(`akkudoktor/eos`) and GHCR (`ghcr.io/akkudoktor-eos/eos`). Check that both tags exist after the run.
+
 ### 5️⃣ CI: Open Pull Request for Development Version Marker
 
 After tagging the release, the CI automatically opens a Pull Request to bump

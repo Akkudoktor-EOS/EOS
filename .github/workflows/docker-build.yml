@@ -12,6 +12,9 @@ on:
   pull_request:
     branches:
       - '**'
+  # bump-version.yml starts the build for the release tag it creates. A tag pushed with
+  # GITHUB_TOKEN does not trigger the push event above.
+  workflow_dispatch:
 
 env:
   DOCKERHUB_REPO: akkudoktor/eos
