@@ -1098,35 +1098,15 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecordT], Generic[Da
         self._validate_key(key)
 
         # Ensure datetime objects are normalized
-        target = to_datetime(target_datetime)
-        db_target = DatabaseTimestamp.from_datetime(target)
+        db_target = DatabaseTimestamp.from_datetime(to_datetime(target_datetime))
 
-        if time_window is None:
-            record = await self.db_get_record(db_target)
-            value = getattr(record, key, None)
-            return None if value is None or pd.isna(value) else value
+        record = await self.db_get_record(
+            db_target,
+            time_window=time_window,
+            record_filter=lambda record: not pd.isna(getattr(record, key, None)),
+        )
 
-        search_start, search_end = self._search_window(db_target, time_window)
-        if isinstance(search_end, DatabaseTimestamp):
-            # Like db_get_record(), accept a value at exactly half the window after the target.
-            search_end = self._db_timestamp_after(search_end)
-        max_distance = time_window.total_seconds() / 2
-
-        nearest_value = None
-        async for record in self.db_iterate_records(search_start, search_end):
-            value = getattr(record, key, None)
-            if record.date_time is None or value is None or pd.isna(value):
-                continue
-            distance = compare_datetimes(record.date_time, target).time_diff
-            if abs(distance) <= max_distance:
-                # Records come in ascending order: before the target each valid value is
-                # nearer than the previous one.
-                nearest_value, max_distance = value, abs(distance)
-            if distance >= 0:
-                # The first valid value at or after the target is the nearest on this side.
-                break
-
-        return nearest_value
+        return getattr(record, key, None)
 
     async def key_to_lists(
         self,
