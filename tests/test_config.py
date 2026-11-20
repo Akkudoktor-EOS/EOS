@@ -1032,6 +1032,45 @@ class TestConfigFileSources:
         assert saved["general"]["latitude"] == 50.0
         assert self.TOKEN not in json.dumps(saved)
 
+    def test_save_keeps_changes_next_to_environment_values(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("EOS_SERVER__PORT", "9500")
+        config_eos_file.reset_settings()
+
+        config_eos_file.server.eosdash_port = 9700
+
+        saved = self.saved_config(config_eos_file)
+        assert saved["server"] == {"eosdash_port": 9700}
+
+    def test_save_keeps_value_changed_after_setup(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A value changed in place, e.g. a list extended by an adapter, is saved."""
+        monkeypatch.setenv("EOS_MEASUREMENT__LOAD_EMR_KEYS", '["env_meter"]')
+        config_eos_file.reset_settings()
+
+        config_eos_file.measurement.load_emr_keys = ["env_meter", "adapter_meter"]
+
+        saved = self.saved_config(config_eos_file)
+        assert saved["measurement"]["load_emr_keys"] == ["env_meter", "adapter_meter"]
+
+    def test_save_keeps_collection_cleared_at_runtime(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        write_config_file(
+            config_eos_file,
+            {"devices": {"batteries": {"house": {"device_id": "house", "min_soc_percentage": 10}}}},
+        )
+        monkeypatch.setenv("EOS_DEVICES__BATTERIES__HOUSE__MIN_SOC_PERCENTAGE", "20")
+        config_eos_file.reset_settings()
+        assert config_eos_file.devices.batteries is not None
+        assert config_eos_file.devices.batteries["house"].min_soc_percentage == 20
+
+        config_eos_file.set_nested_value("devices/batteries", {})
+
+        assert "batteries" not in self.saved_config(config_eos_file).get("devices", {})
+
 
 class TestDeviceSettings:
     def test_device_map_supplies_stable_identity(self):
