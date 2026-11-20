@@ -31,6 +31,11 @@ changes.
 Use endpoint `PUT /v1/config/file` to save the current configuration to the
 `EOS configuration file`.
 
+The `EOS configuration file` keeps its own content and receives the configuration changed at
+runtime. Values that only come from command line arguments or environment variables, e.g. tokens
+passed to a container, are not saved to it; for those keys the file keeps its own value. A
+configuration migration does not add them either.
+
 ### Load Configuration File
 
 Use endpoint `POST /v1/config/reset` to reset the configuration to the values in the

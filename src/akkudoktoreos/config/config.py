@@ -9,6 +9,7 @@ Key features:
 - Managing directory setups for the application
 """
 
+import functools
 import json
 import os
 import shutil
@@ -125,6 +126,71 @@ def default_data_folder_path() -> Path:
 
     # 4. Current working directory
     return Path.cwd()
+
+
+_MISSING = object()
+
+
+def _keep_out_of_config_file(
+    config: dict[str, Any],
+    unsaved: dict[str, Any],
+    built: Any,
+    file: Any,
+    init: Any,
+    runtime: Any,
+) -> None:
+    """Replace the values of a settings source that is not saved by the config file values.
+
+    ``unsaved`` holds the settings of a source whose values are not saved to the configuration
+    file, e.g. the environment variables. Where the configuration to save still has the value
+    it was built with, it gets the value of the configuration file, or none if the file has
+    none. A section that no other settings source holds is left out as a whole, with the values
+    derived from the source, e.g. the ID of a device. Values set at runtime or changed since the
+    configuration was built are kept.
+
+    Args:
+        config (dict[str, Any]): The configuration to save, changed in place.
+        unsaved (dict[str, Any]): The settings of the source at the same level.
+        built (Any): The configuration to save as it was built, at the same level.
+        file (Any): The settings of the configuration file at the same level.
+        init (Any): The init settings at the same level.
+        runtime (Any): The runtime settings at the same level.
+    """
+
+    def child(node: Any, key: str) -> Any:
+        """Return the value of the key in node, _MISSING if there is none."""
+        return node.get(key, _MISSING) if isinstance(node, dict) else _MISSING
+
+    for key, value in unsaved.items():
+        runtime_value = child(runtime, key)
+        if runtime_value is not _MISSING and not (
+            isinstance(value, dict) and isinstance(runtime_value, dict)
+        ):
+            continue  # Set at runtime
+        config_value = config.get(key, _MISSING)
+        built_value = child(built, key)
+        file_value = child(file, key)
+        init_value = child(init, key)
+        unchanged = config_value == built_value
+        held = not all(v is _MISSING for v in (file_value, init_value, runtime_value))
+        if isinstance(value, dict) and value and (held or not unchanged):
+            # Other values may be next to the ones of the source: only take out the latter.
+            if config_value is _MISSING and built_value is not _MISSING:
+                continue  # Removed since the configuration was built
+            if config_value is _MISSING or isinstance(config_value, dict):
+                node: dict[str, Any] = config_value if isinstance(config_value, dict) else {}
+                _keep_out_of_config_file(
+                    node, value, built_value, file_value, init_value, runtime_value
+                )
+                if node:
+                    config[key] = node
+                continue
+        if not unchanged:
+            continue  # Changed since the configuration was built
+        if file_value is _MISSING:
+            config.pop(key, None)
+        else:
+            config[key] = deepcopy(file_value)
 
 
 class GeneralSettings(SettingsBaseModel):
@@ -344,6 +410,23 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
         ignored_types=(classproperty,),
     )
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[pydantic_settings.BaseSettings],
+        init_settings: pydantic_settings.PydanticBaseSettingsSource,
+        env_settings: pydantic_settings.PydanticBaseSettingsSource,
+        dotenv_settings: pydantic_settings.PydanticBaseSettingsSource,
+        file_secret_settings: pydantic_settings.PydanticBaseSettingsSource,
+    ) -> tuple[pydantic_settings.PydanticBaseSettingsSource, ...]:
+        """Take the settings only from the given values.
+
+        Settings given to EOS, e.g. by ``PUT /v1/config`` or by a configuration migration, hold
+        exactly the given values. The environment is a settings source of ``ConfigEOS`` only, so
+        its values do not become runtime settings or part of a migrated configuration file.
+        """
+        return (init_settings,)
+
 
 class SettingsEOSDefaults(SettingsEOS):
     """Settings for all of EOS with defaults.
@@ -472,6 +555,12 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     _runtime_settings: ClassVar[dict[str, Any]] = {}
     # Counts the setups and nested value changes, see `settings_generation()`.
     _settings_generation: ClassVar[int] = 0
+    # Settings of the settings sources by the last setup, by source name (see
+    # settings_customise_sources()), and the settings data built from them (see _setup()).
+    _source_settings: ClassVar[dict[str, dict[str, Any]]] = {}
+    _built_settings_data: ClassVar[Any] = None
+    # Sources whose values are not saved to the configuration file, see to_config_json().
+    _unsaved_sources: ClassVar[tuple[str, ...]] = ("cli", "env", "dotenv", "secrets")
     # A ClassVar: without the annotation pydantic makes it a private attribute,
     # and the class attribute would be a (truthy) descriptor object.
     _force_documentation_mode: ClassVar[bool] = False
@@ -760,19 +849,31 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
             return settings
 
+        def remembered(name: str, source: Callable[[], dict]) -> Callable[[], dict]:
+            """Remember the settings of a source as cls._source_settings[name]."""
+
+            @functools.wraps(source)
+            def remembered_source() -> dict:
+                """Settings of the source, remembered for to_config_json()."""
+                settings = source()
+                cls._source_settings[name] = deepcopy(settings)
+                return settings
+
+            return remembered_source
+
         # All the settings sources in priority sequence
         # The settings are all lazyly evaluated at instance creation time to allow for
         # runtime configuration.
         setting_sources = [
-            lazy_config_cli_settings,  # Prio high
+            remembered("cli", lazy_config_cli_settings),  # Prio high
             lazy_runtime_settings,  # settings provided during runtime
-            lazy_env_settings,
-            lazy_dotenv_settings,
+            remembered("env", lazy_env_settings),
+            remembered("dotenv", lazy_dotenv_settings),
             lazy_config_file_settings,  # resolves/creates config file path
-            lazy_file_settings,  # actually loads JSON config values
-            lazy_init_settings,
+            remembered("file", lazy_file_settings),  # actually loads JSON config values
+            remembered("init", lazy_init_settings),
             lazy_data_folder_path_settings,
-            lazy_file_secret_settings,  # Prio low
+            remembered("secrets", lazy_file_secret_settings),  # Prio low
         ]
 
         return tuple(setting_sources)
@@ -822,6 +923,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
         # (Re-)load settings - call base class init
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
+        # Lets to_config_json() tell which values changed after the setup
+        ConfigEOS._built_settings_data = self._settings_data()
 
         self._initialized = True
         # Lazy: rendering the configuration evaluates all computed fields, e.g.
@@ -1191,6 +1294,18 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
         return config_file_path
 
+    def _settings_data(self) -> Any:
+        """Return the settings as JSON data, without computed fields, defaults and None values."""
+        # Use model_dump_json to respect custom Pydantic serialization
+        return json.loads(
+            self.model_dump_json(
+                exclude_computed_fields=True,
+                exclude_defaults=True,
+                exclude_none=True,
+                by_alias=True,
+            )
+        )
+
     def to_config_json(self) -> str:
         """Serialize the configuration to a normalized JSON string.
 
@@ -1199,6 +1314,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         - Excludes computed fields.
         - Excludes fields set to their default values.
         - Excludes fields with value ``None``.
+        - Excludes values that only come from the command line, the environment, a dotenv
+            file or secret files, e.g. tokens; the configuration file keeps its own value for
+            them. Values set at runtime or changed since the last setup are included.
         - Uses field aliases.
         - Recursively removes empty dictionaries and lists.
         - Ensures that ``general.version`` is always present and set
@@ -1225,16 +1343,19 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             else:
                 return obj
 
-        # Use model_dump_json to respect custom Pydantic serialization
-        json_str = self.model_dump_json(
-            exclude_computed_fields=True,
-            exclude_defaults=True,
-            exclude_none=True,
-            by_alias=True,
-        )
+        root: Any = self._settings_data()
 
-        # Load as JSON
-        root: Any = json.loads(json_str)
+        if isinstance(root, dict):
+            sources = ConfigEOS._source_settings
+            for name in ConfigEOS._unsaved_sources:
+                _keep_out_of_config_file(
+                    root,
+                    sources.get(name, {}),
+                    ConfigEOS._built_settings_data,
+                    sources.get("file"),
+                    sources.get("init"),
+                    ConfigEOS._runtime_settings,
+                )
 
         # Remove empty values recursively
         cleaned_root = remove_empty(root)
