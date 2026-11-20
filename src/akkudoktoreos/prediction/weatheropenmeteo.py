@@ -36,16 +36,19 @@ WeatherDataOpenMeteoMapping: List[Tuple[str, Optional[str], Optional[Union[str, 
     ("wind_speed_10m", "Wind Speed (kmph)", 3.6),  # m/s to km/h
     ("wind_direction_10m", "Wind Direction (°)", 1),
     ("wind_gusts_10m", "Wind Gust Speed (kmph)", 3.6),  # m/s to km/h
-    ("shortwave_radiation", "Global Horizontal Irradiance (W/m2)", 1),
-    ("direct_radiation", "Direct Normal Irradiance (W/m2)", 1),
-    ("diffuse_radiation", "Diffuse Horizontal Irradiance (W/m2)", 1),
+    # Plain radiation variables are means over the preceding hour, and `direct_radiation`
+    # is the beam on the horizontal plane. EOS irradiance is the value at the record time
+    # and DNI the beam on the plane normal to the sun, so the `*_instant` variables are used.
+    ("shortwave_radiation", None, None),
+    ("direct_radiation", None, None),
+    ("diffuse_radiation", None, None),
     ("direct_normal_irradiance", None, None),
     ("global_tilted_irradiance", None, None),
     ("terrestrial_radiation", None, None),
-    ("shortwave_radiation_instant", None, None),
+    ("shortwave_radiation_instant", "Global Horizontal Irradiance (W/m2)", 1),
     ("direct_radiation_instant", None, None),
-    ("diffuse_radiation_instant", None, None),
-    ("direct_normal_irradiance_instant", None, None),
+    ("diffuse_radiation_instant", "Diffuse Horizontal Irradiance (W/m2)", 1),
+    ("direct_normal_irradiance_instant", "Direct Normal Irradiance (W/m2)", 1),
     ("global_tilted_irradiance_instant", None, None),
     ("terrestrial_radiation_instant", None, None),
     ("dew_point_2m", "Dew Point (°C)", 1),
@@ -146,9 +149,9 @@ class WeatherOpenMeteo(WeatherProvider):
                 "wind_speed_10m",
                 "wind_direction_10m",
                 "wind_gusts_10m",
-                "shortwave_radiation",  # GHI
-                "direct_radiation",  # DNI
-                "diffuse_radiation",  # DHI
+                "shortwave_radiation_instant",  # GHI
+                "direct_normal_irradiance_instant",  # DNI
+                "diffuse_radiation_instant",  # DHI
                 "dew_point_2m",
                 "apparent_temperature",
                 "precipitation_probability",
@@ -246,9 +249,9 @@ class WeatherOpenMeteo(WeatherProvider):
 
         Retrieves data from Open-Meteo, maps each Open-Meteo field to the corresponding
         `WeatherDataRecord` attribute using `WeatherDataOpenMeteoMapping`, and applies
-        any necessary scaling. Open-Meteo provides direct GHI, DNI, and DHI values which
-        are used directly without additional calculation. The final mapped and processed
-        data is inserted into the sequence as `WeatherDataRecord`.
+        any necessary scaling. Open-Meteo provides GHI, DNI, and DHI at the indicated time
+        (`*_instant`), which are used directly without additional calculation. The final
+        mapped and processed data is inserted into the sequence as `WeatherDataRecord`.
         """
         import pvlib
 
