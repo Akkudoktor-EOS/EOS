@@ -1,8 +1,10 @@
+import copy
 import json
 from pathlib import Path
 from typing import Any, Callable
 from unittest.mock import Mock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 from loguru import logger
@@ -41,6 +43,50 @@ def sample_openmeteo_2_json():
     with FILE_TESTDATA_WEATHEROPENMETEO_2_JSON.open("r", encoding="utf-8", newline=None) as f_res:
         input_data = json.load(f_res)
     return input_data
+
+
+def clear_sky_openmeteo_json(openmeteo_json: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of an Open-Meteo response with clear-sky irradiance.
+
+    The radiation variables follow the Open-Meteo API: the plain variables are means
+    over the preceding hour, the ``*_instant`` variables the irradiance at the indicated
+    time. ``direct_radiation`` is the beam on the horizontal plane,
+    ``direct_normal_irradiance`` the beam on the plane normal to the sun. The values
+    are pvlib clear-sky irradiance at one-minute resolution.
+
+    Args:
+        openmeteo_json: An Open-Meteo forecast response.
+
+    Returns:
+        A copy of the response whose radiation variables are clear-sky irradiance.
+    """
+    import pvlib
+
+    data = copy.deepcopy(openmeteo_json)
+    hourly = data["hourly"]
+    stamps = pd.DatetimeIndex(hourly["time"], tz=data["timezone"])
+    location = pvlib.location.Location(data["latitude"], data["longitude"])
+    minutes = pd.date_range(stamps[0] - pd.Timedelta(hours=1), stamps[-1], freq="1min")
+    irradiance = location.get_clearsky(minutes, model="ineichen")
+    zenith = location.get_solarposition(minutes)["apparent_zenith"]
+    irradiance["bhi"] = irradiance["dni"] * np.cos(np.radians(zenith)).clip(lower=0.0)
+    preceding_hour_mean = irradiance.rolling("1h", closed="left").mean().reindex(stamps)
+    instant = irradiance.reindex(stamps)
+    for openmeteo_key, column in (
+        ("shortwave_radiation", "ghi"),
+        ("direct_radiation", "bhi"),
+        ("diffuse_radiation", "dhi"),
+        ("direct_normal_irradiance", "dni"),
+    ):
+        hourly[openmeteo_key] = preceding_hour_mean[column].round(1).tolist()
+        hourly[f"{openmeteo_key}_instant"] = instant[column].round(1).tolist()
+    return data
+
+
+@pytest.fixture
+def sample_openmeteo_clear_sky_json(sample_openmeteo_1_json: dict[str, Any]) -> dict[str, Any]:
+    """Fixture that returns the sample forecast with clear-sky irradiance."""
+    return clear_sky_openmeteo_json(sample_openmeteo_1_json)
 
 
 @pytest.fixture
@@ -131,9 +177,9 @@ def test_request_forecast(mock_get, provider, sample_openmeteo_1_json):
     assert "hourly" in openmeteo_data
     assert "time" in openmeteo_data["hourly"]
     assert "temperature_2m" in openmeteo_data["hourly"]
-    assert "shortwave_radiation" in openmeteo_data["hourly"]  # GHI
-    assert "direct_radiation" in openmeteo_data["hourly"]     # DNI
-    assert "diffuse_radiation" in openmeteo_data["hourly"]    # DHI
+    assert "shortwave_radiation" in openmeteo_data["hourly"]
+    assert "direct_radiation" in openmeteo_data["hourly"]
+    assert "diffuse_radiation" in openmeteo_data["hourly"]
 
 
 @pytest.mark.asyncio
@@ -142,7 +188,7 @@ def test_request_forecast(mock_get, provider, sample_openmeteo_1_json):
 async def test_update_data(
     mock_get: Mock,
     provider: WeatherOpenMeteo,
-    sample_openmeteo_1_json: dict[str, Any],
+    sample_openmeteo_clear_sky_json: dict[str, Any],
     cache_store: CacheFileStore,
     set_other_timezone: Callable[[str], str],
     host_timezone: str,
@@ -152,8 +198,8 @@ async def test_update_data(
     # Mock response object
     mock_response = Mock()
     mock_response.status_code = 200
-    mock_response.json.return_value = sample_openmeteo_1_json
-    mock_response.content = json.dumps(sample_openmeteo_1_json)
+    mock_response.json.return_value = sample_openmeteo_clear_sky_json
+    mock_response.content = json.dumps(sample_openmeteo_clear_sky_json)
     mock_get.return_value = mock_response
 
     cache_store.clear(clear_all=True)
@@ -170,12 +216,12 @@ async def test_update_data(
 
     # Open-Meteo returns local wall times without offsets or seconds. Build the
     # expected instants independently of to_datetime, including midnight boundaries.
-    hourly = sample_openmeteo_1_json["hourly"]
+    hourly = sample_openmeteo_clear_sky_json["hourly"]
     expected_datetimes = pd.DatetimeIndex(hourly["time"], tz="Europe/Berlin").to_pydatetime()
     for source_key, record_key in (
-        ("shortwave_radiation", "weather_ghi"),
-        ("direct_radiation", "weather_dni"),
-        ("diffuse_radiation", "weather_dhi"),
+        ("shortwave_radiation_instant", "weather_ghi"),
+        ("direct_normal_irradiance_instant", "weather_dni"),
+        ("diffuse_radiation_instant", "weather_dhi"),
     ):
         datetimes, values = await provider.key_to_lists(record_key)
         assert list(datetimes) == list(expected_datetimes)
@@ -192,21 +238,123 @@ def test_openmeteo_radiation_mapping(provider):
     # Verify mapping contains the radiation fields
     from akkudoktoreos.prediction.weatheropenmeteo import WeatherDataOpenMeteoMapping
 
-    radiation_keys = [item[0] for item in WeatherDataOpenMeteoMapping
-                     if item[0] in ['shortwave_radiation', 'direct_radiation', 'diffuse_radiation']]
+    descriptions = {key: desc for key, desc, _ in WeatherDataOpenMeteoMapping}
 
-    assert 'shortwave_radiation' in radiation_keys
-    assert 'direct_radiation' in radiation_keys
-    assert 'diffuse_radiation' in radiation_keys
+    # Irradiance at the indicated time; DNI is the beam on the plane normal to the sun.
+    assert descriptions["shortwave_radiation_instant"] == "Global Horizontal Irradiance (W/m2)"
+    assert descriptions["direct_normal_irradiance_instant"] == "Direct Normal Irradiance (W/m2)"
+    assert descriptions["diffuse_radiation_instant"] == "Diffuse Horizontal Irradiance (W/m2)"
 
-    # Verify they map to correct descriptions
-    for key, desc, _ in WeatherDataOpenMeteoMapping:
-        if key == 'shortwave_radiation':
-            assert desc == "Global Horizontal Irradiance (W/m2)"
-        elif key == 'direct_radiation':
-            assert desc == "Direct Normal Irradiance (W/m2)"
-        elif key == 'diffuse_radiation':
-            assert desc == "Diffuse Horizontal Irradiance (W/m2)"
+    # Preceding-hour means and the beam on the horizontal plane are not mapped.
+    for key in (
+        "shortwave_radiation",
+        "direct_radiation",
+        "diffuse_radiation",
+        "direct_normal_irradiance",
+        "direct_radiation_instant",
+    ):
+        assert descriptions[key] is None
+
+
+class TestOpenMeteoIrradiance:
+    """Irradiance describes the record time, DNI the beam on the plane normal to the sun."""
+
+    @staticmethod
+    async def _update(provider: WeatherOpenMeteo, openmeteo_json: dict[str, Any]) -> None:
+        """Update the provider from an Open-Meteo response, without network access."""
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = openmeteo_json
+        response.content = json.dumps(openmeteo_json)
+        CacheFileStore().clear(clear_all=True)
+        get_ems().set_start_datetime(
+            to_datetime("2026-03-02 09:00:00+01:00", in_timezone="Europe/Berlin")
+        )
+        with patch("requests.get", return_value=response):
+            await provider.update_data(force_enable=True, force_update=True)
+
+    @staticmethod
+    async def _stored(provider: WeatherOpenMeteo, key: str) -> pd.Series:
+        """Return the stored values of a key, indexed by UTC timestamps."""
+        series = await provider.key_to_raw_series(key)
+        index = pd.DatetimeIndex([pd.Timestamp(stamp.isoformat()) for stamp in series.index])
+        return pd.Series(series.to_numpy(dtype=float), index=index.tz_convert("UTC"))
+
+    def test_requests_instantaneous_irradiance(
+        self, provider: WeatherOpenMeteo, sample_openmeteo_1_json: dict[str, Any]
+    ) -> None:
+        """Request GHI, DNI and DHI at the indicated time, DNI on the normal plane."""
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = sample_openmeteo_1_json
+        response.content = json.dumps(sample_openmeteo_1_json)
+        with patch("requests.get", return_value=response) as mock_get:
+            provider._request_forecast(force_update=True)  # type: ignore[call-arg]
+
+        requested = mock_get.call_args[1]["params"]["hourly"]
+        for openmeteo_key in (
+            "shortwave_radiation_instant",
+            "direct_normal_irradiance_instant",
+            "diffuse_radiation_instant",
+        ):
+            assert openmeteo_key in requested
+
+    @pytest.mark.asyncio
+    async def test_dni_is_beam_on_plane_normal_to_sun(
+        self,
+        provider: WeatherOpenMeteo,
+        sample_openmeteo_clear_sky_json: dict[str, Any],
+    ) -> None:
+        """Stored GHI, DNI and DHI close as GHI = DHI + DNI * cos(zenith)."""
+        import pvlib
+
+        await self._update(provider, sample_openmeteo_clear_sky_json)
+        ghi = await self._stored(provider, "weather_ghi")
+        dni = await self._stored(provider, "weather_dni")
+        dhi = await self._stored(provider, "weather_dhi")
+
+        location = pvlib.location.Location(
+            sample_openmeteo_clear_sky_json["latitude"],
+            sample_openmeteo_clear_sky_json["longitude"],
+        )
+        zenith = location.get_solarposition(ghi.index)["apparent_zenith"]
+        daylight = zenith < 70.0
+        assert daylight.sum() >= 6
+        closure = dhi + dni * np.cos(np.radians(zenith))
+        assert closure[daylight].to_list() == pytest.approx(ghi[daylight].to_list(), abs=2.0)
+
+    @pytest.mark.asyncio
+    async def test_irradiance_is_value_at_record_time(
+        self,
+        provider: WeatherOpenMeteo,
+        sample_openmeteo_clear_sky_json: dict[str, Any],
+    ) -> None:
+        """A record holds the irradiance at its time, not the mean of the preceding hour."""
+        import pvlib
+
+        await self._update(provider, sample_openmeteo_clear_sky_json)
+        ghi = await self._stored(provider, "weather_ghi")
+
+        location = pvlib.location.Location(
+            sample_openmeteo_clear_sky_json["latitude"],
+            sample_openmeteo_clear_sky_json["longitude"],
+        )
+        clear_sky_ghi = location.get_clearsky(ghi.index, model="ineichen")["ghi"]
+
+        # Late morning and noon: the value at the stamp, not the lower preceding-hour mean.
+        for stamp in ("2026-03-02 11:00:00+01:00", "2026-03-02 12:00:00+01:00"):
+            moment = pd.Timestamp(stamp).tz_convert("UTC")
+            assert ghi[moment] == pytest.approx(clear_sky_ghi[moment], rel=0.01)
+
+        # After sunset there is no irradiance, although the preceding hour had sun.
+        stamps = pd.DatetimeIndex(ghi.index)
+        elevation = location.get_solarposition(stamps)["apparent_elevation"].to_numpy()
+        elevation_hour_before = location.get_solarposition(stamps - pd.Timedelta(hours=1))[
+            "apparent_elevation"
+        ].to_numpy()
+        after_sunset = (elevation < 0.0) & (elevation_hour_before > 0.0)
+        assert after_sunset.sum() > 0
+        assert ghi[after_sunset].max() == pytest.approx(0.0, abs=0.5)
 
 
 def test_openmeteo_unit_conversions(provider):

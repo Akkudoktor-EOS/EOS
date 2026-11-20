@@ -1240,6 +1240,13 @@ The provider provides forecast data for the following prediction keys:
 - `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
+The irradiance keys hold Open-Meteo's instantaneous values at each hour
+(`shortwave_radiation_instant`, `direct_normal_irradiance_instant`,
+`diffuse_radiation_instant`), like the irradiance the BrightSky and ClearOutside providers
+derive from the cloud cover at each record time. Open-Meteo's plain radiation
+variables are means over the preceding hour, and its `direct_radiation` is the beam on the
+horizontal plane, not the direct normal irradiance.
+
 ### WeatherImport Provider
 
 The `WeatherImport` provider is designed to import weather forecast data from a file or a JSON
