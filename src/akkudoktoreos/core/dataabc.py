@@ -1077,12 +1077,17 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecordT], Generic[Da
     ) -> Optional[float]:
         """Returns the value corresponding to the specified key that is nearest to the given datetime.
 
+        Only records with a value for the key count. Records where the key is None
+        or NaN are skipped, e.g. a record that was written for another key a few
+        seconds later.
+
         Args:
             key (str): The key of the attribute in DataRecord to extract.
             target_datetime (datetime): The datetime to search for.
             time_window: Optional total width of the symmetric search window centered on
-                ``target_datetime``. If provided and no exact match exists, the nearest
-                record within this window is returned.
+                ``target_datetime``. If provided, the nearest valid value within this
+                window is returned; of two equally near values the later one. If not
+                provided, only a record at exactly ``target_datetime`` counts.
 
         Returns:
             Optional[float]: The value nearest to the given datetime, or None if no valid records are found.
@@ -1093,11 +1098,35 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecordT], Generic[Da
         self._validate_key(key)
 
         # Ensure datetime objects are normalized
-        db_target = DatabaseTimestamp.from_datetime(to_datetime(target_datetime))
+        target = to_datetime(target_datetime)
+        db_target = DatabaseTimestamp.from_datetime(target)
 
-        record = await self.db_get_record(db_target, time_window=time_window)
+        if time_window is None:
+            record = await self.db_get_record(db_target)
+            value = getattr(record, key, None)
+            return None if value is None or pd.isna(value) else value
 
-        return getattr(record, key, None)
+        search_start, search_end = self._search_window(db_target, time_window)
+        if isinstance(search_end, DatabaseTimestamp):
+            # Like db_get_record(), accept a value at exactly half the window after the target.
+            search_end = self._db_timestamp_after(search_end)
+        max_distance = time_window.total_seconds() / 2
+
+        nearest_value = None
+        async for record in self.db_iterate_records(search_start, search_end):
+            value = getattr(record, key, None)
+            if record.date_time is None or value is None or pd.isna(value):
+                continue
+            distance = compare_datetimes(record.date_time, target).time_diff
+            if abs(distance) <= max_distance:
+                # Records come in ascending order: before the target each valid value is
+                # nearer than the previous one.
+                nearest_value, max_distance = value, abs(distance)
+            if distance >= 0:
+                # The first valid value at or after the target is the nearest on this side.
+                break
+
+        return nearest_value
 
     async def key_to_lists(
         self,

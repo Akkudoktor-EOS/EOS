@@ -1457,6 +1457,22 @@ class TestMeasurementAccess:
         assert point.discharge_power_w is None
 
     @pytest.mark.asyncio
+    async def test_keys_written_seconds_apart_are_all_read(self) -> None:
+        """Every key is read, even when a newer record only holds another key."""
+        from akkudoktoreos.core.coreabc import get_measurement
+        from akkudoktoreos.utils.datetimeutil import to_datetime
+
+        now = to_datetime()
+        measurement = get_measurement()
+        await measurement.update_value(
+            now.subtract(seconds=60), {"battery1-temperature-degc": 3.0}
+        )
+        await measurement.update_value(now.subtract(seconds=59), {"battery1-soc-factor": 0.35})
+        point = await make_settings().measure_operating_point(now)
+        assert point.temperature_degC == pytest.approx(3.0)
+        assert point.soc_factor == pytest.approx(0.35)
+
+    @pytest.mark.asyncio
     async def test_empty_store_yields_reference_point(self):
         point = await make_settings().measure_operating_point()
         assert point == BatteryOperatingPoint()
