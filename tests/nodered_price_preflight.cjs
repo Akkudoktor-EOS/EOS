@@ -185,3 +185,41 @@ if (process.env.EOS_PRICE_TEST_SERIES) {
         assert.equal(h.flow.get('rcPriceCoverage').complete, true);
     });
 }
+
+test('the catch node handles only the preflight nodes, not the rest of the tab', () => {
+    const scoped = ['rc_price_raw_url', 'rc_price_raw_http', 'rc_price_raw_check',
+        'rc_prediction_recovery_http', 'rc_prediction_recovery_done'];
+    const catchNode = byId.get('rc_price_errors');
+    assert.deepEqual(catchNode.scope, scoped);
+    assert.equal(catchNode.uncaught, false);
+    for (const id of scoped) assert(byId.has(id), id);
+});
+
+test('HTTP timeouts travel with the message, as the HTTP request node reads them', () => {
+    const h = harness();
+    assert.equal(h.response().requestTimeout, 30000);
+    const recovery = h.call('rc_price_raw_check', {...h.response(), payload: {data: {}}});
+    assert.equal(recovery[0].requestTimeout, 240000);
+    for (const id of ['rc_price_raw_http', 'rc_prediction_recovery_http']) {
+        assert.equal(byId.get(id).requestTimeout, undefined, id);
+    }
+});
+
+test('complete prices wait for a running cold-start recovery and its forecast reload', () => {
+    const h = harness();
+    assert(h.call('rc_price_raw_check', {...h.response(), payload: {data: {}}})[0]);
+    assert.equal(h.flow.get('rcPredictionRecovery').status, 'loading');
+    assert.equal(h.call('rc_price_raw_check', h.response()), null);
+    assert.equal(h.flow.get('rcPriceCoverage').complete, true);
+    assert.deepEqual(h.call('rc_prediction_recovery_done', {statusCode: 200}), {topic: 'refresh'});
+    assert.deepEqual(h.call('rc_price_raw_check', h.response()), [null, {topic: 'rc_optimize'}]);
+});
+
+test('a recovery without an answer holds optimization for at most five minutes', () => {
+    const h = harness();
+    assert(h.call('rc_price_raw_check', {...h.response(), payload: {data: {}}})[0]);
+    h.advance(299999);
+    assert.equal(h.call('rc_price_raw_check', h.response()), null);
+    h.advance(1);
+    assert.deepEqual(h.call('rc_price_raw_check', h.response()), [null, {topic: 'rc_optimize'}]);
+});

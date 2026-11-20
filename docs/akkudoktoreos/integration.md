@@ -34,8 +34,11 @@ Node-RED nodes and EOS's raw price series API. Import the JSON through the edito
 [Import dialog](https://nodered.org/docs/user-guide/editor/workspace/import-export).
 
 1. Move the example nodes into your existing optimizer tab so they share its flow context.
-   Set the flow environment variable `EOS_BASE_URL` to your EOS server URL. Run Node-RED
-   in the same timezone as EOS. This example requires 15-minute raw price records.
+   Use cut and paste: copied nodes get new IDs, and the Catch node **Price/update errors**
+   only handles the preflight nodes it lists by ID, so the tab's own error handlers stay
+   in charge of all other nodes. Set the flow environment variable `EOS_BASE_URL` to your
+   EOS server URL. Run Node-RED in the same timezone as EOS. This example requires
+   15-minute raw price records.
 2. Send messages with `topic: "rc_optimize"` from your optimization timer to
    **Price check requests**, removing any direct timer connection to the optimizer.
 3. Connect **Validated: build fresh optimize request** to the function that reads current
@@ -56,6 +59,9 @@ other topics update coverage without starting optimization.
 An empty raw series after a server restart can request `POST /v1/prediction/update` once
 per five minutes, provided `flow.rcBusy` is false. Set that flag during your optimization
 request if your integration uses it. Partial price gaps do not start this recovery path.
+While the update runs, at most five minutes, complete prices do not start an optimization;
+the next regular timer after the forecast reload does. The price read times out after 30
+seconds, the update after 240 seconds (`msg.requestTimeout`).
 `flow.rcPriceCoverage` records the check; `flow.rcPredictionRecovery` records recovery progress.
 Handle HTTP/validation failures in your existing plan-age fallback rather than executing an
 old plan as a fresh result.
