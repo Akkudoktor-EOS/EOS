@@ -1043,6 +1043,15 @@ class TestConfigFileSources:
         saved = self.saved_config(config_eos_file)
         assert saved["server"] == {"eosdash_port": 9700}
 
+    def test_save_keeps_init_values_next_to_environment_values(
+        self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("EOS_SERVER__PORT", "9500")
+
+        config_eos_file._setup(server={"eosdash_port": 9700})
+
+        assert self.saved_config(config_eos_file)["server"] == {"eosdash_port": 9700}
+
     def test_save_leaves_section_from_environment_out(
         self, config_eos_file: ConfigEOS, monkeypatch: pytest.MonkeyPatch
     ) -> None:
