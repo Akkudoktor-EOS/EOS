@@ -1,7 +1,10 @@
 """Migrate config file to actual version."""
 
 import json
+import os
 import shutil
+import stat
+import tempfile
 import types
 from pathlib import Path
 from typing import (
@@ -611,8 +614,40 @@ def remove_empty(obj: dict) -> dict:
         return obj
 
 
+def _replace_config_file(config_file: Path, content: str) -> None:
+    """Replace the configuration file atomically.
+
+    The content is written to a temporary file next to the configuration file, which then
+    replaces it. If writing fails, the configuration file is left untouched. The new file keeps
+    the permission bits of the old one.
+
+    Args:
+        config_file (Path): The existing configuration file.
+        content (str): The new content of the configuration file.
+
+    Raises:
+        OSError: If the temporary file can not be written or can not replace the file.
+    """
+    fd, tmp_name = tempfile.mkstemp(
+        dir=config_file.parent, prefix=f".{config_file.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f_out:
+            f_out.write(content)
+            f_out.flush()
+            os.fsync(f_out.fileno())
+        os.chmod(tmp_name, stat.S_IMODE(config_file.stat().st_mode))
+        os.replace(tmp_name, config_file)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+
+
 def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
     """Migrate configuration file to the current version.
+
+    Only a successful migration replaces the file; the old file is copied to the backup file
+    right before. A failed migration leaves the file untouched and makes no backup.
 
     Returns:
         bool: True if up-to-date or successfully migrated, False on failure.
@@ -643,21 +678,6 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
             )
 
     try:
-        # Backup existing file - we already know it is existing
-        try:
-            config_file.replace(backup_file)
-            logger.info(f"Backed up old configuration to '{backup_file}'.")
-        except Exception as e_replace:
-            try:
-                shutil.copy(config_file, backup_file)
-                logger.info(
-                    f"Could not replace; copied old configuration to '{backup_file}' instead."
-                )
-            except Exception as e_copy:
-                logger.warning(
-                    f"Failed to backup existing config (replace: {e_replace}; copy: {e_copy}). Continuing without backup."
-                )
-
         from akkudoktoreos.config.config import SettingsEOSDefaults
 
         # Strip computed fields
@@ -666,19 +686,29 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
         # Migrate config data
         new_config = migrate_config_data(config_data)
 
+        # Need model_dump_json (not model_dump) because of special serialisation.
+        json_str = new_config.model_dump_json(
+            exclude_computed_fields=True,
+            exclude_defaults=True,
+            exclude_none=True,
+            by_alias=True,
+        )
+        cleaned = remove_empty(json.loads(json_str))
+        json_str = json.dumps(cleaned, indent=4, ensure_ascii=False)
+
+        # Backup existing file - we already know it is existing. Copy it: the file stays in
+        # place until the migrated configuration replaces it.
+        try:
+            shutil.copy2(config_file, backup_file)
+            logger.info(f"Backed up old configuration to '{backup_file}'.")
+        except Exception as e_copy:
+            logger.warning(
+                f"Failed to backup existing config ({e_copy}). Continuing without backup."
+            )
+
         # Write migrated configuration
         try:
-            with config_file.open("w", encoding="utf-8", newline=None) as f_out:
-                # Need model_dump_json (not model_dump) because of special serialisation.
-                json_str = new_config.model_dump_json(
-                    exclude_computed_fields=True,
-                    exclude_defaults=True,
-                    exclude_none=True,
-                    by_alias=True,
-                )
-                cleaned = remove_empty(json.loads(json_str))
-                json_str = json.dumps(cleaned, indent=4, ensure_ascii=False)
-                f_out.write(json_str)
+            _replace_config_file(config_file, json_str)
         except Exception as e_write:
             logger.error(f"Failed to write migrated configuration to '{config_file}': {e_write}")
             return False

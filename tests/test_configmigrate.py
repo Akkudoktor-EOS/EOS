@@ -1,9 +1,12 @@
 # Test data directory and known migration pairs
 import copy
 import json
+import os
 import shutil
+import stat
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
@@ -143,6 +146,49 @@ class TestConfigMigration:
         result = configmigrate.migrate_config_file(tmp_config_file, backup_file)
         assert result is True
         assert not backup_file.exists(), "No backup should be made if config is already current."
+
+    def test_migrate_config_file_backs_up_by_copy(self, tmp_config_file: Path) -> None:
+        """The backup is a copy of the old file, the migrated file keeps its permissions."""
+        tmp_config_file.chmod(0o640)
+        mode = stat.S_IMODE(tmp_config_file.stat().st_mode)
+        original = tmp_config_file.read_bytes()
+        backup_file = tmp_config_file.with_suffix(".bak")
+
+        assert configmigrate.migrate_config_file(tmp_config_file, backup_file) is True
+
+        assert backup_file.read_bytes() == original
+        migrated_data = json.loads(tmp_config_file.read_text(encoding="utf-8"))
+        assert migrated_data["general"]["version"] == __version__
+        assert stat.S_IMODE(tmp_config_file.stat().st_mode) == mode
+        assert not list(tmp_config_file.parent.glob("*.tmp"))
+
+    def test_migrate_config_file_failure_keeps_original(
+        self, tmp_config_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A migration that raises leaves the old file in place and needs no backup."""
+        original = tmp_config_file.read_bytes()
+        backup_file = tmp_config_file.with_suffix(".bak")
+        monkeypatch.setattr(
+            configmigrate, "migrate_config_data", Mock(side_effect=RuntimeError("migration failed"))
+        )
+
+        assert configmigrate.migrate_config_file(tmp_config_file, backup_file) is False
+
+        assert tmp_config_file.read_bytes() == original
+        assert not backup_file.exists()
+
+    def test_migrate_config_file_write_failure_keeps_original(
+        self, tmp_config_file: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A migrated file that can not replace the old one leaves the old file in place."""
+        original = tmp_config_file.read_bytes()
+        backup_file = tmp_config_file.with_suffix(".bak")
+        monkeypatch.setattr(os, "replace", Mock(side_effect=OSError("replace failed")))
+
+        assert configmigrate.migrate_config_file(tmp_config_file, backup_file) is False
+
+        assert tmp_config_file.read_bytes() == original
+        assert not list(tmp_config_file.parent.glob("*.tmp"))
 
 
     @pytest.mark.parametrize("old_file, expected_file", MIGRATION_PAIRS)
