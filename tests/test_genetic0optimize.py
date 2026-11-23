@@ -16,6 +16,7 @@ from pypdf import PdfReader
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
+from akkudoktoreos.optimization.genetic0 import genetic0convert
 from akkudoktoreos.optimization.genetic0.genetic0optimizer import Genetic0Optimizer
 from akkudoktoreos.optimization.genetic0.genetic0parameters import (
     parameters_from_dict,
@@ -347,19 +348,18 @@ async def test_optimize(
     # Reproducibility and mathematical accuracy should be tested on the level of individual components.
     compare_dict(genetic0_solution.model_dump(), expected_result.model_dump())
 
-    # Check the correct generic optimization solution is created
-    with patch(
-        "akkudoktoreos.optimization.genetic0.genetic0solution.get_prediction",
-        return_value=FakePrediction(),
-    ):
-        optimization_solution = await genetic0_solution.optimization_solution()
+    # Check the correct generic optimization solution is created; the prediction series were
+    # read from FakePrediction by the parameter preparation.
+    optimization_solution = await genetic0convert.optimization_solution(
+        parameters, genetic0_solution
+    )
     check_golden(
         mask_now(optimization_solution.model_dump(mode="json")),
         f"{golden_stem}_optimization_solution.json",
     )
 
     # Check the correct generic energy management plan is created
-    plan = genetic0_solution.energy_management_plan()
+    plan = genetic0convert.energy_management_plan(parameters, genetic0_solution)
     check_golden(
         mask_now(plan.model_dump(mode="json")),
         f"{golden_stem}_plan.json",
@@ -368,9 +368,7 @@ async def test_optimize(
     # Check visualization works, and pin what it is drawn from
     report_calls, report_patches = record_report_calls()
     with patch.multiple(Genetic0VisualizationReport, **report_patches):
-        pdf = genetic0_prepare_visualize(
-            solution=genetic0_solution,
-        )
+        pdf = genetic0_prepare_visualize(parameters=parameters, solution=genetic0_solution)
     assert pdf.startswith(b"%PDF-")
     check_golden(report_calls, f"{golden_stem}_visualize.json")
 
@@ -380,6 +378,12 @@ async def test_optimize(
 
     # Everything passed, remove generated files
     TESTDATA_FILE.unlink()
+
+
+# The parameters of golden run 1 (optimize_result_1.json), from its replay file.
+RUN_1 = parameters_from_dict(
+    json.loads((DIR_TESTDATA / "replay_optimize_result_1.json").read_text())["parameters"]
+)
 
 
 class TestGenetic0SocClampedOperationFactors:
@@ -415,7 +419,8 @@ class TestGenetic0SocClampedOperationFactors:
         # efficiency of the parameters (no inverter configured).
         headroom_wh = 0.01 * bat.capacity_wh
         expected = headroom_wh / (bat.max_charge_power_w * bat.charging_efficiency)
-        ac, dc, dis = solution._soc_clamped_operation_factors(
+        ac, dc, dis = genetic0convert._soc_clamped_operation_factors(
+            RUN_1, solution,
             1.0, 1.0, True, float(bat.max_soc_percentage) - 1.0
         )
         assert ac == pytest.approx(expected)
@@ -424,20 +429,24 @@ class TestGenetic0SocClampedOperationFactors:
 
     def test_full_and_empty_battery(self, solution):
         bat = solution.parameters.pv_battery
-        assert solution._soc_clamped_operation_factors(
+        assert genetic0convert._soc_clamped_operation_factors(
+            RUN_1, solution,
             1.0, 1.0, True, float(bat.max_soc_percentage)
         ) == (0.0, 0.0, True)
-        assert solution._soc_clamped_operation_factors(
+        assert genetic0convert._soc_clamped_operation_factors(
+            RUN_1, solution,
             0.0, 0.0, True, float(bat.min_soc_percentage)
         ) == (0.0, 0.0, False)
 
     def test_without_battery_parameters_factors_are_unchanged(self, solution):
         solution.parameters.pv_battery = None
-        assert solution._soc_clamped_operation_factors(1.0, 0.5, True, 50.0) == (1.0, 0.5, True)
+        assert genetic0convert._soc_clamped_operation_factors(
+            RUN_1, solution, 1.0, 0.5, True, 50.0
+        ) == (1.0, 0.5, True)
 
     @pytest.mark.asyncio
     async def test_optimization_solution_with_configured_battery(self, solution):
-        optimization_solution = await solution.optimization_solution()
+        optimization_solution = await genetic0convert.optimization_solution(RUN_1, solution)
         assert optimization_solution is not None
 
 
@@ -487,7 +496,8 @@ class TestGenetic0SolutionWithProfileInverter:
         expected = headroom_wh / (
             bat.max_charge_power_w * inverter.ac_to_dc_efficiency * bat.charging_efficiency
         )
-        ac, _, _ = solution._soc_clamped_operation_factors(
+        ac, _, _ = genetic0convert._soc_clamped_operation_factors(
+            RUN_1, solution,
             1.0, 1.0, True, float(bat.max_soc_percentage) - 1.0
         )
         assert ac == pytest.approx(expected)
@@ -501,19 +511,18 @@ class TestGenetic0SolutionWithProfileInverter:
         assert inverter.max_power_wh == pytest.approx(10000)
         assert inverter.max_ac_charge_power_w == pytest.approx(2000)
         assert 0.0 < inverter.ac_to_dc_efficiency < 1.0
-        # Without stored parameters the solution reads no configuration (ADR 0003).
-        assert solution._inverter_parameters(None) is None
 
-    def test_unresolvable_inverter_counts_as_no_inverter(self, solution, config_eos):
+    def test_the_stored_inverter_is_used_whatever_the_configuration(self, solution, config_eos):
+        """The conversion reads no configuration (ADR 0003)."""
         config_eos.merge_settings_from_dict(
             {"devices": {"inverters": {"inverter1": {"profile_adjustment": {"nominal_power_w": None}}}}}
         )
-        assert solution._inverter_parameters(None) is None
+        assert genetic0convert._inverter_parameters(solution) is solution.parameters.inverter
 
     @pytest.mark.asyncio
     async def test_optimization_solution_with_configured_inverter(self, solution):
         """Regression: AttributeError 'ac_to_dc_efficiency' on InverterCommonSettings."""
-        optimization_solution = await solution.optimization_solution()
+        optimization_solution = await genetic0convert.optimization_solution(RUN_1, solution)
         assert optimization_solution is not None
 
 

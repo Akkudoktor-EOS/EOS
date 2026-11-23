@@ -226,6 +226,18 @@ class EnergyManagement(
         return cls._genetic_solution
 
     @classmethod
+    def optimizer_run(cls, name: str) -> Optional[OptimizerRun[Any, Any]]:
+        """Get the parameters and result of the latest successful run of an optimizer.
+
+        Args:
+            name: The optimizer's name, e.g. ``"GENETIC0"``.
+
+        Returns:
+            The optimizer's latest run, or None if it has not run yet.
+        """
+        return cls._optimizer_runs.get(name)
+
+    @classmethod
     def optimizer_result(cls, name: str) -> Optional[Any]:
         """Get the result of the latest successful run of an optimizer of the registry.
 

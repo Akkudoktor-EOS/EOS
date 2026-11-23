@@ -2326,8 +2326,8 @@ async def fastapi_optimize(
 @app.get("/visualization_results.pdf", tags=["optimize"])
 def get_pdf() -> Response:
     # Endpoint to serve the generated PDF with visualization results
-    genetic0_solution = get_ems().optimizer_result(OptimizationAlgorithm.GENETIC0)
-    if genetic0_solution is None:
+    genetic0_run = get_ems().optimizer_run(OptimizationAlgorithm.GENETIC0)
+    if genetic0_run is None:
         raise EOSProblem(
             status=404,
             title="Optimization solution report retrieval failed",
@@ -2339,7 +2339,9 @@ def get_pdf() -> Response:
         genetic0_prepare_visualize,
     )
 
-    pdf = genetic0_prepare_visualize(solution=genetic0_solution)
+    pdf = genetic0_prepare_visualize(
+        parameters=genetic0_run.parameters, solution=genetic0_run.result
+    )
 
     return Response(
         content=pdf,

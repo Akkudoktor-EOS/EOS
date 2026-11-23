@@ -10,7 +10,7 @@ import pytest
 from akkudoktoreos.core import ems as ems_module
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic0 import genetic0algorithm as genetic0_module
-from akkudoktoreos.optimization.genetic0 import genetic0prepare
+from akkudoktoreos.optimization.genetic0 import genetic0convert, genetic0prepare
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0Request,
 )
@@ -53,9 +53,8 @@ def _assert_prepared_without_request(prefix: str, prepare: Any) -> None:
 
 
 def _conversion_arguments(prefix: str) -> dict[str, Any]:
-    """GENETIC0 passes the preparation's home-appliance decision to its conversion."""
-    # The offline configuration has max_home_appliances = 0.
-    return {"home_appliance_enabled": False} if prefix == "Genetic0" else {}
+    """Arguments of the stand-in results' conversion methods (none for both optimizers)."""
+    return {}
 
 
 def _native_solution(prefix: str) -> Any:
@@ -134,6 +133,16 @@ def offline_ems(monkeypatch):
         genetic0prepare,
         "configured_grid_interpolator_backend",
         lambda: GridInterpolatorBackend.SCIPY,
+    )
+    # Stand-in results carry their own conversion methods.
+    async def optimization_solution(parameters: Any, result: Any) -> Any:
+        return await result.optimization_solution()
+
+    monkeypatch.setattr(genetic0convert, "optimization_solution", optimization_solution)
+    monkeypatch.setattr(
+        genetic0convert,
+        "energy_management_plan",
+        lambda parameters, result: result.energy_management_plan(),
     )
     # Stand-in requests have no forecasts to derive the simulation's dataclasses from.
     monkeypatch.setattr(

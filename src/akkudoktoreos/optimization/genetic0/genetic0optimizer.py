@@ -1,14 +1,14 @@
 """GENETIC0 behind the optimizer interface (ADR 0006).
 
-Transitional (migration step 3): converts with today's ``Genetic0Solution``; step 5 replaces it
-without changing results (ADR 0008).
+Runs today's ``Genetic0Optimization``; the result is still the Pydantic ``Genetic0Solution`` until
+step 6 (ADR 0008).
 """
 
 from collections.abc import Mapping
 from typing import Any, Optional
 
 from akkudoktoreos.core.emplan import EnergyManagementPlan
-from akkudoktoreos.optimization.genetic0 import genetic0prepare
+from akkudoktoreos.optimization.genetic0 import genetic0convert, genetic0prepare
 from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0Parameters
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0Request,
@@ -62,7 +62,4 @@ class Genetic0Optimizer:
         self, parameters: Genetic0Parameters, result: Genetic0Solution
     ) -> tuple[OptimizationSolution, EnergyManagementPlan]:
         """See ``Optimizer.convert()``."""
-        enabled = parameters.presentation.home_appliance_enabled
-        optimization_solution = await result.optimization_solution(home_appliance_enabled=enabled)
-        plan = result.energy_management_plan(home_appliance_enabled=enabled)
-        return optimization_solution, plan
+        return await genetic0convert.convert(parameters, result)

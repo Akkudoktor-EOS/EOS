@@ -1,3 +1,5 @@
+"""PDF report of a GENETIC0 run, drawn from its optimization parameters and result."""
+
 import json
 import textwrap
 from collections.abc import Sequence
@@ -8,10 +10,9 @@ import matplotlib
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
-import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.core.coreabc import ConfigMixin, get_ems
+from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0Parameters
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
@@ -23,11 +24,19 @@ matplotlib.use(
 debug_visualize: bool = False
 
 
-class Genetic0VisualizationReport(ConfigMixin):
+class Genetic0VisualizationReport:
     def __init__(
         self,
         version: str = "0.0.1",
+        timezone: Optional[str] = None,
     ) -> None:
+        """Create an empty report.
+
+        Args:
+            version: Version shown in the report.
+            timezone: Time zone of the charts' hours; ``None`` is the local time zone.
+        """
+        self.timezone = timezone
         # Initialize the report with empty groups
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
         self.current_group: list[
@@ -39,9 +48,7 @@ class Genetic0VisualizationReport(ConfigMixin):
         self.pdf_pages: PdfPages | None = None
 
         self.version = version  # overwrite version as test for constant output of pdf for test
-        self.current_time = to_datetime(
-            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.general.timezone
-        )
+        self.current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.timezone)
 
     def add_chart_to_group(self, chart_func: Callable[[], None], title: str | None) -> None:
         """Add a chart function to the current group and save it as a PNG and SVG."""
@@ -150,18 +157,14 @@ class Genetic0VisualizationReport(ConfigMixin):
 
             # Format the time axis
             plt.gca().xaxis.set_major_formatter(
-                mdates.DateFormatter("%Y-%m-%d", tz=self.config.general.timezone)
+                mdates.DateFormatter("%Y-%m-%d", tz=self.timezone)
             )  # Show date and time
             plt.gca().xaxis.set_major_locator(
-                mdates.DayLocator(interval=1, tz=self.config.general.timezone)
+                mdates.DayLocator(interval=1, tz=self.timezone)
             )  # Major ticks every day
-            plt.gca().xaxis.set_minor_locator(
-                mdates.HourLocator(interval=2, tz=self.config.general.timezone)
-            )
+            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=2, tz=self.timezone))
             # Minor ticks every 6 hours
-            plt.gca().xaxis.set_minor_formatter(
-                mdates.DateFormatter("%H", tz=self.config.general.timezone)
-            )
+            plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H", tz=self.timezone))
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
             # Auto-format the x-axis for readability
 
@@ -180,7 +183,7 @@ class Genetic0VisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = pendulum.now(self.config.general.timezone)
+            current_time = to_datetime(in_timezone=self.timezone)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(mdates.date2num(current_time), color="r", linestyle="--", label="Now")
                 plt.text(
@@ -451,12 +454,22 @@ class Genetic0VisualizationReport(ConfigMixin):
 
 
 def genetic0_prepare_visualize(
+    parameters: Genetic0Parameters,
     solution: Genetic0Solution,
 ) -> bytes:
+    """Render the PDF report of a run.
+
+    Args:
+        parameters: The optimization parameters of the run; give the start and the time zone.
+        solution: The result of the run.
+
+    Returns:
+        The PDF document.
+    """
     global debug_visualize
 
-    report = Genetic0VisualizationReport()
-    next_full_hour_date = get_ems().start_datetime
+    report = Genetic0VisualizationReport(timezone=parameters.presentation.timezone)
+    next_full_hour_date = parameters.presentation.start_datetime
     start_hour = solution.start_hour
     # Group 1:
     report.create_line_chart_date(
@@ -801,7 +814,7 @@ def genetic0_generate_example_report(filename: str = "example_report.pdf") -> No
     report.finalize_group()
 
     report.create_line_chart_date(
-        pendulum.now().subtract(hours=0),
+        to_datetime().subtract(hours=0),
         [list(np.random.random(840))],
         title="test",
         xlabel="test",

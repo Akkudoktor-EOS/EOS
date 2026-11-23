@@ -469,7 +469,7 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0solution",
+            "akkudoktoreos.optimization.genetic0.genetic0convert",
             "akkudoktoreos.core.pydantic",
         ),
         Violation(
@@ -614,38 +614,13 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-            "akkudoktoreos.config.configabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0solution",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0solution",
-            "akkudoktoreos.core.coreabc:get_ems",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0solution",
-            "akkudoktoreos.core.coreabc:get_prediction",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0solution",
+            "akkudoktoreos.optimization.genetic0.genetic0convert",
             "akkudoktoreos.devices.devicesabc",
         ),
         Violation(
             "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0visualize",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0visualize",
-            "akkudoktoreos.core.coreabc:get_ems",
+            "akkudoktoreos.optimization.genetic0.genetic0request",
+            "akkudoktoreos.config.configabc",
         ),
     }
 )

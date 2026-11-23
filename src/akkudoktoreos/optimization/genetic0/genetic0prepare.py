@@ -221,13 +221,13 @@ async def _presentation(
     else:
         battery_device_id = FALLBACK_BATTERY_DEVICE_ID
 
-    # The window the conversion covers: from the start to the end of the prediction day(s),
-    # counted from the start hour of the run and from the start hour in the configured time zone
-    # (``None`` means the local zone, as in the conversion).
+    # The window the conversion covers: from the start to the end of the prediction day(s). The
+    # conversion counts its hours from the start hour of the run or from the start hour in the
+    # configured time zone (``None`` means the local zone); read from the earlier of the two, so
+    # that the series cover every hour the conversion shows. It slices them to its own count.
     timezone = config.general.timezone
-    hours = min(
-        settings.prediction_hours - start_datetime.hour,
-        settings.prediction_hours - to_datetime(start_datetime, in_timezone=timezone).hour,
+    hours = settings.prediction_hours - min(
+        start_datetime.hour, to_datetime(start_datetime, in_timezone=timezone).hour
     )
     end_datetime = start_datetime.add(hours=max(hours, 0))
     prediction = get_prediction()

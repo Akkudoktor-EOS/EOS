@@ -619,7 +619,8 @@ class TestGenetic0Presentation:
             record_keys=["pvforecast_ac_power", "feed_in_tariff_wh"], key_to_array=key_to_array
         )
         monkeypatch.setattr(genetic0prepare, "get_prediction", lambda: prediction)
-        # 09:00 UTC is 10:00 in Berlin: the conversion counts from the later local hour.
+        # 09:00 UTC is 10:00 in Berlin: read from the earlier hour, so the series cover every
+        # hour the conversion may show (it slices them to its own count).
         start = to_datetime("2026-01-14T09:00:00+00:00")
         settings = genetic0prepare._run_settings(None)
 
@@ -630,12 +631,12 @@ class TestGenetic0Presentation:
             ("feed_in_tariff_wh", "ffill"),
         ]
         assert {(end - begin).total_seconds() for _, begin, end, _ in windows} == {
-            to_duration("38 hours").total_seconds()
+            to_duration("39 hours").total_seconds()
         }
         assert set(presentation.prediction_series) == {"pvforecast_ac_power", "feed_in_tariff_wh"}
         assert presentation.timezone == "Europe/Berlin"
         series = presentation.prediction_series["pvforecast_ac_power"]
-        assert len(series) == 38 and math.isnan(series[1])
+        assert len(series) == 39 and math.isnan(series[1])
 
         request = Genetic0Request.model_validate(
             {
@@ -960,17 +961,31 @@ class TestGenetic0HomeApplianceShown:
         assert parameters.presentation.home_appliance_enabled is enabled
 
     @pytest.mark.asyncio
-    async def test_conversion_gets_the_decision(self):
-        from akkudoktoreos.optimization.genetic0.genetic0optimizer import (
-            Genetic0Optimizer,
+    @pytest.mark.parametrize("enabled", [True, False])
+    async def test_conversion_follows_the_decision(self, enabled):
+        """The conversion shows the home appliance as the preparation decided (step 5)."""
+        import dataclasses
+        from pathlib import Path
+
+        from akkudoktoreos.optimization.genetic0 import genetic0convert
+        from akkudoktoreos.optimization.genetic0.genetic0solution import (
+            Genetic0Solution,
         )
 
-        result = Mock(
-            optimization_solution=AsyncMock(return_value="solution"),
-            energy_management_plan=Mock(return_value="plan"),
+        testdata = Path(__file__).parent / "testdata" / "genetic0"
+        replay = json.loads((testdata / "replay_optimize_result_1.json").read_text())
+        parameters = parameters_from_dict(replay["parameters"])
+        parameters = dataclasses.replace(
+            parameters,
+            presentation=dataclasses.replace(
+                parameters.presentation, home_appliance_enabled=enabled
+            ),
         )
-        parameters = SimpleNamespace(presentation=SimpleNamespace(home_appliance_enabled=True))
-        converted = await Genetic0Optimizer().convert(cast(Any, parameters), result)
-        assert converted == ("solution", "plan")
-        result.optimization_solution.assert_awaited_once_with(home_appliance_enabled=True)
-        result.energy_management_plan.assert_called_once_with(home_appliance_enabled=True)
+        result = Genetic0Solution.model_validate(
+            json.loads((testdata / replay["expected_result"]).read_text())
+        )
+        solution = await genetic0convert.optimization_solution(parameters, result)
+        plan = genetic0convert.energy_management_plan(parameters, result)
+        columns = next(iter(solution.solution.data.values()))
+        assert ("homeappliance1_energy_wh" in columns) is enabled
+        assert any(i.resource_id == "homeappliance1" for i in plan.instructions) is enabled
