@@ -19,3 +19,7 @@ proven result-identical by its golden tests.
 - GENETIC0 is migrated first, as the pilot; the registry and the interface arrive with its first
   migration pull request. GENETIC follows.
 - A GENETIC0 bug that matters to users is fixed in GENETIC (or a new optimizer), not in GENETIC0.
+- One declared exception: GENETIC0's parameter preparation follows the "optimization parameters
+  are always valid" rule of the `energy-domain` skill, in a behaviour-change pull request of its
+  own. It no longer writes demo providers or devices into the configuration and no longer cancels
+  a run; results with a complete configuration stay the same.

@@ -10,7 +10,7 @@ from pydantic import Field, computed_field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 
 
-class Genetic0CommonSettings(SettingsBaseModel):
+class Genetic0Settings(SettingsBaseModel):
     """GENETIC0 Optimization Algorithm Configuration."""
 
     horizon_hours: int = Field(

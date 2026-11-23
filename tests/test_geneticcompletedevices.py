@@ -20,6 +20,7 @@ from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettin
 from akkudoktoreos.devices.settings.homeappliancesettings import (
     HomeApplianceCommonSettings,
 )
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
@@ -74,7 +75,7 @@ def test_profile_cannot_silently_override_explicit_flat_definition(fields: dict[
 def test_settings_profile_roundtrip_and_legacy_defaults() -> None:
     defaults = HomeApplianceCommonSettings(device_id="legacy")
     assert defaults.to_genetic_param().consumption_wh == 3000
-    assert defaults.to_genetic0_param().duration_h == 3
+    assert genetic0prepare.home_appliance_request(defaults).duration_h == 3
     settings = HomeApplianceCommonSettings.model_validate(
         {
             "device_id": "washer",
@@ -94,7 +95,7 @@ def test_settings_profile_roundtrip_and_legacy_defaults() -> None:
     assert params.schedule_mode == ConsumerScheduleMode.DAILY
     assert params.shared_time_windows is not None
     with pytest.raises(ValueError, match="GENETIC"):
-        restored.to_genetic0_param()
+        genetic0prepare.home_appliance_request(restored)
 
 
 def test_cycle_and_shared_windows_intersect_after_completed_cycle() -> None:
@@ -245,7 +246,7 @@ def test_ev_deadlines_roundtrip_without_changing_slot_physics() -> None:
     charged, losses = battery.charge_energy(2000, hour=0)
     assert charged == pytest.approx(1000 * params.charging_efficiency)
     assert losses == pytest.approx(1000 * (1 - params.charging_efficiency))
-    assert "min_soc_deadline_datetime" not in settings.to_genetic0_ev_bat_param().model_dump()
+    assert "min_soc_deadline_datetime" not in genetic0prepare.electric_vehicle_request(settings).model_dump()
 
 
 @pytest.mark.parametrize("duration", [0.0, -1.0, float("inf"), float("nan")])

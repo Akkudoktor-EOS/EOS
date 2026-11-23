@@ -26,6 +26,7 @@ from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
 )
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
@@ -444,7 +445,7 @@ class TestSettings:
             device_id="inverter1",
             profile_adjustment=InverterProfileAdjustment(nominal_power_w=5000),
         )
-        params = settings.to_genetic0_param()
+        params = genetic0prepare.inverter_request(settings)
         assert not hasattr(params, "dc_to_ac_efficiency_curve")
 
 

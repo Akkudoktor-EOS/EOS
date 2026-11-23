@@ -60,9 +60,7 @@ async def test_render_is_offloaded_and_uses_an_owned_copy(config_eos, monkeypatc
     monkeypatch.setattr(
         eos,
         "get_ems",
-        lambda: SimpleNamespace(
-            genetic_solution=lambda: solution, genetic0_solution=lambda: solution
-        ),
+        lambda: SimpleNamespace(genetic_solution=lambda: solution),
     )
     original_controls = list(solution.ac_charge)
 

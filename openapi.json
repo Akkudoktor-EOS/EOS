@@ -817,6 +817,128 @@
         }
       }
     },
+    "/optimize": {
+      "post": {
+        "tags": [
+          "optimize"
+        ],
+        "summary": "Fastapi Optimize",
+        "description": "Deprecated: Optimize.\n\nEndpoint to handle optimization.\n\nUses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).\n\nNote:\n    Use automatic optimization instead.\n    \"v1/energy-management/optimization/solution/GENETIC0\"",
+        "operationId": "fastapi_optimize_optimize_post",
+        "parameters": [
+          {
+            "name": "start_hour",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Defaults to current hour of the day.",
+              "title": "Start Hour"
+            },
+            "description": "Defaults to current hour of the day."
+          },
+          {
+            "name": "ngen",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Number of indivuals to generate for genetic algorithm.",
+              "title": "Ngen"
+            },
+            "description": "Number of indivuals to generate for genetic algorithm."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Genetic0Request-Input"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Genetic0SolutionLegacy"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/energy-management/optimization/solution/GENETIC0": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Optimization Solution Genetic0 Get",
+        "description": "Get the latest GENETIC0 specific solution of the optimization.",
+        "operationId": "fastapi_energy_management_optimization_solution_genetic0_get_v1_energy_management_optimization_solution_GENETIC0_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Genetic0Solution"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/visualization_results.pdf": {
+      "get": {
+        "tags": [
+          "optimize"
+        ],
+        "summary": "Get Pdf",
+        "description": "PDF report of the latest GENETIC0 run.",
+        "operationId": "get_pdf_visualization_results_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/cache/clear": {
       "post": {
         "tags": [
@@ -3291,7 +3413,7 @@
           "energy-management"
         ],
         "summary": "Fastapi Energy Management Optimization Solution Algorithm Get",
-        "description": "Get the latest algorithm specific solution of the optimization.\n\nArgs:\n    algorithm: Optimization algorithm",
+        "description": "Get the latest algorithm specific solution of the optimization.\n\nOptimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).\n\nArgs:\n    algorithm: Optimization algorithm",
         "operationId": "fastapi_energy_management_optimization_solution_algorithm_get_v1_energy_management_optimization_solution__algorithm__get",
         "parameters": [
           {
@@ -3309,15 +3431,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/GeneticSolution"
-                    },
-                    {
-                      "$ref": "#/components/schemas/Genetic0Solution"
-                    }
-                  ],
-                  "title": "Response Fastapi Energy Management Optimization Solution Algorithm Get V1 Energy Management Optimization Solution  Algorithm  Get"
+                  "$ref": "#/components/schemas/GeneticSolution"
                 }
               }
             }
@@ -3554,105 +3668,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/optimize": {
-      "post": {
-        "tags": [
-          "optimize"
-        ],
-        "summary": "Fastapi Optimize",
-        "description": "Deprecated: Optimize.\n\nEndpoint to handle optimization.\n\nUses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).\n\nNote:\n    Use automatic optimization instead.\n    \"v1/energy-management/optimization/solution/GENETIC0\"",
-        "operationId": "fastapi_optimize_optimize_post",
-        "parameters": [
-          {
-            "name": "start_hour",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Defaults to current hour of the day.",
-              "title": "Start Hour"
-            },
-            "description": "Defaults to current hour of the day."
-          },
-          {
-            "name": "ngen",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Number of indivuals to generate for genetic algorithm.",
-              "title": "Ngen"
-            },
-            "description": "Number of indivuals to generate for genetic algorithm."
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Genetic0OptimizationParameters-Input"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Genetic0SolutionLegacy"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/visualization_results.pdf": {
-      "get": {
-        "tags": [
-          "optimize"
-        ],
-        "summary": "Get Pdf",
-        "operationId": "get_pdf_visualization_results_pdf_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
               }
             }
           }
@@ -8000,205 +8015,7 @@
         "title": "GeneralSettings",
         "description": "General settings."
       },
-      "Genetic0CommonSettings-Input": {
-        "properties": {
-          "horizon_hours": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Horizon Hours",
-            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
-            "default": 24,
-            "examples": [
-              24
-            ]
-          },
-          "individuals": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 10.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Individuals",
-            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
-            "default": 300,
-            "examples": [
-              300
-            ]
-          },
-          "generations": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 10.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generations",
-            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
-            "default": 400,
-            "examples": [
-              400
-            ]
-          },
-          "seed": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed",
-            "description": "Random seed for reproducibility. None = random.",
-            "examples": [
-              null,
-              42
-            ]
-          },
-          "penalties": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "type": "object",
-            "title": "Penalties",
-            "description": "Penalty parameters used in fitness evaluation.",
-            "examples": [
-              {
-                "ev_soc_miss": 10
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "title": "Genetic0CommonSettings",
-        "description": "GENETIC0 Optimization Algorithm Configuration."
-      },
-      "Genetic0CommonSettings-Output": {
-        "properties": {
-          "horizon_hours": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Horizon Hours",
-            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
-            "default": 24,
-            "examples": [
-              24
-            ]
-          },
-          "individuals": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 10.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Individuals",
-            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
-            "default": 300,
-            "examples": [
-              300
-            ]
-          },
-          "generations": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 10.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generations",
-            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
-            "default": 400,
-            "examples": [
-              400
-            ]
-          },
-          "seed": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seed",
-            "description": "Random seed for reproducibility. None = random.",
-            "examples": [
-              null,
-              42
-            ]
-          },
-          "penalties": {
-            "additionalProperties": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "type": "object",
-            "title": "Penalties",
-            "description": "Penalty parameters used in fitness evaluation.",
-            "examples": [
-              {
-                "ev_soc_miss": 10
-              }
-            ]
-          },
-          "interval_sec": {
-            "type": "integer",
-            "title": "Interval Sec",
-            "description": "The optimization interval [sec]. Fixed to 1 hour (3600 seconds).",
-            "readOnly": true
-          },
-          "horizon": {
-            "type": "integer",
-            "title": "Horizon",
-            "description": "Number of optimization steps.",
-            "readOnly": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "interval_sec",
-          "horizon"
-        ],
-        "title": "Genetic0CommonSettings",
-        "description": "GENETIC0 Optimization Algorithm Configuration."
-      },
-      "Genetic0ElectricVehicleParameters": {
+      "Genetic0ElectricVehicleRequest": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8342,7 +8159,7 @@
           "device_id",
           "capacity_wh"
         ],
-        "title": "Genetic0ElectricVehicleParameters",
+        "title": "Genetic0ElectricVehicleRequest",
         "description": "Battery Electric Vehicle Device Simulation Configuration."
       },
       "Genetic0ElectricVehicleResult": {
@@ -8428,7 +8245,7 @@
         "title": "Genetic0ElectricVehicleResult",
         "description": "Result class containing information related to the electric vehicle's charging and discharging behavior."
       },
-      "Genetic0EnergyManagementParameters-Input": {
+      "Genetic0EnergyManagementRequest-Input": {
         "properties": {
           "pv_forecast_wh": {
             "items": {
@@ -8483,10 +8300,10 @@
           "price_per_wh_battery",
           "total_load"
         ],
-        "title": "Genetic0EnergyManagementParameters",
+        "title": "Genetic0EnergyManagementRequest",
         "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
       },
-      "Genetic0EnergyManagementParameters-Output": {
+      "Genetic0EnergyManagementRequest-Output": {
         "properties": {
           "pv_forecast_wh": {
             "items": {
@@ -8600,10 +8417,10 @@
           "preis_euro_pro_wh_akku",
           "gesamtlast"
         ],
-        "title": "Genetic0EnergyManagementParameters",
+        "title": "Genetic0EnergyManagementRequest",
         "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
       },
-      "Genetic0HomeApplianceParameters-Input": {
+      "Genetic0HomeApplianceRequest-Input": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8674,10 +8491,10 @@
           "consumption_wh",
           "duration_h"
         ],
-        "title": "Genetic0HomeApplianceParameters",
+        "title": "Genetic0HomeApplianceRequest",
         "description": "Home Appliance Device Simulation Configuration."
       },
-      "Genetic0HomeApplianceParameters-Output": {
+      "Genetic0HomeApplianceRequest-Output": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8748,10 +8565,10 @@
           "consumption_wh",
           "duration_h"
         ],
-        "title": "Genetic0HomeApplianceParameters",
+        "title": "Genetic0HomeApplianceRequest",
         "description": "Home Appliance Device Simulation Configuration."
       },
-      "Genetic0InverterParameters": {
+      "Genetic0InverterRequest": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8851,18 +8668,18 @@
           "device_id",
           "max_power_wh"
         ],
-        "title": "Genetic0InverterParameters",
+        "title": "Genetic0InverterRequest",
         "description": "Inverter Device Simulation Configuration."
       },
-      "Genetic0OptimizationParameters-Input": {
+      "Genetic0Request-Input": {
         "properties": {
           "ems": {
-            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters-Input"
+            "$ref": "#/components/schemas/Genetic0EnergyManagementRequest-Input"
           },
           "pv_battery": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryRequest"
               },
               {
                 "type": "null"
@@ -8873,7 +8690,7 @@
           "inverter": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0InverterParameters"
+                "$ref": "#/components/schemas/Genetic0InverterRequest"
               },
               {
                 "type": "null"
@@ -8883,7 +8700,7 @@
           "ev": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -8894,7 +8711,7 @@
           "dishwasher": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters-Input"
+                "$ref": "#/components/schemas/Genetic0HomeApplianceRequest-Input"
               },
               {
                 "type": "null"
@@ -8946,18 +8763,18 @@
           "inverter",
           "ev"
         ],
-        "title": "Genetic0OptimizationParameters",
+        "title": "Genetic0Request",
         "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
       },
-      "Genetic0OptimizationParameters-Output": {
+      "Genetic0Request-Output": {
         "properties": {
           "ems": {
-            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters-Output"
+            "$ref": "#/components/schemas/Genetic0EnergyManagementRequest-Output"
           },
           "pv_battery": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryRequest"
               },
               {
                 "type": "null"
@@ -8968,7 +8785,7 @@
           "inverter": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0InverterParameters"
+                "$ref": "#/components/schemas/Genetic0InverterRequest"
               },
               {
                 "type": "null"
@@ -8978,7 +8795,7 @@
           "ev": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -8989,7 +8806,7 @@
           "dishwasher": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters-Output"
+                "$ref": "#/components/schemas/Genetic0HomeApplianceRequest-Output"
               },
               {
                 "type": "null"
@@ -9036,7 +8853,7 @@
           "pv_akku": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryRequest"
               },
               {
                 "type": "null"
@@ -9049,7 +8866,7 @@
           "eauto": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -9069,8 +8886,206 @@
           "pv_akku",
           "eauto"
         ],
-        "title": "Genetic0OptimizationParameters",
+        "title": "Genetic0Request",
         "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
+      },
+      "Genetic0Settings-Input": {
+        "properties": {
+          "horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
+          },
+          "individuals": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Individuals",
+            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
+            "default": 300,
+            "examples": [
+              300
+            ]
+          },
+          "generations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generations",
+            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
+            "default": 400,
+            "examples": [
+              400
+            ]
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "description": "Random seed for reproducibility. None = random.",
+            "examples": [
+              null,
+              42
+            ]
+          },
+          "penalties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Penalties",
+            "description": "Penalty parameters used in fitness evaluation.",
+            "examples": [
+              {
+                "ev_soc_miss": 10
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "Genetic0Settings",
+        "description": "GENETIC0 Optimization Algorithm Configuration."
+      },
+      "Genetic0Settings-Output": {
+        "properties": {
+          "horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
+          },
+          "individuals": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Individuals",
+            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
+            "default": 300,
+            "examples": [
+              300
+            ]
+          },
+          "generations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generations",
+            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
+            "default": 400,
+            "examples": [
+              400
+            ]
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "description": "Random seed for reproducibility. None = random.",
+            "examples": [
+              null,
+              42
+            ]
+          },
+          "penalties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Penalties",
+            "description": "Penalty parameters used in fitness evaluation.",
+            "examples": [
+              {
+                "ev_soc_miss": 10
+              }
+            ]
+          },
+          "interval_sec": {
+            "type": "integer",
+            "title": "Interval Sec",
+            "description": "The optimization interval [sec]. Fixed to 1 hour (3600 seconds).",
+            "readOnly": true
+          },
+          "horizon": {
+            "type": "integer",
+            "title": "Horizon",
+            "description": "Number of optimization steps.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "interval_sec",
+          "horizon"
+        ],
+        "title": "Genetic0Settings",
+        "description": "GENETIC0 Optimization Algorithm Configuration."
       },
       "Genetic0SimulationResult": {
         "properties": {
@@ -9351,7 +9366,7 @@
         "title": "Genetic0SimulationResult",
         "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
       },
-      "Genetic0SolarPanelBatteryParameters": {
+      "Genetic0SolarPanelBatteryRequest": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -9495,13 +9510,13 @@
           "device_id",
           "capacity_wh"
         ],
-        "title": "Genetic0SolarPanelBatteryParameters",
+        "title": "Genetic0SolarPanelBatteryRequest",
         "description": "PV battery device simulation configuration."
       },
       "Genetic0Solution": {
         "properties": {
           "parameters": {
-            "$ref": "#/components/schemas/Genetic0OptimizationParameters-Output",
+            "$ref": "#/components/schemas/Genetic0Request-Output",
             "description": "Optimization parameters used to generate solution."
           },
           "ac_charge": {
@@ -14496,7 +14511,7 @@
             ]
           },
           "genetic0": {
-            "$ref": "#/components/schemas/Genetic0CommonSettings-Input",
+            "$ref": "#/components/schemas/Genetic0Settings-Input",
             "description": "GENETIC0 optimization algorithm configuration.",
             "examples": [
               {
@@ -14544,7 +14559,7 @@
             ]
           },
           "genetic0": {
-            "$ref": "#/components/schemas/Genetic0CommonSettings-Output",
+            "$ref": "#/components/schemas/Genetic0Settings-Output",
             "description": "GENETIC0 optimization algorithm configuration.",
             "examples": [
               {

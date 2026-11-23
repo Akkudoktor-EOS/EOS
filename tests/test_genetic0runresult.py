@@ -9,21 +9,81 @@ import pytest
 
 from akkudoktoreos.core import ems as ems_module
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic0 import genetic0 as genetic0_module
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0 import genetic0algorithm as genetic0_module
+from akkudoktoreos.optimization.genetic0 import genetic0convert, genetic0prepare
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
+from akkudoktoreos.optimization.optimizer import OptimizerRun
 from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
 def _patch_optimizer(monkeypatch, prefix: str, constructor: Any) -> None:
     """Replace the optimizer class that EnergyManagement.run() instantiates.
 
-    GENETIC0 is imported on first use inside run(), so it is patched at its source.
+    GENETIC0 is imported on first use inside its optimizer, so it is patched at its source.
     """
     module = genetic0_module if prefix == "Genetic0" else ems_module
     monkeypatch.setattr(module, prefix + "Optimization", constructor)
+
+
+def _patch_prepare(monkeypatch, prefix: str, prepare: Any) -> None:
+    """Replace the legacy parameter preparation of GENETIC or GENETIC0."""
+    if prefix == "Genetic0":
+        monkeypatch.setattr(genetic0prepare, "prepare_request", prepare)
+    else:
+        monkeypatch.setattr(ems_module.GeneticOptimizationParameters, "prepare", prepare)
+
+
+def _warm_start_of(call: Any) -> Any:
+    """The start solution a call of GENETIC0's legacy preparation got."""
+    start, observation, start_solution = call.args
+    return start_solution
+
+
+def _assert_prepared_without_request(prefix: str, prepare: Any) -> None:
+    """GENETIC0 passes start, observation time and warm start (none here) into its preparation."""
+    if prefix == "Genetic0":
+        prepare.assert_awaited_once()
+        assert _warm_start_of(prepare.await_args) is None
+    else:
+        prepare.assert_awaited_once_with()
+
+
+def _conversion_arguments(prefix: str) -> dict[str, Any]:
+    """Arguments of the stand-in results' conversion methods (none for both optimizers)."""
+    return {}
+
+
+def _native_solution(prefix: str) -> Any:
+    """The native solution the latest run published for GENETIC or GENETIC0."""
+    cls = ems_module.EnergyManagement
+    if prefix == "Genetic0":
+        return cls.optimizer_result("GENETIC0")
+    return cls._genetic_solution
+
+
+def _set_native_solution(monkeypatch, prefix: str, solution: Any) -> None:
+    """Publish ``solution`` as the result of a previous run of GENETIC or GENETIC0."""
+    cls = ems_module.EnergyManagement
+    if prefix == "Genetic0":
+        runs = {"GENETIC0": OptimizerRun(parameters=object(), result=solution)}
+        monkeypatch.setattr(cls, "_optimizer_runs", runs)
+    else:
+        monkeypatch.setattr(cls, "_genetic_solution", solution)
+
+
+def _supplied(prefix: str, parameters: Any, generations: int, seed: int) -> dict[str, Any]:
+    """Run arguments that supply the parameters, generations and seed of a run."""
+    if prefix == "Genetic0":
+        return {"request": parameters, "overrides": {"generations": generations, "seed": seed}}
+    return {
+        "genetic_parameters": parameters,
+        "genetic_generations": generations,
+        "genetic_seed": seed,
+    }
 
 
 @pytest.fixture
@@ -37,20 +97,26 @@ def offline_ems(monkeypatch):
         "_plan",
         "_optimization_solution",
         "_genetic_solution",
-        "_genetic0_solution",
     ):
         monkeypatch.setattr(cls, name, None)
+    monkeypatch.setattr(cls, "_optimizer_runs", {})
     monkeypatch.setattr(cls, "_stage", ems_module.EnergyManagementStage.IDLE)
     monkeypatch.setattr(cls, "_run_lock", Lock())
     monkeypatch.setattr(ems_module, "CacheEnergyManagementStore", Mock())
-    return SimpleNamespace(
+    ems = SimpleNamespace(
         config=SimpleNamespace(
             general=SimpleNamespace(timezone="Europe/Berlin"),
             ems=SimpleNamespace(mode=EnergyManagementMode.OPTIMIZATION),
             optimization=SimpleNamespace(
                 algorithm=OptimizationAlgorithm.GENETIC,
                 genetic=SimpleNamespace(generations=3, seed=17, interval_sec=3600, individuals=31),
-                genetic0=SimpleNamespace(generations=5, seed=29),
+                genetic0=SimpleNamespace(
+                    generations=5, seed=29, horizon_hours=24, individuals=13, penalties={}
+                ),
+            ),
+            prediction=SimpleNamespace(hours=48),
+            devices=SimpleNamespace(
+                batteries=None, electric_vehicles=None, max_home_appliances=0
             ),
             server=SimpleNamespace(verbose=False),
         ),
@@ -58,6 +124,33 @@ def offline_ems(monkeypatch):
         adapter=SimpleNamespace(update_data=AsyncMock()),
         set_start_datetime=cls.set_start_datetime,
     )
+    # GENETIC0's parameter preparation reads the settings and predictions itself.
+    monkeypatch.setattr(genetic0prepare, "get_config", lambda: ems.config)
+    monkeypatch.setattr(
+        genetic0prepare, "get_prediction", lambda: SimpleNamespace(record_keys=[])
+    )
+    monkeypatch.setattr(
+        genetic0prepare,
+        "configured_grid_interpolator_backend",
+        lambda: GridInterpolatorBackend.SCIPY,
+    )
+    # Stand-in results carry their own conversion methods.
+    async def optimization_solution(parameters: Any, result: Any) -> Any:
+        return await result.optimization_solution()
+
+    monkeypatch.setattr(genetic0convert, "optimization_solution", optimization_solution)
+    monkeypatch.setattr(
+        genetic0convert,
+        "energy_management_plan",
+        lambda parameters, result: result.energy_management_plan(),
+    )
+    # Stand-in requests have no forecasts to derive the simulation's dataclasses from.
+    monkeypatch.setattr(
+        genetic0prepare.Genetic0Parameters,
+        "from_request",
+        classmethod(lambda cls, **fields: SimpleNamespace(**fields)),
+    )
+    return ems
 
 
 @pytest.mark.asyncio
@@ -106,9 +199,11 @@ async def test_optimization_routes_only_selected_algorithm(
 ):
     """Configuration selection and explicit overrides retain isolated async paths."""
     selected_name = "Genetic" if algorithm == OptimizationAlgorithm.GENETIC else "Genetic0"
+    other_name = "Genetic0" if selected_name == "Genetic" else "Genetic"
     suffix = "genetic" if algorithm == OptimizationAlgorithm.GENETIC else "genetic0"
     other_suffix = "genetic0" if suffix == "genetic" else "genetic"
-    sentinel_parameters = object()
+    # GENETIC0's preparation looks at the request's home appliance.
+    sentinel_parameters = SimpleNamespace(dishwasher=None)
     sentinel_result, sentinel_plan = object(), object()
     solution = SimpleNamespace(
         optimization_solution=AsyncMock(return_value=sentinel_result),
@@ -123,9 +218,7 @@ async def test_optimization_routes_only_selected_algorithm(
         _patch_optimizer(monkeypatch, prefix, constructor)
         prepare = AsyncMock(return_value=sentinel_parameters)
         preparers[prefix] = prepare
-        monkeypatch.setattr(
-            getattr(ems_module, prefix + "OptimizationParameters"), "prepare", prepare
-        )
+        _patch_prepare(monkeypatch, prefix, prepare)
     kwargs: dict[str, Any] = {
         "start_datetime": to_datetime("2026-09-16T10:00:00+02:00", in_timezone=timezone)
     }
@@ -135,38 +228,50 @@ async def test_optimization_routes_only_selected_algorithm(
         offline_ems.config.optimization.algorithm = OptimizationAlgorithm(other_suffix.upper())
         kwargs["algorithm"] = algorithm
     if supplied:
-        kwargs[suffix + "_parameters"] = sentinel_parameters
-        kwargs[suffix + "_generations"] = 7
-        kwargs[suffix + "_seed"] = 43
+        kwargs.update(_supplied(selected_name, sentinel_parameters, 7, 43))
         if algorithm == OptimizationAlgorithm.GENETIC:
             kwargs["genetic_individuals"] = 11
     run_result = await ems_module.EnergyManagement.run(offline_ems, **kwargs)
     assert run_result is solution
     selected = constructors[selected_name]
     expected_config = getattr(offline_ems.config.optimization, suffix)
-    selected.assert_called_once_with(
-        verbose=False, fixed_seed=43 if supplied else expected_config.seed
-    )
+    expected_seed = 43 if supplied else expected_config.seed
+    expected_generations = 7 if supplied else expected_config.generations
     expected_arguments: dict[str, Any] = {
         "start_hour": expected_hour,
         "parameters": sentinel_parameters,
-        "ngen": 7 if supplied else expected_config.generations,
     }
     if algorithm == OptimizationAlgorithm.GENETIC:
+        selected.assert_called_once_with(verbose=False, fixed_seed=expected_seed)
+        expected_arguments["ngen"] = expected_generations
+    else:
+        # GENETIC0 gets its algorithm settings from the parameters (step 3).
+        (settings,) = selected.call_args.args
+        assert (settings.seed, settings.generations, settings.verbose) == (
+            expected_seed,
+            expected_generations,
+            False,
+        )
+    if algorithm == OptimizationAlgorithm.GENETIC:
         expected_arguments["individuals"] = 11 if supplied else None
-    selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
-    other_name = "Genetic0" if selected_name == "Genetic" else "Genetic"
+        selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
+    else:
+        # GENETIC0 runs from its parameters, which carry the request and the start hour.
+        (parameters,) = selected.return_value.optimize_ems.call_args.args
+        assert parameters.request is sentinel_parameters
+        assert parameters.start_hour == expected_hour
     constructors[other_name].assert_not_called()
     preparers[other_name].assert_not_awaited()
     if supplied:
         preparers[selected_name].assert_not_awaited()
     else:
-        preparers[selected_name].assert_awaited_once_with()
-    solution.optimization_solution.assert_awaited_once_with()
-    solution.energy_management_plan.assert_called_once_with()
+        _assert_prepared_without_request(selected_name, preparers[selected_name])
+    conversion_arguments = _conversion_arguments(selected_name)
+    solution.optimization_solution.assert_awaited_once_with(**conversion_arguments)
+    solution.energy_management_plan.assert_called_once_with(**conversion_arguments)
     cls = ems_module.EnergyManagement
-    assert getattr(cls, "_" + suffix + "_solution") is solution
-    assert getattr(cls, "_" + other_suffix + "_solution") is None
+    assert _native_solution(selected_name) is solution
+    assert _native_solution(other_name) is None
     assert cls.optimization_solution() is sentinel_result
     assert cls.plan() is sentinel_plan
     assert cls.stage() == ems_module.EnergyManagementStage.IDLE
@@ -194,16 +299,17 @@ async def test_non_optimization_modes_never_optimize(monkeypatch, offline_ems, m
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("prefix", ["Genetic", "Genetic0"])
+@pytest.mark.parametrize("prefix", ["Genetic"])
 async def test_missing_preparation_does_not_dispatch_controls(monkeypatch, offline_ems, prefix):
+    """GENETIC may still cancel; GENETIC0's preparation never does (TestGenetic0AlwaysValid)."""
     constructor = Mock()
     _patch_optimizer(monkeypatch, prefix, constructor)
     prepare = AsyncMock(return_value=None)
-    monkeypatch.setattr(getattr(ems_module, prefix + "OptimizationParameters"), "prepare", prepare)
+    _patch_prepare(monkeypatch, prefix, prepare)
     await ems_module.EnergyManagement.run(
         offline_ems, algorithm=OptimizationAlgorithm(prefix.upper())
     )
-    prepare.assert_awaited_once_with()
+    _assert_prepared_without_request(prefix, prepare)
     constructor.assert_not_called()
     assert offline_ems.adapter.update_data.await_count == 1  # acquisition only
     assert ems_module.EnergyManagement.plan() is None
@@ -213,35 +319,42 @@ async def test_missing_preparation_does_not_dispatch_controls(monkeypatch, offli
 @pytest.mark.asyncio
 @pytest.mark.parametrize("start_hour", [None, 11])
 async def test_legacy_optimize_explicitly_uses_genetic0(monkeypatch, start_hour):
-    """Even with GENETIC configured, /optimize must never become the new optimizer."""
+    """Even with GENETIC configured, /optimize must never become the new optimizer.
+
+    The GENETIC0 router gets its run trigger from the server's placeholder override.
+    """
+    from httpx import ASGITransport, AsyncClient
+
     from akkudoktoreos.server import eos
-    from akkudoktoreos.server.rest.error import EOSProblem
 
     fake = SimpleNamespace(
-        run=AsyncMock(return_value=None), genetic0_solution=Mock(return_value=None)
+        run=AsyncMock(return_value=None), optimizer_run=Mock(return_value=None)
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
-    parameters = Genetic0OptimizationParameters.model_validate(
-        {
-            "ems": {
-                "pv_prognose_wh": [0.0, 100.0],
-                "gesamtlast": [100.0, 100.0],
-                "strompreis_euro_pro_wh": [0.0003, 0.0003],
-                "einspeiseverguetung_euro_pro_wh": 0.00008,
-                "preis_euro_pro_wh_akku": 0.0,
-            },
-            "pv_akku": None,
-            "eauto": None,
-            "inverter": None,
-        }
-    )
-    with pytest.raises(EOSProblem):
-        await eos.fastapi_optimize(parameters=parameters, start_hour=start_hour, ngen=2)
+    body = {
+        "ems": {
+            "pv_prognose_wh": [0.0, 100.0],
+            "gesamtlast": [100.0, 100.0],
+            "strompreis_euro_pro_wh": [0.0003, 0.0003],
+            "einspeiseverguetung_euro_pro_wh": 0.00008,
+            "preis_euro_pro_wh_akku": 0.0,
+        },
+        "pv_akku": None,
+        "eauto": None,
+        "inverter": None,
+    }
+    query = "ngen=2" + ("" if start_hour is None else f"&start_hour={start_hour}")
+    async with AsyncClient(
+        transport=ASGITransport(app=eos.app, raise_app_exceptions=False), base_url="http://test"
+    ) as client:
+        response = await client.post(f"/optimize?{query}", json=body)
+    assert response.status_code == 404
+    assert response.json()["title"] == "Optimization solution retrieval failed"
     kwargs = fake.run.await_args.kwargs
     assert kwargs["mode"] == EnergyManagementMode.OPTIMIZATION
     assert kwargs["algorithm"] == OptimizationAlgorithm.GENETIC0
-    assert kwargs["genetic0_parameters"] is parameters
-    assert kwargs["genetic0_generations"] == 2
+    assert kwargs["request"].model_dump() == Genetic0Request.model_validate(body).model_dump()
+    assert kwargs["overrides"] == {"generations": 2}
     assert "genetic_parameters" not in kwargs
     assert (
         kwargs["start_datetime"] is None
@@ -261,7 +374,7 @@ async def test_failed_legacy_http_run_never_reports_previous_solution(
 
     from httpx import ASGITransport, AsyncClient
 
-    from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+    from akkudoktoreos.optimization.genetic0.genetic0api import Genetic0Solution
     from akkudoktoreos.server import eos
 
     cls = ems_module.EnergyManagement
@@ -269,7 +382,7 @@ async def test_failed_legacy_http_run_never_reports_previous_solution(
         (Path(__file__).parent / "testdata/genetic0/optimize_result_1.json").read_text()
     )
     previous = Genetic0Solution.model_validate(data)
-    monkeypatch.setattr(cls, "_genetic0_solution", previous)
+    _set_native_solution(monkeypatch, "Genetic0", previous)
     constructor = Mock()
     error = RuntimeError("synthetic " + phase + " failure")
     native = SimpleNamespace(
@@ -285,7 +398,7 @@ async def test_failed_legacy_http_run_never_reports_previous_solution(
         native.energy_management_plan.side_effect = error
     _patch_optimizer(monkeypatch, "Genetic0", constructor)
     offline_ems.run = MethodType(cls.run, offline_ems)
-    offline_ems.genetic0_solution = cls.genetic0_solution
+    offline_ems.optimizer_result = cls.optimizer_result
     monkeypatch.setattr(eos, "get_ems", lambda: offline_ems)
     async with AsyncClient(
         transport=ASGITransport(app=eos.app, raise_app_exceptions=False), base_url="http://test"
@@ -309,8 +422,7 @@ async def test_conversion_failure_preserves_consistent_previous_results(
 ):
     cls = ems_module.EnergyManagement
     previous_specific, previous_generic, previous_plan = object(), object(), object()
-    suffix = prefix.lower()
-    monkeypatch.setattr(cls, "_" + suffix + "_solution", previous_specific)
+    _set_native_solution(monkeypatch, prefix, previous_specific)
     monkeypatch.setattr(cls, "_optimization_solution", previous_generic)
     monkeypatch.setattr(cls, "_plan", previous_plan)
     conversion = AsyncMock(return_value=object())
@@ -322,18 +434,18 @@ async def test_conversion_failure_preserves_consistent_previous_results(
     constructor = Mock()
     constructor.return_value.optimize_ems.return_value = solution
     _patch_optimizer(monkeypatch, prefix, constructor)
-    supplied_parameters: dict[str, Any] = {suffix + "_parameters": object()}
+    supplied_parameters = _supplied(prefix, SimpleNamespace(dishwasher=None), 3, 17)
     result = await cls.run(
         offline_ems,
         algorithm=OptimizationAlgorithm(prefix.upper()),
         **supplied_parameters,
     )
     assert result is None
-    conversion.assert_awaited_once_with()
+    conversion.assert_awaited_once_with(**_conversion_arguments(prefix))
     assert solution.energy_management_plan.call_count == (phase == "plan")
     assert offline_ems.adapter.update_data.await_count == 1
     assert (
-        getattr(cls, "_" + suffix + "_solution"),
+        _native_solution(prefix),
         cls.optimization_solution(),
         cls.plan(),
         cls.stage(),
@@ -352,7 +464,10 @@ async def test_legacy_endpoint_uses_run_return_value_not_last_cached_solution(mo
     import json
     from pathlib import Path
 
-    from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+    from httpx import ASGITransport, AsyncClient
+    from test_genetic0optimize import result_of
+
+    from akkudoktoreos.optimization.genetic0.genetic0api import Genetic0Solution
     from akkudoktoreos.server import eos
 
     data = json.loads(
@@ -360,11 +475,88 @@ async def test_legacy_endpoint_uses_run_return_value_not_last_cached_solution(mo
     )
     produced = Genetic0Solution.model_validate(data)
     fake = SimpleNamespace(
-        run=AsyncMock(return_value=produced),
-        genetic0_solution=Mock(side_effect=AssertionError("must use this run's result")),
+        run=AsyncMock(return_value=result_of(produced)),
+        optimizer_run=Mock(side_effect=AssertionError("must use this run's result")),
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
-    result = await eos.fastapi_optimize(parameters=produced.parameters, ngen=1)
-    assert result.start_solution == produced.start_solution
-    assert result.result.total_balance == produced.result.total_balance
-    fake.genetic0_solution.assert_not_called()
+    async with AsyncClient(
+        transport=ASGITransport(app=eos.app), base_url="http://test"
+    ) as client:
+        response = await client.post("/optimize?ngen=1", json=data["parameters"])
+    assert response.status_code == 200
+    assert response.json()["start_solution"] == produced.start_solution
+    assert response.json()["result"]["total_balance"] == produced.result.total_balance
+    fake.optimizer_run.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["Genetic", "Genetic0"])
+async def test_raising_preparation_cancels_the_run(monkeypatch, offline_ems, prefix):
+    """A preparation that raises cancels the run like one that returns None."""
+    cls = ems_module.EnergyManagement
+    previous_specific, previous_generic, previous_plan = object(), object(), object()
+    _set_native_solution(monkeypatch, prefix, previous_specific)
+    monkeypatch.setattr(cls, "_optimization_solution", previous_generic)
+    monkeypatch.setattr(cls, "_plan", previous_plan)
+    constructor = Mock()
+    _patch_optimizer(monkeypatch, prefix, constructor)
+    _patch_prepare(monkeypatch, prefix, AsyncMock(side_effect=RuntimeError("synthetic")))
+    result = await cls.run(offline_ems, algorithm=OptimizationAlgorithm(prefix.upper()))
+    assert result is None
+    constructor.assert_not_called()
+    assert offline_ems.adapter.update_data.await_count == 1  # acquisition only
+    assert (
+        _native_solution(prefix),
+        cls.optimization_solution(),
+        cls.plan(),
+        cls.stage(),
+    ) == (
+        previous_specific,
+        previous_generic,
+        previous_plan,
+        ems_module.EnergyManagementStage.IDLE,
+    )
+
+
+@pytest.mark.asyncio
+async def test_previous_genetic0_result_is_the_warm_start_of_the_next_run(
+    monkeypatch, offline_ems
+):
+    """The EMS passes the result of the last successful GENETIC0 run into the next preparation.
+
+    The optimizer holds no state: the warm start comes from the EMS slot, and a failed run keeps
+    the previous one.
+    """
+    cls = ems_module.EnergyManagement
+    first = SimpleNamespace(
+        start_solution=[1.0, 2.0],
+        optimization_solution=AsyncMock(return_value=object()),
+        energy_management_plan=Mock(return_value=object()),
+    )
+    second = SimpleNamespace(
+        start_solution=[3.0, 4.0],
+        optimization_solution=AsyncMock(return_value=object()),
+        energy_management_plan=Mock(return_value=object()),
+    )
+    constructor = Mock()
+    constructor.return_value.optimize_ems.side_effect = [
+        first,
+        RuntimeError("synthetic optimizer failure"),
+        second,
+        second,
+    ]
+    _patch_optimizer(monkeypatch, "Genetic0", constructor)
+    prepare = AsyncMock(return_value=SimpleNamespace(dishwasher=None))
+    _patch_prepare(monkeypatch, "Genetic0", prepare)
+    for _ in range(3):
+        await cls.run(offline_ems, algorithm=OptimizationAlgorithm.GENETIC0)
+    assert cls.optimizer_result("GENETIC0") is second
+    # Without a stored run there is no warm start.
+    monkeypatch.setattr(cls, "_optimizer_runs", {})
+    await cls.run(offline_ems, algorithm=OptimizationAlgorithm.GENETIC0)
+    assert [_warm_start_of(call) for call in prepare.await_args_list] == [
+        None,
+        [1.0, 2.0],
+        [1.0, 2.0],  # the failed second run kept the first as warm start
+        None,
+    ]

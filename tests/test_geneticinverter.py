@@ -9,6 +9,7 @@ from akkudoktoreos.devices.genetic.battery import (
 )
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
 
 
 @pytest.fixture
@@ -495,10 +496,15 @@ class TestInverterSettings:
     def test_inverter_conversion_requires_nominal_power(self, config_eos, converter):
         # The generic inverter profile provides no nominal power.
         settings = InverterCommonSettings(device_id="inverter")
+        convert = (
+            (lambda: genetic0prepare.inverter_request(settings))
+            if converter == "to_genetic0_param"
+            else getattr(settings, converter)
+        )
         with pytest.raises(ValueError, match="nominal_power_w"):
-            getattr(settings, converter)()
+            convert()
         settings.profile_adjustment.nominal_power_w = 4200
-        assert getattr(settings, converter)().max_power_wh == 4200
+        assert convert().max_power_wh == 4200
 
 
 def test_battery_discharge_limit_caps_load_and_grid_export():

@@ -1,453 +1,56 @@
-"""Genetic0 algorithm."""
+"""GENETIC0 algorithm: the genetic search over the simulation."""
 
 import random
 import time
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 from deap import algorithms, base, creator, tools
 from loguru import logger
-from numpydantic import NDArray, Shape
-from pydantic import ConfigDict, Field
 
-from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
-from akkudoktoreos.devices.genetic0.genetic0homeappliance import Genetic0HomeAppliance
-from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0Inverter
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0EnergyManagementParameters,
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
+from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
+    Genetic0HomeAppliance,
 )
-from akkudoktoreos.optimization.genetic0.genetic0solution import (
-    Genetic0SimulationResult,
-    Genetic0Solution,
+from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
+    Genetic0Inverter,
 )
-from akkudoktoreos.optimization.optimizationabc import OptimizationBase
+from akkudoktoreos.optimization.genetic0.genetic0parameters import (
+    Genetic0Parameters,
+    Genetic0RunSettings,
+)
+from akkudoktoreos.optimization.genetic0.genetic0result import (
+    Genetic0ElectricVehicleState,
+    Genetic0Result,
+    Genetic0SimulationOutput,
+    float_list,
+    int_list,
+)
+from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
 
 
-class Genetic0Simulation(PydanticBaseModel):
-    """Device simulation for GENETIC optimization algorithm."""
+class Genetic0Optimization:
+    """GENETIC algorithm to solve energy optimization.
 
-    # Disable validation on assignment to speed up simulation runs.
-    model_config = ConfigDict(
-        validate_assignment=False,
-    )
+    Reads nothing but its run settings and the parameters passed to ``optimize_ems()``.
+    """
 
-    start_hour: int = Field(
-        default=0,
-        ge=0,
-        le=23,
-        json_schema_extra={"description": "Starting hour on day for optimizations."},
-    )
+    def __init__(self, settings: Genetic0RunSettings):
+        """Initialize the optimization problem with the settings of the run.
 
-    optimization_hours: Optional[int] = Field(
-        default=24,
-        ge=0,
-        json_schema_extra={"description": "Number of hours into the future for optimizations."},
-    )
-
-    prediction_hours: Optional[int] = Field(
-        default=48,
-        ge=0,
-        json_schema_extra={"description": "Number of hours into the future for predictions"},
-    )
-
-    load_energy_array: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
-        },
-    )
-    pv_prediction_wh: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
-        },
-    )
-    elect_price_hourly: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
-        },
-    )
-    elect_revenue_per_hour_arr: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the feed-in compensation per watt-hour."
-        },
-    )
-
-    battery: Optional[Genetic0Battery] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
-    )
-    ev: Optional[Genetic0Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    home_appliance: Optional[Genetic0HomeAppliance] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
-    )
-    inverter: Optional[Genetic0Inverter] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
-    )
-
-    ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    dc_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    bat_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    home_appliance_start_hour: Optional[int] = Field(
-        default=None,
-        json_schema_extra={"description": "Home appliance start hour - None denotes no start."},
-    )
-
-    def prepare(
-        self,
-        parameters: Genetic0EnergyManagementParameters,
-        optimization_hours: int,
-        prediction_hours: int,
-        ev: Optional[Genetic0Battery] = None,
-        home_appliance: Optional[Genetic0HomeAppliance] = None,
-        inverter: Optional[Genetic0Inverter] = None,
-    ) -> None:
-        """Prepare simulation runs.
-
-        Populate internal arrays and device references used during simulation.
+        Args:
+            settings: Algorithm settings of the run.
         """
-        self.optimization_hours = optimization_hours
-        self.prediction_hours = prediction_hours
-
-        # Load arrays from provided EMS parameters
-        self.load_energy_array = np.array(parameters.total_load, float)
-        self.pv_prediction_wh = np.array(parameters.pv_forecast_wh, float)
-        self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
-        self.elect_revenue_per_hour_arr = (
-            np.asarray(parameters.feed_in_tariff_per_wh, dtype=float)
-            if isinstance(parameters.feed_in_tariff_per_wh, list)
-            else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
-        )
-
-        # Associate devices
-        if inverter:
-            self.battery = inverter.battery
-        else:
-            self.battery = None
-        self.ev = ev
-        self.home_appliance = home_appliance
-        self.inverter = inverter
-
-        # Initialize per-hour action arrays for the prediction horizon
-        self.ac_charge_hours = np.full(self.prediction_hours, 0.0)
-        self.dc_charge_hours = np.full(self.prediction_hours, 0.0)
-        self.bat_discharge_hours = np.full(self.prediction_hours, 0.0)
-        self.ev_charge_hours = np.full(self.prediction_hours, 0.0)
-        self.ev_discharge_hours = np.full(self.prediction_hours, 0.0)
-        self.home_appliance_start_hour = None
-
-    def reset(self) -> None:
-        if self.ev:
-            self.ev.reset()
-        if self.battery:
-            self.battery.reset()
-        self.home_appliance_start_hour = None
-
-    def simulate(self, start_hour: int) -> dict[str, Any]:
-        """Simulate energy usage and costs for the given start hour.
-
-        battery_soc_per_hour begin of the hour, initial hour state!
-        load_wh_per_hour integral of last hour (end state)
-        """
-        # Remember start hour
-        self.start_hour = start_hour
-
-        # Provide fast (3x..5x) local read access (vs. self.xxx) for repetitive read access
-        load_energy_array_fast = self.load_energy_array
-        ev_charge_hours_fast = self.ev_charge_hours
-        ev_discharge_hours_fast = self.ev_discharge_hours
-        ac_charge_hours_fast = self.ac_charge_hours
-        dc_charge_hours_fast = self.dc_charge_hours
-        bat_discharge_hours_fast = self.bat_discharge_hours
-        elect_price_hourly_fast = self.elect_price_hourly
-        elect_revenue_per_hour_arr_fast = self.elect_revenue_per_hour_arr
-        pv_prediction_wh_fast = self.pv_prediction_wh
-        battery_fast = self.battery
-        ev_fast = self.ev
-        home_appliance_fast = self.home_appliance
-        inverter_fast = self.inverter
-
-        # Check for simulation integrity (in a way that mypy understands)
-        if (
-            load_energy_array_fast is None
-            or pv_prediction_wh_fast is None
-            or elect_price_hourly_fast is None
-            or ev_charge_hours_fast is None
-            or ac_charge_hours_fast is None
-            or dc_charge_hours_fast is None
-            or elect_revenue_per_hour_arr_fast is None
-            or bat_discharge_hours_fast is None
-            or ev_discharge_hours_fast is None
-        ):
-            missing = []
-            if load_energy_array_fast is None:
-                missing.append("Load Energy Array")
-            if pv_prediction_wh_fast is None:
-                missing.append("PV Prediction Wh")
-            if elect_price_hourly_fast is None:
-                missing.append("Electricity Price Hourly")
-            if ev_charge_hours_fast is None:
-                missing.append("EV Charge Hours")
-            if ac_charge_hours_fast is None:
-                missing.append("AC Charge Hours")
-            if dc_charge_hours_fast is None:
-                missing.append("DC Charge Hours")
-            if elect_revenue_per_hour_arr_fast is None:
-                missing.append("Electricity Revenue Per Hour")
-            if bat_discharge_hours_fast is None:
-                missing.append("Genetic0Battery Discharge Hours")
-            if ev_discharge_hours_fast is None:
-                missing.append("EV Discharge Hours")
-            msg = ", ".join(missing)
-            logger.error("Mandatory data missing - %s", msg)
-            raise ValueError(f"Mandatory data missing: {msg}")
-
-        if not (
-            len(load_energy_array_fast)
-            == len(pv_prediction_wh_fast)
-            == len(elect_price_hourly_fast)
-        ):
-            error_msg = f"Array sizes do not match: Load Curve = {len(load_energy_array_fast)}, PV Forecast = {len(pv_prediction_wh_fast)}, Electricity Price = {len(elect_price_hourly_fast)}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        end_hour = len(load_energy_array_fast)
-        total_hours = end_hour - start_hour
-
-        # Pre-allocate arrays for the results, optimized for speed
-        loads_energy_per_hour = np.full((total_hours), np.nan)
-        feedin_energy_per_hour = np.full((total_hours), np.nan)
-        consumption_energy_per_hour = np.full((total_hours), np.nan)
-        costs_per_hour = np.full((total_hours), np.nan)
-        revenue_per_hour = np.full((total_hours), np.nan)
-        losses_wh_per_hour = np.full((total_hours), np.nan)
-        electricity_price_per_hour = np.full((total_hours), np.nan)
-
-        # Set initial state
-        if battery_fast:
-            # Pre-allocate arrays for the results, optimized for speed
-            soc_per_hour = np.full((total_hours), np.nan)
-
-            soc_per_hour[0] = battery_fast.current_soc_percentage()
-
-            # Determine AC charging availability from inverter parameters
-            if inverter_fast:
-                ac_to_dc_eff_fast = inverter_fast.ac_to_dc_efficiency
-                dc_to_ac_eff_fast = inverter_fast.dc_to_ac_efficiency
-                max_ac_charge_w_fast = inverter_fast.max_ac_charge_power_w
-            else:
-                ac_to_dc_eff_fast = 1.0
-                dc_to_ac_eff_fast = 1.0
-                max_ac_charge_w_fast = None
-
-            ac_charging_possible = ac_to_dc_eff_fast > 0 and (
-                max_ac_charge_w_fast is None or max_ac_charge_w_fast > 0
-            )
-
-            # If AC charging is disabled via inverter, zero out AC charge hours
-            if not ac_charging_possible:
-                ac_charge_hours_fast = np.zeros_like(ac_charge_hours_fast)
-
-            # Fill the charge array of the battery
-            dc_charge_hours_fast[0:start_hour] = 0
-            dc_charge_hours_fast[end_hour:] = 0
-            ac_charge_hours_fast[0:start_hour] = 0
-            ac_charge_hours_fast[end_hour:] = 0
-            battery_fast.charge_array = np.where(
-                ac_charge_hours_fast != 0, ac_charge_hours_fast, dc_charge_hours_fast
-            )
-            # Fill the discharge array of the battery
-            bat_discharge_hours_fast[0:start_hour] = 0
-            bat_discharge_hours_fast[end_hour:] = 0
-            battery_fast.discharge_array = bat_discharge_hours_fast
-        else:
-            # Default return if no battery is available
-            soc_per_hour = np.full((total_hours), 0)
-            ac_to_dc_eff_fast = 1.0
-            dc_to_ac_eff_fast = 1.0
-            max_ac_charge_w_fast = None
-            ac_charging_possible = False
-
-        if ev_fast:
-            # Pre-allocate arrays for the results, optimized for speed
-            soc_ev_per_hour = np.full((total_hours), np.nan)
-
-            soc_ev_per_hour[0] = ev_fast.current_soc_percentage()
-            # Fill the charge array of the ev
-            ev_charge_hours_fast[0:start_hour] = 0
-            ev_charge_hours_fast[end_hour:] = 0
-            ev_fast.charge_array = ev_charge_hours_fast
-            # Fill the discharge array of the ev
-            ev_discharge_hours_fast[0:start_hour] = 0
-            ev_discharge_hours_fast[end_hour:] = 0
-            ev_fast.discharge_array = ev_discharge_hours_fast
-        else:
-            # Default return if no electric vehicle is available
-            soc_ev_per_hour = np.full((total_hours), 0)
-
-        if home_appliance_fast and self.home_appliance_start_hour is not None:
-            home_appliance_enabled = True
-            # Pre-allocate arrays for the results, optimized for speed
-            home_appliance_wh_per_hour = np.full((total_hours), np.nan)
-
-            self.home_appliance_start_hour = home_appliance_fast.set_starting_time(
-                self.home_appliance_start_hour, start_hour
-            )
-        else:
-            home_appliance_enabled = False
-            # Default return if no home appliance is available
-            home_appliance_wh_per_hour = np.full((total_hours), 0)
-
-        for hour in range(start_hour, end_hour):
-            hour_idx = hour - start_hour
-
-            # Accumulate loads and PV generation
-            consumption = load_energy_array_fast[hour]
-            losses_wh_per_hour[hour_idx] = 0.0
-
-            # Home appliances
-            if home_appliance_enabled:
-                ha_load = home_appliance_fast.get_load_for_hour(hour)  # type: ignore[union-attr]
-                consumption += ha_load
-                home_appliance_wh_per_hour[hour_idx] = ha_load
-
-            # E-Auto handling
-            if ev_fast:
-                soc_ev_per_hour[hour_idx] = ev_fast.current_soc_percentage()  # save begin state
-                if ev_charge_hours_fast[hour] > 0:
-                    loaded_energy_ev, ev_charge_losses = ev_fast.charge_energy(
-                        wh=None, hour=hour, charge_factor=ev_charge_hours_fast[hour]
-                    )
-                    consumption += loaded_energy_ev
-                    losses_wh_per_hour[hour_idx] += ev_charge_losses
-
-            # Save battery SOC before inverter processing = true begin-of-interval state.
-            # Must be recorded here (before DC charge/discharge) so the displayed SOC at
-            # timestamp T reflects what the battery actually had at the START of interval T,
-            # not the post-DC result. Consistent with the EV SOC convention above.
-            if battery_fast:
-                soc_per_hour[hour_idx] = battery_fast.current_soc_percentage()
-
-            # Process inverter logic
-            energy_feedin_grid_actual = energy_consumption_grid_actual = losses = (
-                self_consumption
-            ) = 0.0
-
-            if inverter_fast:
-                energy_produced = pv_prediction_wh_fast[hour]
-                (
-                    energy_feedin_grid_actual,
-                    energy_consumption_grid_actual,
-                    losses,
-                    self_consumption,
-                ) = inverter_fast.process_energy(energy_produced, consumption, hour)
-
-            # AC PV Battery Charge
-            if battery_fast:
-                hour_ac_charge = ac_charge_hours_fast[hour]
-                if hour_ac_charge > 0.0 and ac_charging_possible:
-                    # Cap charge factor by max_ac_charge_power_w if set
-                    effective_charge_factor = hour_ac_charge
-                    if max_ac_charge_w_fast is not None and battery_fast.max_charge_power_w > 0:
-                        # DC power = max_charge_power_w * factor
-                        # AC power = DC power / ac_to_dc_eff
-                        # AC power must be <= max_ac_charge_power_w
-                        max_dc_factor = (
-                            max_ac_charge_w_fast * ac_to_dc_eff_fast
-                        ) / battery_fast.max_charge_power_w
-                        effective_charge_factor = min(effective_charge_factor, max_dc_factor)
-
-                    if effective_charge_factor > 0:
-                        battery_charged_energy_actual, battery_losses_actual = (
-                            battery_fast.charge_energy(
-                                None, hour, charge_factor=effective_charge_factor
-                            )
-                        )
-
-                        # DC energy entering the battery (before battery internal efficiency)
-                        dc_energy = battery_charged_energy_actual + battery_losses_actual
-                        # AC energy consumed from grid (accounts for AC→DC conversion loss)
-                        ac_energy = dc_energy / ac_to_dc_eff_fast
-                        # Genetic0Inverter AC→DC conversion losses
-                        inverter_charge_losses = ac_energy - dc_energy
-
-                        consumption += ac_energy
-                        energy_consumption_grid_actual += ac_energy
-                        losses_wh_per_hour[hour_idx] += (
-                            battery_losses_actual + inverter_charge_losses
-                        )
-
-            # Update hourly arrays
-            feedin_energy_per_hour[hour_idx] = energy_feedin_grid_actual
-            consumption_energy_per_hour[hour_idx] = energy_consumption_grid_actual
-            losses_wh_per_hour[hour_idx] += losses
-            loads_energy_per_hour[hour_idx] = consumption
-            hourly_electricity_price = elect_price_hourly_fast[hour]
-            electricity_price_per_hour[hour_idx] = hourly_electricity_price
-
-            # Financial calculations
-            costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
-            revenue_per_hour[hour_idx] = (
-                energy_feedin_grid_actual * elect_revenue_per_hour_arr_fast[hour]
-            )
-
-        total_cost = np.nansum(costs_per_hour)
-        total_losses = np.nansum(losses_wh_per_hour)
-        total_revenue = np.nansum(revenue_per_hour)
-
-        # Prepare output dictionary
-        return {
-            "Last_Wh_pro_Stunde": loads_energy_per_hour,
-            "Netzeinspeisung_Wh_pro_Stunde": feedin_energy_per_hour,
-            "Netzbezug_Wh_pro_Stunde": consumption_energy_per_hour,
-            "Kosten_Euro_pro_Stunde": costs_per_hour,
-            "akku_soc_pro_stunde": soc_per_hour,
-            "Einnahmen_Euro_pro_Stunde": revenue_per_hour,
-            "Gesamtbilanz_Euro": total_cost - total_revenue,  # Fitness score ("FitnessMin")
-            "EAuto_SoC_pro_Stunde": soc_ev_per_hour,
-            "Gesamteinnahmen_Euro": total_revenue,
-            "Gesamtkosten_Euro": total_cost,
-            "Verluste_Pro_Stunde": losses_wh_per_hour,
-            "Gesamt_Verluste": total_losses,
-            "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
-            "Electricity_price": electricity_price_per_hour,
-        }
-
-
-class Genetic0Optimization(OptimizationBase):
-    """GENETIC algorithm to solve energy optimization."""
-
-    def __init__(
-        self,
-        verbose: bool = False,
-        fixed_seed: Optional[int] = None,
-    ):
-        """Initialize the optimization problem with the required parameters."""
+        self.settings = settings
+        self.start_hour = 0
         self.opti_param: dict[str, Any] = {}
-        self.fixed_ev_hours = (
-            self.config.prediction.hours - self.config.optimization.genetic0.horizon_hours
-        )
+        self.fixed_ev_hours = settings.prediction_hours - settings.horizon_hours
         self.ev_possible_charge_values: list[float] = [1.0]
         # Separate charge-level list for battery AC charging (independent of EV rates).
         # Populated from parameters.pv_battery.charge_rates in optimize_ems.
         self.bat_possible_charge_values: list[float] = [1.0]
-        self.verbose = verbose
-        self.fix_seed = fixed_seed
+        self.verbose = settings.verbose
+        self.fix_seed = settings.seed
         self.optimize_ev = True
         self.optimize_dc_charge = False
         self.fitness_history: dict[str, Any] = {}
@@ -517,23 +120,23 @@ class Genetic0Optimization(OptimizationBase):
             total_states = 3 * len_bat
 
         # 1. Mutating the charge_discharge part
-        charge_discharge_part = individual[: self.config.prediction.hours]
+        charge_discharge_part = individual[: self.settings.prediction_hours]
         (charge_discharge_mutated,) = self.toolbox.mutate_charge_discharge(charge_discharge_part)
 
         # Instead of a fixed clamping to 0..8 or 0..6 dynamically:
         charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, total_states - 1)
-        individual[: self.config.prediction.hours] = charge_discharge_mutated
+        individual[: self.settings.prediction_hours] = charge_discharge_mutated
 
         # 2. Mutating the EV charge part, if active
         if self.optimize_ev:
             ev_charge_part = individual[
-                self.config.prediction.hours : self.config.prediction.hours * 2
+                self.settings.prediction_hours : self.settings.prediction_hours * 2
             ]
             (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-            ev_charge_part_mutated[self.config.prediction.hours - self.fixed_ev_hours :] = [
+            ev_charge_part_mutated[self.settings.prediction_hours - self.fixed_ev_hours :] = [
                 0
             ] * self.fixed_ev_hours
-            individual[self.config.prediction.hours : self.config.prediction.hours * 2] = (
+            individual[self.settings.prediction_hours : self.settings.prediction_hours * 2] = (
                 ev_charge_part_mutated
             )
 
@@ -549,13 +152,13 @@ class Genetic0Optimization(OptimizationBase):
     def create_individual(self) -> list[int]:
         # Start with discharge states for the individual
         individual_components = [
-            self.toolbox.attr_discharge_state() for _ in range(self.config.prediction.hours)
+            self.toolbox.attr_discharge_state() for _ in range(self.settings.prediction_hours)
         ]
 
         # Add EV charge index values if optimize_ev is True
         if self.optimize_ev:
             individual_components += [
-                self.toolbox.attr_ev_charge_index() for _ in range(self.config.prediction.hours)
+                self.toolbox.attr_ev_charge_index() for _ in range(self.settings.prediction_hours)
             ]
 
         # Add the start time of the household appliance if it's being optimized
@@ -588,7 +191,7 @@ class Genetic0Optimization(OptimizationBase):
             individual.extend(ev_charge_hours_index.tolist())
         elif self.optimize_ev:
             # If optimize_ev is active but no EV data is available, append zeros
-            individual.extend([0] * self.config.prediction.hours)
+            individual.extend([0] * self.settings.prediction_hours)
 
         # Add dishwasher start time if applicable
         if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int is not None:
@@ -610,13 +213,13 @@ class Genetic0Optimization(OptimizationBase):
         3. Dishwasher start time (integer if applicable).
         """
         # Discharge hours as a NumPy array of ints
-        discharge_hours_bin = np.array(individual[: self.config.prediction.hours], dtype=int)
+        discharge_hours_bin = np.array(individual[: self.settings.prediction_hours], dtype=int)
 
         # EV charge hours as a NumPy array of ints (if optimize_ev is True)
         ev_charge_hours_index = (
             # append ev charging states to individual
             np.array(
-                individual[self.config.prediction.hours : self.config.prediction.hours * 2],
+                individual[self.settings.prediction_hours : self.settings.prediction_hours * 2],
                 dtype=int,
             )
             if self.optimize_ev
@@ -722,7 +325,7 @@ class Genetic0Optimization(OptimizationBase):
         if self.optimize_dc_charge:
             self.simulation.dc_charge_hours = dc_charge_hours
         else:
-            self.simulation.dc_charge_hours = np.full(self.config.prediction.hours, 1)
+            self.simulation.dc_charge_hours = np.full(self.settings.prediction_hours, 1)
         self.simulation.ac_charge_hours = ac_charge_hours
 
         if ev_charge_hours_index is not None:
@@ -734,15 +337,15 @@ class Genetic0Optimization(OptimizationBase):
             self.simulation.ev_charge_hours = ev_charge_hours_float
         else:
             # discharge is set to 0 by default
-            self.simulation.ev_charge_hours = np.full(self.config.prediction.hours, 0)
+            self.simulation.ev_charge_hours = np.full(self.settings.prediction_hours, 0)
 
         # Do the simulation and return result.
-        return self.simulation.simulate(self.ems.start_datetime.hour)
+        return self.simulation.simulate(self.start_hour)
 
     def evaluate(
         self,
         individual: list[int],
-        parameters: Genetic0OptimizationParameters,
+        parameters: Genetic0Parameters,
         start_hour: int,
         worst_case: bool,
     ) -> tuple[float]:
@@ -755,9 +358,9 @@ class Genetic0Optimization(OptimizationBase):
         Args:
             individual (list[int]):
                 The genome representing one candidate solution.
-            parameters (Genetic0EnergyManagementParameters):
-                Optimization parameters that influence simulation behavior,
-                constraints, and scoring logic.
+            parameters (Genetic0Parameters):
+                Optimization parameters of the run: forecasts, devices and settings that
+                influence simulation behavior, constraints, and scoring logic.
             start_hour (int):
                 The simulation start hour (0–23 or domain-specific).
                 Used to initialize time-based scheduling or constraints.
@@ -926,9 +529,7 @@ class Genetic0Optimization(OptimizationBase):
 
                 # Configurable penalty multiplier (default 1 = economic loss in currency units)
                 try:
-                    ac_penalty_factor = float(
-                        self.config.optimization.genetic0.penalties["ac_charge_break_even"]
-                    )
+                    ac_penalty_factor = float(self.settings.penalties["ac_charge_break_even"])
                 except Exception:
                     ac_penalty_factor = 1.0
 
@@ -975,7 +576,7 @@ class Genetic0Optimization(OptimizationBase):
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
-                penalty = self.config.optimization.genetic0.penalties["ev_soc_miss"]
+                penalty = self.settings.penalties["ev_soc_miss"]
             except Exception:
                 # Use default
                 penalty = 10
@@ -987,7 +588,9 @@ class Genetic0Optimization(OptimizationBase):
                 ev_soc_percentage < parameters.ev.min_soc_percentage
                 or ev_soc_percentage > parameters.ev.max_soc_percentage
             ):
-                total_balance += abs(parameters.ev.min_soc_percentage - ev_soc_percentage) * penalty
+                total_balance += abs(parameters.ev.min_soc_percentage - ev_soc_percentage) * cast(
+                    float, penalty
+                )
 
         return (total_balance,)
 
@@ -1002,7 +605,7 @@ class Genetic0Optimization(OptimizationBase):
         """
         # Set the number of inviduals in a generation
         try:
-            individuals = self.config.optimization.genetic0.individuals
+            individuals = self.settings.individuals
             if individuals is None:
                 raise
         except Exception:
@@ -1057,28 +660,23 @@ class Genetic0Optimization(OptimizationBase):
 
     def optimize_ems(
         self,
-        parameters: Genetic0OptimizationParameters,
-        start_hour: Optional[int] = None,
+        parameters: Genetic0Parameters,
         worst_case: bool = False,
-        ngen: Optional[int] = None,
-    ) -> Genetic0Solution:
-        """Perform EMS (Energy Management System) optimization and visualize results."""
-        if start_hour is None:
-            start_hour = self.ems.start_datetime.hour
-        # Start hour has to be in sync with energy management
-        if start_hour != self.ems.start_datetime.hour:
-            raise ValueError(
-                f"Start hour not synced. EMS {self.ems.start_datetime.hour} vs. GENETIC0 {start_hour}."
-            )
+    ) -> Genetic0Result:
+        """Perform EMS (Energy Management System) optimization.
+
+        Args:
+            parameters: The optimization parameters of the run.
+            worst_case: Evaluate the worst case.
+
+        Returns:
+            The solution of the run.
+        """
+        start_hour = parameters.start_hour
+        self.start_hour = start_hour
 
         # Set the number of generations
-        generations = ngen
-        if generations is None:
-            try:
-                generations = self.config.optimization.genetic0.generations
-            except Exception:
-                generations = 400
-                logger.error("Generations not configured. Using {}.", generations)
+        generations = self.settings.generations
 
         self.simulation.reset()
 
@@ -1087,31 +685,25 @@ class Genetic0Optimization(OptimizationBase):
         if parameters.pv_battery:
             battery = Genetic0Battery(
                 parameters.pv_battery,
-                prediction_hours=self.config.prediction.hours,
+                prediction_hours=self.settings.prediction_hours,
             )
-            battery.set_charge_per_hour(np.full(self.config.prediction.hours, 0))
+            battery.set_charge_per_hour(np.full(self.settings.prediction_hours, 0))
 
         ev: Optional[Genetic0Battery] = None
         if parameters.ev:
             ev = Genetic0Battery(
                 parameters.ev,
-                prediction_hours=self.config.prediction.hours,
+                prediction_hours=self.settings.prediction_hours,
             )
-            ev.set_charge_per_hour(np.full(self.config.prediction.hours, 1))
+            ev.set_charge_per_hour(np.full(self.settings.prediction_hours, 1))
             self.optimize_ev = (
                 parameters.ev.min_soc_percentage - parameters.ev.initial_soc_percentage >= 0
             )
             # electrical vehicle charge rates
             if parameters.ev.charge_rates is not None:
-                self.ev_possible_charge_values = parameters.ev.charge_rates
-            elif (
-                self.config.devices.electric_vehicles
-                and len(self.config.devices.electric_vehicles) > 0
-                and list(self.config.devices.electric_vehicles.values())[0].charge_rates is not None
-            ):
-                self.ev_possible_charge_values = list(
-                    self.config.devices.electric_vehicles.values()
-                )[0].charge_rates
+                self.ev_possible_charge_values = list(parameters.ev.charge_rates)
+            elif self.settings.ev_charge_rates is not None:
+                self.ev_possible_charge_values = list(self.settings.ev_charge_rates)
             else:
                 warning_msg = "No charge rates provided for electric vehicle - using default."
                 logger.warning(warning_msg)
@@ -1138,13 +730,9 @@ class Genetic0Optimization(OptimizationBase):
             self.bat_possible_charge_values = [
                 r for r in parameters.pv_battery.charge_rates if r > 0.0
             ] or [1.0]
-        elif (
-            self.config.devices.batteries
-            and len(self.config.devices.batteries) > 0
-            and list(self.config.devices.batteries.values())[0].charge_rates
-        ):
+        elif self.settings.battery_charge_rates:
             self.bat_possible_charge_values = [
-                r for r in list(self.config.devices.batteries.values())[0].charge_rates if r > 0.0
+                r for r in self.settings.battery_charge_rates if r > 0.0
             ] or [1.0]
         else:
             self.bat_possible_charge_values = [1.0]
@@ -1154,8 +742,8 @@ class Genetic0Optimization(OptimizationBase):
         dishwasher = (
             Genetic0HomeAppliance(
                 parameters=parameters.dishwasher,
-                optimization_hours=self.config.optimization.genetic0.horizon_hours,
-                prediction_hours=self.config.prediction.hours,
+                optimization_hours=self.settings.horizon_hours,
+                prediction_hours=self.settings.prediction_hours,
             )
             if parameters.dishwasher is not None
             else None
@@ -1167,13 +755,14 @@ class Genetic0Optimization(OptimizationBase):
             inverter = Genetic0Inverter(
                 parameters.inverter,
                 battery=battery,
+                self_consumption_interpolator=self.settings.self_consumption_interpolator,
             )
 
         # Prepare device simulation
         self.simulation.prepare(
             parameters=parameters.ems,
-            optimization_hours=self.config.optimization.genetic0.horizon_hours,
-            prediction_hours=self.config.prediction.hours,
+            optimization_hours=self.settings.horizon_hours,
+            prediction_hours=self.settings.prediction_hours,
             inverter=inverter,  # battery is part of inverter
             ev=ev,
             home_appliance=dishwasher,
@@ -1187,7 +776,11 @@ class Genetic0Optimization(OptimizationBase):
         )
 
         start_time = time.time()
-        start_solution, extra_data = self.optimize(parameters.start_solution, ngen=generations)
+        # None (not configured) is passed on as before.
+        start_solution, extra_data = self.optimize(
+            None if parameters.start_solution is None else list(parameters.start_solution),
+            ngen=generations,  # type: ignore[arg-type]
+        )
         elapsed_time = time.time() - start_time
         logger.debug(f"Time evaluate inner: {elapsed_time:.4f} sec.")
 
@@ -1225,20 +818,23 @@ class Genetic0Optimization(OptimizationBase):
             else []
         )
 
-        return Genetic0Solution(
-            **{
-                "parameters": parameters,
-                "ac_charge": ac_charge_hours,
-                "dc_charge": dc_charge_hours,
-                "discharge_allowed": discharge,
-                "ev_charge_hours_float": ev_charge_hours_float,
-                "result": Genetic0SimulationResult(**simulation_result),
-                "ev_obj": self.simulation.ev,
-                "start_hour": start_hour,
-                "start_solution": start_solution,
-                "washingstart": washingstart_int,
-                "extra_data": extra_data,
-                "fitness_history": self.fitness_history,
-                "fixed_seed": self.fix_seed,
-            }
+        return Genetic0Result(
+            ac_charge=float_list(ac_charge_hours),
+            dc_charge=float_list(dc_charge_hours),
+            discharge_allowed=int_list(discharge),
+            ev_charge_hours_float=(
+                None if ev_charge_hours_float is None else float_list(ev_charge_hours_float)
+            ),
+            result=Genetic0SimulationOutput.from_simulation(simulation_result),
+            ev_obj=(
+                None
+                if self.simulation.ev is None
+                else Genetic0ElectricVehicleState.from_battery(self.simulation.ev.to_dict())
+            ),
+            start_hour=start_hour,
+            start_solution=None if start_solution is None else float_list(start_solution),
+            washingstart=None if washingstart_int is None else int(washingstart_int),
+            extra_data=extra_data,
+            fitness_history=self.fitness_history,
+            fixed_seed=self.fix_seed,
         )

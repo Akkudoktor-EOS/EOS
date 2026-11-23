@@ -24,7 +24,8 @@ LAZY_MODULES = [
     "lxml",
     "scipy",
     "tzfpy",
-    "akkudoktoreos.optimization.genetic0.genetic0",
+    "akkudoktoreos.optimization.genetic0.genetic0algorithm",
+    "akkudoktoreos.optimization.genetic0.genetic0simulation",
     "akkudoktoreos.optimization.genetic0.genetic0visualize",
     "akkudoktoreos.optimization.genetic.geneticvisualize",
 ]
