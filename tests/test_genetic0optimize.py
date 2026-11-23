@@ -1,9 +1,14 @@
+import inspect
 import json
+import math
+import re
+from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from pydantic import ValidationError
 from pypdf import PdfReader
@@ -17,13 +22,155 @@ from akkudoktoreos.optimization.genetic0.genetic0params import (
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.genetic0.genetic0visualize import (
+    Genetic0VisualizationReport,
     genetic0_prepare_visualize,
 )
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_datetime
 
 ems_eos = get_ems(init=True) # init once
 
 DIR_TESTDATA = Path(__file__).parent / "testdata" / "genetic0"
+
+# Fixed run starts, so that the date-bearing output can be pinned (ADR 0008).
+FIXED_START = "2026-01-14T10:00:00"
+# The horizon crosses the switch to daylight saving time (Europe/Berlin, 2026-03-29).
+DST_START = "2026-03-28T10:00:00"
+
+# Origin of the fake prediction series: a value depends on its time, not its index.
+PREDICTION_ORIGIN = "2026-01-01T00:00:00+00:00"
+# The fill method the conversion asks for shifts the fake series, so it is pinned too.
+FILL_METHOD_OFFSET = {"linear": 0.0, "ffill": 1000.0}
+
+# Prediction keys the solution conversion reads; each gets its own rising series,
+# so a shifted or swapped series changes the pinned output.
+PREDICTION_KEYS = (
+    "pvforecast_ac_power",
+    "pvforecast_dc_power",
+    "elecprice_marketprice_wh",
+    "feed_in_tariff_wh",
+    "weather_temp_air",
+    "loadforecast_power_w",
+    "loadakkudoktor_std_power_w",
+    "loadakkudoktor_mean_power_w",
+)
+
+# Report methods whose arguments are the input of the visualization.
+REPORT_METHODS = (
+    "create_line_chart_date",
+    "create_line_chart",
+    "create_scatter_plot",
+    "create_bar_chart",
+    "create_violin_plot",
+    "add_text_page",
+    "add_json_page",
+)
+
+# Placeholder for the wall-clock time of the conversion in IDs and timestamps.
+NOW = "<now>"
+
+# Random UUIDs, e.g. in instruction IDs ("battery1@<uuid>").
+UUID_PATTERN = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+
+class FakePrediction:
+    """Deterministic predictions for the solution conversion."""
+
+    record_keys = list(PREDICTION_KEYS)
+
+    async def key_to_array(
+        self,
+        key: str,
+        start_datetime: DateTime,
+        end_datetime: DateTime,
+        interval: Duration,
+        fill_method: str,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """A rising series per key and fill method whose values follow the absolute time."""
+        step_hours = interval.total_seconds() / 3600
+        steps = int((end_datetime - start_datetime).total_seconds() // interval.total_seconds())
+        first_hour = (start_datetime - to_datetime(PREDICTION_ORIGIN)).total_seconds() / 3600
+        base = 10.0 * (PREDICTION_KEYS.index(key) + 1) + FILL_METHOD_OFFSET[fill_method]
+        return base + 0.5 * (first_hour + step_hours * np.arange(steps))
+
+
+def mask_now(dump: dict[str, Any]) -> dict[str, Any]:
+    """Replace the wall-clock time of the conversion in ``id`` and ``generated_at``."""
+    prefix, _, _ = dump["id"].partition("@")
+    return {**dump, "id": f"{prefix}@{NOW}", "generated_at": NOW}
+
+
+def to_jsonable(value: Any) -> Any:
+    """Convert the output of a run into plain JSON values for golden files."""
+    if isinstance(value, dict):
+        return {str(k): to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [to_jsonable(v) for v in value]
+    if isinstance(value, np.ndarray):
+        return to_jsonable(value.tolist())
+    if isinstance(value, np.generic):
+        return to_jsonable(value.item())
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    if isinstance(value, str):
+        return UUID_PATTERN.sub("<uuid>", value)
+    if isinstance(value, (int, float, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def compare_jsonable(actual: Any, expected: Any, path: str = "$") -> None:
+    """Compare plain JSON values; numbers approximately."""
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict), path
+        assert set(actual) == set(expected), path
+        for key, value in expected.items():
+            compare_jsonable(actual[key], value, f"{path}.{key}")
+    elif isinstance(expected, list):
+        assert isinstance(actual, list), path
+        assert len(actual) == len(expected), path
+        for index, (a, e) in enumerate(zip(actual, expected)):
+            compare_jsonable(a, e, f"{path}[{index}]")
+    elif isinstance(expected, (int, float)) and not isinstance(expected, bool):
+        assert actual == pytest.approx(expected), path
+    else:
+        assert actual == expected, path
+
+
+def check_golden(actual: Any, golden: str) -> None:
+    """Compare ``actual`` with the golden file; write ``new_<golden>`` for review on a miss."""
+    actual = to_jsonable(actual)
+    new_file = DIR_TESTDATA / f"new_{golden}"
+    new_file.write_text(json.dumps(actual, indent=4) + "\n", encoding="utf-8", newline="\n")
+    golden_file = DIR_TESTDATA / golden
+    if not golden_file.exists():
+        pytest.fail(f"Missing golden file {golden_file}\ncp {new_file} {golden_file}\n")
+    compare_jsonable(actual, json.loads(golden_file.read_text(encoding="utf-8")))
+    new_file.unlink()
+
+
+def record_report_calls() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Spies on the report methods: the recorded calls and the patches to apply."""
+    calls: list[dict[str, Any]] = []
+
+    def spy(name: str, original: Callable[..., Any]) -> Callable[..., Any]:
+        signature = inspect.signature(original)
+
+        def method(self: Any, *args: Any, **kwargs: Any) -> Any:
+            # Bound by name with defaults, so the call style does not matter.
+            bound = signature.bind(self, *args, **kwargs)
+            bound.apply_defaults()
+            arguments = dict(bound.arguments)
+            arguments.pop("self")
+            calls.append({"method": name, "arguments": arguments})
+            return original(self, *args, **kwargs)
+
+        return method
+
+    patches = {
+        name: spy(name, getattr(Genetic0VisualizationReport, name)) for name in REPORT_METHODS
+    }
+    return calls, patches
 
 
 def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
@@ -41,13 +188,35 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "fn_in, fn_out, ngen, break_even",
+    "fn_in, fn_out, ngen, break_even, start, golden_stem",
     [
-        ("optimize_input_1.json", "optimize_result_1.json", 3, 0),
-        ("optimize_input_2.json", "optimize_result_2.json", 3, 0),
-        ("optimize_input_2.json", "optimize_result_2_full.json", 400, 0),
-        ("optimize_input_1.json", "optimize_result_1_be.json", 3, 1),
-        ("optimize_input_2.json", "optimize_result_2_be.json", 3, 1),
+        ("optimize_input_1.json", "optimize_result_1.json", 3, 0, FIXED_START, "optimize_result_1"),
+        ("optimize_input_2.json", "optimize_result_2.json", 3, 0, FIXED_START, "optimize_result_2"),
+        (
+            "optimize_input_2.json",
+            "optimize_result_2_full.json",
+            400,
+            0,
+            FIXED_START,
+            "optimize_result_2_full",
+        ),
+        (
+            "optimize_input_1.json",
+            "optimize_result_1_be.json",
+            3,
+            1,
+            FIXED_START,
+            "optimize_result_1_be",
+        ),
+        (
+            "optimize_input_2.json",
+            "optimize_result_2_be.json",
+            3,
+            1,
+            FIXED_START,
+            "optimize_result_2_be",
+        ),
+        ("optimize_input_2.json", "optimize_result_2.json", 3, 0, DST_START, "optimize_result_2_dst"),
     ],
 )
 async def test_optimize(
@@ -55,6 +224,8 @@ async def test_optimize(
     fn_out: str,
     ngen: int,
     break_even: int,
+    start: str,
+    golden_stem: str,
     config_eos: ConfigEOS,
     is_finalize: bool,
 ):
@@ -88,6 +259,9 @@ async def test_optimize(
                         "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
                     }
                 },
+                # Covers the home appliance part of the solution conversion.
+                "max_home_appliances": 1,
+                "home_appliances": {"dishwasher1": {"device_id": "dishwasher1"}},
              }
          }
     )
@@ -98,7 +272,10 @@ async def test_optimize(
         input_data = Genetic0OptimizationParameters(**json.load(f_in))
 
     # Fake energy management run start datetime
-    ems_eos.set_start_datetime(to_datetime().set(hour=fixed_start_hour))
+    ems_eos.set_start_datetime(
+        to_datetime(start, in_timezone=config_eos.general.timezone)
+    )
+    assert ems_eos.start_datetime.hour == fixed_start_hour
 
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()
@@ -115,7 +292,7 @@ async def test_optimize(
     )
 
     # Write test output to file, so we can take it as new data on intended change
-    TESTDATA_FILE = DIR_TESTDATA / f"new_{fn_out}"
+    TESTDATA_FILE = DIR_TESTDATA / f"new_{golden_stem}.json"
     with TESTDATA_FILE.open("w", encoding="utf-8", newline="\n") as f_out:
         f_out.write(genetic0_solution.model_dump_json(indent=4, exclude_unset=True))
 
@@ -150,18 +327,31 @@ async def test_optimize(
     compare_dict(genetic0_solution.model_dump(), expected_result.model_dump())
 
     # Check the correct generic optimization solution is created
-    optimization_solution = await genetic0_solution.optimization_solution()
-    # @TODO
+    with patch(
+        "akkudoktoreos.optimization.genetic0.genetic0solution.get_prediction",
+        return_value=FakePrediction(),
+    ):
+        optimization_solution = await genetic0_solution.optimization_solution()
+    check_golden(
+        mask_now(optimization_solution.model_dump(mode="json")),
+        f"{golden_stem}_optimization_solution.json",
+    )
 
     # Check the correct generic energy management plan is created
     plan = genetic0_solution.energy_management_plan()
-    # @TODO
-
-    # Check visualization works
-    pdf = genetic0_prepare_visualize(
-        solution=genetic0_solution,
+    check_golden(
+        mask_now(plan.model_dump(mode="json")),
+        f"{golden_stem}_plan.json",
     )
+
+    # Check visualization works, and pin what it is drawn from
+    report_calls, report_patches = record_report_calls()
+    with patch.multiple(Genetic0VisualizationReport, **report_patches):
+        pdf = genetic0_prepare_visualize(
+            solution=genetic0_solution,
+        )
     assert pdf.startswith(b"%PDF-")
+    check_golden(report_calls, f"{golden_stem}_visualize.json")
 
     reader = PdfReader(BytesIO(pdf))
     assert len(reader.pages) == 6
