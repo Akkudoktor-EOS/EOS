@@ -43,6 +43,7 @@ from akkudoktoreos.devices.settings.batterysettings import (
     BatteryProfileAdjustment,
     BatteryResolutionError,
 )
+from akkudoktoreos.optimization.genetic import geneticprepare
 
 # The real measurement accessor, captured before any fixture replaces it.
 REAL_GET_MEASURED_VALUE = batterymeasurement.get_measured_value
@@ -77,7 +78,12 @@ PARAMETER_METHODS = [
 ]
 
 
-# GENETIC0's conversions live in its parameter preparation (ADR 0004), not in the settings.
+# The optimizers' conversions live in their parameter preparation (ADR 0004), not in the
+# settings.
+GENETIC_CONVERSIONS = {
+    "to_genetic_pv_bat_param": "battery_request",
+    "to_genetic_ev_bat_param": "electric_vehicle_request",
+}
 GENETIC0_CONVERSIONS = {
     "to_genetic0_pv_bat_param": "battery_request",
     "to_genetic0_ev_bat_param": "electric_vehicle_request",
@@ -85,13 +91,14 @@ GENETIC0_CONVERSIONS = {
 
 
 def converter(settings, method):
-    """The conversion ``method`` of the settings, or GENETIC0's function for them."""
+    """The conversion function named ``method`` of GENETIC or GENETIC0, bound to the settings."""
     if method in GENETIC0_CONVERSIONS:
         from akkudoktoreos.optimization.genetic0 import genetic0prepare
 
         function = getattr(genetic0prepare, GENETIC0_CONVERSIONS[method])
-        return lambda *args, **kwargs: function(settings, *args, **kwargs)
-    return getattr(settings, method)
+    else:
+        function = getattr(geneticprepare, GENETIC_CONVERSIONS[method])
+    return lambda *args, **kwargs: function(settings, *args, **kwargs)
 
 
 COMPUTED_FIELDS = [
@@ -816,7 +823,7 @@ class TestGetBatteryProfile:
         settings.resolve_operating_parameters()
         _ = settings.effective_nominal_capacity_wh
         _ = settings.effective_max_charge_power_w
-        settings.to_genetic_pv_bat_param()
+        geneticprepare.battery_request(settings)
         assert calls == ["generic-lfp"] * 5
 
     def test_dump_resolves_the_battery_once(self, install_profile, monkeypatch):
@@ -968,7 +975,7 @@ class TestMaxChargePower:
         measurements["battery1-temperature-degc"] = -12.0
         parameters = await current(settings)
         assert parameters.max_charge_power_w == 0.0
-        assert settings.to_genetic_pv_bat_param(parameters).max_charge_power_w == 0.0
+        assert geneticprepare.battery_request(settings, parameters).max_charge_power_w == 0.0
         assert converter(settings, "to_genetic0_pv_bat_param")(parameters).max_charge_power_w == 0.0
 
     def test_zero_charge_power_yields_zero(self, make_profiled_settings):
@@ -1037,7 +1044,7 @@ class TestMaxDischargePower:
     def test_inhibited_discharging_does_not_block_conversions(self, make_profiled_settings):
         profile = make_profile(hard_cutoffs=discharge_inhibited_below_30())
         settings = make_profiled_settings(profile, capacity_wh=10000)
-        assert settings.to_genetic_pv_bat_param().max_charge_power_w == pytest.approx(5000.0)
+        assert geneticprepare.battery_request(settings).max_charge_power_w == pytest.approx(5000.0)
 
 
 # --- Efficiencies ----------------------------------------------------------------
@@ -1429,11 +1436,11 @@ class TestOptimizationParameters:
         assert converter(settings, method)().max_charge_power_w == 0.0
 
     def test_genetic_pv_receives_storage_cost(self):
-        params = make_settings(levelized_cost_of_storage_amt_kwh=0.12).to_genetic_pv_bat_param()
+        params = geneticprepare.battery_request(make_settings(levelized_cost_of_storage_amt_kwh=0.12))
         assert params.levelized_cost_of_storage_kwh == pytest.approx(0.12)
 
     def test_genetic_ev_receives_soc_deadline_settings(self):
-        params = make_settings(min_soc_max_duration_h=6.0).to_genetic_ev_bat_param()
+        params = geneticprepare.electric_vehicle_request(make_settings(min_soc_max_duration_h=6.0))
         assert params.min_soc_max_duration_h == pytest.approx(6.0)
         assert params.min_soc_deadline_datetime is None
 
@@ -1536,11 +1543,11 @@ class TestGeneticPowerCurves:
             max_soc_percentage=100,
         )
 
-    @pytest.mark.parametrize("converter", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
-    def test_tables_follow_soc(self, make_profiled_settings, converter):
+    @pytest.mark.parametrize("method", ["to_genetic_pv_bat_param", "to_genetic_ev_bat_param"])
+    def test_tables_follow_soc(self, make_profiled_settings, method):
         profile = make_profile(charge=[list(self.TAPER) for _ in range(10)], discharge=0.4)
         settings = make_profiled_settings(profile, capacity_wh=10000)
-        parameters = getattr(settings, converter)()
+        parameters = converter(settings, method)()
 
         charge = parameters.charge_power_limit_w_by_soc
         discharge = parameters.discharge_power_limit_w_by_soc
@@ -1564,8 +1571,9 @@ class TestGeneticPowerCurves:
         snapshot = await current(settings)
         assert snapshot.max_charge_power_w == pytest.approx(5000.0)
 
-        parameters = settings.to_genetic_pv_bat_param(snapshot)
+        parameters = geneticprepare.battery_request(settings, snapshot)
         assert parameters.max_charge_power_w == pytest.approx(10000.0)
+        assert parameters.charge_power_limit_w_by_soc is not None
         assert parameters.charge_power_limit_w_by_soc[100] == pytest.approx(5000.0)
 
     @pytest.mark.asyncio
@@ -1583,7 +1591,7 @@ class TestGeneticPowerCurves:
         if temperature is not None:
             measurements["battery1-temperature-degc"] = temperature
 
-        parameters = settings.to_genetic_pv_bat_param(await current(settings))
+        parameters = geneticprepare.battery_request(settings, await current(settings))
         assert parameters.charge_power_limit_w_by_soc == pytest.approx([expected_w] * 101)
         assert parameters.discharge_power_limit_w_by_soc == pytest.approx([expected_w] * 101)
 
@@ -1595,7 +1603,8 @@ class TestGeneticPowerCurves:
             charge_limit_w=6000,
             discharge_limit_w=1000,
         )
-        parameters = settings.to_genetic_pv_bat_param()
+        parameters = geneticprepare.battery_request(settings)
+        assert parameters.charge_power_limit_w_by_soc is not None
         assert max(parameters.charge_power_limit_w_by_soc) == pytest.approx(6000.0)
         assert parameters.charge_power_limit_w_by_soc[100] == pytest.approx(5000.0)
         assert parameters.discharge_power_limit_w_by_soc == pytest.approx([1000.0] * 101)
@@ -1604,7 +1613,7 @@ class TestGeneticPowerCurves:
 
     def test_efficiency_curves_over_power_fraction(self, make_profiled_settings, full_profile):
         settings = make_profiled_settings(full_profile, capacity_wh=10000)
-        parameters = settings.to_genetic_pv_bat_param()
+        parameters = geneticprepare.battery_request(settings)
 
         charging = parameters.charging_efficiency_curve
         discharging = parameters.discharging_efficiency_curve
@@ -1617,7 +1626,7 @@ class TestGeneticPowerCurves:
         assert discharging[-1][1] == pytest.approx(0.9375)
 
     def test_efficiency_curves_come_from_the_profile(self):
-        parameters = make_settings(capacity_wh=10000).to_genetic_pv_bat_param()
+        parameters = geneticprepare.battery_request(make_settings(capacity_wh=10000))
         assert parameters.charge_power_limit_w_by_soc is not None
         assert parameters.charging_efficiency_curve is not None
         assert parameters.discharging_efficiency_curve is not None
@@ -1629,7 +1638,7 @@ class TestGeneticPowerCurves:
         snapshot = self.snapshot(temperature_degC=20.0)
         assert settings.resolve_power_curves(snapshot) is None
 
-        parameters = settings.to_genetic_pv_bat_param(snapshot)
+        parameters = geneticprepare.battery_request(settings, snapshot)
         assert parameters.charge_power_limit_w_by_soc is None
         assert parameters.max_charge_power_w == pytest.approx(snapshot.max_charge_power_w)
 
@@ -1637,7 +1646,7 @@ class TestGeneticPowerCurves:
         """A snapshot resolved without profile is converted as is: no load, no abort."""
         snapshot = self.snapshot()
         settings = make_settings(battery_profile="does-not-exist")
-        converted = settings.to_genetic_pv_bat_param(snapshot)
+        converted = geneticprepare.battery_request(settings, snapshot)
         assert converted.max_charge_power_w == snapshot.max_charge_power_w
         assert converted.max_discharge_power_w == snapshot.max_discharge_power_w
         assert converted.charge_power_limit_w_by_soc is None

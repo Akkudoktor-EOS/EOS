@@ -3,7 +3,7 @@
 Note: Used for the GENETIC and GENETIC0 algorithm.
 """
 
-from typing import TYPE_CHECKING, Any, Optional, Self
+from typing import Any, Optional, Self
 
 from pydantic import Field, computed_field, field_validator, model_validator
 
@@ -19,11 +19,6 @@ from akkudoktoreos.devices.devicesabc import (
 )
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
-
-if TYPE_CHECKING:
-    from akkudoktoreos.optimization.genetic.geneticrequest import (
-        GeneticHomeApplianceRequest,
-    )
 
 
 class HomeApplianceCommonSettings(DevicesBaseSettings):
@@ -369,32 +364,6 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
         if self.cycle_time_windows is not None:
             return self.cycle_time_windows.num_cycles()
         return self.num_cycles
-
-    # ------------------------------------------------------------------
-    # GENETIC domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic_param(self) -> "GeneticHomeApplianceRequest":
-        """Return GeneticHomeApplianceRequest for the GENETIC optimizer."""
-        from akkudoktoreos.optimization.genetic.geneticrequest import (
-            GeneticHomeApplianceRequest,
-        )
-
-        return GeneticHomeApplianceRequest(
-            device_id=self.device_id,
-            consumption_wh=self.consumption_wh,
-            duration_h=self.duration_h,
-            num_cycles=self.effective_num_cycles,
-            min_cycle_gap_h=self.min_cycle_gap_h,
-            time_windows=self.cycle_time_windows,
-            shared_time_windows=self.time_windows,
-            load_profile_power_w=self.load_profile_power_w,
-            load_profile_interval_seconds=self.load_profile_interval_seconds,
-            schedule_mode=self.schedule_mode,
-            earliest_start_datetime=self.earliest_start_datetime,
-            deadline_datetime=self.deadline_datetime,
-            deadline_policy=self.deadline_policy,
-        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -6,11 +6,12 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import genetic_optimization
+from conftest import genetic_optimization, genetic_run_parameters
 from loguru import logger
 
 from akkudoktoreos.config.config import SettingsEOSDefaults
 from akkudoktoreos.core.coreabc import get_ems
+from akkudoktoreos.optimization.genetic import geneticconvert
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
 )
@@ -258,7 +259,7 @@ async def test_genome_output_and_final_control_state(config_eos, interval, start
     assert result.terminal_value.tail_plan[0].hour_from_start == 24
     assert len(result.terminal_value.curve.operating_value_euro) == 101
     assert len(result.terminal_value.curve.continuation_value_euro) == 101
-    assert len((await result.optimization_solution()).solution.to_dataframe()) == opt.control_slots
+    assert len((await geneticconvert.optimization_solution(genetic_run_parameters(result.parameters), result)).solution.to_dataframe()) == opt.control_slots
 
 
 def test_short_tail_is_reported(config_eos, caplog):

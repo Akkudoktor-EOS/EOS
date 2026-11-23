@@ -44,9 +44,6 @@ from akkudoktoreos.utils.datetimeutil import DateTime
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.profile.inverterprofile import InverterProfile
-    from akkudoktoreos.optimization.genetic.geneticrequest import (
-        GeneticInverterRequest,
-    )
 
 
 # Name of the inverter profile used when the user selects none.
@@ -675,44 +672,6 @@ class InverterCommonSettings(DevicesBaseSettings):
         """AC→DC efficiency at the AC charge power limit."""
         p = self._effective_parameters()
         return p.ac_to_dc_efficiency if p is not None else None
-
-    # ------------------------------------------------------------------
-    # GENETIC domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic_param(
-        self, operating_parameters: Optional[InverterOperatingParameters] = None
-    ) -> "GeneticInverterRequest":
-        """Return GeneticInverterRequest for the GENETIC optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-
-        Raises:
-            InverterResolutionError: If the snapshot is resolved here and the
-                inverter cannot be resolved.
-        """
-        from akkudoktoreos.optimization.genetic.geneticrequest import (
-            GeneticInverterRequest,
-        )
-
-        p = operating_parameters or self.resolve_operating_parameters()
-        return GeneticInverterRequest(
-            device_id=self.device_id,
-            max_power_wh=p.max_power_w,
-            battery_id=self.battery_id,
-            ac_to_dc_efficiency=p.ac_to_dc_efficiency,
-            dc_to_ac_efficiency=p.dc_to_ac_efficiency,
-            dc_to_ac_efficiency_curve=list(p.dc_to_ac_efficiency_curve),
-            ac_to_dc_efficiency_curve=list(p.ac_to_dc_efficiency_curve),
-            dc_to_ac_efficiency_reference_load_fraction=(
-                self.dc_to_ac_efficiency_reference_load_fraction
-            ),
-            max_ac_charge_power_w=p.max_ac_charge_power_w,
-            ac_charge_limits_total_charge=p.ac_charge_limits_total_charge,
-        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

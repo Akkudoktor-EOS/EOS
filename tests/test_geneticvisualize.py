@@ -1,3 +1,4 @@
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pendulum
 import pytest
+from conftest import genetic_run_parameters
 from matplotlib.testing.compare import compare_images
 from pypdf import PdfReader
 
@@ -131,8 +133,7 @@ class TestGeneticVisualizationIntervals:
             return original(self, start_date, y_list, **kwargs)
 
         monkeypatch.setattr(visualize.GeneticVisualizationReport, "create_line_chart_date", capture)
-        monkeypatch.setattr(visualize, "get_ems", lambda: pytest.fail("Snapshot must own report timing"))
-        pdf = visualize.genetic_prepare_visualize(report_solution)
+        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.parameters), report_solution)
         assert pdf.startswith(b"%PDF-")
         assert all(row[0] == report_solution.start_solution_datetime for row in captured)
         assert all(row[3] == interval_seconds for row in captured)
@@ -178,8 +179,12 @@ class TestGeneticVisualizationIntervals:
         assert not solution.controls_start_at_now
         assert solution.terminal_value is None
         start = pendulum.datetime(2026, 9, 16, solution.start_hour, tz="UTC")
-        monkeypatch.setattr(visualize, "get_ems", lambda: SimpleNamespace(start_datetime=start))
-        pdf = visualize.genetic_prepare_visualize(solution)
+        # A historical solution has no start; the run start of the parameters is the fallback.
+        parameters = genetic_run_parameters(solution.parameters)
+        parameters = replace(
+            parameters, settings=replace(parameters.settings, start_datetime=start)
+        )
+        pdf = visualize.genetic_prepare_visualize(parameters, solution)
         assert len(PdfReader(BytesIO(pdf)).pages) >= 4
 
     def test_fixed_fallback_does_not_invent_tail_charts(self, config_eos, report_solution):
@@ -188,7 +193,7 @@ class TestGeneticVisualizationIntervals:
             battery_energy_wh=500, requested_tail_hours=24,
         )
         report_solution.result.home_appliance_energy_wh = {}
-        pdf = visualize.genetic_prepare_visualize(report_solution)
+        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.parameters), report_solution)
         text = " ".join(page.extract_text() for page in PdfReader(BytesIO(pdf)).pages)
         assert "No complete tail forecast" in text
         assert "effective tail: 0 h" in text
@@ -234,7 +239,7 @@ class TestGeneticVisualizationIntervals:
             return original(self, start_date, y_list, **kwargs)
 
         monkeypatch.setattr(visualize.GeneticVisualizationReport, "create_line_chart_date", capture)
-        pdf = visualize.genetic_prepare_visualize(report_solution)
+        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.parameters), report_solution)
         assert pdf.startswith(b"%PDF-")
         tariff_plot = next(series for series, kwargs in captured if kwargs.get("title") == "Remuneration")
         assert np.asarray(tariff_plot[0]).tolist() == [0.00007] * 4

@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0EnergyManagementRequest,
 )
@@ -118,10 +119,10 @@ def test_device_maps_feed_algorithm_specific_converters(algorithm):
         inverter = genetic0prepare.inverter_request(hybrid)
         appliance = genetic0prepare.home_appliance_request(washer)
     else:
-        battery = storage.to_genetic_pv_bat_param()
-        ev = car.to_genetic_ev_bat_param()
-        inverter = hybrid.to_genetic_param()
-        appliance = washer.to_genetic_param()
+        battery = geneticprepare.battery_request(storage)
+        ev = geneticprepare.electric_vehicle_request(car)
+        inverter = geneticprepare.inverter_request(hybrid)
+        appliance = geneticprepare.home_appliance_request(washer)
     assert (battery.device_id, ev.device_id, inverter.device_id, appliance.device_id) == (
         "storage",
         "car",

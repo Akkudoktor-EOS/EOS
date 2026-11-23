@@ -18,8 +18,18 @@ import pandas as pd
 from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config, get_measurement, get_prediction
-from akkudoktoreos.devices.settings.batteryresolution import BatteryFullCharge
+from akkudoktoreos.devices.settings.batteryresolution import (
+    BatteryFullCharge,
+    BatteryOperatingParameters,
+)
 from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
+from akkudoktoreos.devices.settings.homeappliancesettings import (
+    HomeApplianceCommonSettings,
+)
+from akkudoktoreos.devices.settings.inverterresolution import (
+    InverterOperatingParameters,
+)
+from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
 from akkudoktoreos.optimization.genetic.geneticforecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic.geneticfullcharge import (
     enforced_full_charge_deadline,
@@ -30,7 +40,11 @@ from akkudoktoreos.optimization.genetic.geneticparameters import (
     GeneticRunSettings,
 )
 from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticElectricVehicleRequest,
     GeneticEnergyManagementRequest,
+    GeneticHomeApplianceRequest,
+    GeneticInverterRequest,
     GeneticOptimizationParameters,
     GeneticRequest,
 )
@@ -431,7 +445,7 @@ async def resolve_request(
                 operating_parameters,
                 use_profile_tables,
             ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
-            battery = device.to_genetic_pv_bat_param(operating_parameters, use_profile_tables)
+            battery = battery_request(device, operating_parameters, use_profile_tables)
         except Exception as error:
             logger.error(
                 "GENETIC: Battery '{}' cannot be resolved, left out: {}", device.device_id, error
@@ -482,7 +496,7 @@ async def resolve_request(
                 operating_parameters,
                 use_profile_tables,
             ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
-            ev = device.to_genetic_ev_bat_param(operating_parameters, use_profile_tables)
+            ev = electric_vehicle_request(device, operating_parameters, use_profile_tables)
         except Exception as error:
             logger.error(
                 "GENETIC: Electric vehicle '{}' cannot be resolved, left out: {}",
@@ -497,8 +511,9 @@ async def resolve_request(
         try:
             # The derating of the inverter profile applies at the measured
             # ambient temperature, 45 degC without a measurement.
-            inverter = device.to_genetic_param(
-                await device.resolve_current_operating_parameters_or_defaults(observation_time)
+            inverter = inverter_request(
+                device,
+                await device.resolve_current_operating_parameters_or_defaults(observation_time),
             )
         except Exception as error:
             logger.error(
@@ -525,7 +540,7 @@ async def resolve_request(
     resolved: list[tuple[Any, Any]] = []
     for device in groups["home_appliances"]:
         try:
-            resolved.append((device, device.to_genetic_param()))
+            resolved.append((device, home_appliance_request(device)))
         except Exception as error:
             logger.error(
                 "GENETIC: Home appliance '{}' cannot be resolved, left out: {}",
@@ -789,3 +804,143 @@ def _genome(genome: Optional[list[float]], name: str) -> Optional[list[float]]:
         logger.error("GENETIC: {} {} has fewer than two genes, no warm start genome.", name, genome)
         return None
     return genome
+
+
+def battery_request(
+    settings: BatteriesCommonSettings,
+    operating_parameters: Optional[BatteryOperatingParameters] = None,
+    use_profile_tables: bool = True,
+) -> GeneticBatteryRequest:
+    """GENETIC parameters of a stationary battery from its settings.
+
+    Args:
+        settings: The battery settings.
+        operating_parameters: Resolved snapshot to convert, e.g. from
+            ``resolve_current_operating_parameters``. None resolves at the
+            reference operating point.
+        use_profile_tables: Whether to add the SoC dependent power limits
+            and efficiency curves of the profile. False for a snapshot
+            resolved without profile (see
+            ``resolve_operating_parameters_or_defaults``); requires
+            ``operating_parameters``.
+
+    Returns:
+        The battery request.
+
+    Raises:
+        BatteryResolutionError: See ``resolve_operating_parameters``.
+    """
+    p, profile = settings.snapshot_with_profile(operating_parameters, use_profile_tables)
+    return GeneticBatteryRequest(
+        device_id=settings.device_id,
+        capacity_wh=p.capacity_wh,
+        charging_efficiency=p.charging_efficiency,
+        discharging_efficiency=p.discharging_efficiency,
+        min_soc_percentage=p.min_soc_percentage,
+        max_soc_percentage=p.max_soc_percentage,
+        charge_rates=settings.charge_rates,
+        grid_export_rates=settings.grid_export_rates,
+        **settings.power_and_efficiency_fields(p, profile),
+        levelized_cost_of_storage_kwh=settings.levelized_cost_of_storage_amt_kwh,
+    )
+
+
+def electric_vehicle_request(
+    settings: BatteriesCommonSettings,
+    operating_parameters: Optional[BatteryOperatingParameters] = None,
+    use_profile_tables: bool = True,
+) -> GeneticElectricVehicleRequest:
+    """GENETIC parameters of an electric vehicle from its settings.
+
+    Args:
+        settings: The electric vehicle's battery settings.
+        operating_parameters: Resolved snapshot to convert, e.g. from
+            ``resolve_current_operating_parameters``. None resolves at the
+            reference operating point.
+        use_profile_tables: Whether to add the SoC dependent power limits
+            and efficiency curves of the profile. False for a snapshot
+            resolved without profile (see
+            ``resolve_operating_parameters_or_defaults``); requires
+            ``operating_parameters``.
+
+    Returns:
+        The electric vehicle request.
+
+    Raises:
+        BatteryResolutionError: See ``resolve_operating_parameters``.
+    """
+    p, profile = settings.snapshot_with_profile(operating_parameters, use_profile_tables)
+    return GeneticElectricVehicleRequest(
+        device_id=settings.device_id,
+        capacity_wh=p.capacity_wh,
+        charging_efficiency=p.charging_efficiency,
+        discharging_efficiency=p.discharging_efficiency,
+        charge_rates=settings.charge_rates,
+        min_soc_percentage=p.min_soc_percentage,
+        max_soc_percentage=p.max_soc_percentage,
+        min_soc_deadline_datetime=settings.min_soc_deadline_datetime,
+        min_soc_max_duration_h=settings.min_soc_max_duration_h,
+        **settings.power_and_efficiency_fields(p, profile),
+    )
+
+
+def inverter_request(
+    settings: InverterCommonSettings,
+    operating_parameters: Optional[InverterOperatingParameters] = None,
+) -> GeneticInverterRequest:
+    """GENETIC parameters of an inverter from its settings.
+
+    Args:
+        settings: The inverter settings.
+        operating_parameters: Resolved snapshot to convert, e.g. from
+            ``resolve_current_operating_parameters``. None resolves at the
+            reference operating point.
+
+    Returns:
+        The inverter request.
+
+    Raises:
+        InverterResolutionError: If the snapshot is resolved here and the
+            inverter cannot be resolved.
+    """
+    p = operating_parameters or settings.resolve_operating_parameters()
+    return GeneticInverterRequest(
+        device_id=settings.device_id,
+        max_power_wh=p.max_power_w,
+        battery_id=settings.battery_id,
+        ac_to_dc_efficiency=p.ac_to_dc_efficiency,
+        dc_to_ac_efficiency=p.dc_to_ac_efficiency,
+        dc_to_ac_efficiency_curve=list(p.dc_to_ac_efficiency_curve),
+        ac_to_dc_efficiency_curve=list(p.ac_to_dc_efficiency_curve),
+        dc_to_ac_efficiency_reference_load_fraction=(
+            settings.dc_to_ac_efficiency_reference_load_fraction
+        ),
+        max_ac_charge_power_w=p.max_ac_charge_power_w,
+        ac_charge_limits_total_charge=p.ac_charge_limits_total_charge,
+    )
+
+
+def home_appliance_request(settings: HomeApplianceCommonSettings) -> GeneticHomeApplianceRequest:
+    """GENETIC parameters of a home appliance from its settings.
+
+    Args:
+        settings: The home appliance settings.
+
+    Returns:
+        The home appliance request.
+    """
+    return GeneticHomeApplianceRequest(
+        device_id=settings.device_id,
+        consumption_wh=settings.consumption_wh,
+        duration_h=settings.duration_h,
+        num_cycles=settings.effective_num_cycles,
+        min_cycle_gap_h=settings.min_cycle_gap_h,
+        time_windows=settings.cycle_time_windows,
+        shared_time_windows=settings.time_windows,
+        load_profile_power_w=settings.load_profile_power_w,
+        load_profile_interval_seconds=settings.load_profile_interval_seconds,
+        schedule_mode=settings.schedule_mode,
+        earliest_start_datetime=settings.earliest_start_datetime,
+        deadline_datetime=settings.deadline_datetime,
+        deadline_policy=settings.deadline_policy,
+    )

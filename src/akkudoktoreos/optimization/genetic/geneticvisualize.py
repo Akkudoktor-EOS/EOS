@@ -11,7 +11,7 @@ import numpy as np
 import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.core.coreabc import ConfigMixin, get_ems
+from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
@@ -23,15 +23,26 @@ matplotlib.use(
 debug_visualize: bool = False
 
 
-class GeneticVisualizationReport(ConfigMixin):
+class GeneticVisualizationReport:
+    """PDF report of a GENETIC run: groups of charts, rendered page by page."""
+
     def __init__(
         self,
         version: str = "0.0.1",
         interval_seconds: int = 3600,
+        timezone: Optional[str] = None,
     ) -> None:
+        """Create an empty report.
+
+        Args:
+            version: Version shown in the report.
+            interval_seconds: Length of one slot of the charts.
+            timezone: Time zone of the charts' hours; ``None`` is the local time zone.
+        """
         if interval_seconds <= 0:
             raise ValueError("Report interval must be positive")
         self.interval_seconds = interval_seconds
+        self.timezone = timezone
         # Initialize the report with empty groups
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
         self.current_group: list[
@@ -43,9 +54,7 @@ class GeneticVisualizationReport(ConfigMixin):
         self.pdf_pages: PdfPages | None = None
 
         self.version = version  # overwrite version as test for constant output of pdf for test
-        self.current_time = to_datetime(
-            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.general.timezone
-        )
+        self.current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.timezone)
 
     def add_chart_to_group(self, chart_func: Callable[[], None], title: str | None) -> None:
         """Add a chart function to the current group and save it as a PNG and SVG."""
@@ -184,7 +193,7 @@ class GeneticVisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = pendulum.now(self.config.general.timezone)
+            current_time = to_datetime(in_timezone=self.timezone)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(mdates.date2num(current_time), color="r", linestyle="--", label="Now")
                 plt.text(
@@ -457,13 +466,26 @@ class GeneticVisualizationReport(ConfigMixin):
 
 
 def genetic_prepare_visualize(
-    solution: GeneticSolution,
+    parameters: GeneticParameters,
+    result: GeneticSolution,
 ) -> bytes:
+    """Render the PDF report of a run.
+
+    Args:
+        parameters: The optimization parameters of the run (run start, time zone).
+        result: The result of the run.
+
+    Returns:
+        The PDF document.
+    """
     global debug_visualize
 
-    report = GeneticVisualizationReport(interval_seconds=solution.interval_seconds)
-    # New solutions own their timeline. The fallback supports historical hourly solutions.
-    start_datetime = solution.start_solution_datetime or get_ems().start_datetime
+    solution = result
+    report = GeneticVisualizationReport(
+        interval_seconds=solution.interval_seconds, timezone=parameters.settings.timezone
+    )
+    # New solutions own their timeline; the run start is the fallback.
+    start_datetime = solution.start_solution_datetime or parameters.settings.start_datetime
     start_offset = 0 if solution.controls_start_at_now else solution.start_hour
     control_slots = len(solution.result.load_wh_per_hour)
     end_offset = start_offset + control_slots

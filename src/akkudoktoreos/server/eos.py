@@ -1919,20 +1919,22 @@ async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> R
     its recorded timestamp, interval and inputs own the report's time grid.
     The legacy /visualization_results.pdf route continues to serve GENETIC0.
     """
-    retained = get_ems().optimizer_result(OptimizationAlgorithm.GENETIC)
+    retained = get_ems().optimizer_run(OptimizationAlgorithm.GENETIC)
     if retained is None:
         raise EOSProblem(
             status=404,
             title="Optimization solution report retrieval failed",
             detail="Can not get the 'GENETIC' optimization solution.",
         )
-    snapshot = retained.model_copy(deep=True)
+    snapshot = retained.result.model_copy(deep=True)
     # matplotlib is only needed for the PDF report; import it on first use.
     from akkudoktoreos.optimization.genetic.geneticvisualize import (
         genetic_prepare_visualize,
     )
 
-    pdf = await asyncio.to_thread(genetic_prepare_visualize, solution=snapshot)
+    pdf = await asyncio.to_thread(
+        genetic_prepare_visualize, parameters=retained.parameters, result=snapshot
+    )
     return Response(
         content=pdf,
         media_type="application/pdf",

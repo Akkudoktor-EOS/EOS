@@ -778,7 +778,7 @@ def inverter_request(
         The inverter parameters of the request.
 
     Raises:
-        InverterResolutionError: See ``InverterCommonSettings.to_genetic_param``.
+        InverterResolutionError: See ``InverterCommonSettings.resolve_operating_parameters``.
     """
     p = operating_parameters or settings.resolve_operating_parameters()
     return Genetic0InverterRequest(

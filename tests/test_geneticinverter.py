@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
@@ -504,7 +505,7 @@ class TestInverterSettings:
         convert = (
             (lambda: genetic0prepare.inverter_request(settings))
             if converter == "to_genetic0_param"
-            else getattr(settings, converter)
+            else (lambda: geneticprepare.inverter_request(settings))
         )
         with pytest.raises(ValueError, match="nominal_power_w"):
             convert()

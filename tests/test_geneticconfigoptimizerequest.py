@@ -910,9 +910,9 @@ async def test_surplus_and_duplicate_devices_are_left_out(configured_request, ca
 @pytest.mark.parametrize(
     "group, key, method, field, message",
     [
-        ("batteries", "storage", "to_genetic_pv_bat_param", "pv_battery", "Battery 'storage'"),
-        ("electric_vehicles", "car", "to_genetic_ev_bat_param", "ev", "Electric vehicle 'car'"),
-        ("inverters", "inverter", "to_genetic_param", "inverter", "Inverter 'inverter'"),
+        ("batteries", "storage", "battery_request", "pv_battery", "Battery 'storage'"),
+        ("electric_vehicles", "car", "electric_vehicle_request", "ev", "Electric vehicle 'car'"),
+        ("inverters", "inverter", "inverter_request", "inverter", "Inverter 'inverter'"),
     ],
 )
 async def test_unresolvable_device_is_left_out(
@@ -933,7 +933,7 @@ async def test_unresolvable_device_is_left_out(
     def fail(*args: Any, **kwargs: Any) -> Any:
         raise ValueError("no profile")
 
-    monkeypatch.setattr(type(getattr(config.devices, group)[key]), method, fail)
+    monkeypatch.setattr(geneticprepare, method, fail)
     parameters = await resolve(GeneticRequest.model_validate(data))
     assert getattr(parameters, field) is None
     assert f"{message} cannot be resolved, left out: no profile" in caplog.text

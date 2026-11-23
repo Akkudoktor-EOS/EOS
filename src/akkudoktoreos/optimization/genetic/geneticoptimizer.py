@@ -1,6 +1,6 @@
 """GENETIC behind the optimizer interface (ADR 0006).
 
-Transitional: converts with today's ``GeneticSolution``; later steps replace it without
+Transitional: the result is still the Pydantic ``GeneticSolution``; step 6 replaces it without
 changing results (ADR 0008).
 """
 
@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from typing import Any, Optional
 
 from akkudoktoreos.core.emplan import EnergyManagementPlan
-from akkudoktoreos.optimization.genetic import geneticprepare
+from akkudoktoreos.optimization.genetic import geneticconvert, geneticprepare
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
 from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
@@ -74,6 +74,4 @@ class GeneticOptimizer:
         self, parameters: GeneticParameters, result: GeneticSolution
     ) -> tuple[OptimizationSolution, EnergyManagementPlan]:
         """See ``Optimizer.convert()``."""
-        optimization_solution = await result.optimization_solution()
-        plan = result.energy_management_plan()
-        return optimization_solution, plan
+        return await geneticconvert.convert(parameters, result)

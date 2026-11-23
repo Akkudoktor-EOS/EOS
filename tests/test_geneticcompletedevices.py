@@ -14,6 +14,7 @@ from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettin
 from akkudoktoreos.devices.settings.homeappliancesettings import (
     HomeApplianceCommonSettings,
 )
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
@@ -80,7 +81,7 @@ def test_profile_cannot_silently_override_explicit_flat_definition(fields: dict[
 
 def test_settings_profile_roundtrip_and_legacy_defaults() -> None:
     defaults = HomeApplianceCommonSettings(device_id="legacy")
-    assert defaults.to_genetic_param().consumption_wh == 3000
+    assert geneticprepare.home_appliance_request(defaults).consumption_wh == 3000
     assert genetic0prepare.home_appliance_request(defaults).duration_h == 3
     settings = HomeApplianceCommonSettings.model_validate(
         {
@@ -94,7 +95,7 @@ def test_settings_profile_roundtrip_and_legacy_defaults() -> None:
         }
     )
     restored = HomeApplianceCommonSettings.model_validate_json(settings.model_dump_json())
-    params = restored.to_genetic_param()
+    params = geneticprepare.home_appliance_request(restored)
     assert params.load_profile_power_w == [1200.0, 600.0]
     assert params.consumption_wh is None and params.duration_h is None
     assert params.num_cycles == 2 and params.min_cycle_gap_h == 1
@@ -120,7 +121,7 @@ def test_cycle_and_shared_windows_intersect_after_completed_cycle() -> None:
             "time_windows": {"windows": [{"start_time": "18:30", "duration": "1 hour"}]},
         }
     )
-    device = GeneticHomeAppliance(settings.to_genetic_param().to_parameters(), 48, 192, 0.25)
+    device = GeneticHomeAppliance(geneticprepare.home_appliance_request(settings).to_parameters(), 48, 192, 0.25)
     device.set_completed_cycles(1)
     zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
     assert device.remaining_cycle_indices == [1]
@@ -239,7 +240,7 @@ def test_ev_deadlines_roundtrip_without_changing_slot_physics() -> None:
             "min_soc_max_duration_h": 2.5,
         }
     )
-    params = settings.to_genetic_ev_bat_param()
+    params = geneticprepare.electric_vehicle_request(settings)
     assert params.min_soc_max_duration_h == 2.5
     assert params.min_soc_deadline_datetime is not None
     assert params.min_soc_deadline_datetime.in_timezone("Europe/Berlin").hour == 7

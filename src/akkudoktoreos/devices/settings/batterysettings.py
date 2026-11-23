@@ -121,10 +121,6 @@ from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
-    from akkudoktoreos.optimization.genetic.geneticrequest import (
-        GeneticBatteryRequest,
-        GeneticElectricVehicleRequest,
-    )
 
 
 # Default charge rates for battery
@@ -396,7 +392,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         except ValueError as exc:
             raise BatteryResolutionError(f"Battery '{self.device_id}': {exc}") from exc
 
-    def _genetic_snapshot(
+    def snapshot_with_profile(
         self, operating_parameters: Optional[BatteryOperatingParameters], use_profile_tables: bool
     ) -> tuple[BatteryOperatingParameters, Optional["BatteryProfile"]]:
         """Return the snapshot to convert and the profile, loading the profile once.
@@ -406,6 +402,14 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         from, so the conversion does not load it again: it cannot fail on a
         profile that was changed or deleted meanwhile, and the power tables
         belong to the same profile version as the snapshot.
+
+        Args:
+            operating_parameters: Resolved snapshot; None resolves at the reference operating
+                point.
+            use_profile_tables: Whether the conversion adds the profile's tables.
+
+        Returns:
+            The snapshot and the profile (None without tables).
 
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``; only
@@ -425,15 +429,23 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             profile,
         )
 
-    def _genetic_power_parameters(
+    def power_and_efficiency_fields(
         self, p: BatteryOperatingParameters, profile: Optional["BatteryProfile"]
     ) -> dict[str, Any]:
-        """Return the power and efficiency fields of the GENETIC battery parameters.
+        """Return the power and efficiency fields of an optimizer's battery parameters.
 
         With power curves from the profile, the rated powers are the highest
         powers over SoC; the per-SoC tables limit them in the simulation.
         Without (no profile, or the profile allows no charging at this
         temperature), the powers resolved at the operating point apply.
+
+        Args:
+            p: The resolved operating parameters.
+            profile: The battery profile, or None.
+
+        Returns:
+            ``max_charge_power_w``, ``max_discharge_power_w`` and, with power curves, the
+            power limit tables and efficiency curves.
         """
         curves = None
         if profile is not None:
@@ -1008,82 +1020,6 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def effective_full_charge_detect_percentage(self) -> int:
         """Measured SoC from which the battery counts as fully charged [%]."""
         return self._reference_resolution()[1].detect_percentage
-
-    def to_genetic_pv_bat_param(
-        self,
-        operating_parameters: Optional[BatteryOperatingParameters] = None,
-        use_profile_tables: bool = True,
-    ) -> "GeneticBatteryRequest":
-        """Return GeneticBatteryRequest for the GENETIC optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-            use_profile_tables: Whether to add the SoC dependent power limits
-                and efficiency curves of the profile. False for a snapshot
-                resolved without profile (see
-                ``resolve_operating_parameters_or_defaults``); requires
-                ``operating_parameters``.
-
-        Raises:
-            BatteryResolutionError: See ``resolve_operating_parameters``.
-        """
-        from akkudoktoreos.optimization.genetic.geneticrequest import (
-            GeneticBatteryRequest,
-        )
-
-        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
-        return GeneticBatteryRequest(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
-            charge_rates=self.charge_rates,
-            grid_export_rates=self.grid_export_rates,
-            **self._genetic_power_parameters(p, profile),
-            levelized_cost_of_storage_kwh=self.levelized_cost_of_storage_amt_kwh,
-        )
-
-    def to_genetic_ev_bat_param(
-        self,
-        operating_parameters: Optional[BatteryOperatingParameters] = None,
-        use_profile_tables: bool = True,
-    ) -> "GeneticElectricVehicleRequest":
-        """Return GeneticElectricVehicleRequest for the GENETIC optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-            use_profile_tables: Whether to add the SoC dependent power limits
-                and efficiency curves of the profile. False for a snapshot
-                resolved without profile (see
-                ``resolve_operating_parameters_or_defaults``); requires
-                ``operating_parameters``.
-
-        Raises:
-            BatteryResolutionError: See ``resolve_operating_parameters``.
-        """
-        from akkudoktoreos.optimization.genetic.geneticrequest import (
-            GeneticElectricVehicleRequest,
-        )
-
-        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
-        return GeneticElectricVehicleRequest(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            charge_rates=self.charge_rates,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
-            min_soc_deadline_datetime=self.min_soc_deadline_datetime,
-            min_soc_max_duration_h=self.min_soc_max_duration_h,
-            **self._genetic_power_parameters(p, profile),
-        )
 
     @field_validator("charge_rates", mode="before")
     def validate_and_sort_charge_rates(cls, v: Any) -> NDArray[Shape["*"], float]:

@@ -952,3 +952,29 @@ def genetic_optimization(seed: Optional[int] = None) -> "GeneticOptimization":
     ems = get_ems()
     settings = run_settings(ems.start_datetime, ems.observation_datetime)
     return GeneticOptimization(replace(settings, seed=seed, verbose=False))
+
+
+def genetic_run_parameters(request: Any, optimization: Any = None) -> Any:
+    """GENETIC optimization parameters for the conversion and visualization tests.
+
+    Args:
+        request: The forecast and device parameters (``GeneticOptimizationParameters``), e.g. the
+            ones a result echoes.
+        optimization: The ``GeneticOptimization`` of the run, whose settings are used; without it,
+            the settings of the configuration and EMS run start.
+
+    Returns:
+        A ``GeneticParameters``.
+    """
+    from akkudoktoreos.core.coreabc import get_ems
+    from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
+    from akkudoktoreos.optimization.genetic.geneticprepare import run_settings
+
+    if optimization is not None:
+        settings = optimization.settings
+    else:
+        ems = get_ems()
+        settings = run_settings(ems.start_datetime, ems.observation_datetime)
+    return GeneticParameters(
+        request=request, start_hour=settings.start_datetime.hour, settings=settings
+    )

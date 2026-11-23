@@ -401,11 +401,6 @@ BASELINE: frozenset[Violation] = frozenset(
         Violation(
             "pydantic",
             "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
             "pydantic",
         ),
         Violation(
@@ -422,51 +417,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "pydantic",
             "akkudoktoreos.optimization.genetic.geneticterminalvalue",
             "pydantic",
-        ),
-        Violation(
-            "shared-config",
-            "akkudoktoreos.devices.settings.batterysettings",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-        ),
-        Violation(
-            "shared-config",
-            "akkudoktoreos.devices.settings.homeappliancesettings",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-        ),
-        Violation(
-            "shared-config",
-            "akkudoktoreos.devices.settings.invertersettings",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.coreabc:get_ems",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.coreabc:get_prediction",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticvisualize",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticvisualize",
-            "akkudoktoreos.core.coreabc:get_ems",
         ),
     }
 )

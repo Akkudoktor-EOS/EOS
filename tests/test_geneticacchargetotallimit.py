@@ -19,6 +19,7 @@ from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
 )
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
 )
@@ -254,11 +255,11 @@ class TestConfigOption:
             battery_id="battery1",
             profile_adjustment=InverterProfileAdjustment(nominal_power_w=10000),
         )
-        assert settings.to_genetic_param().ac_charge_limits_total_charge is enabled
+        assert geneticprepare.inverter_request(settings).ac_charge_limits_total_charge is enabled
 
     def test_default_profile_keeps_the_existing_model(self, config_eos):
         settings = InverterCommonSettings(
             device_id="inverter",
             profile_adjustment=InverterProfileAdjustment(nominal_power_w=10000),
         )
-        assert settings.to_genetic_param().ac_charge_limits_total_charge is False
+        assert geneticprepare.inverter_request(settings).ac_charge_limits_total_charge is False

@@ -10,7 +10,7 @@ import pytest
 from akkudoktoreos.core import ems as ems_module
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic import geneticalgorithm as genetic_module
-from akkudoktoreos.optimization.genetic import geneticprepare
+from akkudoktoreos.optimization.genetic import geneticconvert, geneticprepare
 from akkudoktoreos.optimization.genetic0 import genetic0algorithm as genetic0_module
 from akkudoktoreos.optimization.genetic0 import genetic0convert, genetic0prepare
 from akkudoktoreos.optimization.genetic0.genetic0request import (
@@ -159,6 +159,12 @@ def offline_ems(monkeypatch):
         return await result.optimization_solution()
 
     monkeypatch.setattr(genetic0convert, "optimization_solution", optimization_solution)
+    monkeypatch.setattr(geneticconvert, "optimization_solution", optimization_solution)
+    monkeypatch.setattr(
+        geneticconvert,
+        "energy_management_plan",
+        lambda parameters, result: result.energy_management_plan(),
+    )
     monkeypatch.setattr(
         genetic0convert,
         "energy_management_plan",

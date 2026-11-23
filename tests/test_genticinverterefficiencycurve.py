@@ -24,6 +24,7 @@ from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
 )
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
@@ -435,7 +436,7 @@ class TestSettings:
             dc_to_ac_efficiency_reference_load_fraction=0.1,
         )
         profile = settings.get_inverter_profile()
-        params = settings.to_genetic_param()
+        params = geneticprepare.inverter_request(settings)
         assert params.dc_to_ac_efficiency_curve is not None
         # Not derated at 45 degC: the curve is the profile curve over [0, 1].
         expected = list(zip(profile.dc_to_ac_efficiency.x, profile.dc_to_ac_efficiency.y))
@@ -713,7 +714,7 @@ class TestChargeFromGridWithCurve:
             profile_adjustment=InverterProfileAdjustment(nominal_power_w=5000),
         )
         profile = settings.get_inverter_profile()
-        params = settings.to_genetic_param()
+        params = geneticprepare.inverter_request(settings)
         assert params.ac_to_dc_efficiency_curve is not None
         assert [y for _, y in params.ac_to_dc_efficiency_curve] == pytest.approx(
             list(profile.ac_to_dc_efficiency.y)

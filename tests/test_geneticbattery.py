@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from akkudoktoreos.devices.devices import BatteriesCommonSettings
 from akkudoktoreos.devices.settings.batterysettings import BatteryProfileAdjustment
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
@@ -14,6 +15,12 @@ from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticBatteryRequest,
     GeneticElectricVehicleRequest,
 )
+
+# GENETIC's conversions of the battery settings, in its parameter preparation.
+CONVERSIONS = {
+    "to_genetic_pv_bat_param": "battery_request",
+    "to_genetic_ev_bat_param": "electric_vehicle_request",
+}
 
 
 @pytest.fixture
@@ -427,7 +434,7 @@ def test_pv_converter_preserves_id_lcos_charge_and_export_rates():
         levelized_cost_of_storage_amt_kwh=0.123,
     )
     assert isinstance(BatteriesCommonSettings.validate_and_sort_charge_rates(None), np.ndarray)
-    parameters = settings.to_genetic_pv_bat_param()
+    parameters = geneticprepare.battery_request(settings)
     assert parameters.device_id == "house"
     assert parameters.charge_rates == [0.0, 0.5, 1.0]
     assert parameters.grid_export_rates == [0.25, 1.0]
@@ -441,7 +448,7 @@ def test_equal_soc_limits_are_valid(target):
     settings = BatteriesCommonSettings(device_id="ev", min_soc_percentage=target,
                                       max_soc_percentage=target,
                                       profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8000))
-    assert settings.to_genetic_ev_bat_param().min_soc_percentage == target
+    assert geneticprepare.electric_vehicle_request(settings).min_soc_percentage == target
     assert genetic0prepare.electric_vehicle_request(settings).min_soc_percentage == target
 
 
@@ -458,7 +465,7 @@ def test_full_target_charges_to_capacity_without_overcharge():
             nominal_capacity_wh=1000, max_charge_power_w=1000
         ),
         min_soc_percentage=100, max_soc_percentage=100)
-    params = settings.to_genetic_ev_bat_param()
+    params = geneticprepare.electric_vehicle_request(settings)
     params.initial_soc_percentage = 70
     battery = GeneticBattery(params.to_parameters(), prediction_hours=4, slot_duration_h=0.25)
     battery.charge_array = np.ones(4)
@@ -600,7 +607,7 @@ class TestMaxDischargePower:
         settings = BatteriesCommonSettings(
             device_id="battery1", profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8_000)
         )
-        parameters = getattr(settings, converter)()
+        parameters = getattr(geneticprepare, CONVERSIONS[converter])(settings)
         assert parameters.max_charge_power_w == pytest.approx(5_000.0)
         assert parameters.max_discharge_power_w == pytest.approx(4_000.0)
 
@@ -613,7 +620,7 @@ class TestMaxDischargePower:
                 nominal_capacity_wh=8_000, max_charge_power_w=10_000, max_discharge_power_w=10_000
             ),
         )
-        parameters = getattr(settings, converter)()
+        parameters = getattr(geneticprepare, CONVERSIONS[converter])(settings)
         assert parameters.max_charge_power_w == pytest.approx(8_000.0)
         assert parameters.max_discharge_power_w == pytest.approx(4_000.0)
 

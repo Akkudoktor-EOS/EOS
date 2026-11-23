@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import genetic_optimization
+from conftest import genetic_optimization, genetic_run_parameters
 from pypdf import PdfReader
 
 from akkudoktoreos.config.config import ConfigEOS
@@ -19,7 +19,11 @@ from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.core.ems import EnergyManagement
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic import geneticprepare, geneticsolution
+from akkudoktoreos.optimization.genetic import (
+    geneticconvert,
+    geneticprepare,
+    geneticsolution,
+)
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
 )
@@ -164,7 +168,7 @@ async def test_optimize(
     assert all(0 <= value <= 100 for value in result.ev_soc_per_hour)
 
     # Check the correct generic optimization solution is created
-    optimization_solution = await genetic_solution.optimization_solution()
+    optimization_solution = await geneticconvert.optimization_solution(genetic_run_parameters(genetic_solution.parameters), genetic_solution)
     dataframe = optimization_solution.solution.to_dataframe()
     assert len(dataframe) == expected_slots
     assert optimization_solution.valid_from == genetic_solution.start_solution_datetime
@@ -175,7 +179,7 @@ async def test_optimize(
     assert len(genetic_solution.discharge_allowed) == expected_slots
 
     # Check the correct generic energy management plan is created
-    plan = genetic_solution.energy_management_plan()
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(genetic_solution.parameters), genetic_solution)
     assert plan.valid_from == optimization_solution.valid_from
     assert plan.valid_until is None
     assert optimization_solution.valid_from is not None
@@ -186,16 +190,14 @@ async def test_optimize(
     )
 
     # Check visualization works
-    pdf = genetic_prepare_visualize(
-        solution=genetic_solution,
-    )
+    pdf = genetic_prepare_visualize(genetic_run_parameters(genetic_solution.parameters), genetic_solution)
     assert pdf.startswith(b"%PDF-")
 
     reader = PdfReader(BytesIO(pdf))
     assert len(reader.pages) >= 6
 
 
-def test_solution_inverter_parameters_come_from_the_run_or_the_profile(config_eos: ConfigEOS):
+def test_solution_inverter_parameters_come_from_the_run(config_eos: ConfigEOS):
     """Inverter settings hold no efficiencies; the solution never reads them directly."""
     config_eos.merge_settings_from_dict(
         {
@@ -212,12 +214,10 @@ def test_solution_inverter_parameters_come_from_the_run_or_the_profile(config_eo
     )
     with (DIR_TESTDATA / "optimize_result_1.json").open("r") as f_in:
         solution = GeneticSolution.model_validate(json.load(f_in))
-    stored = solution._inverter_parameters_list(solution.parameters)
+    stored = geneticconvert._inverter_parameters_list(solution.parameters)
     assert stored == ([solution.parameters.inverter] if solution.parameters.inverter else [])
-    resolved = solution._inverter_parameters_list(None)
-    assert len(resolved) == 1
-    assert resolved[0].max_power_wh == pytest.approx(8000)
-    assert 0.0 < resolved[0].ac_to_dc_efficiency < 1.0
+    # Without stored parameters there is no inverter: the conversion reads no configuration.
+    assert geneticconvert._inverter_parameters_list(None) == []
 
 
 # --- Characterization of the whole output (ADR 0008) ---------------------------------------
@@ -382,11 +382,6 @@ def record_report_calls() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return calls, patches
 
 
-def no_prediction() -> None:
-    """Stand-in for ``get_prediction``: the golden runs convert from their parameters only."""
-    raise AssertionError("The solution conversion read the prediction store.")
-
-
 def golden_settings(case: GoldenCase, workers: Optional[int] = None) -> dict[str, Any]:
     """The configuration of a golden run."""
     genetic: dict[str, Any] = {
@@ -470,21 +465,20 @@ async def test_golden_output(
     """A golden input gives the pinned result, solution, plan and visualization."""
     if case.generations > QUICK_GENERATIONS and not is_finalize:
         pytest.skip("Activate with pytest --finalize")
-    monkeypatch.setattr(geneticsolution, "get_prediction", no_prediction)
     solution = run_golden_case(case, config_eos)
     check_golden(solution.model_dump(mode="json"), f"golden_{case.stem}_result.json")
 
-    optimization_solution = await solution.optimization_solution()
+    optimization_solution = await geneticconvert.optimization_solution(genetic_run_parameters(solution.parameters), solution)
     check_golden(
         mask_now(optimization_solution.model_dump(mode="json")),
         f"golden_{case.stem}_optimization_solution.json",
     )
-    plan = solution.energy_management_plan()
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.parameters), solution)
     check_golden(mask_now(plan.model_dump(mode="json")), f"golden_{case.stem}_plan.json")
 
     calls, patches = record_report_calls()
     with patch.multiple(GeneticVisualizationReport, **patches):
-        pdf = genetic_prepare_visualize(solution=solution)
+        pdf = genetic_prepare_visualize(genetic_run_parameters(solution.parameters), solution)
     pages = len(PdfReader(BytesIO(pdf)).pages)
     check_golden({"pages": pages, "calls": calls}, f"golden_{case.stem}_visualize.json")
 
@@ -686,7 +680,6 @@ async def test_golden_output_from_configuration(
     monkeypatch.setattr(geneticprepare, "get_prediction", Mock(return_value=prediction))
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
-    monkeypatch.setattr(geneticsolution, "get_prediction", no_prediction)
     if case.rich:
         # The previous run, an hour earlier, is the warm start of the pinned one.
         previous = observation.subtract(hours=1)
@@ -742,7 +735,7 @@ async def test_golden_output_from_configuration(
 
     calls, patches = record_report_calls()
     with patch.multiple(GeneticVisualizationReport, **patches):
-        pdf = genetic_prepare_visualize(solution=solution)
+        pdf = genetic_prepare_visualize(genetic_run_parameters(solution.parameters), solution)
     pages = len(PdfReader(BytesIO(pdf)).pages)
     check_golden({"pages": pages, "calls": calls}, f"golden_{case.stem}_visualize.json")
 

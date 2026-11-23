@@ -6,11 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from conftest import genetic_run_parameters
 from fastapi.testclient import TestClient
 from pypdf import PdfReader
 
 from akkudoktoreos.optimization.genetic import geneticvisualize
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.optimizer import OptimizerRun
 from akkudoktoreos.server import eos
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -24,7 +26,7 @@ def retained_result():
 
 
 def test_missing_algorithm_report_returns_404(config_eos, monkeypatch):
-    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(optimizer_result=lambda name: None))
+    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(optimizer_run=lambda name: None))
     response = TestClient(eos.app).get("/v1/energy-management/optimization/solution/GENETIC/pdf")
     assert response.status_code == 404
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -32,16 +34,13 @@ def test_missing_algorithm_report_returns_404(config_eos, monkeypatch):
 
 def test_retained_algorithm_result_renders_real_pdf(config_eos, monkeypatch, retained_result):
     solution = retained_result
-    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(optimizer_result={"GENETIC": solution}.get))
+    run = OptimizerRun(parameters=genetic_run_parameters(solution.parameters), result=solution)
+    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(optimizer_run={"GENETIC": run}.get))
     # A later run and changed configuration must not retime the retained report.
     from akkudoktoreos.core.coreabc import get_ems
-    from akkudoktoreos.optimization.genetic import geneticvisualize
 
     get_ems().set_start_datetime(to_datetime("2027-01-01T00:00:00+01:00"))
     config_eos.optimization.genetic.interval_sec = 900
-    monkeypatch.setattr(
-        geneticvisualize, "get_ems", lambda: pytest.fail("Report must retain its own time grid")
-    )
     before = solution.model_dump_json()
     response = TestClient(eos.app).get("/v1/energy-management/optimization/solution/GENETIC/pdf")
     assert response.status_code == 200
@@ -57,14 +56,12 @@ async def test_render_is_offloaded_and_uses_an_owned_copy(config_eos, monkeypatc
     solution = retained_result
     caller_thread = threading.get_ident()
     captured = []
-    monkeypatch.setattr(
-        eos,
-        "get_ems",
-        lambda: SimpleNamespace(optimizer_result={"GENETIC": solution}.get),
-    )
+    run = OptimizerRun(parameters=genetic_run_parameters(solution.parameters), result=solution)
+    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(optimizer_run={"GENETIC": run}.get))
     original_controls = list(solution.ac_charge)
 
-    def render(*, solution):
+    def render(*, parameters, result):
+        solution = result
         captured.append((threading.get_ident(), solution))
         solution.ac_charge[0] = 0.123
         return b"%PDF-isolated-render"

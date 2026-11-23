@@ -4,6 +4,7 @@ import numpy as np
 from conftest import genetic_optimization
 
 from akkudoktoreos.devices.devicesabc import BatteryOperationMode
+from akkudoktoreos.optimization.genetic import geneticconvert
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
 )
@@ -14,7 +15,7 @@ def test_battery_discharge_allowed_remains_local_load_mode(config_eos):
     config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
     solution = GeneticSolution
 
-    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+    operation_mode, operation_mode_factor = geneticconvert._battery_operation_from_solution(
         ac_charge=0.0,
         dc_charge=0.0,
         discharge_allowed=True,
@@ -28,7 +29,7 @@ def test_battery_grid_export_signal_maps_to_grid_support_export(config_eos):
     config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
     solution = GeneticSolution
 
-    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+    operation_mode, operation_mode_factor = geneticconvert._battery_operation_from_solution(
         ac_charge=0.0,
         dc_charge=0.0,
         discharge_allowed=False,
@@ -113,7 +114,7 @@ def test_battery_grid_export_factor_becomes_operation_factor(config_eos):
     config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
     solution = GeneticSolution
 
-    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+    operation_mode, operation_mode_factor = geneticconvert._battery_operation_from_solution(
         ac_charge=0.0,
         dc_charge=0.0,
         discharge_allowed=False,
