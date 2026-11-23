@@ -4,13 +4,15 @@ The only part of GENETIC that reads configuration, predictions and measurements.
 the optimization parameters once before each run; the energy management passes the run start,
 the observation time, the warm start and run-time overrides as arguments.
 
-Transitional (migration step 3): a configuration or forecast that cannot serve the run still
-raises, and the energy management cancels the run; step 3b makes the preparation always valid.
+The preparation always creates a valid parameter set (energy-domain skill, "Optimization
+parameters are always valid"): it never fails, never cancels the run, never writes the
+configuration and never invents devices. A missing or invalid input is replaced by a fallback
+value, logged at error level with the input and the substitute.
 """
 
 import math
 from collections.abc import Mapping
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 import pandas as pd
 from loguru import logger
@@ -43,6 +45,14 @@ OVERRIDE_KEYS = ("generations", "individuals", "seed")
 # How far back the latest "run started" report of a home appliance is looked up.
 RUN_STARTED_LOOKBACK_HOURS = 48
 
+# Fallback values of the preparation (energy-domain skill). Settings use their defaults.
+FALLBACK_PREDICTION_HOURS = 48
+FALLBACK_HORIZON_HOURS = 24
+FALLBACK_INDIVIDUALS = 300
+FALLBACK_GENERATIONS = 400
+# No load forecast: 3000 kWh per year, spread evenly over the hours of the year.
+FALLBACK_LOAD_W = 3000.0 * 1000.0 / 8760.0
+
 
 def run_clock() -> RunClock:
     """The configured slot length; runs follow the site's local day.
@@ -72,23 +82,11 @@ async def prepare(
         overrides: Run-time overrides of ``generations``, ``individuals`` and ``seed``.
 
     Returns:
-        The optimization parameters of the run.
-
-    Raises:
-        RuntimeError: Configured devices or forecasts are incomplete (until step 3b).
+        The optimization parameters of the run; always valid, never ``None``.
     """
-    try:
-        request = await resolve_request(
-            GeneticRequest(), start_datetime, observation_datetime, warm_start
-        )
-    except Exception as exc:
-        # Missing inputs cancel the run without changing providers or inventing devices.
-        logger.error(
-            "Cannot prepare GENETIC parameters; canceling optimization with provider {}: {}",
-            get_config().feedintariff.provider,
-            exc,
-        )
-        raise RuntimeError("Could not prepare optimisation parameters.") from exc
+    request = await resolve_request(
+        GeneticRequest(), start_datetime, observation_datetime, warm_start
+    )
     return _complete(request, start_datetime, observation_datetime, overrides)
 
 
@@ -110,10 +108,8 @@ async def prepare_from_request(
         overrides: Run-time overrides of ``generations``, ``individuals`` and ``seed``.
 
     Returns:
-        The optimization parameters of the run.
-
-    Raises:
-        ValueError: The request, configured devices or forecasts are incomplete (until step 3b).
+        The optimization parameters of the run; always valid. Inputs of the request that cannot
+        serve the run are replaced like those of the configuration.
     """
     parameters = await resolve_request(request, start_datetime, observation_datetime, warm_start)
     return _complete(parameters, start_datetime, observation_datetime, overrides)
@@ -133,9 +129,6 @@ def run_settings(
 
     Returns:
         The settings of the run.
-
-    Raises:
-        ValueError: No prediction horizon is configured (until step 3b).
     """
     config = get_config()
     genetic = config.optimization.genetic
@@ -149,15 +142,23 @@ def run_settings(
             logger.error("GENETIC: Unknown override '{}' ignored.", key)
         elif value is not None:
             chosen[key] = value
-    if config.prediction.hours is None:
-        raise ValueError("Configure a positive prediction horizon.")
+    if chosen["generations"] is None:
+        chosen["generations"] = FALLBACK_GENERATIONS
+        logger.error(
+            "GENETIC: optimization.genetic.generations not set, using {}.", chosen["generations"]
+        )
+    if chosen["individuals"] is None:
+        chosen["individuals"] = FALLBACK_INDIVIDUALS
+        logger.error(
+            "GENETIC: optimization.genetic.individuals not set, using {}.", chosen["individuals"]
+        )
     battery = next(iter((config.devices.batteries or {}).values()), None)
     ev = next(iter((config.devices.electric_vehicles or {}).values()), None)
     return GeneticRunSettings(
         interval_sec=genetic.interval_sec,
-        horizon_hours=genetic.horizon_hours,
+        horizon_hours=_horizon_hours(),
         tail_horizon_hours=genetic.tail_horizon_hours,
-        prediction_hours=config.prediction.hours,
+        prediction_hours=_prediction_hours(),
         individuals=chosen["individuals"],
         generations=chosen["generations"],
         seed=chosen["seed"],
@@ -176,6 +177,45 @@ def run_settings(
         timezone=config.general.timezone,
         verbose=bool(config.server.verbose),
     )
+
+
+def _horizon_hours() -> int:
+    """The control horizon in hours; positive.
+
+    Returns:
+        ``optimization.genetic.horizon_hours``, its default if not positive.
+    """
+    hours = get_config().optimization.genetic.horizon_hours
+    if hours <= 0:
+        logger.error(
+            "GENETIC: optimization.genetic.horizon_hours {} is not positive, using {}.",
+            hours,
+            FALLBACK_HORIZON_HOURS,
+        )
+        hours = FALLBACK_HORIZON_HOURS
+    return hours
+
+
+def _prediction_hours() -> int:
+    """The forecast budget in hours; at least the control horizon.
+
+    Returns:
+        ``prediction.hours``, its default if unset, the control horizon if shorter.
+    """
+    config = get_config()
+    hours = config.prediction.hours
+    if hours is None:
+        hours = FALLBACK_PREDICTION_HOURS
+        logger.error("GENETIC: prediction.hours not set, using {}.", hours)
+    horizon_hours = _horizon_hours()
+    if hours < horizon_hours:
+        logger.error(
+            "GENETIC: prediction.hours {} is shorter than the control horizon, using {}.",
+            hours,
+            horizon_hours,
+        )
+        hours = horizon_hours
+    return hours
 
 
 def _rates(values: Optional[list[float]]) -> Optional[tuple[float, ...]]:
@@ -219,6 +259,15 @@ async def _run_started(device: Any, observation_time: DateTime) -> Optional[Date
             dropna=False,
         )
     except KeyError:
+        return None
+    except Exception as error:
+        logger.error(
+            "GENETIC: Run start '{}' of home appliance '{}' not readable; planned as not "
+            "running: {}",
+            key,
+            device.device_id,
+            error,
+        )
         return None
     # Skip records without a value (e.g. an adapter's meter reading, #1447).
     samples = [
@@ -268,10 +317,7 @@ async def resolve_request(
             a start datetime gets the start datetime of that run.
 
     Returns:
-        The forecast and device parameters of the run.
-
-    Raises:
-        ValueError: Configured devices or forecasts are incomplete (until step 3b).
+        The forecast and device parameters of the run; always valid.
     """
     config = get_config()
     settings = config.optimization.genetic
@@ -280,27 +326,21 @@ async def resolve_request(
     observation_time = observation_datetime
     measurement = get_measurement()
     prediction = get_prediction()
+    horizon_slots = _horizon_hours() * 3600 // settings.interval_sec
     devices = config.devices
-    groups: dict[str, list[Any]] = {}
-    for name in ("batteries", "electric_vehicles", "inverters", "home_appliances"):
-        entries = list((getattr(devices, name) or {}).values())
-        maximum = getattr(devices, "max_" + name)
-        if maximum is not None and len(entries) > maximum:
-            raise ValueError(f"devices.{name} exceeds configured maximum {maximum}.")
-        if name != "home_appliances" and len(entries) > 1:
-            raise ValueError(f"GENETIC supports at most one device in devices.{name}.")
-        groups[name] = entries
-    ids = [device.device_id for entries in groups.values() for device in entries]
-    if len(ids) != len(set(ids)):
-        raise ValueError("Configured device IDs must be unique across device groups.")
+    groups = _device_groups(devices)
     storage = groups["batteries"] + groups["electric_vehicles"]
-    unknown = set(request.soc) - {device.device_id for device in storage}
-    if unknown:
-        raise ValueError(f"SoC supplied for unconfigured devices: {sorted(unknown)}.")
+    supplied_soc = dict(request.soc)
+    for device_id in sorted(set(supplied_soc) - {device.device_id for device in storage}):
+        logger.error(
+            "GENETIC: SoC {}% supplied for unconfigured device '{}', ignored.",
+            supplied_soc.pop(device_id),
+            device_id,
+        )
 
     async def state(device: BatteriesCommonSettings) -> int:
-        if device.device_id in request.soc:
-            return request.soc[device.device_id]
+        if device.device_id in supplied_soc:
+            return supplied_soc[device.device_id]
         try:
             dates, values = await measurement.key_to_lists(
                 key=device.measurement_key_soc_factor,
@@ -329,8 +369,8 @@ async def resolve_request(
             ):
                 raise ValueError("Invalid or stale SoC factor")
             return int(value * 100)
-        except (ValueError, KeyError) as exc:
-            logger.warning(
+        except Exception as exc:
+            logger.error(
                 "No usable fresh SoC for {}; assuming 0% initial SoC for this "
                 "optimization (not a measurement): {}",
                 device.device_id,
@@ -354,33 +394,58 @@ async def resolve_request(
             )
         except KeyError:
             dates, values = [], []
-        deadline = full_charge_deadline(
-            zip(dates, values),
-            now=observation_time,
-            interval_days=interval_days,
-            detect_percentage=policy.detect_percentage,
-        )
+        try:
+            deadline = full_charge_deadline(
+                zip(dates, values),
+                now=observation_time,
+                interval_days=interval_days,
+                detect_percentage=policy.detect_percentage,
+            )
+        except Exception as error:
+            logger.error(
+                "GENETIC: State of charge history of {} not usable; no periodic full charge "
+                "scheduled: {}",
+                device.device_id,
+                error,
+            )
+            return None
         if deadline is None:
-            logger.warning(
+            logger.error(
                 "No state of charge history for {}; cannot schedule its periodic full charge.",
                 device.device_id,
             )
         return deadline
 
     # A battery configuration error does not cancel the run: the battery gets
-    # default values for what cannot be resolved, and an error is logged.
+    # default values for what cannot be resolved, and an error is logged. A battery
+    # whose parameters cannot be derived at all is left out.
     battery = None
     if groups["batteries"]:
         device = groups["batteries"][0]
-        (
-            operating_parameters,
-            use_profile_tables,
-        ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
-        battery = device.to_genetic_pv_bat_param(operating_parameters, use_profile_tables)
+        try:
+            (
+                operating_parameters,
+                use_profile_tables,
+            ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
+            battery = device.to_genetic_pv_bat_param(operating_parameters, use_profile_tables)
+        except Exception as error:
+            logger.error(
+                "GENETIC: Battery '{}' cannot be resolved, left out: {}", device.device_id, error
+            )
+    if battery is not None:
+        device = groups["batteries"][0]
         battery.initial_soc_percentage = await state(device)
-        policy = device.resolve_full_charge()
-        deadline = await full_charge(device, policy)
-        horizon_end = start.add(seconds=settings.horizon * settings.interval_sec)
+        try:
+            policy = device.resolve_full_charge()
+            deadline = await full_charge(device, policy)
+        except Exception as error:
+            logger.error(
+                "GENETIC: Periodic full charge of {} not resolvable; none scheduled: {}",
+                device.device_id,
+                error,
+            )
+            deadline = None
+        horizon_end = start.add(seconds=horizon_slots * settings.interval_sec)
         if deadline is not None and deadline.timestamp() <= horizon_end.timestamp():
             # Due within the horizon: lift the upper limit so the battery may
             # reach the target, and enforce the target only if grid charging
@@ -408,25 +473,63 @@ async def resolve_request(
     ev = None
     if groups["electric_vehicles"]:
         device = groups["electric_vehicles"][0]
-        (
-            operating_parameters,
-            use_profile_tables,
-        ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
-        ev = device.to_genetic_ev_bat_param(operating_parameters, use_profile_tables)
-        ev.initial_soc_percentage = await state(device)
+        try:
+            (
+                operating_parameters,
+                use_profile_tables,
+            ) = await device.resolve_current_operating_parameters_or_defaults(observation_time)
+            ev = device.to_genetic_ev_bat_param(operating_parameters, use_profile_tables)
+        except Exception as error:
+            logger.error(
+                "GENETIC: Electric vehicle '{}' cannot be resolved, left out: {}",
+                device.device_id,
+                error,
+            )
+        if ev is not None:
+            ev.initial_soc_percentage = await state(device)
     inverter = None
     if groups["inverters"]:
         device = groups["inverters"][0]
-        if device.battery_id != (battery.device_id if battery else None):
-            raise ValueError("Inverter battery_id must match the configured battery.")
-        # The derating of the inverter profile applies at the measured
-        # ambient temperature, 45 degC without a measurement.
-        inverter = device.to_genetic_param(
-            await device.resolve_current_operating_parameters_or_defaults(observation_time)
-        )
+        try:
+            # The derating of the inverter profile applies at the measured
+            # ambient temperature, 45 degC without a measurement.
+            inverter = device.to_genetic_param(
+                await device.resolve_current_operating_parameters_or_defaults(observation_time)
+            )
+        except Exception as error:
+            logger.error(
+                "GENETIC: Inverter '{}' cannot be resolved, left out: {}", device.device_id, error
+            )
     if inverter is None:
-        raise ValueError("Configure an inverter to model PV and grid energy flows.")
-    appliances = [device.to_genetic_param() for device in groups["home_appliances"]]
+        logger.error(
+            "GENETIC: No usable inverter; planning grid energy only, without PV and battery."
+        )
+    if battery is not None and (inverter is None or inverter.battery_id != battery.device_id):
+        # The battery is only reachable through its inverter.
+        logger.error(
+            "GENETIC: Battery '{}' is not connected to the inverter (battery_id {}), left out.",
+            battery.device_id,
+            None if inverter is None else inverter.battery_id,
+        )
+        battery = None
+    elif battery is None and inverter is not None and inverter.battery_id is not None:
+        logger.error(
+            "GENETIC: Battery '{}' of inverter '{}' is not available; inverter without battery.",
+            inverter.battery_id,
+            inverter.device_id,
+        )
+    resolved: list[tuple[Any, Any]] = []
+    for device in groups["home_appliances"]:
+        try:
+            resolved.append((device, device.to_genetic_param()))
+        except Exception as error:
+            logger.error(
+                "GENETIC: Home appliance '{}' cannot be resolved, left out: {}",
+                device.device_id,
+                error,
+            )
+    groups["home_appliances"] = [device for device, _ in resolved]
+    appliances = [appliance for _, appliance in resolved]
     for device, appliance in zip(groups["home_appliances"], appliances):
         key = device.cycles_completed_measurement_key or f"{device.device_id}.cycles_completed"
         try:
@@ -438,6 +541,14 @@ async def resolve_request(
             )
         except KeyError:
             continue
+        except Exception as error:
+            logger.error(
+                "GENETIC: Completed cycles '{}' of home appliance '{}' not readable, ignored: {}",
+                key,
+                device.device_id,
+                error,
+            )
+            continue
         # Skip records without a count (e.g. an adapter's meter reading, #1447).
         samples = [
             (date, count)
@@ -448,21 +559,30 @@ async def resolve_request(
         ]
         if not samples:
             continue
-        count = max(samples, key=lambda item: item[0].timestamp())[1]
+        reported = max(samples, key=lambda item: item[0].timestamp())[1]
+        try:
+            count = float(reported)
+        except (TypeError, ValueError):
+            count = math.nan
         if (
             not math.isfinite(count)
             or int(count) != count
             or not 0 <= count <= appliance.num_cycles
         ):
-            raise ValueError(f"Invalid completed cycle count for {device.device_id}.")
+            logger.error(
+                "GENETIC: Invalid completed cycle count {!r} in '{}' for home appliance '{}', "
+                "ignored.",
+                reported,
+                key,
+                device.device_id,
+            )
+            continue
         appliance.completed_cycles = int(count)
     for device, appliance in zip(groups["home_appliances"], appliances):
         appliance.run_started_datetime = await _run_started(device, observation_time)
 
     origin = start.start_of("day")
-    if config.prediction.hours is None or config.prediction.hours <= 0:
-        raise ValueError("Configure a positive prediction horizon.")
-    end = start.add(hours=config.prediction.hours)
+    end = start.add(hours=_prediction_hours())
     interval = to_duration(settings.interval_sec)
     updated = False
 
@@ -473,11 +593,20 @@ async def resolve_request(
         if supplied is not None:
             return list(supplied)
         if not updated:
-            await prediction.update_data()
             updated = True
-        values = await bounded_forecast_array(
-            prediction, key=key, start_datetime=origin, end_datetime=end, interval=interval
-        )
+            try:
+                await prediction.update_data()
+            except Exception as error:
+                logger.error("GENETIC: Prediction update failed, using stored data: {}", error)
+        try:
+            values = await bounded_forecast_array(
+                prediction, key=key, start_datetime=origin, end_datetime=end, interval=interval
+            )
+        except Exception as error:
+            logger.error(
+                "GENETIC: Prediction '{}' not readable, treated as missing: {}", key, error
+            )
+            return []
         if energy:
             values = values * (settings.interval_sec / 3600)
         return values.tolist()
@@ -487,36 +616,26 @@ async def resolve_request(
     load = await forecast(supplied.total_load, "loadforecast_power_w", energy=True)
     prices = await forecast(supplied.electricity_price_per_wh, "elecprice_marketprice_wh")
     tariffs = await forecast(supplied.feed_in_tariff_per_wh, "feed_in_tariff_wh")
-    length = min(len(pv), len(load), len(prices), len(tariffs))
-    if not length:
-        raise ValueError("Forecast series must be nonempty.")
-    pv, load, prices, tariffs = (values[:length] for values in (pv, load, prices, tariffs))
     first = int((start - origin).total_seconds() / settings.interval_sec)
-    last = first + settings.horizon
-    if settings.horizon <= 0 or len(pv) < last:
-        raise ValueError("Forecast does not cover the positive GENETIC control horizon.")
-    for key, values in (
-        ("PV", pv),
-        ("load", load),
-        ("prices", prices),
-        ("feed-in tariff", tariffs),
-    ):
-        missing = [index for index in range(first, last) if not math.isfinite(values[index])]
-        if missing:
-            left = origin.add(seconds=missing[0] * settings.interval_sec)
-            right = left.add(seconds=settings.interval_sec)
-            raise ValueError(
-                f"Missing or invalid {key} within the control horizon. "
-                f"First invalid interval: [{left.isoformat()}, {right.isoformat()}); "
-                f"{len(missing)} invalid interval(s)."
-            )
-    if any(value < 0 for values in (pv, load) for value in values[first:last]):
-        raise ValueError("PV and load energy must be nonnegative.")
-    start_solution = request.start_solution
+    last = first + horizon_slots
+    # The series share the shortest length, at least the end of the control horizon.
+    length = max(min(len(pv), len(load), len(prices), len(tariffs)), last)
+    span = _Span(origin, settings.interval_sec, first, last)
+    pv = _fill(span, "PV forecast", pv[:length], length, constant=0.0)
+    load = _fill(
+        span,
+        "load forecast",
+        load[:length],
+        length,
+        constant=FALLBACK_LOAD_W * settings.interval_sec / 3600,
+    )
+    prices = _fill(span, "electricity price", prices[:length], length)
+    tariffs = _fill(span, "feed-in tariff", tariffs[:length], length)
+    start_solution = _genome(request.start_solution, "start_solution of the request")
     start_solution_time = request.start_solution_datetime
     if warm_start is not None:
         if start_solution is None:
-            start_solution = warm_start.start_solution
+            start_solution = _genome(warm_start.start_solution, "start_solution of the last run")
             start_solution_time = warm_start.start_solution_datetime
         elif (
             start_solution_time is None
@@ -546,3 +665,123 @@ async def resolve_request(
         start_solution=start_solution,
         start_solution_datetime=start_solution_time,
     )
+
+
+def _device_groups(devices: Any) -> dict[str, list[Any]]:
+    """The configured devices of each group that GENETIC simulates.
+
+    GENETIC simulates at most one battery, one electric vehicle and one inverter, and at most
+    ``devices.max_<group>`` devices of a group. Device IDs must be unique across the groups.
+    The devices beyond that are left out, each logged at error level.
+
+    Args:
+        devices: The device configuration (``config.devices``).
+
+    Returns:
+        The devices by group name.
+    """
+    groups: dict[str, list[Any]] = {}
+    seen: set[str] = set()
+    for name in ("batteries", "electric_vehicles", "inverters", "home_appliances"):
+        entries = list((getattr(devices, name) or {}).values())
+        maximum = getattr(devices, "max_" + name)
+        if name != "home_appliances":
+            maximum = 1 if maximum is None else min(maximum, 1)
+        kept: list[Any] = []
+        for device in entries:
+            if device.device_id in seen:
+                logger.error(
+                    "GENETIC: Device ID '{}' in devices.{} is not unique, device left out.",
+                    device.device_id,
+                    name,
+                )
+            elif maximum is not None and len(kept) >= maximum:
+                logger.error(
+                    "GENETIC: devices.{} holds more than {} device(s), '{}' left out.",
+                    name,
+                    maximum,
+                    device.device_id,
+                )
+            else:
+                kept.append(device)
+                seen.add(device.device_id)
+        groups[name] = kept
+    return groups
+
+
+class _Span(NamedTuple):
+    """The slots of the forecast series and the control horizon within them."""
+
+    origin: DateTime
+    interval_sec: int
+    first: int
+    last: int
+
+
+def _fill(
+    span: _Span,
+    name: str,
+    values: list[float],
+    length: int,
+    constant: Optional[float] = None,
+) -> list[float]:
+    """Replace missing or invalid values within the control horizon.
+
+    A value is missing if it is NaN or infinite, or the series ends before the control horizon
+    does; a negative energy (``constant`` given) is invalid. Values outside the control horizon
+    stay as they are: the run shortens a tail that has none.
+
+    Args:
+        span: The slots of the series and the control horizon.
+        name: The input, for the log.
+        values: The series from the start of the day.
+        length: Length of the result; the series is extended with NaN to it.
+        constant: Substitute of an energy series. Without it, a missing value is the last known
+            value before it, else the next known one, else 0.
+
+    Returns:
+        The series, valid within the control horizon.
+    """
+    filled = list(values) + [math.nan] * (length - len(values))
+    replaced = []
+    for index in range(span.first, span.last):
+        value = filled[index]
+        if math.isfinite(value) and (constant is None or value >= 0):
+            continue
+        if constant is not None:
+            substitute = 0.0 if math.isfinite(value) else constant
+        else:
+            before = [v for v in filled[:index] if math.isfinite(v)]
+            after = [v for v in filled[index + 1 :] if math.isfinite(v)]
+            substitute = before[-1] if before else (after[0] if after else 0.0)
+        filled[index] = substitute
+        replaced.append((index, value, substitute))
+    if replaced:
+        index, value, substitute = replaced[0]
+        left = span.origin.add(seconds=index * span.interval_sec)
+        logger.error(
+            "GENETIC: {} missing or invalid in {} slot(s) of the control horizon, first at {} "
+            "({}), replaced by {}.",
+            name,
+            len(replaced),
+            left.isoformat(),
+            value,
+            substitute,
+        )
+    return filled
+
+
+def _genome(genome: Optional[list[float]], name: str) -> Optional[list[float]]:
+    """A warm start genome, or ``None`` if it has fewer than the two genes a genome needs.
+
+    Args:
+        genome: The genome.
+        name: The input, for the log.
+
+    Returns:
+        The genome, or ``None``.
+    """
+    if genome is not None and len(genome) < 2:
+        logger.error("GENETIC: {} {} has fewer than two genes, no warm start genome.", name, genome)
+        return None
+    return genome

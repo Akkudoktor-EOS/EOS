@@ -2,10 +2,10 @@
 
 Adapted from PRs #1224 (Christin) and #1304 (Normann). Main has no direct-marketing
 parameter override yet: these regressions cover its existing preparation/simulation
-contract and refuse unavailable imported revenue instead of creating a demo tariff.
+contract. Unavailable imported revenue falls back to the last known revenue (0 without
+any) instead of creating a demo tariff.
 """
 
-from typing import Optional
 from unittest.mock import AsyncMock, Mock, patch
 
 import numpy as np
@@ -16,9 +16,6 @@ from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
     Inverter,
     InverterParameters,
-)
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsimulation import (
     GeneticSimulation,
@@ -71,13 +68,8 @@ def prepare_tariffs(config_eos):
             update_data=AsyncMock(), key_to_raw_series=AsyncMock(side_effect=read_series)
         )
         start = to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC")
-        parameters: Optional[GeneticOptimizationParameters] = None
         with patch.object(geneticprepare, "get_prediction", return_value=prediction):
-            try:
-                parameters = (await geneticprepare.prepare(start, start, None)).request
-            except RuntimeError:
-                # The run is canceled (until migration step 3b).
-                pass
+            parameters = (await geneticprepare.prepare(start, start, None)).request
         return parameters, prices, prediction
 
     return prepare
@@ -142,15 +134,18 @@ async def test_provider_revenues_survive_preparation_and_simulation(
         [[0.00007]] * 24,
     ],
 )
-async def test_invalid_import_cancels_without_replacing_provider(
+async def test_invalid_import_falls_back_without_replacing_provider(
     prepare_tariffs, revenues, config_eos, caplog
 ):
+    """Missing revenues are carried forward or 0, logged; the provider stays configured."""
     parameters, _, prediction = await prepare_tariffs("FeedInTariffImport", revenues)
-    assert parameters is None
+    tariffs = parameters.ems.feed_in_tariff_per_wh
+    assert isinstance(tariffs, list) and len(tariffs) == 24
+    assert all(np.isfinite(tariffs))
+    assert set(tariffs) <= {0.00007, 0.0}
     assert config_eos.feedintariff.provider == "FeedInTariffImport"
     prediction.update_data.assert_awaited_once()
-    assert "canceling optimization" in caplog.text
-    assert "FeedInTariffImport" in caplog.text
+    assert "feed-in tariff missing or invalid" in caplog.text
     assert "defaulting to demo" not in caplog.text
 
 
@@ -174,7 +169,8 @@ async def test_timestamped_import_records_are_read_in_order(prepare_tariffs, val
             "FeedInTariffImport", [], tariff_reader=provider.key_to_raw_series
         )
         if values[0] is None:
-            assert parameters is None
+            # No revenue known at all: no feed-in revenue.
+            assert parameters.ems.feed_in_tariff_per_wh == [0.0] * 24
         else:
             assert parameters is not None
             assert parameters.ems.feed_in_tariff_per_wh == pytest.approx(values)

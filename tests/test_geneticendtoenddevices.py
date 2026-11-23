@@ -376,6 +376,90 @@ async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("count", [3.0, 1.5, -1.0, "two"])
+async def test_invalid_completed_cycle_count_is_ignored(
+    config_eos: ConfigEOS,
+    isolated_measurement: Measurement,
+    count: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A count that is no whole number of the appliance's cycles is logged and ignored."""
+    configure(config_eos)
+    config_eos.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_batteries": 0,
+                "batteries": {},
+                "max_electric_vehicles": 0,
+                "electric_vehicles": {},
+                "max_inverters": 1,
+                "inverters": {"inv": {"profile_adjustment": {"nominal_power_w": 10000}}},
+                "max_home_appliances": 1,
+                "home_appliances": {"washer": profile(num_cycles=2)},
+            }
+        }
+    )
+    await isolated_measurement.update_value(
+        get_ems().start_datetime, "washer.cycles_completed", count
+    )
+    prepared = await resolve(GeneticRequest.model_validate(
+        {
+            "forecasts": {
+                "pv_forecast_wh": [0.0] * 16,
+                "total_load": [0.0] * 16,
+                "electricity_price_per_wh": [0.0003] * 16,
+                "feed_in_tariff_per_wh": [0.0001] * 16,
+            }
+        }
+    ))
+    assert prepared.home_appliances is not None
+    assert prepared.home_appliances[0].completed_cycles == 0
+    assert f"Invalid completed cycle count {count!r}" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_unresolvable_home_appliance_is_left_out(
+    config_eos: ConfigEOS, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A home appliance whose parameters cannot be derived is left out, logged."""
+    configure(config_eos)
+    config_eos.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_batteries": 0,
+                "batteries": {},
+                "max_electric_vehicles": 0,
+                "electric_vehicles": {},
+                "max_inverters": 1,
+                "inverters": {"inv": {"profile_adjustment": {"nominal_power_w": 10000}}},
+                "max_home_appliances": 1,
+                "home_appliances": {"washer": profile(num_cycles=1)},
+            }
+        }
+    )
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise ValueError("no profile")
+
+    assert config_eos.devices.home_appliances is not None
+    monkeypatch.setattr(
+        type(config_eos.devices.home_appliances["washer"]), "to_genetic_param", fail
+    )
+    prepared = await resolve(GeneticRequest.model_validate(
+        {
+            "forecasts": {
+                "pv_forecast_wh": [0.0] * 16,
+                "total_load": [0.0] * 16,
+                "electricity_price_per_wh": [0.0003] * 16,
+                "feed_in_tariff_per_wh": [0.0001] * 16,
+            }
+        }
+    ))
+    assert not prepared.home_appliances
+    assert "Home appliance 'washer' cannot be resolved, left out: no profile" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_real_multiple_consumers_keep_separate_solution_channels(
     config_eos: ConfigEOS,
 ) -> None:

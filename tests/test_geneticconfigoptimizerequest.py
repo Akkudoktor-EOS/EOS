@@ -292,16 +292,23 @@ async def test_future_soc_in_repeated_hour_defaults_to_zero(configured_request):
 
 
 @pytest.mark.asyncio
-async def test_unknown_soc_and_mismatched_device_link_are_rejected(configured_request):
+async def test_unknown_soc_and_mismatched_device_link_fall_back(configured_request, caplog):
+    """An unknown SoC is ignored; a battery its inverter does not reach is left out."""
     config, _, _, data = configured_request
     request = GeneticRequest.model_validate(data)
     request.soc["unknown"] = 20
-    with pytest.raises(ValueError, match="unconfigured"):
-        await resolve(request)
+    parameters = await resolve(request)
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 42
+    assert "SoC 20% supplied for unconfigured device 'unknown', ignored" in caplog.text
     assert config.devices.inverters is not None
     config.devices.inverters["inverter"].battery_id = "missing"
-    with pytest.raises(ValueError, match="battery_id"):
-        await resolve(GeneticRequest.model_validate(data))
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    assert parameters.pv_battery is None
+    assert parameters.inverter is not None
+    assert "Battery 'storage' is not connected to the inverter (battery_id missing)" in caplog.text
+    # The configuration is never changed.
+    assert config.devices.inverters["inverter"].battery_id == "missing"
 
 
 @pytest.mark.asyncio
@@ -316,16 +323,20 @@ async def test_direct_marketing_keeps_explicit_imported_sale_prices(configured_r
 
 
 @pytest.mark.asyncio
-async def test_control_gaps_fail_but_shorter_tail_is_accepted(configured_request):
+async def test_control_gaps_are_filled_and_shorter_tail_is_accepted(configured_request, caplog):
     _, _, _, data = configured_request
     data["forecasts"]["electricity_price_per_wh"] = [0.0003] * 50
     parameters = await resolve(GeneticRequest.model_validate(data))
     assert len(parameters.ems.total_load) == 50
+    data["forecasts"]["electricity_price_per_wh"][41] = 0.0004
     data["forecasts"]["electricity_price_per_wh"][42] = np.nan
-    with pytest.raises(ValueError, match="control horizon") as error:
-        await resolve(GeneticRequest.model_validate(data))
-    assert "2026-09-12T10:30:00+00:00, 2026-09-12T10:45:00+00:00" in str(error.value)
-    assert "1 invalid interval(s)" in str(error.value)
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    # The last known price is carried forward.
+    assert parameters.ems.electricity_price_per_wh[42] == 0.0004
+    assert (
+        "electricity price missing or invalid in 1 slot(s) of the control horizon, first at "
+        "2026-09-12T10:30:00+00:00 (nan), replaced by 0.0004" in caplog.text
+    )
 
 
 @pytest.mark.asyncio
@@ -863,3 +874,216 @@ async def test_inverter_without_nominal_power_uses_the_fallback_power(configured
     assert parameters.inverter is not None
     assert parameters.inverter.max_power_wh == pytest.approx(INVERTER_FALLBACK_NOMINAL_POWER_W)
     assert any("nominal_power_w" in m for m in messages)
+
+
+# The preparation always creates valid parameters (energy-domain skill): every input that
+# cannot serve the run is replaced by a fallback and logged at error level.
+
+
+@pytest.mark.asyncio
+async def test_surplus_and_duplicate_devices_are_left_out(configured_request, caplog):
+    config, _, _, data = configured_request
+    config.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_batteries": 2,
+                "max_electric_vehicles": 1,
+                "batteries": {
+                    "second": {"profile_adjustment": {"nominal_capacity_wh": 1000}},
+                },
+                "electric_vehicles": {
+                    "storage": {"profile_adjustment": {"nominal_capacity_wh": 1000}},
+                },
+            }
+        }
+    )
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.device_id == "storage"
+    assert parameters.ev is None
+    assert "devices.batteries holds more than 1 device(s), 'second' left out" in caplog.text
+    assert "Device ID 'storage' in devices.electric_vehicles is not unique" in caplog.text
+    assert list(config.devices.batteries) == ["storage", "second"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "group, key, method, field, message",
+    [
+        ("batteries", "storage", "to_genetic_pv_bat_param", "pv_battery", "Battery 'storage'"),
+        ("electric_vehicles", "car", "to_genetic_ev_bat_param", "ev", "Electric vehicle 'car'"),
+        ("inverters", "inverter", "to_genetic_param", "inverter", "Inverter 'inverter'"),
+    ],
+)
+async def test_unresolvable_device_is_left_out(
+    configured_request, monkeypatch, caplog, group, key, method, field, message
+):
+    config, _, _, data = configured_request
+    config.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_electric_vehicles": 1,
+                "electric_vehicles": {
+                    "car": {"profile_adjustment": {"nominal_capacity_wh": 1000}},
+                },
+            }
+        }
+    )
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise ValueError("no profile")
+
+    monkeypatch.setattr(type(getattr(config.devices, group)[key]), method, fail)
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    assert getattr(parameters, field) is None
+    assert f"{message} cannot be resolved, left out: no profile" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_without_inverter_the_run_plans_grid_energy_only(
+    configured_request, monkeypatch, caplog
+):
+    config, _, _, data = configured_request
+    monkeypatch.setattr(config.devices, "inverters", {})
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    assert parameters.inverter is None
+    assert parameters.pv_battery is None
+    assert "No usable inverter; planning grid energy only" in caplog.text
+    assert "Battery 'storage' is not connected to the inverter (battery_id None)" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_unreadable_predictions_use_fallback_values(configured_request, monkeypatch, caplog):
+    _, _, _, data = configured_request
+    data["forecasts"] = {}
+    prediction = Mock(
+        update_data=AsyncMock(side_effect=RuntimeError("offline")),
+        key_to_raw_series=AsyncMock(side_effect=RuntimeError("no data")),
+    )
+    monkeypatch.setattr(geneticprepare, "get_prediction", Mock(return_value=prediction))
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    first, last = 41, 45  # 10:15 to 11:15 in quarter-hour slots
+    ems = parameters.ems
+    assert ems.pv_forecast_wh[first:last] == [0.0] * 4
+    load = geneticprepare.FALLBACK_LOAD_W * 900 / 3600
+    assert ems.total_load[first:last] == pytest.approx([load] * 4)
+    assert ems.electricity_price_per_wh[first:last] == [0.0] * 4
+    assert isinstance(ems.feed_in_tariff_per_wh, list)
+    assert ems.feed_in_tariff_per_wh[first:last] == [0.0] * 4
+    assert "Prediction update failed, using stored data: offline" in caplog.text
+    assert "Prediction 'pvforecast_ac_power' not readable, treated as missing" in caplog.text
+    assert "load forecast missing or invalid in 4 slot(s)" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_negative_energy_and_short_genome_are_replaced(configured_request, caplog):
+    _, _, _, data = configured_request
+    data["forecasts"]["pv_forecast_wh"][42] = -5.0
+    data["start_solution"] = [1.0]
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    assert parameters.ems.pv_forecast_wh[42] == 0.0
+    assert parameters.start_solution is None
+    assert "PV forecast missing or invalid in 1 slot(s)" in caplog.text
+    assert "start_solution of the request [1.0] has fewer than two genes" in caplog.text
+
+
+def test_unset_settings_use_their_defaults(configured_request, monkeypatch, caplog):
+    config, ems, _, _ = configured_request
+    monkeypatch.setattr(config.prediction, "hours", None)
+    monkeypatch.setattr(config.optimization.genetic, "horizon_hours", 0)
+    monkeypatch.setattr(config.optimization.genetic, "generations", None)
+    monkeypatch.setattr(config.optimization.genetic, "individuals", None)
+    settings = geneticprepare.run_settings(ems.start_datetime, ems.observation_datetime)
+    assert settings.prediction_hours == geneticprepare.FALLBACK_PREDICTION_HOURS
+    assert settings.horizon_hours == geneticprepare.FALLBACK_HORIZON_HOURS
+    assert settings.generations == geneticprepare.FALLBACK_GENERATIONS
+    assert settings.individuals == geneticprepare.FALLBACK_INDIVIDUALS
+    assert "prediction.hours not set, using 48" in caplog.text
+    assert "horizon_hours 0 is not positive, using 24" in caplog.text
+    assert "optimization.genetic.generations not set, using 400" in caplog.text
+    assert "optimization.genetic.individuals not set, using 300" in caplog.text
+
+
+def test_prediction_hours_shorter_than_the_control_horizon(configured_request, monkeypatch, caplog):
+    config, ems, _, _ = configured_request
+    monkeypatch.setattr(config.prediction, "hours", 2)
+    monkeypatch.setattr(config.optimization.genetic, "horizon_hours", 6)
+    settings = geneticprepare.run_settings(ems.start_datetime, ems.observation_datetime)
+    assert settings.prediction_hours == 6
+    assert "prediction.hours 2 is shorter than the control horizon, using 6" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_automatic_run_without_inverter_or_predictions_is_not_cancelled(
+    configured_request, monkeypatch, caplog
+):
+    """Inputs that cancelled a run before now fall back; the run publishes a plan."""
+    config, fake, _, _ = configured_request
+    monkeypatch.setattr(config.devices, "inverters", {})
+    ems = EnergyManagement()
+    monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
+    monkeypatch.setattr(EnergyManagement, "_plan", None)
+    prediction = Mock(
+        update_data=AsyncMock(), key_to_raw_series=AsyncMock(side_effect=KeyError("none"))
+    )
+    monkeypatch.setattr(EnergyManagement, "prediction", prediction)
+    monkeypatch.setattr(geneticprepare, "get_prediction", Mock(return_value=prediction))
+    monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
+    solution = await ems.run(
+        start_datetime=fake.start_datetime,
+        mode=EnergyManagementMode.OPTIMIZATION,
+        overrides={"generations": 10, "seed": 42},
+    )
+    assert solution is not None
+    assert ems.plan() is not None
+    assert "Energy management run canceled" not in caplog.text
+    assert "No usable inverter" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_inverter_without_its_battery(configured_request, monkeypatch, caplog):
+    config, _, _, data = configured_request
+    monkeypatch.setattr(config.devices, "batteries", {})
+    data["soc"] = {}
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    assert parameters.pv_battery is None
+    assert parameters.inverter is not None
+    assert "Battery 'storage' of inverter 'inverter' is not available" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_invalid_energy_and_leading_price_gap_are_replaced(configured_request, caplog):
+    _, _, _, data = configured_request
+    forecasts = data["forecasts"]
+    forecasts["total_load"][41] = -3.0
+    forecasts["pv_forecast_wh"][43] = np.inf
+    forecasts["electricity_price_per_wh"] = [np.nan] * 42 + [0.0005] * 54
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    ems = parameters.ems
+    assert ems.total_load[41] == 0.0
+    assert ems.pv_forecast_wh[43] == 0.0
+    # No price known before the start: the next known one.
+    assert ems.electricity_price_per_wh[41] == 0.0005
+    assert "load forecast missing or invalid in 1 slot(s)" in caplog.text
+    assert "PV forecast missing or invalid in 1 slot(s)" in caplog.text
+    assert "electricity price missing or invalid in 1 slot(s)" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_non_numeric_soc_measurement_assumes_empty(configured_request, caplog):
+    _, fake, measurement, data = configured_request
+    data["soc"] = {}
+    measurement.key_to_lists.return_value = ([fake.start_datetime], ["full"])
+    parameters = await resolve(GeneticRequest.model_validate(data))
+    assert parameters.pv_battery is not None
+    assert parameters.pv_battery.initial_soc_percentage == 0
+    assert "No usable fresh SoC for storage; assuming 0% initial SoC" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_short_genome_of_the_last_run_is_not_used(configured_request, caplog):
+    _, _, _, data = configured_request
+    warm_start = SimpleNamespace(start_solution=[3.0], start_solution_datetime=None)
+    parameters = await resolve(GeneticRequest.model_validate(data), warm_start)
+    assert parameters.start_solution is None
+    assert "start_solution of the last run [3.0] has fewer than two genes" in caplog.text

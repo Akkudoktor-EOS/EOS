@@ -144,12 +144,15 @@ test procedure. These changes are not yet a tagged release.
   `dc_to_ac_efficiency_curve`), `ac_charge_limits_total_charge` and `cell_chemistry` are dropped
   with an error log: the profile values apply. A generic profile without own power limits is
   limited to the former default of 5000 W. Home Assistant configuration paths follow.
-- GENETIC rejects incomplete control forecasts instead of inventing usable inputs. Unsupported
-  device counts and inconsistent battery links also fail explicitly. A missing, future, invalid
-  or stale state of charge no longer cancels the run: an explicit SoC in the request takes
-  precedence, otherwise the latest fresh measurement is used, otherwise 0 % is assumed for that
-  battery or EV and logged. The measurement age limit (`measurement_max_age_seconds`) defaults to
-  five minutes.
+- GENETIC never cancels a run because of its inputs; each fallback is logged as an error naming
+  the input. A forecast value that is missing, NaN or infinite within the control horizon gets a
+  fallback: PV 0, an even load of 3000 kWh per year, a price or feed-in tariff carried forward
+  (else the next known value, else 0); a negative PV or load value becomes 0. Surplus devices
+  and a battery not linked to the inverter are left out; without a usable inverter the run plans
+  grid energy only. A missing, future, invalid or stale state of charge no longer cancels the
+  run: an explicit SoC in the request takes precedence, otherwise the latest fresh measurement
+  is used, otherwise 0 % is assumed for that battery or EV and logged. The measurement age limit
+  (`measurement_max_age_seconds`) defaults to five minutes.
 - Imported sale prices, including zero and negative prices, are preserved. Corrected
   battery/inverter limits, losses and wear costs can change the chosen plan and its costs.
 - The electricity-fee framework replaces old `elecprice.charges_kwh` / `vat_rate` fields.

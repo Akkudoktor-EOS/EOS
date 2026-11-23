@@ -363,6 +363,8 @@ class EnergyManagement(
                 previous = EnergyManagement._optimizer_runs.get(optimizer.name)
                 warm_start = None if previous is None else previous.result
                 try:
+                    # The preparation never fails: invalid inputs get fallbacks (ADR 0006). An
+                    # exception here is a bug, handled like one in the run or the conversion.
                     if request is None:
                         parameters = await optimizer.prepare(
                             start, observation, warm_start, overrides
@@ -371,17 +373,8 @@ class EnergyManagement(
                         parameters = await optimizer.prepare_from_request(
                             request, start, observation, warm_start, overrides
                         )
-                except Exception:
-                    # Until every optimizer's preparation never fails (ADR 0006).
-                    logger.exception(
-                        f"{algorithm}: Energy management run canceled. "
-                        "Could not prepare optimisation parameters."
-                    )
-                    EnergyManagement._stage = EnergyManagementStage.IDLE
-                    return None
 
-                # --- Optimization (CPU-bound → MUST offload) ---
-                try:
+                    # --- Optimization (CPU-bound → MUST offload) ---
                     loop = get_running_loop()
                     result = await loop.run_in_executor(None, optimizer.run, parameters)
 

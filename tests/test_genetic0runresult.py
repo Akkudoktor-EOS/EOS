@@ -319,25 +319,6 @@ async def test_non_optimization_modes_never_optimize(monkeypatch, offline_ems, m
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("prefix", ["Genetic"])
-async def test_missing_preparation_does_not_dispatch_controls(monkeypatch, offline_ems, prefix):
-    """GENETIC may still cancel; GENETIC0's preparation never does (TestGenetic0AlwaysValid)."""
-    constructor = Mock()
-    _patch_optimizer(monkeypatch, prefix, constructor)
-    # GENETIC's legacy preparation signalled missing inputs with None, now it raises.
-    prepare = AsyncMock(side_effect=ValueError("missing inputs"))
-    _patch_prepare(monkeypatch, prefix, prepare)
-    await ems_module.EnergyManagement.run(
-        offline_ems, algorithm=OptimizationAlgorithm(prefix.upper())
-    )
-    _assert_prepared_without_request(prefix, prepare)
-    constructor.assert_not_called()
-    assert offline_ems.adapter.update_data.await_count == 1  # acquisition only
-    assert ems_module.EnergyManagement.plan() is None
-    assert ems_module.EnergyManagement.stage() == ems_module.EnergyManagementStage.IDLE
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("start_hour", [None, 11])
 async def test_legacy_optimize_explicitly_uses_genetic0(monkeypatch, start_hour):
     """Even with GENETIC configured, /optimize must never become the new optimizer.
