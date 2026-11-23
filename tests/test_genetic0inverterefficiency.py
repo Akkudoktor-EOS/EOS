@@ -555,21 +555,25 @@ def _run_evaluate_with_mocked_sim(
     from akkudoktoreos.optimization.genetic0.genetic0algorithm import (
         Genetic0Optimization,
     )
-
-    config_eos.merge_settings_from_dict(
-        {
-            "prediction": {"hours": 48},
-            "optimization": {"hours": 24},
-        }
+    from akkudoktoreos.optimization.genetic0.genetic0parameters import (
+        Genetic0RunSettings,
     )
-    config_eos.optimization.genetic0.penalties = {
-        "ev_soc_miss": 10,
-        "ac_charge_break_even": ac_charge_break_even,
-    }
+    from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
     optim = Genetic0Optimization.__new__(Genetic0Optimization)
     # Minimal __init__ state expected by evaluate()
-    optim.config = config_eos
+    optim.settings = Genetic0RunSettings(
+        prediction_hours=48,
+        horizon_hours=24,
+        individuals=None,
+        generations=None,
+        seed=None,
+        penalties={"ev_soc_miss": 10, "ac_charge_break_even": ac_charge_break_even},
+        ev_charge_rates=None,
+        battery_charge_rates=None,
+        self_consumption_interpolator=GridInterpolatorBackend.SCIPY,
+        verbose=False,
+    )
     optim.optimize_ev = False
     optim.verbose = False
     optim.opti_param = {"home_appliance": 0}

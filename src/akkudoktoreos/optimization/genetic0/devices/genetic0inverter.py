@@ -8,6 +8,7 @@ from akkudoktoreos.optimization.genetic0.genetic0devices import Genetic0DevicePa
 from akkudoktoreos.optimization.genetic0.genetic0loadinterpolator import (
     get_genetic0_load_interpolator,
 )
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
 class Genetic0InverterParameters(Genetic0DeviceParameters):
@@ -65,9 +66,22 @@ class Genetic0Inverter:
         self,
         parameters: Genetic0InverterParameters,
         battery: Optional[Genetic0Battery] = None,
-    ):
+        self_consumption_interpolator: GridInterpolatorBackend = GridInterpolatorBackend.SCIPY,
+    ) -> None:
+        """Set up the inverter simulation.
+
+        Args:
+            parameters: Inverter parameters.
+            battery: Battery behind the inverter, if any.
+            self_consumption_interpolator: How the self-consumption table is evaluated; the run
+                settings pass the configured backend.
+
+        Raises:
+            ValueError: The battery is not the one the inverter parameters name.
+        """
         self.parameters: Genetic0InverterParameters = parameters
         self.battery: Optional[Genetic0Battery] = battery
+        self.self_consumption_interpolator = self_consumption_interpolator
         self._setup()
 
     def _setup(self) -> None:
@@ -75,7 +89,9 @@ class Genetic0Inverter:
             error_msg = f"Battery ID mismatch - {self.parameters.battery_id} is configured; got {self.battery.parameters.device_id}."
             logger.error(error_msg)
             raise ValueError(error_msg)
-        self.self_consumption_predictor = get_genetic0_load_interpolator()
+        self.self_consumption_predictor = get_genetic0_load_interpolator(
+            self.self_consumption_interpolator
+        )
         self.max_power_wh = (
             self.parameters.max_power_wh
         )  # Maximum power that the inverter can handle

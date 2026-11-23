@@ -455,14 +455,17 @@ class EnergyManagement(
                 if EnergyManagement._start_datetime is None:  # Make mypy happy - already set by us
                     raise RuntimeError(f"{algorithm}: Start datetime not set.")
                 start = EnergyManagement._start_datetime
+                observation = EnergyManagement._observation_datetime or start
                 previous = EnergyManagement._optimizer_runs.get(optimizer.name)
                 warm_start = None if previous is None else previous.result
                 try:
                     if request is None:
-                        parameters = await optimizer.prepare(start, warm_start, overrides)
+                        parameters = await optimizer.prepare(
+                            start, observation, warm_start, overrides
+                        )
                     else:
                         parameters = await optimizer.prepare_from_request(
-                            request, start, warm_start, overrides
+                            request, start, observation, warm_start, overrides
                         )
                 except Exception:
                     # Until every optimizer's preparation never fails (ADR 0006).

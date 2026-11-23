@@ -318,11 +318,6 @@ def collect_violations() -> frozenset[Violation]:
 BASELINE: frozenset[Violation] = frozenset(
     {
         Violation(
-            "cross-optimizer",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-            "akkudoktoreos.optimization.genetic.forecast",
-        ),
-        Violation(
             "internals",
             "akkudoktoreos.config.configmigrate",
             "akkudoktoreos.optimization.genetic.geneticsettings",
@@ -671,41 +666,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "world-access",
             "akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance",
             "akkudoktoreos.config.configabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0algorithm",
-            "akkudoktoreos.optimization.optimizationabc:OptimizationBase",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0loadinterpolator",
-            "akkudoktoreos.core.cache",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0loadinterpolator",
-            "akkudoktoreos.utils.gridinterpolator:configured_grid_interpolator_backend",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-            "akkudoktoreos.core.coreabc:MeasurementMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-            "akkudoktoreos.core.coreabc:PredictionMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-            "akkudoktoreos.core.coreabc:get_ems",
         ),
         Violation(
             "world-access",

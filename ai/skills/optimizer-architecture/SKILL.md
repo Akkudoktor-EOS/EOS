@@ -13,7 +13,7 @@ parameters**, **solution conversion**, **warm start**. The decisions and their r
 
 | Part | May use |
 |---|---|
-| Parameter preparation (`<name>prepare.py` or `prepare/`) | configuration, predictions, measurements, and the run start and warm start passed in as arguments |
+| Parameter preparation (`<name>prepare.py` or `prepare/`) | configuration, predictions, measurements, and the run start, observation time and warm start passed in as arguments |
 | Algorithm (`run()`) | the optimization parameters only |
 | Simulation and simulation devices | the optimization parameters only |
 | Solution conversion (`convert()`) | the optimization parameters and the result of the run only |
@@ -52,12 +52,12 @@ This is the one maintained copy of the interface; ADR 0006 records the decision 
 class Optimizer(Protocol[P, Q, R]):
     name: str
     async def prepare(
-        self, start_datetime: DateTime, warm_start: R | None,
-        overrides: Mapping[str, Any] | None = None,
+        self, start_datetime: DateTime, observation_datetime: DateTime,
+        warm_start: R | None, overrides: Mapping[str, Any] | None = None,
     ) -> P
     async def prepare_from_request(
-        self, request: Q, start_datetime: DateTime, warm_start: R | None,
-        overrides: Mapping[str, Any] | None = None,
+        self, request: Q, start_datetime: DateTime, observation_datetime: DateTime,
+        warm_start: R | None, overrides: Mapping[str, Any] | None = None,
     ) -> P
     def run(self, parameters: P) -> R
     async def convert(
@@ -68,6 +68,8 @@ class Optimizer(Protocol[P, Q, R]):
 The code is `akkudoktoreos.optimization.optimizer.Optimizer`; the energy management finds an
 optimizer through `akkudoktoreos.optimization.optimizerregistry.get_optimizer(name)` and keeps
 the last parameters and result per optimizer (`OptimizerRun`); the result is the next warm start.
+`start_datetime` is the start of the run's first slot; `observation_datetime` is the unrounded
+moment of the run that measurements (e.g. a measured state of charge) refer to.
 
 - `run()` is deterministic: the same optimization parameters give the same result. Generations,
   individuals, seed and penalties are part of the optimization parameters. A run-time override

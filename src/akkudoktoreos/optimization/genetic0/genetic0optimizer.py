@@ -1,7 +1,7 @@
 """GENETIC0 behind the optimizer interface (ADR 0006).
 
-Transitional (migration step 1): runs and converts with today's ``Genetic0Optimization`` and
-``Genetic0Solution``; later steps replace them without changing results (ADR 0008).
+Transitional (migration step 3): converts with today's ``Genetic0Solution``; step 5 replaces it
+without changing results (ADR 0008).
 """
 
 from collections.abc import Mapping
@@ -26,22 +26,26 @@ class Genetic0Optimizer:
     async def prepare(
         self,
         start_datetime: DateTime,
+        observation_datetime: DateTime,
         warm_start: Optional[Genetic0Solution],
         overrides: Optional[Mapping[str, Any]] = None,
     ) -> Genetic0Parameters:
         """See ``Optimizer.prepare()``."""
-        return await genetic0prepare.prepare(start_datetime, warm_start, overrides)
+        return await genetic0prepare.prepare(
+            start_datetime, observation_datetime, warm_start, overrides
+        )
 
     async def prepare_from_request(
         self,
         request: Genetic0Request,
         start_datetime: DateTime,
+        observation_datetime: DateTime,
         warm_start: Optional[Genetic0Solution],
         overrides: Optional[Mapping[str, Any]] = None,
     ) -> Genetic0Parameters:
         """See ``Optimizer.prepare_from_request()``."""
         return await genetic0prepare.prepare_from_request(
-            request, start_datetime, warm_start, overrides
+            request, start_datetime, observation_datetime, warm_start, overrides
         )
 
     def run(self, parameters: Genetic0Parameters) -> Genetic0Solution:
@@ -51,14 +55,10 @@ class Genetic0Optimizer:
             Genetic0Optimization,
         )
 
-        optimization = Genetic0Optimization(
-            verbose=parameters.verbose,
-            fixed_seed=parameters.seed,
-        )
+        optimization = Genetic0Optimization(parameters.settings)
         return optimization.optimize_ems(
-            start_hour=parameters.start_hour,
             parameters=parameters.request,
-            ngen=parameters.generations,
+            start_hour=parameters.start_hour,
         )
 
     async def convert(

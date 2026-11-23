@@ -30,6 +30,7 @@ class Optimizer(Protocol[ParametersT, RequestT_contra, ResultT]):
     async def prepare(
         self,
         start_datetime: DateTime,
+        observation_datetime: DateTime,
         warm_start: Optional[ResultT],
         overrides: Optional[Mapping[str, Any]] = None,
     ) -> ParametersT:
@@ -37,6 +38,8 @@ class Optimizer(Protocol[ParametersT, RequestT_contra, ResultT]):
 
         Args:
             start_datetime: Start of the optimization run.
+            observation_datetime: Moment of the run that measurements refer to (the start is
+                this moment rounded down to the optimizer's slot).
             warm_start: Result of the optimizer's previous run, if any.
             overrides: Run-time overrides of settings (e.g. ``{"generations": 10}``). Keys the
                 optimizer does not know are logged as errors and ignored.
@@ -50,6 +53,7 @@ class Optimizer(Protocol[ParametersT, RequestT_contra, ResultT]):
         self,
         request: RequestT_contra,
         start_datetime: DateTime,
+        observation_datetime: DateTime,
         warm_start: Optional[ResultT],
         overrides: Optional[Mapping[str, Any]] = None,
     ) -> ParametersT:
@@ -58,6 +62,7 @@ class Optimizer(Protocol[ParametersT, RequestT_contra, ResultT]):
         Args:
             request: The optimization request of a client.
             start_datetime: Start of the optimization run.
+            observation_datetime: Moment of the run that measurements refer to.
             warm_start: Result of the optimizer's previous run, if any.
             overrides: Run-time overrides of settings, as for ``prepare()``.
 

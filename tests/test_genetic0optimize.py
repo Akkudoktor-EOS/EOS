@@ -16,7 +16,11 @@ from pypdf import PdfReader
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic0.genetic0algorithm import Genetic0Optimization
+from akkudoktoreos.optimization.genetic0.genetic0optimizer import Genetic0Optimizer
+from akkudoktoreos.optimization.genetic0.genetic0parameters import (
+    parameters_from_dict,
+    parameters_to_dict,
+)
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0Request,
 )
@@ -173,6 +177,15 @@ def record_report_calls() -> tuple[list[dict[str, Any]], dict[str, Any]]:
     return calls, patches
 
 
+def check_replay(parameters: Any, golden_stem: str, expected_result: str) -> None:
+    """Compare the run's parameters with its replay file; write ``new_<replay>`` on a miss."""
+    replay = {"expected_result": expected_result, "parameters": parameters_to_dict(parameters)}
+    # Lossless: what is written reads back to the same values.
+    restored = parameters_from_dict(json.loads(json.dumps(replay["parameters"])))
+    assert parameters_to_dict(restored) == replay["parameters"]
+    check_golden(replay, f"replay_{golden_stem}.json")
+
+
 def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
     assert set(actual) == set(expected)
 
@@ -280,16 +293,24 @@ async def test_optimize(
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()
 
-    genetic0_optimization = Genetic0Optimization(fixed_seed=fixed_seed)
-
     # Activate with pytest --finalize
     if ngen > 10 and not is_finalize:
         pytest.skip()
 
-    # Call the optimization function
-    genetic0_solution = genetic0_optimization.optimize_ems(
-        parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
-    )
+    # Prepare the parameters through the optimizer interface, then run.
+    optimizer = Genetic0Optimizer()
+    run_start = ems_eos.start_datetime
+    with patch(
+        "akkudoktoreos.optimization.genetic0.genetic0prepare.get_prediction",
+        return_value=FakePrediction(),
+    ):
+        parameters = await optimizer.prepare_from_request(
+            input_data, run_start, run_start, None, {"generations": ngen, "seed": fixed_seed}
+        )
+    genetic0_solution = optimizer.run(parameters)
+
+    # The parameters of this run are the replay input of test_replay (ADR 0008).
+    check_replay(parameters, golden_stem, fn_out)
 
     # Write test output to file, so we can take it as new data on intended change
     TESTDATA_FILE = DIR_TESTDATA / f"new_{golden_stem}.json"
@@ -489,3 +510,49 @@ class TestGenetic0SolutionWithProfileInverter:
         """Regression: AttributeError 'ac_to_dc_efficiency' on InverterCommonSettings."""
         optimization_solution = await solution.optimization_solution()
         assert optimization_solution is not None
+
+
+@pytest.mark.parametrize(
+    "golden_stem",
+    [
+        "optimize_result_1",
+        "optimize_result_2",
+        "optimize_result_1_be",
+        "optimize_result_2_be",
+        "optimize_result_2_dst",
+        "optimize_result_2_full",
+    ],
+)
+def test_replay(golden_stem: str, config_eos: ConfigEOS, is_finalize: bool):
+    """A run reproduces its golden result from the stored parameters alone (ADR 0006, 0008).
+
+    The configuration is set to different values on purpose: the run must not read it.
+    """
+    replay = json.loads((DIR_TESTDATA / f"replay_{golden_stem}.json").read_text())
+    parameters = parameters_from_dict(replay["parameters"])
+    if parameters.settings.generations and parameters.settings.generations > 10 and not is_finalize:
+        pytest.skip()
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 24},
+            "optimization": {
+                "genetic0": {
+                    "horizon_hours": 12,
+                    "individuals": 11,
+                    "generations": 12,
+                    "seed": 1,
+                    "penalties": {"ev_soc_miss": 99, "ac_charge_break_even": 3},
+                },
+                "self_consumption_interpolator": "numpy",
+            },
+            "devices": {"max_electric_vehicles": 0, "max_home_appliances": 0},
+        }
+    )
+
+    result = Genetic0Optimizer().run(parameters)
+
+    expected = Genetic0Solution(
+        **json.loads((DIR_TESTDATA / replay["expected_result"]).read_text())
+    )
+    assert result.result.Gesamtbilanz_Euro == pytest.approx(expected.result.Gesamtbilanz_Euro)
+    compare_dict(result.model_dump(), expected.model_dump())

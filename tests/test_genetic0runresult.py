@@ -17,6 +17,7 @@ from akkudoktoreos.optimization.genetic0.genetic0request import (
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.optimization.optimizer import OptimizerRun
 from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
 def _patch_optimizer(monkeypatch, prefix: str, constructor: Any) -> None:
@@ -30,18 +31,23 @@ def _patch_optimizer(monkeypatch, prefix: str, constructor: Any) -> None:
 
 def _patch_prepare(monkeypatch, prefix: str, prepare: Any) -> None:
     """Replace the legacy parameter preparation of GENETIC or GENETIC0."""
-    parameters_class = (
-        Genetic0Request
-        if prefix == "Genetic0"
-        else ems_module.GeneticOptimizationParameters
-    )
-    monkeypatch.setattr(parameters_class, "prepare", prepare)
+    if prefix == "Genetic0":
+        monkeypatch.setattr(genetic0prepare, "prepare_request", prepare)
+    else:
+        monkeypatch.setattr(ems_module.GeneticOptimizationParameters, "prepare", prepare)
+
+
+def _warm_start_of(call: Any) -> Any:
+    """The start solution a call of GENETIC0's legacy preparation got."""
+    start, observation, start_solution = call.args
+    return start_solution
 
 
 def _assert_prepared_without_request(prefix: str, prepare: Any) -> None:
-    """GENETIC0 passes the warm start (none here) into its legacy preparation."""
+    """GENETIC0 passes start, observation time and warm start (none here) into its preparation."""
     if prefix == "Genetic0":
-        prepare.assert_awaited_once_with(start_solution=None)
+        prepare.assert_awaited_once()
+        assert _warm_start_of(prepare.await_args) is None
     else:
         prepare.assert_awaited_once_with()
 
@@ -99,7 +105,13 @@ def offline_ems(monkeypatch):
             optimization=SimpleNamespace(
                 algorithm=OptimizationAlgorithm.GENETIC,
                 genetic=SimpleNamespace(generations=3, seed=17, interval_sec=3600, individuals=31),
-                genetic0=SimpleNamespace(generations=5, seed=29),
+                genetic0=SimpleNamespace(
+                    generations=5, seed=29, horizon_hours=24, individuals=13, penalties={}
+                ),
+            ),
+            prediction=SimpleNamespace(hours=48),
+            devices=SimpleNamespace(
+                batteries=None, electric_vehicles=None, max_home_appliances=0
             ),
             server=SimpleNamespace(verbose=False),
         ),
@@ -107,8 +119,16 @@ def offline_ems(monkeypatch):
         adapter=SimpleNamespace(update_data=AsyncMock()),
         set_start_datetime=cls.set_start_datetime,
     )
-    # GENETIC0's parameter preparation reads the settings itself.
+    # GENETIC0's parameter preparation reads the settings and predictions itself.
     monkeypatch.setattr(genetic0prepare, "get_config", lambda: ems.config)
+    monkeypatch.setattr(
+        genetic0prepare, "get_prediction", lambda: SimpleNamespace(record_keys=[])
+    )
+    monkeypatch.setattr(
+        genetic0prepare,
+        "configured_grid_interpolator_backend",
+        lambda: GridInterpolatorBackend.SCIPY,
+    )
     return ems
 
 
@@ -193,14 +213,23 @@ async def test_optimization_routes_only_selected_algorithm(
     assert run_result is solution
     selected = constructors[selected_name]
     expected_config = getattr(offline_ems.config.optimization, suffix)
-    selected.assert_called_once_with(
-        verbose=False, fixed_seed=43 if supplied else expected_config.seed
-    )
+    expected_seed = 43 if supplied else expected_config.seed
+    expected_generations = 7 if supplied else expected_config.generations
     expected_arguments: dict[str, Any] = {
         "start_hour": expected_hour,
         "parameters": sentinel_parameters,
-        "ngen": 7 if supplied else expected_config.generations,
     }
+    if algorithm == OptimizationAlgorithm.GENETIC:
+        selected.assert_called_once_with(verbose=False, fixed_seed=expected_seed)
+        expected_arguments["ngen"] = expected_generations
+    else:
+        # GENETIC0 gets its algorithm settings from the parameters (step 3).
+        (settings,) = selected.call_args.args
+        assert (settings.seed, settings.generations, settings.verbose) == (
+            expected_seed,
+            expected_generations,
+            False,
+        )
     if algorithm == OptimizationAlgorithm.GENETIC:
         expected_arguments["individuals"] = 11 if supplied else None
     selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
@@ -482,9 +511,9 @@ async def test_previous_genetic0_result_is_the_warm_start_of_the_next_run(
     # Without a stored run there is no warm start.
     monkeypatch.setattr(cls, "_optimizer_runs", {})
     await cls.run(offline_ems, algorithm=OptimizationAlgorithm.GENETIC0)
-    assert [call.kwargs for call in prepare.await_args_list] == [
-        {"start_solution": None},
-        {"start_solution": [1.0, 2.0]},
-        {"start_solution": [1.0, 2.0]},  # the failed second run kept the first as warm start
-        {"start_solution": None},
+    assert [_warm_start_of(call) for call in prepare.await_args_list] == [
+        None,
+        [1.0, 2.0],
+        [1.0, 2.0],  # the failed second run kept the first as warm start
+        None,
     ]
