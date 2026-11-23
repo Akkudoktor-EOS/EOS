@@ -1,27 +1,49 @@
 #!/usr/bin/env python
+"""Self-consumption probability of the GENETIC0 inverter simulation.
+
+The backend comes from the run settings (``optimization.self_consumption_interpolator``, read by
+the parameter preparation), never from the configuration directly (ADR 0003).
+"""
+
+import functools
 import threading
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
-from akkudoktoreos.core.cache import cache_energy_management
-from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.utils.gridinterpolator import (
+    GridInterpolatorBackend,
     SwitchableGridInterpolator,
-    configured_grid_interpolator_backend,
     load_grid_interpolator,
 )
 
+# Distinct (load, PV) pairs remembered per interpolator; the values never change.
+_CACHE_SIZE = 1 << 16
+
 
 class SelfConsumptionProbabilityInterpolator:
-    def __init__(self, filepath: str | Path):
+    def __init__(
+        self,
+        filepath: str | Path,
+        backend: GridInterpolatorBackend = GridInterpolatorBackend.SCIPY,
+    ) -> None:
+        """Load the self-consumption table.
+
+        Args:
+            filepath: Pickled table.
+            backend: How the table is evaluated.
+        """
         self.filepath = filepath
+        self.backend = backend
         # The table is a pickled SciPy RegularGridInterpolator. It is read
-        # without SciPy; optimization.self_consumption_interpolator decides
-        # whether SciPy (default) or NumPy evaluates it.
+        # without SciPy; the backend decides whether SciPy (default) or NumPy
+        # evaluates it.
         self.interpolator = SwitchableGridInterpolator(
-            load_grid_interpolator(self.filepath), configured_grid_interpolator_backend
+            load_grid_interpolator(self.filepath), lambda: self.backend
+        )
+        # The table is static, so results can be kept across runs.
+        self.calculate_self_consumption = functools.lru_cache(maxsize=_CACHE_SIZE)(
+            self._calculate_self_consumption
         )
 
     def _generate_points(
@@ -32,11 +54,10 @@ class SelfConsumptionProbabilityInterpolator:
         points = np.array([np.full_like(partial_loads, load_1h_power), partial_loads]).T
         return points, partial_loads
 
-    @cache_energy_management
-    def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
+    def _calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
         """Calculate the PV self-consumption rate using RegularGridInterpolator.
 
-        The results are cached until the start of the next energy management run/ optimization.
+        Called through ``calculate_self_consumption``, which caches the results.
 
         Args:
          - last_1h_power: 1h power levels (W).
@@ -88,27 +109,44 @@ class SelfConsumptionProbabilityInterpolator:
     #     return self_consumption_rate
 
 
-class Genetic0LoadInterpolator(SelfConsumptionProbabilityInterpolator, SingletonMixin):
-    def __init__(self) -> None:
-        if hasattr(self, "_initialized"):
-            return
+class Genetic0LoadInterpolator(SelfConsumptionProbabilityInterpolator):
+    """The self-consumption table shipped with EOS."""
+
+    def __init__(self, backend: GridInterpolatorBackend = GridInterpolatorBackend.SCIPY) -> None:
+        """Load the shipped table.
+
+        Args:
+            backend: How the table is evaluated.
+        """
         filename = (
             Path(__file__).parent.parent.parent.resolve()
             / "data"
             / "genetic0_load_interpolator.pkl"
         )
-        super().__init__(filename)
+        super().__init__(filename, backend)
 
 
-# Created on first use.
-_genetic0_load_interpolator: Optional[Genetic0LoadInterpolator] = None
+# One interpolator per backend, created on first use.
+_genetic0_load_interpolators: dict[GridInterpolatorBackend, Genetic0LoadInterpolator] = {}
 _genetic0_load_interpolator_lock = threading.Lock()
 
 
-def get_genetic0_load_interpolator() -> Genetic0LoadInterpolator:
-    global _genetic0_load_interpolator
-    if _genetic0_load_interpolator is None:
+def get_genetic0_load_interpolator(
+    backend: GridInterpolatorBackend = GridInterpolatorBackend.SCIPY,
+) -> Genetic0LoadInterpolator:
+    """Return the shared interpolator for ``backend``.
+
+    Args:
+        backend: How the table is evaluated.
+
+    Returns:
+        The interpolator, loaded on first use.
+    """
+    interpolator = _genetic0_load_interpolators.get(backend)
+    if interpolator is None:
         with _genetic0_load_interpolator_lock:
-            if _genetic0_load_interpolator is None:
-                _genetic0_load_interpolator = Genetic0LoadInterpolator()
-    return _genetic0_load_interpolator
+            interpolator = _genetic0_load_interpolators.get(backend)
+            if interpolator is None:
+                interpolator = Genetic0LoadInterpolator(backend)
+                _genetic0_load_interpolators[backend] = interpolator
+    return interpolator

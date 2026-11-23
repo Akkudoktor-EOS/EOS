@@ -1,121 +1,71 @@
+"""GENETIC0 battery simulation device (stationary battery or electric vehicle)."""
+
+from dataclasses import dataclass
 from typing import Any, Iterator, Optional
 
 import numpy as np
-from pydantic import Field
 
-from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
-from akkudoktoreos.optimization.genetic0.genetic0devices import Genetic0DeviceParameters
-
-
-def max_charging_power_field(description: Optional[str] = None) -> float:
-    if description is None:
-        description = "Maximum charging power in watts."
-    # 0: the battery may not charge, e.g. the profile inhibits it at a low temperature.
-    return Field(default=5000, ge=0, json_schema_extra={"description": description})
-
-
-def initial_soc_percentage_field(description: str) -> int:
-    return Field(
-        default=0, ge=0, le=100, json_schema_extra={"description": description, "examples": [42]}
-    )
-
-
-def discharging_efficiency_field(default_value: float) -> float:
-    return Field(
-        default=default_value,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": "A float representing the discharge efficiency of the battery."
-        },
-    )
+# Charge rates of a battery that has none; copied from the battery settings, optimizers share no
+# code with the configuration (ADR 0004).
+BATTERY_DEFAULT_CHARGE_RATES: tuple[float, ...] = (
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0,
+)
 
 
-class Genetic0BaseBatteryParameters(Genetic0DeviceParameters):
-    """Battery Device Simulation Configuration."""
+@dataclass(frozen=True, slots=True)
+class Genetic0BatteryParameters:
+    """Parameters of a simulated battery.
 
-    device_id: str = Field(
-        json_schema_extra={"description": "ID of battery", "examples": ["battery1"]}
-    )
-    capacity_wh: int = Field(
-        gt=0,
-        json_schema_extra={
-            "description": "An integer representing the capacity of the battery in watt-hours.",
-            "examples": [8000],
-        },
-    )
-    charging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": "A float representing the charging efficiency of the battery."
-        },
-    )
-    discharging_efficiency: float = discharging_efficiency_field(0.88)
-    max_charge_power_w: Optional[float] = max_charging_power_field()
-    max_discharge_power_w: Optional[float] = Field(
-        default=None,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Maximum discharging power in watts. 0: the battery may not discharge. "
-                "None uses max_charge_power_w."
-            ),
-            "examples": [None, 4000],
-        },
-    )
-    initial_soc_percentage: int = initial_soc_percentage_field(
-        "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
-    )
-    min_soc_percentage: int = Field(
-        default=0,
-        ge=0,
-        le=100,
-        json_schema_extra={
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-            "examples": [10],
-        },
-    )
-    max_soc_percentage: int = Field(
-        default=100,
-        ge=0,
-        le=100,
-        json_schema_extra={
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage."
-        },
-    )
-    charge_rates: Optional[list[float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
-            "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
-        },
-    )
+    Attributes:
+        device_id: ID of the battery.
+        capacity_wh: Capacity in watt-hours.
+        charging_efficiency: Charging efficiency (0, 1].
+        discharging_efficiency: Discharging efficiency (0, 1].
+        max_charge_power_w: Maximum charging power in watts; ``None`` uses the capacity.
+        max_discharge_power_w: Maximum discharging power in watts; ``None`` uses the charging
+            power.
+        initial_soc_percentage: State of charge at the start of the run in percent.
+        min_soc_percentage: Minimum state of charge in percent.
+        max_soc_percentage: Maximum state of charge in percent.
+        charge_rates: Available charge rates as factors of the charging power; ``None`` or empty
+            gives the default rates.
+        stationary: A stationary (PV) battery keeps its minimum state of charge; an electric
+            vehicle may be discharged to 0.
+    """
 
-
-class Genetic0SolarPanelBatteryParameters(Genetic0BaseBatteryParameters):
-    """PV battery device simulation configuration."""
-
-    max_charge_power_w: Optional[float] = max_charging_power_field()
-
-
-class Genetic0ElectricVehicleParameters(Genetic0BaseBatteryParameters):
-    """Battery Electric Vehicle Device Simulation Configuration."""
-
-    device_id: str = Field(
-        json_schema_extra={"description": "ID of electric vehicle", "examples": ["ev1"]}
-    )
-    discharging_efficiency: float = discharging_efficiency_field(1.0)
-    initial_soc_percentage: int = initial_soc_percentage_field(
-        "An integer representing the current state of charge (SOC) of the battery in percentage."
-    )
+    device_id: str
+    capacity_wh: int
+    charging_efficiency: float
+    discharging_efficiency: float
+    max_charge_power_w: Optional[float]
+    max_discharge_power_w: Optional[float]
+    initial_soc_percentage: int
+    min_soc_percentage: int
+    max_soc_percentage: int
+    charge_rates: Optional[tuple[float, ...]]
+    stationary: bool
 
 
 class Genetic0Battery:
     """Represents a battery device with methods to simulate energy charging and discharging."""
 
-    def __init__(self, parameters: Genetic0BaseBatteryParameters, prediction_hours: int):
+    def __init__(self, parameters: Genetic0BatteryParameters, prediction_hours: int) -> None:
+        """Set up the battery.
+
+        Args:
+            parameters: Battery parameters.
+            prediction_hours: Length of the simulated arrays.
+        """
         self.parameters = parameters
         self.prediction_hours = prediction_hours
         self._setup()
@@ -137,9 +87,7 @@ class Genetic0Battery:
 
         # Only assign for storage battery
         self.min_soc_percentage = (
-            self.parameters.min_soc_percentage
-            if isinstance(self.parameters, Genetic0SolarPanelBatteryParameters)
-            else 0
+            self.parameters.min_soc_percentage if self.parameters.stationary else 0
         )
         self.max_soc_percentage = self.parameters.max_soc_percentage
 

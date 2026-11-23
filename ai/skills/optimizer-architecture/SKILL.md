@@ -13,7 +13,7 @@ parameters**, **solution conversion**, **warm start**. The decisions and their r
 
 | Part | May use |
 |---|---|
-| Parameter preparation (`<name>prepare.py` or `prepare/`) | configuration, predictions, measurements, and the run start and warm start passed in as arguments |
+| Parameter preparation (`<name>prepare.py` or `prepare/`) | configuration, predictions, measurements, and the run start, observation time and warm start passed in as arguments |
 | Algorithm (`run()`) | the optimization parameters only |
 | Simulation and simulation devices | the optimization parameters only |
 | Solution conversion (`convert()`) | the optimization parameters and the result of the run only |
@@ -51,17 +51,33 @@ This is the one maintained copy of the interface; ADR 0006 records the decision 
 ```python
 class Optimizer(Protocol[P, Q, R]):
     name: str
-    async def prepare(self, start_datetime: DateTime, warm_start: R | None) -> P
+    async def prepare(
+        self, start_datetime: DateTime, observation_datetime: DateTime,
+        warm_start: R | None, overrides: Mapping[str, Any] | None = None,
+    ) -> P
     async def prepare_from_request(
-        self, request: Q, start_datetime: DateTime, warm_start: R | None
+        self, request: Q, start_datetime: DateTime, observation_datetime: DateTime,
+        warm_start: R | None, overrides: Mapping[str, Any] | None = None,
     ) -> P
     def run(self, parameters: P) -> R
-    def convert(self, parameters: P, result: R) -> tuple[OptimizationSolution, EnergyManagementPlan]
+    def api(self) -> OptimizerApi | None
+    async def convert(
+        self, parameters: P, result: R
+    ) -> tuple[OptimizationSolution, EnergyManagementPlan]
 ```
 
+The code is `akkudoktoreos.optimization.optimizer.Optimizer`; the energy management finds an
+optimizer through `akkudoktoreos.optimization.optimizerregistry.get_optimizer(name)` and keeps
+the last parameters and result per optimizer (`OptimizerRun`); the result is the next warm start.
+`start_datetime` is the start of the run's first slot; `observation_datetime` is the unrounded
+moment of the run that measurements (e.g. a measured state of charge) refer to.
+
 - `run()` is deterministic: the same optimization parameters give the same result. Generations,
-  individuals, seed and penalties are part of the optimization parameters; apply a REST override
-  (e.g. `?ngen=`) to the parameters before `run()`, never beside them.
+  individuals, seed and penalties are part of the optimization parameters. A run-time override
+  (e.g. `?ngen=`) reaches the preparation as `overrides` (`{"generations": 10}`), never beside the
+  parameters; the preparation applies the keys it knows and logs an error for any other key.
+- `convert()` is `async`, so that an optimizer can migrate step by step while its conversion
+  still awaits reads; once it uses only the parameters and the result, it awaits nothing.
 - **Optimization parameters (`P`), including the simulation's device
   parameters, are plain dataclasses, never Pydantic models** (ADR 0009). They
   are valid because parameter preparation builds them valid, not because a
@@ -139,10 +155,14 @@ None of these gets an exception from the hard rule (ADR 0011):
 - `<name>visualize.py` renders from the optimization parameters and result
   only, like `convert()`.
 - `<name>api.py` fetches nothing itself. It declares placeholder dependency
-  functions for the last parameters and result and the run trigger; the
-  generic server fills them in through `app.dependency_overrides` from the
-  registry. It imports FastAPI, Pydantic and its request, never
-  configuration, EMS state or `akkudoktoreos.server`.
+  functions for the last parameters and result and the run trigger and hands
+  them out with its router as `OptimizerApi(router, last_run, run)` through
+  `api()`; the generic server includes every registered router (before its own
+  routes, so a specific path wins) and fills the placeholders through
+  `app.dependency_overrides`. Errors are `OptimizerProblem`s, which the server
+  renders like its own RFC 7807 problems. It imports FastAPI, Pydantic and its
+  request, never configuration, EMS state or `akkudoktoreos.server`. The public
+  response models live there and are built from the parameters and the result.
 - Wizard steps are field metadata in `<name>settings.py` that EOSdash reads;
   no EOSdash code inside an optimizer.
 
@@ -173,6 +193,8 @@ against `BASELINE`, the violations that existed when it was introduced.
 - Otherwise never add an entry to `BASELINE`, and never rename a module to
   `*prepare.py` or `*settings.py` just to pass the test. Remove the entries
   your change fixes; the test fails on stale entries.
+- Moving or splitting a module relabels its entries to the new module one to
+  one, in the same commit and named in the pull request; it adds none.
 - The test discovers optimizers (every package under `optimization/`); do not
   hard-code optimizer names in it.
 - It cannot detect simulation physics moved into a new shared module, nor a

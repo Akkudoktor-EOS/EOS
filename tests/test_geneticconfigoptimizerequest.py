@@ -422,6 +422,7 @@ async def test_real_ems_returns_coherent_quarter_hour_solution_and_plan(
     )
     assert solution is not None
     assert solution is ems.genetic_solution()
+    assert solution is not None  # run() returns Any; `is` narrowed to Optional
     assert solution.start_solution_datetime == fake.start_datetime
     assert len(solution.ac_charge) == 4
     assert ems.optimization_solution() is not None

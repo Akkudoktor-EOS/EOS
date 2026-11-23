@@ -412,8 +412,9 @@ as `feed_in_tariff_wh` in EUR/Wh, converted from the API's EUR/MWh prices. These
 are raw market prices; no import charges or VAT are added.
 
 Only published prices are stored. If the data does not cover the configured
-GENETIC or GENETIC0 control horizon, automatic optimization cancels with a
-missing tariff error instead of extending the final known price. Request, response, and storage
+GENETIC control horizon, automatic optimization cancels with a missing tariff error
+instead of extending the final known price. GENETIC0 carries the last known tariff
+forward and logs the missing tariff as an error. Request, response, and storage
 errors also fail the update, including when older prices are already stored.
 Set the control horizon within the published day-ahead window to use this
 provider for automatic optimization.

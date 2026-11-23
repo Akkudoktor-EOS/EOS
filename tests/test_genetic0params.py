@@ -1,5 +1,9 @@
 """GENETIC0 parameter preparation: time alignment, tariff coverage, and measured SoC."""
 
+import json
+import math
+from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock, Mock, patch
 
 import numpy as np
@@ -9,10 +13,17 @@ import pytest
 import pytest_asyncio
 
 from akkudoktoreos.core.coreabc import get_ems, get_measurement
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
+from akkudoktoreos.optimization.genetic0.genetic0optimizer import Genetic0Optimizer
+from akkudoktoreos.optimization.genetic0.genetic0parameters import (
+    Genetic0Parameters,
+    parameters_from_dict,
+    parameters_to_dict,
 )
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
+)
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
 class TestGenetic0ParameterTimeAlignment:
@@ -66,8 +77,10 @@ class TestGenetic0ParameterTimeAlignment:
             key_to_array=AsyncMock(side_effect=read_array),
             key_to_raw_series=AsyncMock(return_value=prices),
         )
-        with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-            parameters = await Genetic0OptimizationParameters.prepare()
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
 
         assert parameters is not None
         # Index ``start.hour`` of every array is the start slot.
@@ -84,7 +97,7 @@ class TestGenetic0TariffCoverage:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("published_hours", [20, 24])
-    async def test_dvhub_tariff_requires_real_control_horizon(self,
+    async def test_dvhub_tariff_short_of_the_control_horizon_is_carried_forward(self,
         config_eos, published_hours, caplog
     ):
         config_eos.merge_settings_from_dict(
@@ -117,21 +130,25 @@ class TestGenetic0TariffCoverage:
             key_to_array=AsyncMock(side_effect=read_array),
             key_to_raw_series=AsyncMock(return_value=prices),
         )
-        with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-            parameters = await Genetic0OptimizationParameters.prepare()
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
 
         prediction.update_data.assert_awaited_once()
         assert config_eos.feedintariff.provider == "FeedInTariffDvhubOnline"
+        tariffs = parameters.ems.feed_in_tariff_per_wh
+        assert isinstance(tariffs, list)
+        published = [(4 * hour + 1.5) / 1_000_000 for hour in range(published_hours)]
+        assert tariffs[:published_hours] == pytest.approx(published)
         if published_hours < 24:
-            assert parameters is None
-            assert "Missing feed-in tariff within the GENETIC0 control horizon" in caplog.text
-        else:
-            assert parameters is not None
-            tariffs = parameters.ems.feed_in_tariff_per_wh
-            assert isinstance(tariffs, list)
-            assert tariffs[:24] == pytest.approx(
-                [(4 * hour + 1.5) / 1_000_000 for hour in range(24)]
+            # The run is not cancelled: the last known tariff is carried forward (step 3b).
+            assert "Missing feed-in tariff within the control horizon" in caplog.text
+            assert tariffs[published_hours:] == pytest.approx(
+                [published[-1]] * (48 - published_hours)
             )
+        else:
+            # A covered control horizon is used as it is.
             assert np.isnan(tariffs[24:]).all()
 
 
@@ -185,8 +202,10 @@ class TestGenetic0MeasuredSOC:
             key_to_array=AsyncMock(side_effect=read_array),
             key_to_raw_series=AsyncMock(return_value=tariff),
         )
-        with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-            parameters = await Genetic0OptimizationParameters.prepare()
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
 
         assert parameters is not None
         assert parameters.pv_battery is not None
@@ -232,8 +251,10 @@ class TestGenetic0MeasuredSOC:
             key_to_array=AsyncMock(side_effect=read_array),
             key_to_raw_series=AsyncMock(return_value=tariff),
         )
-        with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-            parameters = await Genetic0OptimizationParameters.prepare()
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
 
         assert parameters is not None
         assert parameters.pv_battery is not None
@@ -277,8 +298,10 @@ class TestGenetic0MeasuredSOC:
             key_to_array=AsyncMock(side_effect=read_array),
             key_to_raw_series=AsyncMock(return_value=tariff),
         )
-        with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-            parameters = await Genetic0OptimizationParameters.prepare()
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
 
         assert parameters is not None
         assert parameters.pv_battery is not None
@@ -286,10 +309,10 @@ class TestGenetic0MeasuredSOC:
 
 
 class TestGenetic0DemoData:
-    """Demo device data used when no battery / electric vehicle is configured."""
+    """No demo devices: devices that are not configured are left out (step 3b)."""
 
     @pytest.mark.asyncio
-    async def test_demo_devices_use_nominal_capacity(self, config_eos):
+    async def test_unconfigured_devices_are_left_out_and_not_written(self, config_eos):
         config_eos.merge_settings_from_dict(
             {
                 "prediction": {"hours": 48},
@@ -298,10 +321,12 @@ class TestGenetic0DemoData:
                 "devices": {
                     "max_batteries": 1,
                     "max_electric_vehicles": 1,
-                    "max_inverters": 0,
-                    "max_home_appliances": 0,
+                    "max_inverters": 1,
+                    "max_home_appliances": 1,
                     "batteries": None,
                     "electric_vehicles": None,
+                    "inverters": None,
+                    "home_appliances": {},
                 },
             }
         )
@@ -318,21 +343,24 @@ class TestGenetic0DemoData:
             key_to_array=AsyncMock(side_effect=read_array),
             key_to_raw_series=AsyncMock(return_value=tariff),
         )
-        with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-            parameters = await Genetic0OptimizationParameters.prepare()
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
 
-        assert parameters is not None
-        # The demo capacities must reach the profile adjustment of the settings;
-        # the generic default profile provides no capacity of its own.
-        assert config_eos.devices.batteries["battery1"].profile_adjustment.nominal_capacity_wh == 8000
         assert (
-            config_eos.devices.electric_vehicles["ev1"].profile_adjustment.nominal_capacity_wh
-            == 50000
-        )
-        assert parameters.pv_battery is not None
-        assert parameters.pv_battery.capacity_wh == 8000
-        assert parameters.ev is not None
-        assert parameters.ev.capacity_wh == 50000
+            parameters.pv_battery,
+            parameters.ev,
+            parameters.inverter,
+            parameters.dishwasher,
+        ) == (None, None, None, None)
+        devices = config_eos.devices
+        assert (
+            devices.batteries,
+            devices.electric_vehicles,
+            devices.inverters,
+            devices.home_appliances or None,
+        ) == (None, None, None, None)
 
     @pytest.mark.asyncio
     async def test_battery_configuration_error_uses_defaults_not_demo_data(self, config_eos):
@@ -373,8 +401,10 @@ class TestGenetic0DemoData:
             lambda message: messages.append(message.record["message"]), level="ERROR"
         )
         try:
-            with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-                parameters = await Genetic0OptimizationParameters.prepare()
+            with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+                parameters = await genetic0prepare.prepare_request(
+                    get_ems().start_datetime, get_ems().observation_datetime
+                )
         finally:
             logger.remove(sink_id)
         assert parameters is not None
@@ -389,20 +419,19 @@ class TestGenetic0DemoData:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "settings_class, method, field, device_id",
+        "device, method, field, device_id",
         [
-            ("BatteriesCommonSettings", "to_genetic0_pv_bat_param", "pv_battery", "storage"),
-            ("BatteriesCommonSettings", "to_genetic0_ev_bat_param", "ev", "car"),
-            ("InverterCommonSettings", "to_genetic0_param", "inverter", "hybrid"),
+            ("battery", "battery_request", "pv_battery", "storage"),
+            ("electric vehicle", "electric_vehicle_request", "ev", "car"),
+            ("inverter", "inverter_request", "inverter", "hybrid"),
         ],
     )
     async def test_device_that_cannot_be_prepared_is_left_out(
-        self, config_eos, monkeypatch, settings_class, method, field, device_id
+        self, config_eos, monkeypatch, device, method, field, device_id
     ):
         """No demo device replaces a configured device that cannot be prepared."""
         from loguru import logger
 
-        from akkudoktoreos.devices.settings import batterysettings, invertersettings
 
         config_eos.merge_settings_from_dict(
             {
@@ -430,12 +459,11 @@ class TestGenetic0DemoData:
             }
         )
         configured = config_eos.devices.model_dump(exclude_computed_fields=True)
-        module = batterysettings if settings_class == "BatteriesCommonSettings" else invertersettings
-
-        def broken(self, *args, **kwargs):
+        def broken(*args, **kwargs):
             raise RuntimeError("conversion failed")
 
-        monkeypatch.setattr(getattr(module, settings_class), method, broken)
+        # The conversion of the settings belongs to GENETIC0's preparation (ADR 0004).
+        monkeypatch.setattr(genetic0prepare, method, broken)
         get_ems().set_start_datetime(to_datetime("2026-08-01T14:00:00+00:00"))
         tariff = pd.Series(
             0.00008, index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min")
@@ -454,8 +482,10 @@ class TestGenetic0DemoData:
             lambda message: messages.append(message.record["message"]), level="ERROR"
         )
         try:
-            with patch.object(Genetic0OptimizationParameters, "prediction", prediction):
-                parameters = await Genetic0OptimizationParameters.prepare()
+            with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+                parameters = await genetic0prepare.prepare_request(
+                    get_ems().start_datetime, get_ems().observation_datetime
+                )
         finally:
             logger.remove(sink_id)
         assert parameters is not None
@@ -466,3 +496,651 @@ class TestGenetic0DemoData:
         for other in {"pv_battery", "ev", "inverter"} - {field}:
             assert getattr(parameters, other) is not None
         assert config_eos.devices.model_dump(exclude_computed_fields=True) == configured
+
+    @pytest.mark.asyncio
+    async def test_battery_not_linked_to_the_inverter_is_left_out(self, config_eos, caplog):
+        """A battery the inverter does not name is left out; the inverter runs without it."""
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {"hours": 48},
+                "optimization": {"genetic0": {"horizon_hours": 24}},
+                "elecfee": {"provider": None},
+                "devices": {
+                    "max_batteries": 1,
+                    "max_electric_vehicles": 0,
+                    "max_inverters": 1,
+                    "max_home_appliances": 0,
+                    "batteries": {
+                        "storage": {"profile_adjustment": {"nominal_capacity_wh": 5000}}
+                    },
+                    "inverters": {
+                        "hybrid": {
+                            "battery_id": "other",
+                            "profile_adjustment": {"nominal_power_w": 6000},
+                        }
+                    },
+                },
+            }
+        )
+        get_ems().set_start_datetime(to_datetime("2026-08-01T14:00:00+00:00"))
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(return_value=np.full(48, 0.0003)),
+            key_to_raw_series=AsyncMock(side_effect=KeyError("no tariff")),
+        )
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
+        assert parameters.pv_battery is None
+        assert parameters.inverter is not None
+        assert parameters.inverter.battery_id == "other"
+        assert "Battery 'storage' is not connected to the inverter (battery_id other)" in (
+            caplog.text
+        )
+
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("price_known", [True, False])
+    async def test_without_any_price_the_grid_does_not_charge(self, config_eos, price_known):
+        """With the fallback price of 0 grid charging would look free: it is switched off."""
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {"hours": 48},
+                "optimization": {"genetic0": {"horizon_hours": 24}},
+                "elecfee": {"provider": None},
+                "devices": {
+                    "max_batteries": 1,
+                    "max_electric_vehicles": 0,
+                    "max_inverters": 1,
+                    "max_home_appliances": 0,
+                    "batteries": {
+                        "storage": {"profile_adjustment": {"nominal_capacity_wh": 5000}}
+                    },
+                    "inverters": {
+                        "hybrid": {
+                            "battery_id": "storage",
+                            "profile_adjustment": {"nominal_power_w": 6000},
+                        }
+                    },
+                },
+            }
+        )
+        get_ems().set_start_datetime(to_datetime("2026-08-01T14:00:00+00:00"))
+
+        async def read_array(*, key, **kwargs):
+            if key == "elecprice_marketprice_wh" and not price_known:
+                raise KeyError("no price")
+            return np.full(48, 0.0003)
+
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(side_effect=read_array),
+            key_to_raw_series=AsyncMock(side_effect=KeyError("no tariff")),
+        )
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
+        assert parameters.inverter is not None
+        assert parameters.pv_battery is not None
+        if price_known:
+            assert parameters.inverter.max_ac_charge_power_w != 0
+        else:
+            assert parameters.ems.electricity_price_per_wh == [0.0] * 48
+            assert parameters.inverter.max_ac_charge_power_w == 0.0
+
+
+class TestGenetic0PrepareOverrides:
+    """Run-time overrides reach the parameters; unknown keys are logged and ignored."""
+
+    @pytest.fixture
+    def request_parameters(self) -> Genetic0Request:
+        return Genetic0Request.model_validate(
+            {
+                "ems": {
+                    "pv_prognose_wh": [0.0, 100.0],
+                    "gesamtlast": [100.0, 100.0],
+                    "strompreis_euro_pro_wh": [0.0003, 0.0003],
+                    "einspeiseverguetung_euro_pro_wh": 0.00008,
+                    "preis_euro_pro_wh_akku": 0.0,
+                },
+                "pv_akku": None,
+                "eauto": None,
+                "inverter": None,
+            }
+        )
+
+    @pytest.fixture
+    def errors(self, monkeypatch) -> list[str]:
+        logged: list[str] = []
+        monkeypatch.setattr(
+            genetic0prepare.logger, "error", lambda message, *args: logged.append(message)
+        )
+        return logged
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "overrides, generations, seed",
+        [
+            (None, 77, 5),
+            ({}, 77, 5),
+            ({"generations": None, "seed": None}, 77, 5),
+            ({"generations": 12}, 12, 5),
+            ({"generations": 12, "seed": 42}, 12, 42),
+        ],
+    )
+    async def test_known_overrides_replace_the_settings(
+        self, config_eos, request_parameters, errors, overrides, generations, seed
+    ):
+        config_eos.merge_settings_from_dict(
+            {"optimization": {"genetic0": {"generations": 77, "seed": 5}}}
+        )
+        start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
+        parameters = await genetic0prepare.prepare_from_request(
+            request_parameters, start, start, None, overrides
+        )
+        assert parameters.request is request_parameters
+        assert parameters.start_hour == 10
+        assert (parameters.settings.generations, parameters.settings.seed) == (generations, seed)
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_unknown_override_is_logged_and_ignored(
+        self, config_eos, request_parameters, errors
+    ):
+        config_eos.merge_settings_from_dict(
+            {"optimization": {"genetic0": {"generations": 77, "seed": 5}}}
+        )
+        start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
+        parameters = await genetic0prepare.prepare_from_request(
+            request_parameters, start, start, None, {"individuals": 3, "generations": 12}
+        )
+        assert (parameters.settings.generations, parameters.settings.seed) == (12, 5)
+        assert errors == ["GENETIC0: Unknown override '{}' ignored."]
+
+
+class TestGenetic0PrepareWarmStart:
+    """The start solution of the previous run seeds the next one."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "warm_start, start_solution",
+        [
+            (None, None),
+            (SimpleNamespace(start_solution=None), None),
+            (SimpleNamespace(start_solution=[]), None),
+            (SimpleNamespace(start_solution=[1.0, 0.0, 2.0]), [1.0, 0.0, 2.0]),
+        ],
+        ids=["no-previous-run", "no-start-solution", "empty-start-solution", "start-solution"],
+    )
+    async def test_previous_start_solution_reaches_the_preparation(
+        self, config_eos, monkeypatch, warm_start, start_solution
+    ):
+        request = Mock()
+        legacy_prepare = AsyncMock(return_value=request)
+        monkeypatch.setattr(genetic0prepare, "prepare_request", legacy_prepare)
+        monkeypatch.setattr(
+            genetic0prepare.Genetic0Parameters,
+            "from_request",
+            classmethod(lambda cls, **fields: SimpleNamespace(**fields)),
+        )
+        start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
+        observation = start.add(minutes=7)
+        parameters = await genetic0prepare.prepare(start, observation, warm_start)
+        legacy_prepare.assert_awaited_once_with(start, observation, start_solution)
+        assert parameters.request is request
+
+
+class TestGenetic0Presentation:
+    """The data the solution conversion presents, read once before the run."""
+
+    @pytest.mark.asyncio
+    async def test_window_and_missing_values_survive_the_replay_file(self, config_eos, monkeypatch):
+        config_eos.merge_settings_from_dict(
+            {"general": {"timezone_override": "Europe/Berlin"}, "prediction": {"hours": 48}}
+        )
+        windows = []
+
+        async def key_to_array(*, key, start_datetime, end_datetime, interval, fill_method):
+            windows.append((key, start_datetime, end_datetime, fill_method))
+            hours = int((end_datetime - start_datetime).total_seconds() // 3600)
+            values = np.arange(hours, dtype=float)
+            values[1] = np.nan
+            return values
+
+        prediction = SimpleNamespace(
+            record_keys=["pvforecast_ac_power", "feed_in_tariff_wh"], key_to_array=key_to_array
+        )
+        monkeypatch.setattr(genetic0prepare, "get_prediction", lambda: prediction)
+        # 09:00 UTC is 10:00 in Berlin: read from the earlier hour, so the series cover every
+        # hour the conversion may show (it slices them to its own count).
+        start = to_datetime("2026-01-14T09:00:00+00:00", in_timezone="UTC")
+        settings = genetic0prepare._run_settings(None, 0)
+
+        presentation = await genetic0prepare._presentation(start, settings, False)
+
+        assert [(key, fill) for key, _, _, fill in windows] == [
+            ("pvforecast_ac_power", "linear"),
+            ("feed_in_tariff_wh", "ffill"),
+        ]
+        assert {(end - begin).total_seconds() for _, begin, end, _ in windows} == {
+            to_duration("39 hours").total_seconds()
+        }
+        assert set(presentation.prediction_series) == {"pvforecast_ac_power", "feed_in_tariff_wh"}
+        assert presentation.timezone == "Europe/Berlin"
+        series = presentation.prediction_series["pvforecast_ac_power"]
+        assert len(series) == 39 and math.isnan(series[1])
+
+        request = Genetic0Request.model_validate(
+            {
+                "ems": {
+                    "pv_prognose_wh": [0.0, 100.0],
+                    "gesamtlast": [100.0, 100.0],
+                    "strompreis_euro_pro_wh": [0.0003, 0.0003],
+                    "einspeiseverguetung_euro_pro_wh": 0.00008,
+                    "preis_euro_pro_wh_akku": 0.0,
+                },
+                "pv_akku": None,
+                "eauto": None,
+                "inverter": None,
+            }
+        )
+        parameters = Genetic0Parameters.from_request(
+            request=request, start_hour=start.hour, settings=settings, presentation=presentation
+        )
+        data = json.loads(json.dumps(parameters_to_dict(parameters)))
+        assert data["presentation"]["prediction_series"]["pvforecast_ac_power"][1] is None
+
+        restored = parameters_from_dict(data).presentation
+        assert restored.start_datetime == presentation.start_datetime
+        # The zone of the run start, not the configured one.
+        assert restored.start_datetime.timezone_name == start.timezone_name
+        restored_series = restored.prediction_series["pvforecast_ac_power"]
+        assert math.isnan(restored_series[1])
+        assert restored_series[2:] == series[2:]
+
+    def test_unconfigured_prediction_hours_fall_back_to_48(self, monkeypatch):
+        config = Mock()
+        config.prediction.hours = None
+        config.devices.electric_vehicles = None
+        config.devices.batteries = None
+        config.optimization.genetic0.penalties = {}
+        monkeypatch.setattr(genetic0prepare, "get_config", lambda: config)
+        errors: list[str] = []
+        monkeypatch.setattr(
+            genetic0prepare.logger, "error", lambda message, *args: errors.append(message)
+        )
+        assert genetic0prepare._run_settings(None, 0).prediction_hours == 48
+        assert errors == ["GENETIC0: prediction.hours not configured, using {}."]
+
+
+class TestGenetic0AlwaysValid:
+    """The preparation never fails, never cancels and never writes the configuration (step 3b)."""
+
+    def _configure(self, config_eos) -> None:
+        config_eos.merge_settings_from_dict(
+            {
+                "general": {"timezone_override": "UTC"},
+                "prediction": {"hours": 48},
+                "optimization": {"genetic0": {"horizon_hours": 24}},
+                "elecfee": {"provider": None},
+                "devices": {
+                    "max_batteries": 0,
+                    "max_electric_vehicles": 0,
+                    "max_inverters": 0,
+                    "max_home_appliances": 0,
+                },
+            }
+        )
+        get_ems().set_start_datetime(to_datetime("2026-08-01T10:00:00+00:00", in_timezone="UTC"))
+
+    @pytest.mark.asyncio
+    async def test_missing_predictions_give_fallback_values(self, config_eos, caplog):
+        self._configure(config_eos)
+        providers_before = config_eos.model_dump(
+            include={"weather", "load", "pvforecast", "elecprice", "elecfee", "general"}
+        )
+        prediction = Mock(
+            update_data=AsyncMock(side_effect=RuntimeError("synthetic update failure")),
+            key_to_array=AsyncMock(side_effect=KeyError("no provider")),
+            key_to_raw_series=AsyncMock(side_effect=KeyError("no provider")),
+        )
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
+
+        ems = parameters.ems
+        assert ems.pv_forecast_wh == [0.0] * 48
+        assert ems.electricity_price_per_wh == [genetic0prepare.FALLBACK_PRICE_PER_WH] * 48
+        assert ems.feed_in_tariff_per_wh == [genetic0prepare.FALLBACK_FEED_IN_TARIFF_PER_WH] * 48
+        assert ems.total_load == pytest.approx([3000.0 * 1000.0 / 8760.0] * 48)
+        assert parameters.temperature_forecast is None
+        # Nothing written back, no provider switched.
+        assert config_eos.model_dump(
+            include={"weather", "load", "pvforecast", "elecprice", "elecfee", "general"}
+        ) == providers_before
+        assert prediction.update_data.await_count == 1  # no retries
+        assert "using the stored predictions" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_gaps_are_carried_forward(self, config_eos):
+        self._configure(config_eos)
+        price = np.full(48, np.nan)
+        price[12:20] = np.arange(8, dtype=float) / 1000
+        load = np.full(48, 500.0)
+        load[30:] = np.nan
+
+        async def read_array(*, key, **kwargs):
+            return {
+                "elecprice_marketprice_wh": price,
+                "loadforecast_power_w": load,
+            }.get(key, np.full(48, 1.0))
+
+        tariff = pd.Series(
+            0.00008, index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min")
+        )
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(side_effect=read_array),
+            key_to_raw_series=AsyncMock(return_value=tariff),
+        )
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
+
+        prices = parameters.ems.electricity_price_per_wh
+        assert prices[:12] == [0.0] * 12  # leading gap: the first known price
+        assert prices[12:20] == pytest.approx(list(np.arange(8) / 1000))
+        assert prices[20:] == pytest.approx([0.007] * 28)  # carried forward
+        assert parameters.ems.total_load[30:] == [500.0] * 18
+
+    @pytest.mark.asyncio
+    async def test_prepare_never_raises_without_any_input(self, config_eos, monkeypatch):
+        self._configure(config_eos)
+        prediction = Mock(
+            update_data=AsyncMock(side_effect=RuntimeError("down")),
+            key_to_array=AsyncMock(side_effect=RuntimeError("down")),
+            key_to_raw_series=AsyncMock(side_effect=RuntimeError("down")),
+            record_keys=["pvforecast_ac_power"],
+        )
+        monkeypatch.setattr(genetic0prepare, "get_prediction", lambda: prediction)
+        start = get_ems().start_datetime
+
+        parameters = await genetic0prepare.prepare(start, start, None)
+
+        assert parameters.request.ems.pv_forecast_wh == [0.0] * 48
+        assert parameters.presentation.prediction_series == {}
+
+
+class TestGenetic0Fallbacks:
+    """Each fallback of the preparation gives a valid value and logs an error (step 3b)."""
+
+    @pytest.fixture
+    def errors(self, monkeypatch) -> list[str]:
+        logged: list[str] = []
+        monkeypatch.setattr(
+            genetic0prepare.logger, "error", lambda message, *args: logged.append(message)
+        )
+        return logged
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "measured, percentage, logged",
+        [
+            (0.42, 42, False),
+            (math.nan, 0, True),
+            (1.5, 0, True),
+            (-0.1, 0, True),
+            (KeyError("no reading"), 0, True),
+        ],
+        ids=["valid", "nan", "above-one", "negative", "missing"],
+    )
+    async def test_state_of_charge(self, monkeypatch, errors, measured, percentage, logged):
+        nearest = AsyncMock(side_effect=[measured] if isinstance(measured, Exception) else None)
+        if not isinstance(measured, Exception):
+            nearest.return_value = measured
+        monkeypatch.setattr(genetic0prepare, "_nearest_soc_factor", nearest)
+        start = to_datetime("2026-01-14T10:00:00+00:00")
+        assert await genetic0prepare._initial_soc_percentage("battery", "soc", start) == percentage
+        assert bool(errors) == logged
+
+    @pytest.mark.asyncio
+    async def test_battery_without_cost_of_storage(self, monkeypatch, errors):
+        battery_params = SimpleNamespace(initial_soc_percentage=None)
+        battery = Mock(
+            device_id="battery1",
+            levelized_cost_of_storage_amt_kwh=None,
+            measurement_key_soc_factor="soc",
+            resolve_current_operating_parameters_or_defaults=AsyncMock(return_value=({}, None)),
+        )
+        monkeypatch.setattr(genetic0prepare, "battery_request", Mock(return_value=battery_params))
+        config = Mock()
+        config.devices.max_batteries = 1
+        config.devices.batteries = {"battery1": battery}
+        monkeypatch.setattr(genetic0prepare, "get_config", lambda: config)
+        monkeypatch.setattr(genetic0prepare, "_initial_soc_percentage", AsyncMock(return_value=33))
+        start = to_datetime("2026-01-14T10:00:00+00:00")
+
+        params, lcos = await genetic0prepare._battery(start)
+
+        assert (params, lcos) == (battery_params, 0.0)
+        assert battery_params.initial_soc_percentage == 33
+        assert battery.levelized_cost_of_storage_amt_kwh is None  # not written back
+        assert errors == [
+            "GENETIC0: Battery '{}' has no levelized cost of storage; using 0 per kWh."
+        ]
+
+    def test_unset_algorithm_settings(self, monkeypatch, errors):
+        config = Mock()
+        config.prediction.hours = 48
+        config.devices.electric_vehicles = None
+        config.devices.batteries = None
+        config.optimization.genetic0.horizon_hours = 24
+        config.optimization.genetic0.individuals = None
+        config.optimization.genetic0.generations = None
+        config.optimization.genetic0.seed = None
+        config.optimization.genetic0.penalties = {}
+        monkeypatch.setattr(genetic0prepare, "get_config", lambda: config)
+        settings = genetic0prepare._run_settings(None, 0)
+        assert (settings.individuals, settings.generations) == (300, 400)
+        assert len(errors) == 2
+        assert config.optimization.genetic0.individuals is None  # not written back
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "configured, start_hour, expected",
+        [
+            (0, 14, 38),  # nothing left: the control horizon of 24 hours
+            (24, 23, 47),  # one hour left
+            (24, 14, 24),  # enough left: unchanged
+            (6, 0, 6),
+        ],
+    )
+    async def test_prediction_hours_leave_room_after_the_start(
+        self, config_eos, errors, configured, start_hour, expected
+    ):
+        """Fewer than two hours after the start hour: the run covers its control horizon."""
+        TestGenetic0AlwaysValid()._configure(config_eos)
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {"hours": configured},
+                "optimization": {"genetic0": {"individuals": 10, "generations": 10, "seed": 1}},
+            }
+        )
+        start = to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC").add(hours=start_hour)
+        get_ems().set_start_datetime(start)
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(side_effect=KeyError("no data")),
+            key_to_raw_series=AsyncMock(side_effect=KeyError("no data")),
+            record_keys=[],
+        )
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare(start, start, None)
+
+        assert parameters.settings.prediction_hours == expected
+        assert len(parameters.request.ems.total_load) == expected
+        logged = any("leaves fewer than" in message for message in errors)
+        assert logged == (expected != configured)
+        if expected != configured:
+            Genetic0Optimizer().run(parameters)  # runs instead of failing
+
+    @pytest.mark.asyncio
+    async def test_short_and_incomplete_forecasts(self, config_eos, errors):
+        TestGenetic0AlwaysValid()._configure(config_eos)
+        pv = np.full(48, 1000.0)
+        pv[5:7] = np.nan
+        pv[7] = np.inf
+        price = np.full(48, 0.0002)
+        price[3] = -np.inf
+        temperature = np.full(48, 20.0)
+        temperature[4] = np.inf
+
+        async def read_array(*, key, **kwargs):
+            if key == "pvforecast_ac_power":
+                return pv
+            if key == "loadforecast_power_w":
+                return np.full(10, 400.0)  # does not cover the run
+            if key == "elecprice_marketprice_wh":
+                return price
+            if key == "weather_temp_air":
+                return temperature
+            return np.full(48, 0.0002)
+
+        tariff = pd.Series(
+            0.00008, index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min")
+        )
+        tariff.iloc[44 * 4] = np.inf  # 20:00 on the next day, after the control horizon
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(side_effect=read_array),
+            key_to_raw_series=AsyncMock(return_value=tariff),
+        )
+        with patch.object(genetic0prepare, "get_prediction", return_value=prediction):
+            parameters = await genetic0prepare.prepare_request(
+                get_ems().start_datetime, get_ems().observation_datetime
+            )
+
+        # NaN and infinite values are missing.
+        assert math.isnan(cast(list[float], parameters.ems.feed_in_tariff_per_wh)[44])
+        assert parameters.ems.pv_forecast_wh[5:8] == [0.0, 0.0, 0.0]
+        assert parameters.ems.pv_forecast_wh[8] == 1000.0
+        assert parameters.ems.electricity_price_per_wh[3] == 0.0002
+        temperature_forecast = parameters.temperature_forecast
+        assert temperature_forecast is not None
+        assert temperature_forecast[4] is None
+        assert temperature_forecast[5] == 20.0
+        assert parameters.ems.total_load == pytest.approx([3000.0 * 1000.0 / 8760.0] * 48)
+        assert "GENETIC0: Prediction '{}' does not cover the run." in errors
+        assert "GENETIC0: PV forecast incomplete; using 0 Wh for the missing hours." in errors
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("failing_builds", [1, 2])
+    async def test_invalid_parameters_fall_back(self, config_eos, monkeypatch, errors, failing_builds):
+        TestGenetic0AlwaysValid()._configure(config_eos)
+        prediction = Mock(
+            update_data=AsyncMock(),
+            key_to_array=AsyncMock(return_value=np.full(48, 0.0002)),
+            key_to_raw_series=AsyncMock(
+                return_value=pd.Series(
+                    0.00008,
+                    index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min"),
+                )
+            ),
+        )
+        monkeypatch.setattr(genetic0prepare, "get_prediction", lambda: prediction)
+        real = genetic0prepare.Genetic0EnergyManagementRequest
+        calls = {"count": 0}
+
+        def build(**kwargs):
+            calls["count"] += 1
+            if calls["count"] <= failing_builds:
+                raise ValueError("synthetic invalid parameters")
+            return real(**kwargs)
+
+        monkeypatch.setattr(genetic0prepare, "Genetic0EnergyManagementRequest", build)
+        parameters = await genetic0prepare.prepare_request(
+            get_ems().start_datetime, get_ems().observation_datetime, start_solution=[1.0, 2.0]
+        )
+
+        assert parameters.pv_battery is None and parameters.start_solution is None
+        assert parameters.temperature_forecast is None
+        if failing_builds == 2:
+            assert parameters.ems.pv_forecast_wh == [0.0] * 48
+            assert parameters.ems.total_load == pytest.approx([3000.0 * 1000.0 / 8760.0] * 48)
+        assert len([message for message in errors if "are invalid" in message]) == failing_builds
+
+
+class TestGenetic0HomeApplianceShown:
+    """The solution shows the home appliance the preparation put into the request (step 3b)."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "dishwasher, max_home_appliances, automatic, enabled",
+        [
+            (object(), None, True, True),  # default max: the configured appliance is shown
+            (None, None, True, False),  # nothing configured: nothing invented
+            (object(), None, False, False),  # a client's request: configured count, as before
+            (object(), 1, False, True),
+        ],
+    )
+    async def test_decision(
+        self, config_eos, monkeypatch, dishwasher, max_home_appliances, automatic, enabled
+    ):
+        config_eos.devices.max_home_appliances = max_home_appliances
+        request = SimpleNamespace(dishwasher=dishwasher)
+        monkeypatch.setattr(genetic0prepare, "prepare_request", AsyncMock(return_value=request))
+        # The stand-in request has no forecasts to derive the simulation's dataclasses from.
+        monkeypatch.setattr(
+            genetic0prepare.Genetic0Parameters,
+            "from_request",
+            classmethod(lambda cls, **fields: SimpleNamespace(**fields)),
+        )
+        monkeypatch.setattr(
+            genetic0prepare, "get_prediction", lambda: SimpleNamespace(record_keys=[])
+        )
+        start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
+        if automatic:
+            parameters = await genetic0prepare.prepare(start, start, None)
+        else:
+            parameters = await genetic0prepare.prepare_from_request(
+                cast(Any, request), start, start, None
+            )
+        assert parameters.presentation.home_appliance_enabled is enabled
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("enabled", [True, False])
+    async def test_conversion_follows_the_decision(self, enabled):
+        """The conversion shows the home appliance as the preparation decided (step 5)."""
+        import dataclasses
+        from pathlib import Path
+
+        from test_genetic0optimize import result_of
+
+        from akkudoktoreos.optimization.genetic0 import genetic0convert
+        from akkudoktoreos.optimization.genetic0.genetic0api import (
+            Genetic0Solution,
+        )
+
+        testdata = Path(__file__).parent / "testdata" / "genetic0"
+        replay = json.loads((testdata / "replay_optimize_result_1.json").read_text())
+        parameters = parameters_from_dict(replay["parameters"])
+        parameters = dataclasses.replace(
+            parameters,
+            presentation=dataclasses.replace(
+                parameters.presentation, home_appliance_enabled=enabled
+            ),
+        )
+        result = result_of(
+            Genetic0Solution.model_validate(
+                json.loads((testdata / replay["expected_result"]).read_text())
+            )
+        )
+        solution = await genetic0convert.optimization_solution(parameters, result)
+        plan = genetic0convert.energy_management_plan(parameters, result)
+        columns = next(iter(solution.solution.data.values()))
+        assert ("homeappliance1_energy_wh" in columns) is enabled
+        assert any(i.resource_id == "homeappliance1" for i in plan.instructions) is enabled

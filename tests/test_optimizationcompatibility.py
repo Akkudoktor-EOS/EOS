@@ -1,12 +1,13 @@
 """Contracts shared by the configuration, tariff and optimizer PRs."""
 
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0EnergyManagementParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0EnergyManagementRequest,
 )
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
@@ -15,7 +16,7 @@ from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 
 
 @pytest.mark.parametrize(
-    "model", [GeneticEnergyManagementParameters, Genetic0EnergyManagementParameters]
+    "model", [GeneticEnergyManagementParameters, Genetic0EnergyManagementRequest]
 )
 @pytest.mark.parametrize("tariff", [0.00008, [0.00008, -0.00002]])
 def test_energy_parameter_aliases_preserve_wh_prices(model, tariff):
@@ -45,12 +46,14 @@ def test_energy_parameter_aliases_preserve_wh_prices(model, tariff):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("algorithm", list(OptimizationAlgorithm))
 async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypatch, algorithm):
+    """GENETIC is served by the generic route, GENETIC0 by its own router (ADR 0005)."""
+    from httpx import ASGITransport, AsyncClient
+
     from akkudoktoreos.server import eos
 
-    genetic, genetic0 = object(), object()
     fake = SimpleNamespace(
-        genetic_solution=Mock(return_value=genetic),
-        genetic0_solution=Mock(return_value=genetic0),
+        genetic_solution=Mock(return_value=None),
+        optimizer_run=Mock(return_value=None),
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
     monkeypatch.setattr(
@@ -58,14 +61,17 @@ async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypat
         "get_config",
         lambda: SimpleNamespace(optimization=SimpleNamespace(algorithms=["GENETIC", "GENETIC0"])),
     )
-    result = await eos.fastapi_energy_management_optimization_solution_algorithm_get(algorithm)
+    async with AsyncClient(
+        transport=ASGITransport(app=eos.app, raise_app_exceptions=False), base_url="http://test"
+    ) as client:
+        response = await client.get(f"/v1/energy-management/optimization/solution/{algorithm}")
+    assert response.status_code == 404
+    assert response.json()["title"] == "Algorithm specific optimization solution retrieval failed"
     if algorithm == OptimizationAlgorithm.GENETIC:
-        assert result is genetic
         fake.genetic_solution.assert_called_once_with()
-        fake.genetic0_solution.assert_not_called()
+        fake.optimizer_run.assert_not_called()
     else:
-        assert result is genetic0
-        fake.genetic0_solution.assert_called_once_with()
+        fake.optimizer_run.assert_called_once_with("GENETIC0")
         fake.genetic_solution.assert_not_called()
 
 
@@ -95,10 +101,27 @@ def test_device_maps_feed_algorithm_specific_converters(algorithm):
     assert settings.batteries is not None
     assert settings.electric_vehicles is not None
     assert settings.inverters is not None
-    battery = getattr(settings.batteries["storage"], "to_" + algorithm + "_pv_bat_param")()
-    ev = getattr(settings.electric_vehicles["car"], "to_" + algorithm + "_ev_bat_param")()
-    inverter = getattr(settings.inverters["inverter"], "to_" + algorithm + "_param")()
-    appliance = getattr(settings.home_appliances["washer"], "to_" + algorithm + "_param")()
+    storage = settings.batteries["storage"]
+    car = settings.electric_vehicles["car"]
+    hybrid = settings.inverters["inverter"]
+    washer = settings.home_appliances["washer"]
+    battery: Any
+    ev: Any
+    inverter: Any
+    appliance: Any
+    if algorithm == "genetic0":
+        # GENETIC0 converts the device settings in its parameter preparation (ADR 0004).
+        from akkudoktoreos.optimization.genetic0 import genetic0prepare
+
+        battery = genetic0prepare.battery_request(storage)
+        ev = genetic0prepare.electric_vehicle_request(car)
+        inverter = genetic0prepare.inverter_request(hybrid)
+        appliance = genetic0prepare.home_appliance_request(washer)
+    else:
+        battery = storage.to_genetic_pv_bat_param()
+        ev = car.to_genetic_ev_bat_param()
+        inverter = hybrid.to_genetic_param()
+        appliance = washer.to_genetic_param()
     assert (battery.device_id, ev.device_id, inverter.device_id, appliance.device_id) == (
         "storage",
         "car",

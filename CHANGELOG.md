@@ -144,8 +144,6 @@ test procedure. These changes are not yet a tagged release.
   `dc_to_ac_efficiency_curve`), `ac_charge_limits_total_charge` and `cell_chemistry` are dropped
   with an error log: the profile values apply. A generic profile without own power limits is
   limited to the former default of 5000 W. Home Assistant configuration paths follow.
-- GENETIC0 no longer replaces configured devices by demo devices; a device that cannot be
-  prepared is left out of the run.
 - GENETIC rejects incomplete control forecasts instead of inventing usable inputs. Unsupported
   device counts and inconsistent battery links also fail explicitly. A missing, future, invalid
   or stale state of charge no longer cancels the run: an explicit SoC in the request takes
@@ -156,8 +154,15 @@ test procedure. These changes are not yet a tagged release.
   battery/inverter limits, losses and wear costs can change the chosen plan and its costs.
 - The electricity-fee framework replaces old `elecprice.charges_kwh` / `vat_rate` fields.
   Those old fields are dropped during migration: configure and verify fees explicitly.
-- Without PV or price predictions, the GENETIC0 parameter preparation falls back to demo
-  providers that need no internet service: `PVForecastPVLib` and `ElecPriceFixed`.
+- GENETIC0's parameter preparation never cancels a run and never writes the configuration. A
+  missing or invalid input (location, horizon, a prediction) gets a fallback for the run, logged
+  as an error naming it, and a device that cannot be prepared is left out of the run. It no
+  longer switches to demo providers or writes defaults and demo devices into the configuration:
+  configure providers and devices explicitly. A NaN or infinite forecast value counts as missing,
+  a battery not linked to the inverter is left out of the run, and a `prediction.hours` that
+  leaves fewer than two hours after the start hour is extended to the control horizon. Without
+  any known electricity price (fallback price 0) the run does not charge the battery from the
+  grid.
 - The configuration is saved to the configuration file automatically by default.
 - Quarter-hour clients must use the returned timestamps and interval, not assume 24 hourly
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
@@ -191,6 +196,10 @@ test procedure. These changes are not yet a tagged release.
   calibration, the PV snow feedback and the load adjustment skip it, and `/v1/measurement/energy`
   and `/v1/measurement/household` report it as missing. Set it to `null` for the former behaviour, e.g.
   for a feeder that only sends a reading when the meter value changes.
+- The OpenAPI schema names of the optimizers follow one scheme; fields and paths are unchanged:
+  GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request`, its device and forecast
+  models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`.
+  Clients generated from `openapi.json` must follow the new names.
 
 ### Fixed
 
@@ -198,6 +207,10 @@ test procedure. These changes are not yet a tagged release.
   belonged to the failed run; successful results and plans are published together.
 - The optimization no longer fails after a server restart.
 - The device IDs in the solution follow the configuration.
+- Without a usable inverter GENETIC0 buys the whole load from the grid instead of planning it at
+  no cost.
+- The GENETIC0 PDF report (`/visualization_results.pdf`) renders runs of any length, not only
+  runs with `prediction.hours` 48.
 - Restored JSON measurements retain their timestamps and values.
 - Configuration updates made at runtime, e.g. by `PUT /v1/config`, are no longer discarded when the
   same configuration key is set in the EOS configuration file or in the environment
