@@ -52,8 +52,8 @@ with `--finalize`, and the architecture test passes with the fixed entries remov
 
 ## What may remain in `BASELINE`
 
-After step 6 GENETIC0 kept three entries, all types of the output contract or the public request
-schema that live in banned modules: the solution's DataFrame (`core.pydantic`), the plan's
-operation-mode enums (`devices.devicesabc`) and `TimeWindowSequence` (`config.configabc`).
-Whether the test should allow these types is an open decision; until it is made they stay in
-`BASELINE`, and any other entry left is unfinished migration.
+Nothing. After step 6 GENETIC0 has no entry left: the output-contract and public-schema types it
+needs from banned modules are contract names of the test (`CONTRACT_NAMES`, allowed in the roles
+of `CONTRACT_ROLES`). An entry left after
+the last step is unfinished migration; a further contract type is added to `CONTRACT_NAMES`, with
+its reason in the pull request.

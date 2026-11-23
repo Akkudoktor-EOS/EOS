@@ -25,14 +25,19 @@ and flag any conflict.
   cache in `core.cache`). This includes data only needed to present the
   solution: time zone, device IDs, run start and the prediction series the run
   used travel in the optimization parameters. The modules and names this
-  covers are listed once, in `WORLD_MODULES`, `WORLD_NAMES` and `EMS_*` of
+  covers are listed once, in `WORLD_MODULES`, `WORLD_NAMES` and `PREPARATION_BANNED_*` of
   `tests/test_optimizerarchitecture.py`; that list is authoritative. Among
   them: `config`, `prediction`, `measurement`, `adapter`, `server`,
   `core.ems`, `core.cache`, the `core.*settings` and database modules, the
   `core.coreabc` mixins and getters, `OptimizationBase` and the shared device
   configuration (`devices.settings`, `devices.profile`, `devices.devices`,
-  `devices.devicesabc`). From `optimization.optimization` only the contract
-  class `OptimizationSolution` may be imported (`CONTRACT_NAMES`).
+  `devices.devicesabc`). From `optimization.optimization` only
+  `OptimizationSolution` may be imported. The other contract names of
+  `CONTRACT_NAMES` (`PydanticDateTimeDataFrame` of the solution, the plan's
+  `BatteryOperationMode` and `ApplianceOperationMode`, the request schema's
+  `TimeWindow` and `TimeWindowSequence`) are allowed only in the request,
+  conversion, visualization and API modules (`CONTRACT_ROLES`), never in the
+  parameters or the simulation.
 - Parameter preparation runs once per run, never fails, never returns `None` and follows the
   "Optimization parameters are always valid" rules of the `energy-domain` skill.
 - Parameter preparation does not read EMS state either (`core.ems`,
@@ -155,7 +160,7 @@ classes `<Name><Role>`. This table is the one maintained copy; ADR 0010 links he
   into a shared module, and never merge copies across optimizers to remove duplication. A fix in
   one copy reaches another optimizer only through a deliberate change to that optimizer.
 - An optimizer may import: generic utilities (such as `datetimeutil`; Pydantic only in the roles allowed above), the
-  output contract (`OptimizationSolution`, the energy management plan) and, in parameter
+  output contract (`OptimizationSolution`, the energy management plan, and in the roles above the contract names) and, in parameter
   preparation only, the configuration settings, including the shared operation-mode enums and
   settings-side resolution such as battery profiles. Translate those into the optimizer's own
   types during parameter preparation; do not pass settings objects or enums from the

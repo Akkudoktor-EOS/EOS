@@ -23,6 +23,10 @@ Parses the imports of ``src/akkudoktoreos`` and checks these rules:
 - ``pydantic``: only the settings, request, preparation and API modules of an
   optimizer import Pydantic; optimization parameters are dataclasses.
 
+The output contract and the public request schema partly live in modules these
+rules ban; from them the roles in ``CONTRACT_ROLES`` may import the names in
+``CONTRACT_NAMES``.
+
 Violations that existed when the test was introduced are listed in
 ``BASELINE``. The baseline only shrinks: a violation missing from it fails, and
 so does an entry that no longer occurs. Remove the entries a change fixes. Add
@@ -123,10 +127,25 @@ WORLD_NAMES: dict[str, frozenset[str]] = {
     "akkudoktoreos.utils.gridinterpolator": frozenset({"configured_grid_interpolator_backend"}),
 }
 
-# Modules that mix the output contract with configuration: outside parameter
-# preparation an optimizer imports only the listed contract names (ADR 0004).
+# Modules that mix the output contract or the public request schema with
+# configuration or Pydantic: from them an optimizer imports only the listed
+# names (ADR 0004, 0007): the solution, its DataFrame type, the operation-mode
+# enums of the plan's instructions and the time windows of a request.
 CONTRACT_NAMES: dict[str, frozenset[str]] = {
     "akkudoktoreos.optimization.optimization": frozenset({"OptimizationSolution"}),
+    "akkudoktoreos.core.pydantic": frozenset({"PydanticDateTimeDataFrame"}),
+    "akkudoktoreos.devices.devicesabc": frozenset(
+        {"ApplianceOperationMode", "BatteryOperationMode"}
+    ),
+    "akkudoktoreos.config.configabc": frozenset({"TimeWindow", "TimeWindowSequence"}),
+}
+# The roles that build the output or define the public schema, the only ones
+# that may import the contract names of these modules; the parameters and the
+# simulation stay free of Pydantic and configuration types (ADR 0009, 0004).
+CONTRACT_ROLES: dict[str, tuple[str, ...]] = {
+    "akkudoktoreos.core.pydantic": ("request", "convert", "visualize", "api"),
+    "akkudoktoreos.devices.devicesabc": ("request", "convert", "visualize", "api"),
+    "akkudoktoreos.config.configabc": ("request", "convert", "visualize", "api"),
 }
 
 # EMS state and the server, banned in parameter preparation too: the energy
@@ -217,7 +236,8 @@ def _imports(path: Path, module: str) -> Iterator[str]:
     A module bound as a whole (``import a.b``, ``from a import b`` for a module
     ``b``, ``from a import *``) also yields ``module:*``: every name in it is
     reachable. Function-level and ``TYPE_CHECKING`` imports count: they are
-    dependencies as well.
+    dependencies as well. A name listed in ``CONTRACT_NAMES`` yields only
+    ``module:name``: importing it is no dependency on the rest of the module.
     """
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     package = module if path.name == "__init__.py" else module.rsplit(".", 1)[0]
@@ -240,7 +260,8 @@ def _imports(path: Path, module: str) -> Iterator[str]:
                     yield submodule
                     yield f"{submodule}:*"
                 else:
-                    yield source
+                    if alias.name not in CONTRACT_NAMES.get(source, frozenset()):
+                        yield source
                     yield f"{source}:{alias.name}"
 
 
@@ -291,8 +312,25 @@ def _check(module: str, imported: str, optimizers: Optimizers) -> Iterator[Viola
             yield Violation("preparation", module, source)
         return
     if name:
+        # A module listed in WORLD_MODULES or PYDANTIC_MODULES is reported by
+        # its bare import, which _imports() yields for every non-contract name;
+        # a contract name outside CONTRACT_ROLES gets the same label.
+        if (
+            source in CONTRACT_ROLES
+            and name in CONTRACT_NAMES[source]
+            and not any(_has_role(module, own, role) for role in CONTRACT_ROLES[source])
+            and not (
+                _has_role(module, own, "settings")
+                and _within_any(source, SETTINGS_ALLOWED_MODULES + PYDANTIC_MODULES)
+            )
+        ):
+            rule = "pydantic" if _within_any(source, PYDANTIC_MODULES) else "world-access"
+            yield Violation(rule, module, source)
+            return
         if _names_hit(WORLD_NAMES, source, name) or (
-            source in CONTRACT_NAMES and name not in CONTRACT_NAMES[source]
+            source in CONTRACT_NAMES
+            and name not in CONTRACT_NAMES[source]
+            and not _within_any(source, WORLD_MODULES + PYDANTIC_MODULES)
         ):
             yield Violation("world-access", module, imported)
         return
@@ -438,11 +476,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "pydantic",
         ),
         Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0convert",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
             "shared-config",
             "akkudoktoreos.devices.settings.batterysettings",
             "akkudoktoreos.devices.genetic.battery",
@@ -576,16 +609,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "world-access",
             "akkudoktoreos.optimization.genetic.geneticvisualize",
             "akkudoktoreos.core.coreabc:get_ems",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0convert",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-            "akkudoktoreos.config.configabc",
         ),
     }
 )
@@ -889,3 +912,103 @@ class TestOptimizerArchitecture:
         assert "akkudoktoreos.config.config" in imported
         violations = {v for i in imported for v in _check(module, i, SYNTHETIC_OPTIMIZERS)}
         assert violations == {Violation("world-access", module, "akkudoktoreos.config.config")}
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "from akkudoktoreos.core.pydantic import PydanticDateTimeDataFrame\n",
+            "from akkudoktoreos.devices.devicesabc import ApplianceOperationMode, "
+            "BatteryOperationMode\n",
+            "from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence\n",
+            "from akkudoktoreos.optimization.optimization import OptimizationSolution\n",
+        ],
+    )
+    def test_allows_contract_names(self, tmp_path: Path, source: str) -> None:
+        """Contract names may be imported from modules that are otherwise banned."""
+        path = tmp_path / "alphaconvert.py"
+        _write(path, source)
+        module = "akkudoktoreos.optimization.alpha.alphaconvert"
+        imported = list(_imports(path, module))
+        assert [v for i in imported for v in _check(module, i, SYNTHETIC_OPTIMIZERS)] == []
+
+    @pytest.mark.parametrize(
+        ("module", "source", "rule"),
+        [
+            (
+                "akkudoktoreos.optimization.alpha.alphaparameters",
+                "from akkudoktoreos.config.configabc import TimeWindowSequence\n",
+                "world-access",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.devices.alphabattery",
+                "from akkudoktoreos.devices.devicesabc import BatteryOperationMode\n",
+                "world-access",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.alphasimulation",
+                "from akkudoktoreos.core.pydantic import PydanticDateTimeDataFrame\n",
+                "pydantic",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "from akkudoktoreos.config.configabc import *\n",
+                "world-access",
+            ),
+            (
+                "akkudoktoreos.optimization.alpha.alphaconvert",
+                "import akkudoktoreos.devices.devicesabc as modes\n",
+                "world-access",
+            ),
+        ],
+    )
+    def test_contract_names_only_in_contract_roles(
+        self, tmp_path: Path, module: str, source: str, rule: str
+    ) -> None:
+        """Parameters and simulation import no contract names; whole modules stay banned."""
+        path = tmp_path / "module.py"
+        _write(path, source)
+        imported = list(_imports(path, module))
+        violations = {v for i in imported for v in _check(module, i, SYNTHETIC_OPTIMIZERS)}
+        assert {v.rule for v in violations} == {rule}
+
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            (
+                "from akkudoktoreos.core.pydantic import PydanticBaseModel, "
+                "PydanticDateTimeDataFrame\n",
+                Violation(
+                    "pydantic",
+                    "akkudoktoreos.optimization.alpha.alphaconvert",
+                    "akkudoktoreos.core.pydantic",
+                ),
+            ),
+            (
+                "from akkudoktoreos.devices.devicesabc import BatteryOperationMode, "
+                "ConsumerScheduleMode\n",
+                Violation(
+                    "world-access",
+                    "akkudoktoreos.optimization.alpha.alphaconvert",
+                    "akkudoktoreos.devices.devicesabc",
+                ),
+            ),
+            (
+                "import akkudoktoreos.config.configabc\n",
+                Violation(
+                    "world-access",
+                    "akkudoktoreos.optimization.alpha.alphaconvert",
+                    "akkudoktoreos.config.configabc",
+                ),
+            ),
+        ],
+    )
+    def test_detects_names_beside_contract_names(
+        self, tmp_path: Path, source: str, expected: Violation
+    ) -> None:
+        """Any other name, or the whole module, from such a module is a violation."""
+        path = tmp_path / "alphaconvert.py"
+        _write(path, source)
+        module = "akkudoktoreos.optimization.alpha.alphaconvert"
+        imported = list(_imports(path, module))
+        violations = {v for i in imported for v in _check(module, i, SYNTHETIC_OPTIMIZERS)}
+        assert violations == {expected}
