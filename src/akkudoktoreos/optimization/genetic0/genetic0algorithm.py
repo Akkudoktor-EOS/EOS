@@ -19,11 +19,14 @@ from akkudoktoreos.optimization.genetic0.genetic0parameters import (
     Genetic0Parameters,
     Genetic0RunSettings,
 )
-from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
-from akkudoktoreos.optimization.genetic0.genetic0solution import (
-    Genetic0SimulationResult,
-    Genetic0Solution,
+from akkudoktoreos.optimization.genetic0.genetic0result import (
+    Genetic0ElectricVehicleState,
+    Genetic0Result,
+    Genetic0SimulationOutput,
+    float_list,
+    int_list,
 )
+from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
 
 
 class Genetic0Optimization:
@@ -659,7 +662,7 @@ class Genetic0Optimization:
         self,
         parameters: Genetic0Parameters,
         worst_case: bool = False,
-    ) -> Genetic0Solution:
+    ) -> Genetic0Result:
         """Perform EMS (Energy Management System) optimization.
 
         Args:
@@ -815,20 +818,23 @@ class Genetic0Optimization:
             else []
         )
 
-        return Genetic0Solution(
-            **{
-                "parameters": parameters.request,
-                "ac_charge": ac_charge_hours,
-                "dc_charge": dc_charge_hours,
-                "discharge_allowed": discharge,
-                "ev_charge_hours_float": ev_charge_hours_float,
-                "result": Genetic0SimulationResult(**simulation_result),
-                "ev_obj": self.simulation.ev,
-                "start_hour": start_hour,
-                "start_solution": start_solution,
-                "washingstart": washingstart_int,
-                "extra_data": extra_data,
-                "fitness_history": self.fitness_history,
-                "fixed_seed": self.fix_seed,
-            }
+        return Genetic0Result(
+            ac_charge=float_list(ac_charge_hours),
+            dc_charge=float_list(dc_charge_hours),
+            discharge_allowed=int_list(discharge),
+            ev_charge_hours_float=(
+                None if ev_charge_hours_float is None else float_list(ev_charge_hours_float)
+            ),
+            result=Genetic0SimulationOutput.from_simulation(simulation_result),
+            ev_obj=(
+                None
+                if self.simulation.ev is None
+                else Genetic0ElectricVehicleState.from_battery(self.simulation.ev.to_dict())
+            ),
+            start_hour=start_hour,
+            start_solution=None if start_solution is None else float_list(start_solution),
+            washingstart=None if washingstart_int is None else int(washingstart_int),
+            extra_data=extra_data,
+            fitness_history=self.fitness_history,
+            fixed_seed=self.fix_seed,
         )

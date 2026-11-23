@@ -319,34 +319,41 @@ async def test_missing_preparation_does_not_dispatch_controls(monkeypatch, offli
 @pytest.mark.asyncio
 @pytest.mark.parametrize("start_hour", [None, 11])
 async def test_legacy_optimize_explicitly_uses_genetic0(monkeypatch, start_hour):
-    """Even with GENETIC configured, /optimize must never become the new optimizer."""
+    """Even with GENETIC configured, /optimize must never become the new optimizer.
+
+    The GENETIC0 router gets its run trigger from the server's placeholder override.
+    """
+    from httpx import ASGITransport, AsyncClient
+
     from akkudoktoreos.server import eos
-    from akkudoktoreos.server.rest.error import EOSProblem
 
     fake = SimpleNamespace(
-        run=AsyncMock(return_value=None), optimizer_result=Mock(return_value=None)
+        run=AsyncMock(return_value=None), optimizer_run=Mock(return_value=None)
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
-    parameters = Genetic0Request.model_validate(
-        {
-            "ems": {
-                "pv_prognose_wh": [0.0, 100.0],
-                "gesamtlast": [100.0, 100.0],
-                "strompreis_euro_pro_wh": [0.0003, 0.0003],
-                "einspeiseverguetung_euro_pro_wh": 0.00008,
-                "preis_euro_pro_wh_akku": 0.0,
-            },
-            "pv_akku": None,
-            "eauto": None,
-            "inverter": None,
-        }
-    )
-    with pytest.raises(EOSProblem):
-        await eos.fastapi_optimize(parameters=parameters, start_hour=start_hour, ngen=2)
+    body = {
+        "ems": {
+            "pv_prognose_wh": [0.0, 100.0],
+            "gesamtlast": [100.0, 100.0],
+            "strompreis_euro_pro_wh": [0.0003, 0.0003],
+            "einspeiseverguetung_euro_pro_wh": 0.00008,
+            "preis_euro_pro_wh_akku": 0.0,
+        },
+        "pv_akku": None,
+        "eauto": None,
+        "inverter": None,
+    }
+    query = "ngen=2" + ("" if start_hour is None else f"&start_hour={start_hour}")
+    async with AsyncClient(
+        transport=ASGITransport(app=eos.app, raise_app_exceptions=False), base_url="http://test"
+    ) as client:
+        response = await client.post(f"/optimize?{query}", json=body)
+    assert response.status_code == 404
+    assert response.json()["title"] == "Optimization solution retrieval failed"
     kwargs = fake.run.await_args.kwargs
     assert kwargs["mode"] == EnergyManagementMode.OPTIMIZATION
     assert kwargs["algorithm"] == OptimizationAlgorithm.GENETIC0
-    assert kwargs["request"] is parameters
+    assert kwargs["request"].model_dump() == Genetic0Request.model_validate(body).model_dump()
     assert kwargs["overrides"] == {"generations": 2}
     assert "genetic_parameters" not in kwargs
     assert (
@@ -367,7 +374,7 @@ async def test_failed_legacy_http_run_never_reports_previous_solution(
 
     from httpx import ASGITransport, AsyncClient
 
-    from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+    from akkudoktoreos.optimization.genetic0.genetic0api import Genetic0Solution
     from akkudoktoreos.server import eos
 
     cls = ems_module.EnergyManagement
@@ -457,7 +464,10 @@ async def test_legacy_endpoint_uses_run_return_value_not_last_cached_solution(mo
     import json
     from pathlib import Path
 
-    from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+    from httpx import ASGITransport, AsyncClient
+    from test_genetic0optimize import result_of
+
+    from akkudoktoreos.optimization.genetic0.genetic0api import Genetic0Solution
     from akkudoktoreos.server import eos
 
     data = json.loads(
@@ -465,14 +475,18 @@ async def test_legacy_endpoint_uses_run_return_value_not_last_cached_solution(mo
     )
     produced = Genetic0Solution.model_validate(data)
     fake = SimpleNamespace(
-        run=AsyncMock(return_value=produced),
-        optimizer_result=Mock(side_effect=AssertionError("must use this run's result")),
+        run=AsyncMock(return_value=result_of(produced)),
+        optimizer_run=Mock(side_effect=AssertionError("must use this run's result")),
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
-    result = await eos.fastapi_optimize(parameters=produced.parameters, ngen=1)
-    assert result.start_solution == produced.start_solution
-    assert result.result.total_balance == produced.result.total_balance
-    fake.optimizer_result.assert_not_called()
+    async with AsyncClient(
+        transport=ASGITransport(app=eos.app), base_url="http://test"
+    ) as client:
+        response = await client.post("/optimize?ngen=1", json=data["parameters"])
+    assert response.status_code == 200
+    assert response.json()["start_solution"] == produced.start_solution
+    assert response.json()["result"]["total_balance"] == produced.result.total_balance
+    fake.optimizer_run.assert_not_called()
 
 
 @pytest.mark.asyncio

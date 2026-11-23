@@ -13,7 +13,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0Parameters
-from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+from akkudoktoreos.optimization.genetic0.genetic0result import Genetic0Result
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 matplotlib.use(
@@ -455,7 +455,7 @@ class Genetic0VisualizationReport:
 
 def genetic0_prepare_visualize(
     parameters: Genetic0Parameters,
-    solution: Genetic0Solution,
+    solution: Genetic0Result,
 ) -> bytes:
     """Render the PDF report of a run.
 
@@ -475,7 +475,7 @@ def genetic0_prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            solution.parameters.ems.total_load[start_hour:],
+            parameters.request.ems.total_load[start_hour:],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -485,7 +485,7 @@ def genetic0_prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            solution.parameters.ems.pv_forecast_wh[start_hour:],
+            parameters.request.ems.pv_forecast_wh[start_hour:],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -496,10 +496,10 @@ def genetic0_prepare_visualize(
         next_full_hour_date,
         [
             np.full(
-                len(solution.parameters.ems.total_load) - start_hour,
-                solution.parameters.ems.feed_in_tariff_per_wh[start_hour:]
-                if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
-                else solution.parameters.ems.feed_in_tariff_per_wh,
+                len(parameters.request.ems.total_load) - start_hour,
+                parameters.request.ems.feed_in_tariff_per_wh[start_hour:]
+                if isinstance(parameters.request.ems.feed_in_tariff_per_wh, list)
+                else parameters.request.ems.feed_in_tariff_per_wh,
             )
         ],
         title="Remuneration",
@@ -507,11 +507,11 @@ def genetic0_prepare_visualize(
         ylabel="amount/Wh",
         x2label=None,  # not enough space
     )
-    if solution.parameters.temperature_forecast:
+    if parameters.request.temperature_forecast:
         report.create_line_chart_date(
             next_full_hour_date,
             [
-                solution.parameters.temperature_forecast[start_hour:],
+                parameters.request.temperature_forecast[start_hour:],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -560,7 +560,7 @@ def genetic0_prepare_visualize(
     )
     report.create_line_chart_date(
         start_date=next_full_hour_date,  # start_date
-        y_list=[solution.parameters.ems.electricity_price_per_wh[start_hour:]],
+        y_list=[parameters.request.ems.electricity_price_per_wh[start_hour:]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (amount/Wh)",

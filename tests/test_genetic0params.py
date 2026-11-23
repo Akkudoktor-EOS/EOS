@@ -967,8 +967,10 @@ class TestGenetic0HomeApplianceShown:
         import dataclasses
         from pathlib import Path
 
+        from test_genetic0optimize import result_of
+
         from akkudoktoreos.optimization.genetic0 import genetic0convert
-        from akkudoktoreos.optimization.genetic0.genetic0solution import (
+        from akkudoktoreos.optimization.genetic0.genetic0api import (
             Genetic0Solution,
         )
 
@@ -981,8 +983,10 @@ class TestGenetic0HomeApplianceShown:
                 parameters.presentation, home_appliance_enabled=enabled
             ),
         )
-        result = Genetic0Solution.model_validate(
-            json.loads((testdata / replay["expected_result"]).read_text())
+        result = result_of(
+            Genetic0Solution.model_validate(
+                json.loads((testdata / replay["expected_result"]).read_text())
+            )
         )
         solution = await genetic0convert.optimization_solution(parameters, result)
         plan = genetic0convert.energy_management_plan(parameters, result)

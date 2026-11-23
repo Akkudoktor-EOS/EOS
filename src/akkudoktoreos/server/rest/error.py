@@ -7,6 +7,8 @@ from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
 
+from akkudoktoreos.optimization.optimizer import OptimizerProblem
+
 
 @dataclass(slots=True)
 class EOSProblem(Exception):
@@ -101,6 +103,8 @@ async def validation_handler(request: Request, exc: Exception) -> JSONResponse:
 
 def register_problem_handlers(app: FastAPI) -> None:
     app.add_exception_handler(EOSProblem, eos_problem_handler)
+    # Errors of optimizer endpoints carry the same fields (ADR 0011).
+    app.add_exception_handler(OptimizerProblem, eos_problem_handler)
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(Exception, unexpected_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_handler)

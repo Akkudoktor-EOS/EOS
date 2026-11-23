@@ -817,6 +817,128 @@
         }
       }
     },
+    "/optimize": {
+      "post": {
+        "tags": [
+          "optimize"
+        ],
+        "summary": "Fastapi Optimize",
+        "description": "Deprecated: Optimize.\n\nEndpoint to handle optimization.\n\nUses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).\n\nNote:\n    Use automatic optimization instead.\n    \"v1/energy-management/optimization/solution/GENETIC0\"",
+        "operationId": "fastapi_optimize_optimize_post",
+        "parameters": [
+          {
+            "name": "start_hour",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Defaults to current hour of the day.",
+              "title": "Start Hour"
+            },
+            "description": "Defaults to current hour of the day."
+          },
+          {
+            "name": "ngen",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Number of indivuals to generate for genetic algorithm.",
+              "title": "Ngen"
+            },
+            "description": "Number of indivuals to generate for genetic algorithm."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Genetic0Request-Input"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Genetic0SolutionLegacy"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/energy-management/optimization/solution/GENETIC0": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Optimization Solution Genetic0 Get",
+        "description": "Get the latest GENETIC0 specific solution of the optimization.",
+        "operationId": "fastapi_energy_management_optimization_solution_genetic0_get_v1_energy_management_optimization_solution_GENETIC0_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Genetic0Solution"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/visualization_results.pdf": {
+      "get": {
+        "tags": [
+          "optimize"
+        ],
+        "summary": "Get Pdf",
+        "description": "PDF report of the latest GENETIC0 run.",
+        "operationId": "get_pdf_visualization_results_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/cache/clear": {
       "post": {
         "tags": [
@@ -3291,7 +3413,7 @@
           "energy-management"
         ],
         "summary": "Fastapi Energy Management Optimization Solution Algorithm Get",
-        "description": "Get the latest algorithm specific solution of the optimization.\n\nArgs:\n    algorithm: Optimization algorithm",
+        "description": "Get the latest algorithm specific solution of the optimization.\n\nOptimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).\n\nArgs:\n    algorithm: Optimization algorithm",
         "operationId": "fastapi_energy_management_optimization_solution_algorithm_get_v1_energy_management_optimization_solution__algorithm__get",
         "parameters": [
           {
@@ -3309,15 +3431,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/GeneticSolution"
-                    },
-                    {
-                      "$ref": "#/components/schemas/Genetic0Solution"
-                    }
-                  ],
-                  "title": "Response Fastapi Energy Management Optimization Solution Algorithm Get V1 Energy Management Optimization Solution  Algorithm  Get"
+                  "$ref": "#/components/schemas/GeneticSolution"
                 }
               }
             }
@@ -3554,105 +3668,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/optimize": {
-      "post": {
-        "tags": [
-          "optimize"
-        ],
-        "summary": "Fastapi Optimize",
-        "description": "Deprecated: Optimize.\n\nEndpoint to handle optimization.\n\nUses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).\n\nNote:\n    Use automatic optimization instead.\n    \"v1/energy-management/optimization/solution/GENETIC0\"",
-        "operationId": "fastapi_optimize_optimize_post",
-        "parameters": [
-          {
-            "name": "start_hour",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Defaults to current hour of the day.",
-              "title": "Start Hour"
-            },
-            "description": "Defaults to current hour of the day."
-          },
-          {
-            "name": "ngen",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Number of indivuals to generate for genetic algorithm.",
-              "title": "Ngen"
-            },
-            "description": "Number of indivuals to generate for genetic algorithm."
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Genetic0Request-Input"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Genetic0SolutionLegacy"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/visualization_results.pdf": {
-      "get": {
-        "tags": [
-          "optimize"
-        ],
-        "summary": "Get Pdf",
-        "operationId": "get_pdf_visualization_results_pdf_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
               }
             }
           }

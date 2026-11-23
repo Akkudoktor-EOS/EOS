@@ -1,3 +1,4 @@
+import dataclasses
 import inspect
 import json
 import math
@@ -17,6 +18,10 @@ from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.optimization.genetic0 import genetic0convert
+from akkudoktoreos.optimization.genetic0.genetic0api import (
+    Genetic0Solution,
+    solution_response,
+)
 from akkudoktoreos.optimization.genetic0.genetic0optimizer import Genetic0Optimizer
 from akkudoktoreos.optimization.genetic0.genetic0parameters import (
     parameters_from_dict,
@@ -25,7 +30,11 @@ from akkudoktoreos.optimization.genetic0.genetic0parameters import (
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0Request,
 )
-from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+from akkudoktoreos.optimization.genetic0.genetic0result import (
+    Genetic0ElectricVehicleState,
+    Genetic0Result,
+    Genetic0SimulationOutput,
+)
 from akkudoktoreos.optimization.genetic0.genetic0visualize import (
     Genetic0VisualizationReport,
     genetic0_prepare_visualize,
@@ -308,7 +317,9 @@ async def test_optimize(
         parameters = await optimizer.prepare_from_request(
             input_data, run_start, run_start, None, {"generations": ngen, "seed": fixed_seed}
         )
-    genetic0_solution = optimizer.run(parameters)
+    result = optimizer.run(parameters)
+    # The public solution, as the REST API returns it, is what the golden files hold.
+    genetic0_solution = solution_response(parameters, result)
 
     # The parameters of this run are the replay input of test_replay (ADR 0008).
     check_replay(parameters, golden_stem, fn_out)
@@ -351,7 +362,7 @@ async def test_optimize(
     # Check the correct generic optimization solution is created; the prediction series were
     # read from FakePrediction by the parameter preparation.
     optimization_solution = await genetic0convert.optimization_solution(
-        parameters, genetic0_solution
+        parameters, result
     )
     check_golden(
         mask_now(optimization_solution.model_dump(mode="json")),
@@ -359,7 +370,7 @@ async def test_optimize(
     )
 
     # Check the correct generic energy management plan is created
-    plan = genetic0convert.energy_management_plan(parameters, genetic0_solution)
+    plan = genetic0convert.energy_management_plan(parameters, result)
     check_golden(
         mask_now(plan.model_dump(mode="json")),
         f"{golden_stem}_plan.json",
@@ -368,7 +379,7 @@ async def test_optimize(
     # Check visualization works, and pin what it is drawn from
     report_calls, report_patches = record_report_calls()
     with patch.multiple(Genetic0VisualizationReport, **report_patches):
-        pdf = genetic0_prepare_visualize(parameters=parameters, solution=genetic0_solution)
+        pdf = genetic0_prepare_visualize(parameters=parameters, solution=result)
     assert pdf.startswith(b"%PDF-")
     check_golden(report_calls, f"{golden_stem}_visualize.json")
 
@@ -378,6 +389,35 @@ async def test_optimize(
 
     # Everything passed, remove generated files
     TESTDATA_FILE.unlink()
+
+
+def result_of(solution: Genetic0Solution) -> Genetic0Result:
+    """The run result a public solution was built from."""
+    simulation = solution.result.model_dump()
+    output_fields = {field.name for field in dataclasses.fields(Genetic0SimulationOutput)}
+    ev_fields = {field.name for field in dataclasses.fields(Genetic0ElectricVehicleState)}
+    return Genetic0Result(
+        ac_charge=solution.ac_charge,
+        dc_charge=solution.dc_charge,
+        discharge_allowed=solution.discharge_allowed,
+        ev_charge_hours_float=solution.ev_charge_hours_float,
+        result=Genetic0SimulationOutput(
+            **{key: value for key, value in simulation.items() if key in output_fields}
+        ),
+        ev_obj=(
+            None
+            if solution.ev_obj is None
+            else Genetic0ElectricVehicleState(
+                **{k: v for k, v in solution.ev_obj.model_dump().items() if k in ev_fields}
+            )
+        ),
+        start_hour=solution.start_hour,
+        start_solution=solution.start_solution,
+        washingstart=solution.washingstart,
+        extra_data=solution.extra_data,
+        fitness_history=solution.fitness_history,
+        fixed_seed=solution.fixed_seed,
+    )
 
 
 # The parameters of golden run 1 (optimize_result_1.json), from its replay file.
@@ -394,7 +434,7 @@ class TestGenetic0SocClampedOperationFactors:
     """
 
     @pytest.fixture
-    def solution(self, config_eos: ConfigEOS) -> Genetic0Solution:
+    def solution(self, config_eos: ConfigEOS) -> Genetic0Result:
         # A configured battery whose settings differ from the solution parameters.
         config_eos.merge_settings_from_dict(
             {
@@ -409,15 +449,16 @@ class TestGenetic0SocClampedOperationFactors:
             }
         )
         data = json.loads((DIR_TESTDATA / "optimize_result_1.json").read_text())
-        return Genetic0Solution.model_validate(data)
+        return result_of(Genetic0Solution.model_validate(data))
 
     def test_uses_solution_battery_parameters(self, solution):
-        bat = solution.parameters.pv_battery
+        bat = RUN_1.request.pv_battery
         assert bat is not None
         assert bat.capacity_wh == 26400
         # 1 % headroom of 26400 Wh against one hour at 5000 W and the charging
         # efficiency of the parameters (no inverter configured).
         headroom_wh = 0.01 * bat.capacity_wh
+        assert bat.max_charge_power_w is not None
         expected = headroom_wh / (bat.max_charge_power_w * bat.charging_efficiency)
         ac, dc, dis = genetic0convert._soc_clamped_operation_factors(
             RUN_1, solution,
@@ -428,7 +469,8 @@ class TestGenetic0SocClampedOperationFactors:
         assert dis is True
 
     def test_full_and_empty_battery(self, solution):
-        bat = solution.parameters.pv_battery
+        bat = RUN_1.request.pv_battery
+        assert bat is not None
         assert genetic0convert._soc_clamped_operation_factors(
             RUN_1, solution,
             1.0, 1.0, True, float(bat.max_soc_percentage)
@@ -439,9 +481,11 @@ class TestGenetic0SocClampedOperationFactors:
         ) == (0.0, 0.0, False)
 
     def test_without_battery_parameters_factors_are_unchanged(self, solution):
-        solution.parameters.pv_battery = None
+        without_battery = dataclasses.replace(
+            RUN_1, request=RUN_1.request.model_copy(update={"pv_battery": None})
+        )
         assert genetic0convert._soc_clamped_operation_factors(
-            RUN_1, solution, 1.0, 0.5, True, 50.0
+            without_battery, solution, 1.0, 0.5, True, 50.0
         ) == (1.0, 0.5, True)
 
     @pytest.mark.asyncio
@@ -458,7 +502,7 @@ class TestGenetic0SolutionWithProfileInverter:
     """
 
     @pytest.fixture
-    def solution(self, config_eos: ConfigEOS) -> Genetic0Solution:
+    def solution(self, config_eos: ConfigEOS) -> Genetic0Result:
         config_eos.merge_settings_from_dict(
             {
                 "devices": {
@@ -484,12 +528,13 @@ class TestGenetic0SolutionWithProfileInverter:
             }
         )
         data = json.loads((DIR_TESTDATA / "optimize_result_1.json").read_text())
-        return Genetic0Solution.model_validate(data)
+        return result_of(Genetic0Solution.model_validate(data))
 
     def test_uses_solution_inverter_parameters(self, solution):
-        bat = solution.parameters.pv_battery
-        inverter = solution.parameters.inverter
+        bat = RUN_1.request.pv_battery
+        inverter = RUN_1.request.inverter
         assert bat is not None and inverter is not None
+        assert bat.max_charge_power_w is not None
         # The stored inverter has no AC charge limit and efficiency 1.0, unlike
         # the configured one: the battery charge power limits the AC charge.
         headroom_wh = 0.01 * bat.capacity_wh
@@ -517,7 +562,7 @@ class TestGenetic0SolutionWithProfileInverter:
         config_eos.merge_settings_from_dict(
             {"devices": {"inverters": {"inverter1": {"profile_adjustment": {"nominal_power_w": None}}}}}
         )
-        assert genetic0convert._inverter_parameters(solution) is solution.parameters.inverter
+        assert genetic0convert._inverter_parameters(RUN_1) is RUN_1.request.inverter
 
     @pytest.mark.asyncio
     async def test_optimization_solution_with_configured_inverter(self, solution):
@@ -563,7 +608,7 @@ def test_replay(golden_stem: str, config_eos: ConfigEOS, is_finalize: bool):
         }
     )
 
-    result = Genetic0Optimizer().run(parameters)
+    result = solution_response(parameters, Genetic0Optimizer().run(parameters))
 
     expected = Genetic0Solution(
         **json.loads((DIR_TESTDATA / replay["expected_result"]).read_text())

@@ -5,9 +5,11 @@ registry (ADR 0005): it prepares the optimization parameters once, runs the opti
 converts the result into the optimization solution and the energy management plan.
 """
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Generic, Optional, Protocol, TypeVar
+
+from fastapi import APIRouter
 
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.optimization.optimization import OptimizationSolution
@@ -82,6 +84,14 @@ class Optimizer(Protocol[ParametersT, RequestT_contra, ResultT]):
         """
         ...
 
+    def api(self) -> Optional["OptimizerApi"]:
+        """The optimizer's REST API, if it has one (ADR 0005, 0011).
+
+        Returns:
+            The router and its placeholder dependencies, which the server fills.
+        """
+        ...
+
     async def convert(
         self, parameters: ParametersT, result: ResultT
     ) -> tuple[OptimizationSolution, EnergyManagementPlan]:
@@ -103,3 +113,43 @@ class OptimizerRun(Generic[ParametersT, ResultT]):
 
     parameters: ParametersT
     result: ResultT
+
+
+# Starts an optimization run of one optimizer: (request, overrides, start datetime) -> result.
+RunTrigger = Callable[..., Any]
+
+
+@dataclass(frozen=True, slots=True)
+class OptimizerApi:
+    """The REST API an optimizer contributes (ADR 0005, 0011).
+
+    The router fetches nothing itself. The server includes it and fills the placeholder
+    dependencies through ``app.dependency_overrides``:
+
+    Attributes:
+        router: The optimizer's endpoints.
+        last_run: Placeholder dependency that gives the optimizer's latest ``OptimizerRun`` or
+            None.
+        run: Placeholder dependency that gives a ``RunTrigger`` starting a run of the optimizer.
+    """
+
+    router: APIRouter
+    last_run: Callable[[], Optional[OptimizerRun[Any, Any]]]
+    run: Callable[[], RunTrigger]
+
+
+@dataclass(slots=True)
+class OptimizerProblem(Exception):
+    """An error of an optimizer endpoint, returned as RFC 7807 Problem Details by the server.
+
+    Same fields as the server's ``EOSProblem``; optimizers do not import the server (ADR 0011).
+    """
+
+    status: int
+    title: str
+    detail: str
+    type: str = "about:blank"
+    cause: Optional[Exception] = None
+
+    def __str__(self) -> str:
+        return self.detail

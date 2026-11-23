@@ -776,6 +776,28 @@ The legacy /visualization_results.pdf route continues to serve GENETIC0.
 
 ---
 
+## GET /v1/energy-management/optimization/solution/GENETIC0
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_genetic0_get_v1_energy-management_optimization_solution_genetic0_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_genetic0_get_v1_energy-management_optimization_solution_genetic0_get)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Optimization Solution Genetic0 Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get the latest GENETIC0 specific solution of the optimization.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
 ## GET /v1/energy-management/optimization/solution/{algorithm}
 
 <!-- pyml disable line-length -->
@@ -788,6 +810,8 @@ Fastapi Energy Management Optimization Solution Algorithm Get
 ```python
 """
 Get the latest algorithm specific solution of the optimization.
+
+Optimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).
 
 Args:
     algorithm: Optimization algorithm
@@ -2379,6 +2403,14 @@ Return:
 <!-- pyml enable line-length -->
 
 Get Pdf
+
+<!-- pyml disable line-length -->
+```python
+"""
+PDF report of the latest GENETIC0 run.
+"""
+```
+<!-- pyml enable line-length -->
 
 **Responses**:
 

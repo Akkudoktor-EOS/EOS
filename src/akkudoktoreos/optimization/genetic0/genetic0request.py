@@ -18,6 +18,7 @@ from pydantic import (
 from typing_extensions import Self
 
 from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
+from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
     Genetic0BatteryParameters,
 )
@@ -27,11 +28,16 @@ from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
 from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0InverterParameters,
 )
-from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.optimization.genetic0.genetic0energymanagement import (
     Genetic0EnergyManagementParameters,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
+
+
+class Genetic0ParametersBaseModel(PydanticBaseModel):
+    """Pydantic base model of the request and response models of GENETIC0."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class Genetic0DeviceRequest(Genetic0ParametersBaseModel):

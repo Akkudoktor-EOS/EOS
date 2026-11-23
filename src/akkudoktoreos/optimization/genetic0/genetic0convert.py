@@ -29,13 +29,13 @@ from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0Param
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0InverterRequest,
 )
-from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+from akkudoktoreos.optimization.genetic0.genetic0result import Genetic0Result
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
 async def convert(
-    parameters: Genetic0Parameters, result: Genetic0Solution
+    parameters: Genetic0Parameters, result: Genetic0Result
 ) -> tuple[OptimizationSolution, EnergyManagementPlan]:
     """Convert the result of a run into the optimization solution and the plan.
 
@@ -53,7 +53,7 @@ async def convert(
 
 def _battery_operation_from_solution(
     parameters: Genetic0Parameters,
-    result: Genetic0Solution,
+    result: Genetic0Result,
     ac_charge: float,
     dc_charge: float,
     discharge_allowed: bool,
@@ -115,14 +115,14 @@ def _battery_operation_from_solution(
     return BatteryOperationMode.IDLE, 1.0
 
 
-def _inverter_parameters(result: Genetic0Solution) -> Optional[Genetic0InverterRequest]:
+def _inverter_parameters(parameters: Genetic0Parameters) -> Optional[Genetic0InverterRequest]:
     """Return the inverter parameters the solution was computed with."""
-    return result.parameters.inverter
+    return parameters.request.inverter
 
 
 def _soc_clamped_operation_factors(
     parameters: Genetic0Parameters,
-    result: Genetic0Solution,
+    result: Genetic0Result,
     ac_charge: float,
     dc_charge: float,
     discharge_allowed: bool,
@@ -148,7 +148,7 @@ def _soc_clamped_operation_factors(
     with (capacity, efficiency, power limit and SOC range as resolved from the
     battery profile), not the raw battery settings.
     """
-    bat = result.parameters.pv_battery
+    bat = parameters.request.pv_battery
     if bat is None:
         return ac_charge, dc_charge, discharge_allowed
 
@@ -168,7 +168,7 @@ def _soc_clamped_operation_factors(
         if headroom_wh <= 0.0:
             effective_ac = 0.0
         else:
-            inv = _inverter_parameters(result)
+            inv = _inverter_parameters(parameters)
             ac_to_dc_eff = float(inv.ac_to_dc_efficiency) if inv else 1.0
             max_ac_cp_w = (
                 float(inv.max_ac_charge_power_w)
@@ -192,7 +192,7 @@ def _soc_clamped_operation_factors(
 
 async def optimization_solution(
     parameters: Genetic0Parameters,
-    result: Genetic0Solution,
+    result: Genetic0Result,
 ) -> OptimizationSolution:
     """Provide the genetic solution as a general optimization solution.
 
@@ -499,7 +499,7 @@ async def optimization_solution(
 
 def energy_management_plan(
     parameters: Genetic0Parameters,
-    result: Genetic0Solution,
+    result: Genetic0Result,
 ) -> EnergyManagementPlan:
     """Provide the genetic solution as an energy management plan.
 

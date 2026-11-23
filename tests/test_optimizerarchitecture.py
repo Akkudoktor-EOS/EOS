@@ -349,11 +349,6 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "internals",
-            "akkudoktoreos.optimization.optimization",
-            "akkudoktoreos.optimization.genetic0.genetic0settings",
-        ),
-        Violation(
-            "internals",
             "akkudoktoreos.server.eos",
             "akkudoktoreos.optimization.genetic.configrequest",
         ),
@@ -366,21 +361,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "internals",
             "akkudoktoreos.server.eos",
             "akkudoktoreos.optimization.genetic.geneticvisualize",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic0.genetic0request",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic0.genetic0solution",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic0.genetic0visualize",
         ),
         Violation(
             "pydantic",
@@ -459,23 +439,8 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0abc",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0abc",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
             "akkudoktoreos.optimization.genetic0.genetic0convert",
             "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0solution",
-            "pydantic",
         ),
         Violation(
             "shared-config",

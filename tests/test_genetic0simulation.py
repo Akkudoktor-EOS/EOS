@@ -9,6 +9,9 @@ from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
 from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
 )
+from akkudoktoreos.optimization.genetic0.genetic0api import (
+    Genetic0SimulationResult,
+)
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0ElectricVehicleRequest,
     Genetic0EnergyManagementRequest,
@@ -17,9 +20,6 @@ from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0SolarPanelBatteryRequest,
 )
 from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
-from akkudoktoreos.optimization.genetic0.genetic0solution import (
-    Genetic0SimulationResult,
-)
 from akkudoktoreos.utils.datetimeutil import to_duration, to_time
 
 START_HOUR = 0

@@ -1,14 +1,32 @@
-"""Genetic0 algorithm optimisation solution."""
+"""REST API of GENETIC0 (ADR 0005, 0011): its router and public response models.
 
-from typing import Any, Optional, Union
+The router fetches nothing itself: the generic server fills the placeholder dependencies
+``last_run()`` and ``run()`` through ``app.dependency_overrides``. The response models are built
+from the optimization parameters and the result of a run.
+"""
 
+import dataclasses
+from typing import Annotated, Any, Optional, Union
+
+from fastapi import APIRouter, Depends, Query, Response
 from pydantic import AliasChoices, ConfigDict, Field, computed_field, field_validator
 
-from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
-from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
+from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0Parameters
 from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0ParametersBaseModel,
     Genetic0Request,
 )
+from akkudoktoreos.optimization.genetic0.genetic0result import (
+    Genetic0ElectricVehicleState,
+    Genetic0Result,
+)
+from akkudoktoreos.optimization.optimizer import (
+    OptimizerApi,
+    OptimizerProblem,
+    OptimizerRun,
+    RunTrigger,
+)
+from akkudoktoreos.utils.datetimeutil import to_datetime
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 
@@ -292,8 +310,8 @@ class Genetic0SolutionLegacy(Genetic0ParametersBaseModel):
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
-        if isinstance(field, Genetic0Battery):
-            return Genetic0ElectricVehicleResult(**field.to_dict())
+        if isinstance(field, Genetic0ElectricVehicleState):
+            return Genetic0ElectricVehicleResult(**dataclasses.asdict(field))
         return field
 
 
@@ -395,6 +413,180 @@ class Genetic0Solution(Genetic0ParametersBaseModel):
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
-        if isinstance(field, Genetic0Battery):
-            return Genetic0ElectricVehicleResult(**field.to_dict())
+        if isinstance(field, Genetic0ElectricVehicleState):
+            return Genetic0ElectricVehicleResult(**dataclasses.asdict(field))
         return field
+
+
+def solution_response(parameters: Genetic0Parameters, result: Genetic0Result) -> Genetic0Solution:
+    """The public solution of a run.
+
+    Args:
+        parameters: The optimization parameters of the run; their request is echoed.
+        result: The result of the run.
+
+    Returns:
+        The solution as the REST API returns it.
+    """
+    return Genetic0Solution.model_validate(
+        {
+            "parameters": parameters.request,
+            "ac_charge": result.ac_charge,
+            "dc_charge": result.dc_charge,
+            "discharge_allowed": result.discharge_allowed,
+            "ev_charge_hours_float": result.ev_charge_hours_float,
+            "result": dataclasses.asdict(result.result),
+            "ev_obj": result.ev_obj,
+            "start_hour": result.start_hour,
+            "start_solution": result.start_solution,
+            "washingstart": result.washingstart,
+            "extra_data": result.extra_data,
+            "fitness_history": result.fitness_history,
+            "fixed_seed": result.fixed_seed,
+        }
+    )
+
+
+def legacy_response(result: Genetic0Result) -> Genetic0SolutionLegacy:
+    """The solution of a run as the deprecated ``POST /optimize`` returns it.
+
+    Args:
+        result: The result of the run.
+
+    Returns:
+        The legacy solution.
+    """
+    return Genetic0SolutionLegacy.model_validate(
+        {
+            "ac_charge": result.ac_charge,
+            "dc_charge": result.dc_charge,
+            "discharge_allowed": result.discharge_allowed,
+            "ev_charge_hours_float": result.ev_charge_hours_float,
+            "result": dataclasses.asdict(result.result),
+            "ev_obj": result.ev_obj,
+            "start_solution": result.start_solution,
+            "washingstart": result.washingstart,
+        }
+    )
+
+
+# ----------------------------------------------------------------------------------------------
+# Router
+# ----------------------------------------------------------------------------------------------
+
+router = APIRouter()
+
+
+def last_run() -> Optional[OptimizerRun[Genetic0Parameters, Genetic0Result]]:
+    """Placeholder dependency: the latest GENETIC0 run, filled by the server.
+
+    Raises:
+        NotImplementedError: The server did not fill the placeholder.
+    """
+    raise NotImplementedError("Filled by the server through app.dependency_overrides.")
+
+
+def run() -> RunTrigger:
+    """Placeholder dependency: starts a GENETIC0 run, filled by the server.
+
+    Raises:
+        NotImplementedError: The server did not fill the placeholder.
+    """
+    raise NotImplementedError("Filled by the server through app.dependency_overrides.")
+
+
+def api() -> OptimizerApi:
+    """The REST API of GENETIC0 for the server.
+
+    Returns:
+        The router and its placeholder dependencies.
+    """
+    return OptimizerApi(router=router, last_run=last_run, run=run)
+
+
+@router.post("/optimize", tags=["optimize"])
+async def fastapi_optimize(
+    parameters: Genetic0Request,
+    start_hour: Annotated[
+        Optional[int], Query(description="Defaults to current hour of the day.")
+    ] = None,
+    ngen: Annotated[
+        Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
+    ] = None,
+    trigger: RunTrigger = Depends(run),
+) -> Genetic0SolutionLegacy:
+    """Deprecated: Optimize.
+
+    Endpoint to handle optimization.
+
+    Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
+
+    Note:
+        Use automatic optimization instead.
+        "v1/energy-management/optimization/solution/GENETIC0"
+    """
+    if start_hour is None:
+        start_datetime = None
+    else:
+        start_datetime = to_datetime().set(hour=start_hour)
+
+    # Ensure there is only one optimization/ energy management run at a time
+    result = await trigger(
+        start_datetime=start_datetime,
+        request=parameters,
+        overrides={"generations": ngen},
+    )
+
+    if result is None:
+        raise OptimizerProblem(
+            status=404,
+            title="Optimization solution retrieval failed",
+            detail="Can not get the 'GENETIC0' optimization solution.",
+        )
+
+    # Create compatible solution.
+    return legacy_response(result)
+
+
+@router.get("/v1/energy-management/optimization/solution/GENETIC0", tags=["energy-management"])
+async def fastapi_energy_management_optimization_solution_genetic0_get(
+    latest: Optional[OptimizerRun[Genetic0Parameters, Genetic0Result]] = Depends(last_run),
+) -> Genetic0Solution:
+    """Get the latest GENETIC0 specific solution of the optimization."""
+    if latest is None:
+        raise OptimizerProblem(
+            status=404,
+            title="Algorithm specific optimization solution retrieval failed",
+            detail=(
+                "Can not get the 'GENETIC0' optimization solution.\n"
+                "Did you configure automatic 'GENETIC0' optimization?\n"
+                "Did you run the optimization/ energy management?"
+            ),
+        )
+    return solution_response(latest.parameters, latest.result)
+
+
+@router.get("/visualization_results.pdf", tags=["optimize"])
+def get_pdf(
+    latest: Optional[OptimizerRun[Genetic0Parameters, Genetic0Result]] = Depends(last_run),
+) -> Response:
+    """PDF report of the latest GENETIC0 run."""
+    if latest is None:
+        raise OptimizerProblem(
+            status=404,
+            title="Optimization solution report retrieval failed",
+            detail="Can not get the 'GENETIC0' optimization solution.",
+        )
+
+    # matplotlib is only needed for the PDF report; import it on first use.
+    from akkudoktoreos.optimization.genetic0.genetic0visualize import (
+        genetic0_prepare_visualize,
+    )
+
+    pdf = genetic0_prepare_visualize(parameters=latest.parameters, solution=latest.result)
+
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="optimization-report.pdf"'},
+    )

@@ -9,7 +9,7 @@ from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
 )
-from akkudoktoreos.optimization.genetic0.genetic0settings import Genetic0Settings
+from akkudoktoreos.optimization.genetic0 import Genetic0Settings
 from akkudoktoreos.optimization.genetic.geneticsettings import (
     GeneticCommonSettings,
     normalize_genetic_settings,

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import functools
 import json
 import os
 import signal
@@ -56,19 +57,14 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic0.genetic0request import (
-    Genetic0Request,
-)
-from akkudoktoreos.optimization.genetic0.genetic0solution import (
-    Genetic0Solution,
-    Genetic0SolutionLegacy,
-)
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
 )
+from akkudoktoreos.optimization.optimizer import OptimizerRun, RunTrigger
+from akkudoktoreos.optimization.optimizerregistry import get_optimizer, optimizer_names
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
@@ -274,6 +270,31 @@ The genetic optimization API fields were renamed from German to English. For bac
 app.include_router(measurement_router)
 app.include_router(profile_router)
 app.include_router(pvadaptive_router)
+
+
+def _optimizer_last_run(name: str) -> Optional[OptimizerRun[Any, Any]]:
+    """The latest run of the optimizer ``name``; fills its ``last_run`` placeholder."""
+    return get_ems().optimizer_run(name)
+
+
+def _optimizer_run_trigger(name: str) -> RunTrigger:
+    """Starts a run of the optimizer ``name``; fills its ``run`` placeholder."""
+    return functools.partial(
+        get_ems().run,
+        mode=EnergyManagementMode.OPTIMIZATION,
+        algorithm=OptimizationAlgorithm(name),
+    )
+
+
+# Optimizers contribute their own endpoints (ADR 0005, 0011). They are included before the
+# server's routes, so an optimizer's specific path takes precedence over a generic one.
+for _name in optimizer_names():
+    _optimizer = get_optimizer(_name)
+    _api = None if _optimizer is None else _optimizer.api()
+    if _api is not None:
+        app.include_router(_api.router)
+        app.dependency_overrides[_api.last_run] = functools.partial(_optimizer_last_run, _name)
+        app.dependency_overrides[_api.run] = functools.partial(_optimizer_run_trigger, _name)
 
 register_problem_handlers(app)
 
@@ -1851,13 +1872,15 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
 @app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
 async def fastapi_energy_management_optimization_solution_algorithm_get(
     algorithm: OptimizationAlgorithm,
-) -> Union[GeneticSolution, Genetic0Solution]:
+) -> GeneticSolution:
     """Get the latest algorithm specific solution of the optimization.
+
+    Optimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).
 
     Args:
         algorithm: Optimization algorithm
     """
-    solution: Optional[Union[GeneticSolution, Genetic0Solution]] = None
+    solution: Optional[GeneticSolution] = None
 
     if algorithm not in get_config().optimization.algorithms:
         raise EOSProblem(
@@ -1868,8 +1891,6 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
 
     if algorithm == OptimizationAlgorithm.GENETIC:
         solution = get_ems().genetic_solution()
-    elif algorithm == OptimizationAlgorithm.GENETIC0:
-        solution = get_ems().optimizer_result(algorithm)
 
     if solution is None:
         raise EOSProblem(
@@ -2264,90 +2285,6 @@ async def fastapi_optimize_config(
             detail="GENETIC did not return its native solution type.",
         )
     return solution
-
-
-@app.post("/optimize", tags=["optimize"])
-async def fastapi_optimize(
-    parameters: Genetic0Request,
-    start_hour: Annotated[
-        Optional[int], Query(description="Defaults to current hour of the day.")
-    ] = None,
-    ngen: Annotated[
-        Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
-    ] = None,
-) -> Genetic0SolutionLegacy:
-    """Deprecated: Optimize.
-
-    Endpoint to handle optimization.
-
-    Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
-
-    Note:
-        Use automatic optimization instead.
-        "v1/energy-management/optimization/solution/GENETIC0"
-    """
-    if start_hour is None:
-        start_datetime = None
-    else:
-        start_datetime = to_datetime().set(hour=start_hour)
-
-    # Ensure there is only one optimization/ energy management run at a time
-    solution = await get_ems().run(
-        start_datetime=start_datetime,
-        mode=EnergyManagementMode.OPTIMIZATION,
-        algorithm=OptimizationAlgorithm.GENETIC0,
-        request=parameters,
-        overrides={"generations": ngen},
-    )
-
-    if solution is None:
-        raise EOSProblem(
-            status=404,
-            title="Optimization solution retrieval failed",
-            detail="Can not get the 'GENETIC0' optimization solution.",
-        )
-
-    # Create compatible solution.
-    legacy_solution = Genetic0SolutionLegacy.model_validate(
-        {
-            "ac_charge": solution.ac_charge,
-            "dc_charge": solution.dc_charge,
-            "discharge_allowed": solution.discharge_allowed,
-            "ev_charge_hours_float": solution.ev_charge_hours_float,
-            "result": solution.result,
-            "ev_obj": solution.ev_obj,
-            "start_solution": solution.start_solution,
-            "washingstart": solution.washingstart,
-        }
-    )
-    return legacy_solution
-
-
-@app.get("/visualization_results.pdf", tags=["optimize"])
-def get_pdf() -> Response:
-    # Endpoint to serve the generated PDF with visualization results
-    genetic0_run = get_ems().optimizer_run(OptimizationAlgorithm.GENETIC0)
-    if genetic0_run is None:
-        raise EOSProblem(
-            status=404,
-            title="Optimization solution report retrieval failed",
-            detail="Can not get the 'GENETIC0' optimization solution.",
-        )
-
-    # matplotlib is only needed for the PDF report; import it on first use.
-    from akkudoktoreos.optimization.genetic0.genetic0visualize import (
-        genetic0_prepare_visualize,
-    )
-
-    pdf = genetic0_prepare_visualize(
-        parameters=genetic0_run.parameters, solution=genetic0_run.result
-    )
-
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={"Content-Disposition": 'inline; filename="optimization-report.pdf"'},
-    )
 
 
 @app.get("/site-map", include_in_schema=False)

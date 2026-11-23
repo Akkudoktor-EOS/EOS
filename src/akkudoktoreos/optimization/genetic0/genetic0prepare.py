@@ -44,7 +44,7 @@ from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0Request,
     Genetic0SolarPanelBatteryRequest,
 )
-from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
+from akkudoktoreos.optimization.genetic0.genetic0result import Genetic0Result
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
@@ -90,7 +90,7 @@ FALLBACK_LOAD_W = 3000.0 * 1000.0 / 8760.0
 async def prepare(
     start_datetime: DateTime,
     observation_datetime: DateTime,
-    warm_start: Optional[Genetic0Solution],
+    warm_start: Optional[Genetic0Result],
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> Genetic0Parameters:
     """Prepare the parameters of a run from configuration, predictions and measurements.
@@ -118,7 +118,7 @@ async def prepare_from_request(
     request: Genetic0Request,
     start_datetime: DateTime,
     observation_datetime: DateTime,
-    warm_start: Optional[Genetic0Solution],
+    warm_start: Optional[Genetic0Result],
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> Genetic0Parameters:
     """Complete a client's optimization request into the parameters of a run.

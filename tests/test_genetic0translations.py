@@ -3,11 +3,11 @@
 
 import json
 
+from akkudoktoreos.optimization.genetic0.genetic0api import (
+    Genetic0SimulationResult,
+)
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0EnergyManagementRequest,
-)
-from akkudoktoreos.optimization.genetic0.genetic0solution import (
-    Genetic0SimulationResult,
 )
 
 

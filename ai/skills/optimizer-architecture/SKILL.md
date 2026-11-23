@@ -60,6 +60,7 @@ class Optimizer(Protocol[P, Q, R]):
         warm_start: R | None, overrides: Mapping[str, Any] | None = None,
     ) -> P
     def run(self, parameters: P) -> R
+    def api(self) -> OptimizerApi | None
     async def convert(
         self, parameters: P, result: R
     ) -> tuple[OptimizationSolution, EnergyManagementPlan]
@@ -154,10 +155,14 @@ None of these gets an exception from the hard rule (ADR 0011):
 - `<name>visualize.py` renders from the optimization parameters and result
   only, like `convert()`.
 - `<name>api.py` fetches nothing itself. It declares placeholder dependency
-  functions for the last parameters and result and the run trigger; the
-  generic server fills them in through `app.dependency_overrides` from the
-  registry. It imports FastAPI, Pydantic and its request, never
-  configuration, EMS state or `akkudoktoreos.server`.
+  functions for the last parameters and result and the run trigger and hands
+  them out with its router as `OptimizerApi(router, last_run, run)` through
+  `api()`; the generic server includes every registered router (before its own
+  routes, so a specific path wins) and fills the placeholders through
+  `app.dependency_overrides`. Errors are `OptimizerProblem`s, which the server
+  renders like its own RFC 7807 problems. It imports FastAPI, Pydantic and its
+  request, never configuration, EMS state or `akkudoktoreos.server`. The public
+  response models live there and are built from the parameters and the result.
 - Wizard steps are field metadata in `<name>settings.py` that EOSdash reads;
   no EOSdash code inside an optimizer.
 

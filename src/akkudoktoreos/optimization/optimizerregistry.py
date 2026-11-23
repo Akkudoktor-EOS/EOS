@@ -42,3 +42,12 @@ def get_optimizer(name: str) -> Optional[Optimizer[Any, Any, Any]]:
         optimizer = factory()
         _optimizers[name] = optimizer
     return optimizer
+
+
+def optimizer_names() -> list[str]:
+    """Names of all registered optimizers.
+
+    Returns:
+        The names, e.g. ``["GENETIC0"]``.
+    """
+    return list(_FACTORIES)
