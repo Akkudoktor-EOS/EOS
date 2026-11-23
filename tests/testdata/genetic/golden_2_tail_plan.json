@@ -1,0 +1,239 @@
+{
+    "id": "plan-genetic@<now>",
+    "generated_at": "<now>",
+    "valid_from": "2026-09-16T10:00:00+02:00",
+    "valid_until": null,
+    "instructions": [
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T10:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T10:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "GRID_SUPPORT_IMPORT",
+            "operation_mode_factor": 0.75,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "dishwasher1@<now>",
+            "execution_time": "2026-09-16T10:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "DDBCInstruction",
+            "actuator_id": "dishwasher1",
+            "operation_mode_id": "OFF",
+            "operation_mode_factor": 1.0,
+            "resource_id": "dishwasher1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T11:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T12:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "FORCED_CHARGE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T13:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T13:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "GRID_SUPPORT_IMPORT",
+            "operation_mode_factor": 0.375,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T14:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "IDLE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T15:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "FORCED_CHARGE",
+            "operation_mode_factor": 0.36480744397939074,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T15:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "GRID_SUPPORT_IMPORT",
+            "operation_mode_factor": 0.375,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T16:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T16:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "GRID_SUPPORT_IMPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T17:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T17:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "GRID_SUPPORT_IMPORT",
+            "operation_mode_factor": 0.875,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T18:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T18:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "IDLE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T19:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "dishwasher1@<now>",
+            "execution_time": "2026-09-17T03:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "DDBCInstruction",
+            "actuator_id": "dishwasher1",
+            "operation_mode_id": "RUN",
+            "operation_mode_factor": 1.0,
+            "resource_id": "dishwasher1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-17T05:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "dishwasher1@<now>",
+            "execution_time": "2026-09-17T05:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "DDBCInstruction",
+            "actuator_id": "dishwasher1",
+            "operation_mode_id": "OFF",
+            "operation_mode_factor": 1.0,
+            "resource_id": "dishwasher1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-17T06:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-17T08:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-17T09:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        }
+    ],
+    "comment": "Energy management plan derived from GeneticSolution."
+}

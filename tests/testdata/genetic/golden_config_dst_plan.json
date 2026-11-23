@@ -1,0 +1,169 @@
+{
+    "id": "plan-genetic@<now>",
+    "generated_at": "<now>",
+    "valid_from": "2026-03-28T10:00:00+01:00",
+    "valid_until": null,
+    "instructions": [
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-28T10:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "storage"
+        },
+        {
+            "id": "car@<now>",
+            "execution_time": "2026-03-28T10:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "car",
+            "operation_mode_id": "IDLE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "car"
+        },
+        {
+            "id": "dishwasher@<now>",
+            "execution_time": "2026-03-28T10:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "DDBCInstruction",
+            "actuator_id": "dishwasher",
+            "operation_mode_id": "OFF",
+            "operation_mode_factor": 1.0,
+            "resource_id": "dishwasher"
+        },
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-28T11:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "storage"
+        },
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-28T12:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "storage"
+        },
+        {
+            "id": "car@<now>",
+            "execution_time": "2026-03-28T12:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "car",
+            "operation_mode_id": "GRID_SUPPORT_IMPORT",
+            "operation_mode_factor": 0.5,
+            "resource_id": "car"
+        },
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-28T13:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "FORCED_CHARGE",
+            "operation_mode_factor": 0.3000168834799237,
+            "resource_id": "storage"
+        },
+        {
+            "id": "car@<now>",
+            "execution_time": "2026-03-28T13:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "car",
+            "operation_mode_id": "IDLE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "car"
+        },
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-28T14:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "storage"
+        },
+        {
+            "id": "car@<now>",
+            "execution_time": "2026-03-28T16:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "car",
+            "operation_mode_id": "GRID_SUPPORT_IMPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "car"
+        },
+        {
+            "id": "dishwasher@<now>",
+            "execution_time": "2026-03-28T16:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "DDBCInstruction",
+            "actuator_id": "dishwasher",
+            "operation_mode_id": "RUN",
+            "operation_mode_factor": 1.0,
+            "resource_id": "dishwasher"
+        },
+        {
+            "id": "car@<now>",
+            "execution_time": "2026-03-28T17:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "car",
+            "operation_mode_id": "IDLE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "car"
+        },
+        {
+            "id": "dishwasher@<now>",
+            "execution_time": "2026-03-28T18:00:00+01:00",
+            "abnormal_condition": false,
+            "type": "DDBCInstruction",
+            "actuator_id": "dishwasher",
+            "operation_mode_id": "OFF",
+            "operation_mode_factor": 1.0,
+            "resource_id": "dishwasher"
+        },
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-29T04:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "storage"
+        },
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-29T08:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "storage"
+        },
+        {
+            "id": "storage@<now>",
+            "execution_time": "2026-03-29T09:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "storage",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "storage"
+        }
+    ],
+    "comment": "Energy management plan derived from GeneticSolution."
+}

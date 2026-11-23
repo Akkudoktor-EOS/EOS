@@ -257,6 +257,7 @@ visualize_output_*.pdf
 
 # Test files
 tests/testdata/new_optimize_result*
+tests/testdata/genetic/new_golden_*
 tests/testdata/openapi-new.json
 tests/testdata/openapi-new.md
 tests/testdata/config-new.md
