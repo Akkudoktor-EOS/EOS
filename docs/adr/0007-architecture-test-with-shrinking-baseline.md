@@ -24,10 +24,12 @@ The test holds the one authoritative list of these modules and names, including 
 the configuration, the server (`akkudoktoreos.server`,
 [0011](0011-optimizer-api-visualization-and-wizard-get-no-exception.md)), the shared device
 configuration (`devices.settings`, `devices.profile`, `devices.devices`, `devices.devicesabc`) and
-the contract classes that may be imported from a module that mixes them with configuration
-(`optimization.optimization`). Parameter preparation is recognized by its file name,
-`optimization/<name>/<name>prepare.py` or a subpackage `optimization/<name>/prepare/` (a plain
-module `prepare.py` does not count); the settings
+the contract names that may be imported from a module that mixes them with configuration or
+Pydantic (`optimization.optimization`, `core.pydantic`, `devices.devicesabc`, `config.configabc`):
+the output contract and the public request schema, which every optimizer needs, allowed only in the
+modules that build the output or define the request. Parameter
+preparation is recognized by its file name, `optimization/<name>/<name>prepare.py` or a
+subpackage `optimization/<name>/prepare/` (a plain module `prepare.py` does not count); the settings
 model `optimization/<name>/<name>settings.py` may import `config.configabc` to define
 `optimization.<name>`. The test discovers the optimizers (every package under `optimization/`), so
 adding one does not touch it; until the simulation devices have moved into the optimizer
