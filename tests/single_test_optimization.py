@@ -14,7 +14,7 @@ import numpy as np
 from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config, get_ems, get_prediction
-from akkudoktoreos.optimization.genetic import GeneticOptimizer
+from akkudoktoreos.optimization.genetic import GeneticOptimizer, geneticapi
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
 from akkudoktoreos.optimization.genetic.geneticprepare import run_settings
 from akkudoktoreos.optimization.genetic.geneticrequest import (
@@ -437,7 +437,7 @@ def run_optimization(
             settings=replace(settings, verbose=verbose),
         )
     )
-    return solution.model_dump_json()
+    return geneticapi.solution_response(solution).model_dump_json()
 
 
 def main():

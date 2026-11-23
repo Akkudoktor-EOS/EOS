@@ -504,11 +504,11 @@ async def test_automatic_run_reads_real_resolver_provider_units_and_measured_soc
         overrides={"generations": 10, "seed": 42},
     )
     assert solution is not None
-    assert solution.parameters is not None
-    assert solution.parameters.pv_battery is not None
-    assert solution.parameters.pv_battery.initial_soc_percentage == 42
-    assert solution.parameters.ems.pv_forecast_wh[:4] == [250.0] * 4
-    assert solution.parameters.ems.total_load[:4] == [500.0] * 4
+    assert solution.request is not None
+    assert solution.request.pv_battery is not None
+    assert solution.request.pv_battery.initial_soc_percentage == 42
+    assert solution.request.ems.pv_forecast_wh[:4] == [250.0] * 4
+    assert solution.request.ems.total_load[:4] == [500.0] * 4
     assert len(solution.ac_charge) == 4
     prediction.key_to_raw_series.assert_awaited()
 

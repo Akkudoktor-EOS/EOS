@@ -15,7 +15,7 @@ from akkudoktoreos.optimization.genetic.geneticalgorithm import (
 from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 ems_eos = get_ems(init=True)  # init once
@@ -269,7 +269,7 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
 
 def _terminal_value_run(
     config_eos: ConfigEOS, mode: str, prices: Optional[list[float]] = None
-) -> GeneticSolution:
+) -> GeneticResult:
     """48 h with expensive energy and two dirt-cheap slots at the very end.
 
     Charging in those last slots only pays off when the stored energy keeps a

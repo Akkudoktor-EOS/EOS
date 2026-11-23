@@ -16,6 +16,7 @@ from pydantic import ValidationError
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
+from akkudoktoreos.optimization.genetic import geneticapi
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
 )
@@ -136,7 +137,7 @@ def _run_optimization(
     with patch.object(opt, "_evaluate_uncached", side_effect=spy):
         solution = opt.optimize_ems(parameters=parameters, start_hour=10, ngen=12)
 
-    dump = solution.model_dump(mode="json")
+    dump = geneticapi.solution_response(solution).model_dump(mode="json")
     history = dump.pop("fitness_history")
     cache_stats = history.pop("fitness_cache")
     max_cache_size = max(max_cache_size, cache_stats["keys"])

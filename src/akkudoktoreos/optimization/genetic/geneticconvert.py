@@ -26,13 +26,13 @@ from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticInverterRequest,
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
 async def convert(
-    parameters: GeneticParameters, result: GeneticSolution
+    parameters: GeneticParameters, result: GeneticResult
 ) -> tuple[OptimizationSolution, EnergyManagementPlan]:
     """Convert the result of a run into the optimization solution and the plan.
 
@@ -48,17 +48,17 @@ async def convert(
     )
 
 
-def _battery_device_id(result: GeneticSolution) -> str:
+def _battery_device_id(result: GeneticResult) -> str:
     """Device ID of the run's battery."""
-    parameters = result.parameters
+    parameters = result.request
     if parameters is not None and parameters.pv_battery is not None:
         return parameters.pv_battery.device_id
     return "battery1"
 
 
-def _ev_device_id(result: GeneticSolution) -> str:
+def _ev_device_id(result: GeneticResult) -> str:
     """Device ID of the run's electric vehicle."""
-    parameters = result.parameters
+    parameters = result.request
     if parameters is not None and parameters.ev is not None:
         return parameters.ev.device_id
     return "ev1"
@@ -165,7 +165,7 @@ def _inverter_parameters_list(
 
 
 def _soc_clamped_operation_factors(
-    result: GeneticSolution,
+    result: GeneticResult,
     ac_charge: float,
     dc_charge: float,
     discharge_allowed: bool,
@@ -194,7 +194,7 @@ def _soc_clamped_operation_factors(
     ``first_slot_fraction`` for the running first slot, else 1.0. The
     headroom check of the AC charge factor uses only that part of the slot.
     """
-    parameters = result.parameters
+    parameters = result.request
     bat_list = []
     if parameters is not None and parameters.pv_battery is not None:
         bat_list = [parameters.pv_battery]
@@ -243,7 +243,7 @@ def _soc_clamped_operation_factors(
 
 
 async def optimization_solution(
-    parameters: GeneticParameters, result: GeneticSolution
+    parameters: GeneticParameters, result: GeneticResult
 ) -> OptimizationSolution:
     """Provide the result of a run as a general optimization solution.
 
@@ -316,7 +316,7 @@ async def optimization_solution(
         index=time_index,
     )
 
-    if result.parameters.pv_battery is not None:
+    if result.request.pv_battery is not None:
         # Add battery data
         battery_device_id = _battery_device_id(result)
         solution[f"{battery_device_id}_soc_factor"] = [
@@ -505,7 +505,7 @@ async def optimization_solution(
         index=time_index,
     )
     if result.controls_start_at_now:
-        snapshot = result.parameters.ems
+        snapshot = result.request.ems
         prediction["pvforecast_ac_energy_wh"] = snapshot.pv_forecast_wh[:n_points]
         prediction["loadforecast_energy_wh"] = snapshot.total_load[:n_points]
         prediction["elec_price_amt_kwh"] = (
@@ -515,8 +515,8 @@ async def optimization_solution(
         prediction["feed_in_tariff_amt_kwh"] = (
             np.asarray(tariffs[:n_points]) * 1000 if isinstance(tariffs, list) else tariffs * 1000
         )
-    if result.controls_start_at_now and result.parameters.temperature_forecast is not None:
-        prediction["weather_air_temp_celcius"] = result.parameters.temperature_forecast[:n_points]
+    if result.controls_start_at_now and result.request.temperature_forecast is not None:
+        prediction["weather_air_temp_celcius"] = result.request.temperature_forecast[:n_points]
 
     optimization_solution = OptimizationSolution(
         id=f"optimization-genetic@{to_datetime(as_string=True)}",
@@ -538,7 +538,7 @@ async def optimization_solution(
 
 
 def energy_management_plan(
-    parameters: GeneticParameters, result: GeneticSolution
+    parameters: GeneticParameters, result: GeneticResult
 ) -> EnergyManagementPlan:
     """Provide the result of a run as an energy management plan.
 
@@ -566,7 +566,7 @@ def energy_management_plan(
         comment="Energy management plan derived from GeneticSolution.",
     )
 
-    if result.parameters.pv_battery is not None:
+    if result.request.pv_battery is not None:
         # Add battery instructions (fill rate based control)
         last_operation_mode: Optional[str] = None
         last_operation_mode_factor: Optional[float] = None

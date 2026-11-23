@@ -20,7 +20,7 @@ from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
     GeneticRequest,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 
@@ -103,13 +103,13 @@ def parameters(
     )
 
 
-def run(params: GeneticOptimizationParameters) -> tuple[GeneticOptimization, GeneticSolution]:
+def run(params: GeneticOptimizationParameters) -> tuple[GeneticOptimization, GeneticResult]:
     optimizer = genetic_optimization(seed=42)
     solution = optimizer.optimize_ems(params, ngen=1, individuals=12)
     return optimizer, solution
 
 
-def run_local_starts(solution: GeneticSolution) -> list[DateTime]:
+def run_local_starts(solution: GeneticResult) -> list[DateTime]:
     """Compare scheduled instants in the run zone, independently of output zone."""
     timezone = get_ems().start_datetime.timezone_name
     assert timezone is not None
@@ -476,7 +476,7 @@ async def test_real_multiple_consumers_keep_separate_solution_channels(
     assert sum(solution.result.home_appliance_energy_wh["washer"]) == pytest.approx(350.0)
     assert sum(solution.result.home_appliance_energy_wh["dryer"]) == pytest.approx(500.0)
     assert sum(solution.result.grid_consumption_wh_per_hour) == pytest.approx(850.0)
-    exported = await geneticconvert.optimization_solution(genetic_run_parameters(solution.parameters), solution)
+    exported = await geneticconvert.optimization_solution(genetic_run_parameters(solution.request), solution)
     table = exported.solution.to_dataframe()
     assert table["washer_energy_wh"].sum() == pytest.approx(350.0)
     assert table["dryer_energy_wh"].sum() == pytest.approx(500.0)
@@ -496,11 +496,11 @@ async def test_profile_zero_power_phase_keeps_device_running_until_complete(
         shared_time_windows={"windows": [{"start_time": "01:00", "duration": "45 minutes"}]},
     )
     _, solution = run(parameters(consumers=[consumer]))
-    exported = await geneticconvert.optimization_solution(genetic_run_parameters(solution.parameters), solution)
+    exported = await geneticconvert.optimization_solution(genetic_run_parameters(solution.request), solution)
     table = exported.solution.to_dataframe()
     assert table["washer_energy_wh"].tolist()[4:7] == [300.0, 0.0, 300.0]
     assert table["washer_run_op_mode"].tolist()[4:7] == [1.0, 1.0, 1.0]
-    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.parameters), solution)
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.request), solution)
     assert {item.resource_id for item in plan.instructions} == {"washer"}
     commands = [
         (item.execution_time.hour, item.execution_time.minute, str(item.operation_mode_id))
@@ -590,7 +590,7 @@ def run_zone() -> str:
     return timezone
 
 
-def heater_commands(solution: GeneticSolution) -> list[tuple[int, int, str]]:
+def heater_commands(solution: GeneticResult) -> list[tuple[int, int, str]]:
     timezone = run_zone()
     return [
         (
@@ -598,12 +598,12 @@ def heater_commands(solution: GeneticSolution) -> list[tuple[int, int, str]]:
             item.execution_time.in_timezone(timezone).minute,
             str(item.operation_mode_id),
         )
-        for item in geneticconvert.energy_management_plan(genetic_run_parameters(solution.parameters), solution).instructions
+        for item in geneticconvert.energy_management_plan(genetic_run_parameters(solution.request), solution).instructions
         if isinstance(item, DDBCInstruction) and item.resource_id == "heater"
     ]
 
 
-def heater_starts(solution: GeneticSolution) -> list[tuple[int, int]]:
+def heater_starts(solution: GeneticResult) -> list[tuple[int, int]]:
     timezone = run_zone()
     return [
         (moment.in_timezone(timezone).hour, moment.in_timezone(timezone).minute)

@@ -48,8 +48,8 @@ from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
     GeneticRequest,
 )
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.optimization.genetic.geneticsettings import TerminalValueMode
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimizer import RunClock
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
@@ -85,7 +85,7 @@ def run_clock() -> RunClock:
 async def prepare(
     start_datetime: DateTime,
     observation_datetime: DateTime,
-    warm_start: Optional[GeneticSolution],
+    warm_start: Optional[GeneticResult],
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> GeneticParameters:
     """Prepare the parameters of a run from configuration, predictions and measurements.
@@ -109,7 +109,7 @@ async def prepare_from_request(
     request: GeneticRequest,
     start_datetime: DateTime,
     observation_datetime: DateTime,
-    warm_start: Optional[GeneticSolution],
+    warm_start: Optional[GeneticResult],
     overrides: Optional[Mapping[str, Any]] = None,
 ) -> GeneticParameters:
     """Complete a client's optimization request into the parameters of a run.
@@ -321,7 +321,7 @@ async def resolve_request(
     request: GeneticRequest,
     start_datetime: DateTime,
     observation_datetime: DateTime,
-    warm_start: Optional[GeneticSolution],
+    warm_start: Optional[GeneticResult],
 ) -> GeneticOptimizationParameters:
     """Complete a request with configured devices, measurements and forecasts.
 

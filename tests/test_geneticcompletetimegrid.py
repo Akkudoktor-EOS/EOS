@@ -73,12 +73,12 @@ async def test_native_result_retains_dst_grid_and_owned_inputs(config_eos, times
     assert native.start_solution_datetime == start
     assert native.controls_start_at_now
     assert len(native.result.load_wh_per_hour) == 4
-    assert native.parameters.ems.total_load == [25.0] * 4
+    assert native.request.ems.total_load == [25.0] * 4
     parameters.ems.total_load[elapsed_slots] = 999.0
     get_ems().set_start_datetime(start.add(days=1))
     config_eos.optimization.genetic.interval_sec = 3600
     # The conversion reads no prediction store: it converts from parameters and result only.
-    run_parameters = genetic_run_parameters(native.parameters, optimizer)
+    run_parameters = genetic_run_parameters(native.request, optimizer)
     generic = await geneticconvert.optimization_solution(run_parameters, native)
     plan = geneticconvert.energy_management_plan(run_parameters, native)
     assert generic.valid_from == start
@@ -137,10 +137,10 @@ def test_snapshot_and_warm_start_preserve_aware_instants(
     import json
     from pathlib import Path
 
+    from akkudoktoreos.optimization.genetic.geneticapi import GeneticSolution
     from akkudoktoreos.optimization.genetic.geneticrequest import (
         GeneticRequest,
     )
-    from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 
     set_other_timezone(host_timezone)
     expected = to_datetime(f"2026-10-25T02:30:00{offset}", in_timezone="Europe/Berlin")
@@ -277,7 +277,7 @@ def test_running_slot_ac_charge_factor_is_not_cut_for_a_full_slot(config_eos):
         config_eos, "2026-09-16T10:45:00+02:00", initial_soc_percentage=90
     )
     assert solution.result.battery_soc_per_hour[:2] == pytest.approx([90.0, 95.0])
-    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.parameters), solution)
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.request), solution)
     battery_instructions = [
         instruction
         for instruction in plan.instructions

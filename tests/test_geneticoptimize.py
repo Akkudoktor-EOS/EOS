@@ -20,13 +20,14 @@ from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.core.ems import EnergyManagement
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic import (
+    geneticapi,
     geneticconvert,
     geneticprepare,
-    geneticsolution,
 )
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
 )
+from akkudoktoreos.optimization.genetic.geneticapi import GeneticSolution
 from akkudoktoreos.optimization.genetic.geneticoptimizer import GeneticOptimizer
 from akkudoktoreos.optimization.genetic.geneticparameters import (
     GeneticParameters,
@@ -36,7 +37,7 @@ from akkudoktoreos.optimization.genetic.geneticparameters import (
 from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.optimization.genetic.geneticvisualize import (
     GeneticVisualizationReport,
     genetic_prepare_visualize,
@@ -147,13 +148,15 @@ async def test_optimize(
 
     # Keep the output contract, but do not demand an identical stochastic
     # schedule or monetary golden from the previous direct-consumption model.
-    assert set(genetic_solution.model_dump()) == set(expected_result.model_dump())
+    assert set(geneticapi.solution_response(genetic_solution).model_dump()) == set(
+        expected_result.model_dump()
+    )
     result = genetic_solution.result
     expected_slots = len(input_data.ems.pv_forecast_wh) - fixed_start_hour
     assert len(result.grid_consumption_wh_per_hour) == expected_slots
     assert len(result.grid_feed_in_wh_per_hour) == expected_slots
-    prices = np.asarray(genetic_solution.parameters.ems.electricity_price_per_wh)
-    tariffs = np.asarray(genetic_solution.parameters.ems.feed_in_tariff_per_wh)[:expected_slots]
+    prices = np.asarray(genetic_solution.request.ems.electricity_price_per_wh)
+    tariffs = np.asarray(genetic_solution.request.ems.feed_in_tariff_per_wh)[:expected_slots]
     expected_costs = np.asarray(result.grid_consumption_wh_per_hour) * prices
     expected_revenues = np.asarray(result.grid_feed_in_wh_per_hour) * tariffs
     np.testing.assert_allclose(result.costs_per_hour, expected_costs)
@@ -168,7 +171,7 @@ async def test_optimize(
     assert all(0 <= value <= 100 for value in result.ev_soc_per_hour)
 
     # Check the correct generic optimization solution is created
-    optimization_solution = await geneticconvert.optimization_solution(genetic_run_parameters(genetic_solution.parameters), genetic_solution)
+    optimization_solution = await geneticconvert.optimization_solution(genetic_run_parameters(genetic_solution.request), genetic_solution)
     dataframe = optimization_solution.solution.to_dataframe()
     assert len(dataframe) == expected_slots
     assert optimization_solution.valid_from == genetic_solution.start_solution_datetime
@@ -179,7 +182,7 @@ async def test_optimize(
     assert len(genetic_solution.discharge_allowed) == expected_slots
 
     # Check the correct generic energy management plan is created
-    plan = geneticconvert.energy_management_plan(genetic_run_parameters(genetic_solution.parameters), genetic_solution)
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(genetic_solution.request), genetic_solution)
     assert plan.valid_from == optimization_solution.valid_from
     assert plan.valid_until is None
     assert optimization_solution.valid_from is not None
@@ -190,7 +193,7 @@ async def test_optimize(
     )
 
     # Check visualization works
-    pdf = genetic_prepare_visualize(genetic_run_parameters(genetic_solution.parameters), genetic_solution)
+    pdf = genetic_prepare_visualize(genetic_run_parameters(genetic_solution.request), genetic_solution)
     assert pdf.startswith(b"%PDF-")
 
     reader = PdfReader(BytesIO(pdf))
@@ -438,7 +441,7 @@ def golden_parameters(
 
 def run_golden_case(
     case: GoldenCase, config_eos: ConfigEOS, workers: Optional[int] = None
-) -> GeneticSolution:
+) -> GeneticResult:
     """Run a golden input with its settings and run start; check its replay file."""
     parameters = golden_parameters(case, config_eos, workers)
     solution = GeneticOptimizer().run(parameters)
@@ -466,19 +469,22 @@ async def test_golden_output(
     if case.generations > QUICK_GENERATIONS and not is_finalize:
         pytest.skip("Activate with pytest --finalize")
     solution = run_golden_case(case, config_eos)
-    check_golden(solution.model_dump(mode="json"), f"golden_{case.stem}_result.json")
+    check_golden(
+        geneticapi.solution_response(solution).model_dump(mode="json"),
+        f"golden_{case.stem}_result.json",
+    )
 
-    optimization_solution = await geneticconvert.optimization_solution(genetic_run_parameters(solution.parameters), solution)
+    optimization_solution = await geneticconvert.optimization_solution(genetic_run_parameters(solution.request), solution)
     check_golden(
         mask_now(optimization_solution.model_dump(mode="json")),
         f"golden_{case.stem}_optimization_solution.json",
     )
-    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.parameters), solution)
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.request), solution)
     check_golden(mask_now(plan.model_dump(mode="json")), f"golden_{case.stem}_plan.json")
 
     calls, patches = record_report_calls()
     with patch.multiple(GeneticVisualizationReport, **patches):
-        pdf = genetic_prepare_visualize(genetic_run_parameters(solution.parameters), solution)
+        pdf = genetic_prepare_visualize(genetic_run_parameters(solution.request), solution)
     pages = len(PdfReader(BytesIO(pdf)).pages)
     check_golden({"pages": pages, "calls": calls}, f"golden_{case.stem}_visualize.json")
 
@@ -488,7 +494,10 @@ def test_golden_result_does_not_depend_on_the_workers(workers: int, config_eos: 
     """Serial and parallel evaluation give the pinned result (the default picks by CPU count)."""
     case = next(case for case in GOLDEN_CASES if case.stem == "2")
     solution = run_golden_case(case, config_eos, workers)
-    check_golden(solution.model_dump(mode="json"), f"golden_{case.stem}_result.json")
+    check_golden(
+        geneticapi.solution_response(solution).model_dump(mode="json"),
+        f"golden_{case.stem}_result.json",
+    )
 
 
 # Origin of the fake prediction series: a value depends on its time, not its index.
@@ -722,7 +731,10 @@ async def test_golden_output_from_configuration(
     run = ems_eos.optimizer_run("GENETIC")
     assert run is not None
     check_replay(run.parameters, f"golden_{case.stem}", f"golden_{case.stem}_result.json")
-    check_golden(solution.model_dump(mode="json"), f"golden_{case.stem}_result.json")
+    check_golden(
+        geneticapi.solution_response(solution).model_dump(mode="json"),
+        f"golden_{case.stem}_result.json",
+    )
     optimization_solution = ems_eos.optimization_solution()
     assert optimization_solution is not None
     check_golden(
@@ -735,7 +747,7 @@ async def test_golden_output_from_configuration(
 
     calls, patches = record_report_calls()
     with patch.multiple(GeneticVisualizationReport, **patches):
-        pdf = genetic_prepare_visualize(genetic_run_parameters(solution.parameters), solution)
+        pdf = genetic_prepare_visualize(genetic_run_parameters(solution.request), solution)
     pages = len(PdfReader(BytesIO(pdf)).pages)
     check_golden({"pages": pages, "calls": calls}, f"golden_{case.stem}_visualize.json")
 
@@ -782,7 +794,9 @@ def test_replay(stem: str, config_eos: ConfigEOS, is_finalize: bool) -> None:
 
     result = GeneticOptimizer().run(parameters)
 
-    check_golden(result.model_dump(mode="json"), replay["expected_result"])
+    check_golden(
+        geneticapi.solution_response(result).model_dump(mode="json"), replay["expected_result"]
+    )
 
 
 def test_replay_keeps_a_forecast_gap() -> None:

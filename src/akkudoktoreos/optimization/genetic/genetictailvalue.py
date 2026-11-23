@@ -5,8 +5,11 @@ Tail actions never enter the executable control arrays. The selected path may
 be returned separately as diagnostics so users can inspect the lookahead.
 """
 
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
+
 import numpy as np
-from pydantic import PrivateAttr
 
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import GeneticInverter
@@ -93,14 +96,19 @@ def _simulate_action(
     }
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
 class TailValueCurve(TerminalValueCurve):
     """Value of usable AC battery energy, including the value of empty capacity.
 
     Neither values nor marginal values are constrained to be monotone. The empty
     state can earn money by charging at negative prices and selling later.
+
+    Attributes:
+        trace_context: What ``diagnostic_plan()`` needs to replay the optimal tail path; not
+            part of the curve's value.
     """
 
-    _trace_context: dict = PrivateAttr(default_factory=dict)
+    trace_context: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
     def value(self, energy_wh: float) -> float:
         return (
@@ -117,7 +125,7 @@ class TailValueCurve(TerminalValueCurve):
 
     def diagnostic_plan(self, energy_wh: float, control_horizon_hours: float) -> list[TailPlanSlot]:
         """Replay the optimal tail path for one control-end battery state."""
-        context = self._trace_context
+        context = self.trace_context
         if not context:
             return []
         bat = GeneticBattery(
@@ -297,19 +305,19 @@ def build_tail_value_curve(
         continuation_value_euro=continuation_values.tolist(),
         marginal_euro_per_kwh=(np.diff(values) / np.maximum(np.diff(usable), 1e-9) * 1000).tolist(),
         window_slots=len(arrays[0]),
+        trace_context={
+            "battery_parameters": battery.parameters,
+            "inverter_parameters": inverter.parameters,
+            "self_consumption_backend": inverter.self_consumption_backend,
+            "slot_duration_h": battery.slot_duration_h,
+            "states": states,
+            "future_values": future_values,
+            "actions": actions,
+            "prices": arrays[0],
+            "load": arrays[1],
+            "pv": arrays[2],
+            "tariffs": arrays[3],
+            "direct_marketing": direct_marketing,
+        },
     )
-    result._trace_context = {
-        "battery_parameters": battery.parameters,
-        "inverter_parameters": inverter.parameters,
-        "self_consumption_backend": inverter.self_consumption_backend,
-        "slot_duration_h": battery.slot_duration_h,
-        "states": states,
-        "future_values": future_values,
-        "actions": actions,
-        "prices": arrays[0],
-        "load": arrays[1],
-        "pv": arrays[2],
-        "tariffs": arrays[3],
-        "direct_marketing": direct_marketing,
-    }
     return result

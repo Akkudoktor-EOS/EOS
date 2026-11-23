@@ -3,8 +3,9 @@
 A run reads nothing but these parameters: the run settings and the forecast and device
 parameters. They are prepared once before the run by ``geneticprepare``.
 
-Transitional (migration step 3): the forecast and device parameters are still the Pydantic
-``GeneticOptimizationParameters``; step 4 replaces them with the optimizer's own dataclasses.
+The simulation reads the forecast and device dataclasses, which the request
+(``GeneticOptimizationParameters``) derives. The request itself is kept for the conversion, the
+visualization and the public responses.
 """
 
 import math

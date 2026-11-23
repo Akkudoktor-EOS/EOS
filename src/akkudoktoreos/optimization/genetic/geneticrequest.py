@@ -2,8 +2,8 @@
 
 ``GeneticRequest`` is the configuration-owned request of ``POST /v1/optimize``;
 ``geneticprepare`` completes it into the parameters of a run. The forecast, price and device
-models are nested in it and in ``GeneticOptimizationParameters``, which the result echoes until
-step 6 of the migration. Each device model derives the frozen dataclass of the simulation.
+models are nested in it and in ``GeneticOptimizationParameters``, which the result carries as
+the request it optimized. Each device model derives the frozen dataclass of the simulation.
 """
 
 import math
@@ -25,6 +25,7 @@ from akkudoktoreos.config.configabc import (
     TimeWindowSequence,
     ValueTimeWindow,
 )
+from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.devices.devicesabc import (
     ConsumerDeadlinePolicy,
     ConsumerScheduleMode,
@@ -44,7 +45,6 @@ from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
 from akkudoktoreos.optimization.genetic.devices.genetictimewindow import (
     GeneticTimeWindow,
 )
-from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticefficiency import (
     validate_efficiency_curve,
 )
@@ -58,6 +58,12 @@ from akkudoktoreos.utils.datetimeutil import (
     to_duration,
     to_time,
 )
+
+
+class GeneticParametersBaseModel(PydanticBaseModel):
+    """Pydantic base model of the request and response models of GENETIC."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class GeneticDeviceRequest(GeneticParametersBaseModel):

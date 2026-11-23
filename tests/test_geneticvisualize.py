@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pendulum
 import pytest
-from conftest import genetic_run_parameters
+from conftest import genetic_result_of, genetic_run_parameters
 from matplotlib.testing.compare import compare_images
 from pypdf import PdfReader
 
 from akkudoktoreos.optimization.genetic import geneticvisualize as visualize
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticapi import GeneticSolution
 from akkudoktoreos.optimization.genetic.geneticterminalvalue import (
     TailDiagnostics,
     TailPlanSlot,
@@ -75,7 +75,7 @@ class TestGeneticVisualizationIntervals:
             home_appliance_energy_wh={"water-heater": energy},
         )
         return SimpleNamespace(
-            parameters=SimpleNamespace(
+            request=SimpleNamespace(
                 ems=SimpleNamespace(
                     total_load=energy,
                     pv_forecast_wh=energy,
@@ -133,7 +133,7 @@ class TestGeneticVisualizationIntervals:
             return original(self, start_date, y_list, **kwargs)
 
         monkeypatch.setattr(visualize.GeneticVisualizationReport, "create_line_chart_date", capture)
-        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.parameters), report_solution)
+        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.request), report_solution)
         assert pdf.startswith(b"%PDF-")
         assert all(row[0] == report_solution.start_solution_datetime for row in captured)
         assert all(row[3] == interval_seconds for row in captured)
@@ -184,7 +184,7 @@ class TestGeneticVisualizationIntervals:
         parameters = replace(
             parameters, settings=replace(parameters.settings, start_datetime=start)
         )
-        pdf = visualize.genetic_prepare_visualize(parameters, solution)
+        pdf = visualize.genetic_prepare_visualize(parameters, genetic_result_of(solution))
         assert len(PdfReader(BytesIO(pdf)).pages) >= 4
 
     def test_fixed_fallback_does_not_invent_tail_charts(self, config_eos, report_solution):
@@ -193,7 +193,7 @@ class TestGeneticVisualizationIntervals:
             battery_energy_wh=500, requested_tail_hours=24,
         )
         report_solution.result.home_appliance_energy_wh = {}
-        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.parameters), report_solution)
+        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.request), report_solution)
         text = " ".join(page.extract_text() for page in PdfReader(BytesIO(pdf)).pages)
         assert "No complete tail forecast" in text
         assert "effective tail: 0 h" in text
@@ -224,9 +224,9 @@ class TestGeneticVisualizationIntervals:
     def test_pdf_clips_forecast_tail_and_accepts_historical_diagnostics(self,
         config_eos, monkeypatch, report_solution, tariff
     ):
-        report_solution.parameters.ems.total_load = [100.0] * 6
-        report_solution.parameters.ems.pv_forecast_wh = [200.0] * 6
-        report_solution.parameters.ems.feed_in_tariff_per_wh = tariff
+        report_solution.request.ems.total_load = [100.0] * 6
+        report_solution.request.ems.pv_forecast_wh = [200.0] * 6
+        report_solution.request.ems.feed_in_tariff_per_wh = tariff
         report_solution.extra_data = {
             "verluste": [1.0, 2.0, 3.0], "bilanz": [0.1, 0.2, 0.3],
             "nebenbedingung": [0.0, 0.0, 0.0],
@@ -239,7 +239,7 @@ class TestGeneticVisualizationIntervals:
             return original(self, start_date, y_list, **kwargs)
 
         monkeypatch.setattr(visualize.GeneticVisualizationReport, "create_line_chart_date", capture)
-        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.parameters), report_solution)
+        pdf = visualize.genetic_prepare_visualize(genetic_run_parameters(report_solution.request), report_solution)
         assert pdf.startswith(b"%PDF-")
         tariff_plot = next(series for series, kwargs in captured if kwargs.get("title") == "Remuneration")
         assert np.asarray(tariff_plot[0]).tolist() == [0.00007] * 4

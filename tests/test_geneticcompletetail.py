@@ -242,7 +242,7 @@ async def test_genome_output_and_final_control_state(config_eos, interval, start
     assert len(result.dc_charge) == opt.control_slots
     assert len(result.discharge_allowed) == opt.control_slots
     assert len(result.battery_grid_export_factor) == opt.control_slots
-    assert len(result.result.Kosten_Euro_pro_Stunde) == opt.control_slots
+    assert len(result.result.costs_per_hour) == opt.control_slots
     assert result.terminal_value.mode == "TAIL"
     assert result.terminal_value.battery_energy_wh == pytest.approx(
         max(500 - 1000 * opt.slot_duration_h, 0)
@@ -259,7 +259,7 @@ async def test_genome_output_and_final_control_state(config_eos, interval, start
     assert result.terminal_value.tail_plan[0].hour_from_start == 24
     assert len(result.terminal_value.curve.operating_value_euro) == 101
     assert len(result.terminal_value.curve.continuation_value_euro) == 101
-    assert len((await geneticconvert.optimization_solution(genetic_run_parameters(result.parameters), result)).solution.to_dataframe()) == opt.control_slots
+    assert len((await geneticconvert.optimization_solution(genetic_run_parameters(result.request), result)).solution.to_dataframe()) == opt.control_slots
 
 
 def test_short_tail_is_reported(config_eos, caplog):

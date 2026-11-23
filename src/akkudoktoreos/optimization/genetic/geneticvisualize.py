@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import textwrap
 from collections.abc import Sequence
@@ -12,7 +13,7 @@ import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 matplotlib.use(
@@ -467,7 +468,7 @@ class GeneticVisualizationReport:
 
 def genetic_prepare_visualize(
     parameters: GeneticParameters,
-    result: GeneticSolution,
+    result: GeneticResult,
 ) -> bytes:
     """Render the PDF report of a run.
 
@@ -494,7 +495,7 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            solution.parameters.ems.total_load[start_offset:end_offset],
+            solution.request.ems.total_load[start_offset:end_offset],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -504,7 +505,7 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            solution.parameters.ems.pv_forecast_wh[start_offset:end_offset],
+            solution.request.ems.pv_forecast_wh[start_offset:end_offset],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -514,20 +515,20 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            np.asarray(solution.parameters.ems.feed_in_tariff_per_wh[start_offset:end_offset])
-            if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
-            else np.full(control_slots, solution.parameters.ems.feed_in_tariff_per_wh)
+            np.asarray(solution.request.ems.feed_in_tariff_per_wh[start_offset:end_offset])
+            if isinstance(solution.request.ems.feed_in_tariff_per_wh, list)
+            else np.full(control_slots, solution.request.ems.feed_in_tariff_per_wh)
         ],
         title="Remuneration",
         # xlabel="Hours", # not enough space
         ylabel="amount/Wh",
         x2label=None,  # not enough space
     )
-    if solution.parameters.temperature_forecast:
+    if solution.request.temperature_forecast:
         report.create_line_chart_date(
             start_datetime,
             [
-                solution.parameters.temperature_forecast[start_offset:end_offset],
+                solution.request.temperature_forecast[start_offset:end_offset],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -576,7 +577,7 @@ def genetic_prepare_visualize(
     )
     report.create_line_chart_date(
         start_date=start_datetime,  # start_date
-        y_list=[solution.parameters.ems.electricity_price_per_wh[start_offset:end_offset]],
+        y_list=[solution.request.ems.electricity_price_per_wh[start_offset:end_offset]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (amount/Wh)",
@@ -728,7 +729,7 @@ def genetic_prepare_visualize(
 
 
 def _add_solution_diagnostics(
-    report: GeneticVisualizationReport, solution: GeneticSolution, start: DateTime
+    report: GeneticVisualizationReport, solution: GeneticResult, start: DateTime
 ) -> None:
     """Render the retained run diagnostics; tail actions are never executable controls."""
     report.add_text_page(
@@ -783,7 +784,9 @@ def _add_solution_diagnostics(
     report.finalize_group()
     if terminal.tail_diagnostics is not None:
         report.add_json_page(
-            terminal.tail_diagnostics.model_dump(), title="Tail Forecast Summary", fontsize=10
+            dataclasses.asdict(terminal.tail_diagnostics),
+            title="Tail Forecast Summary",
+            fontsize=10,
         )
         report.finalize_group()
     curve = terminal.curve

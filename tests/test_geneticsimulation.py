@@ -11,6 +11,9 @@ from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
     GeneticInverter,
 )
+from akkudoktoreos.optimization.genetic.geneticapi import (
+    GeneticSimulationResult,
+)
 from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticBatteryRequest,
     GeneticElectricVehicleRequest,
@@ -20,9 +23,6 @@ from akkudoktoreos.optimization.genetic.geneticrequest import (
 )
 from akkudoktoreos.optimization.genetic.geneticsimulation import (
     GeneticSimulation,
-)
-from akkudoktoreos.optimization.genetic.geneticsolution import (
-    GeneticSimulationResult,
 )
 from akkudoktoreos.utils.datetimeutil import to_duration, to_time
 

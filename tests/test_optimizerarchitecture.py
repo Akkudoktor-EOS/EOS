@@ -363,36 +363,6 @@ def collect_violations() -> frozenset[Violation]:
 # the existing uses revealed by a new list entry (ADR 0007).
 BASELINE: frozenset[Violation] = frozenset(
     {
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticabc",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticabc",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.genetictailvalue",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticterminalvalue",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticterminalvalue",
-            "pydantic",
-        ),
     }
 )
 

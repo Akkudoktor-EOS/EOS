@@ -31,11 +31,14 @@ from akkudoktoreos.optimization.genetic.geneticparameters import GeneticRunSetti
 from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsimulation import GeneticSimulation
-from akkudoktoreos.optimization.genetic.geneticsolution import (
-    GeneticSimulationResult,
-    GeneticSolution,
+from akkudoktoreos.optimization.genetic.geneticresult import (
+    GeneticElectricVehicleState,
+    GeneticResult,
+    GeneticSimulationOutput,
+    float_list,
+    int_list,
 )
+from akkudoktoreos.optimization.genetic.geneticsimulation import GeneticSimulation
 from akkudoktoreos.optimization.genetic.genetictailvalue import (
     TailValueCurve,
     build_tail_value_curve,
@@ -3639,7 +3642,7 @@ class GeneticOptimization:
         worst_case: bool = False,
         ngen: Optional[int] = None,
         individuals: Optional[int] = None,
-    ) -> GeneticSolution:
+    ) -> GeneticResult:
         """Perform EMS (Energy Management System) optimization and visualize results.
 
         The settings of the run are fixed when the algorithm is created, so
@@ -3658,7 +3661,7 @@ class GeneticOptimization:
         worst_case: bool,
         ngen: Optional[int],
         individuals: Optional[int],
-    ) -> GeneticSolution:
+    ) -> GeneticResult:
         """Run the optimization with the control end of the run in place."""
         direct_marketing_enabled = self._direct_marketing_enabled()
         parameters = self._parameters_for_config(parameters)
@@ -3964,31 +3967,33 @@ class GeneticOptimization:
         )
         battery_grid_export = [1 if value > 0 else 0 for value in battery_grid_export_factor]
 
-        return GeneticSolution(
-            **{
-                "parameters": parameters,
-                "interval_seconds": self.settings.interval_sec,
-                "first_slot_fraction": self.first_slot_fraction,
-                "start_hour": start_hour,
-                "extra_data": extra_data,
-                "fitness_history": self.fitness_history,
-                "fixed_seed": self.fix_seed,
-                "controls_start_at_now": True,
-                "ac_charge": ac_charge_hours,
-                "dc_charge": dc_charge_hours,
-                "discharge_allowed": discharge,
-                "battery_grid_export_allowed": battery_grid_export,
-                "battery_grid_export_factor": battery_grid_export_factor,
-                "terminal_value": terminal_value_result,
-                "ev_charge_hours_float": eautocharge_hours_float[start_slot:]
-                if eautocharge_hours_float is not None
-                else None,
-                "result": GeneticSimulationResult(**simulation_result),
-                "ev_obj": self.simulation.ev,
-                "start_solution": start_solution,
-                "start_solution_datetime": self._slot0_datetime,
-                "washingstart": washingstart_int,
-                "appliance_starts": appliance_starts,
-                "appliance_deadline_missed": appliance_deadline_missed,
-            }
+        return GeneticResult(
+            request=parameters,
+            interval_seconds=int(self.settings.interval_sec),
+            first_slot_fraction=float(self.first_slot_fraction),
+            start_hour=int(start_hour),
+            extra_data=extra_data,
+            fitness_history=self.fitness_history,
+            fixed_seed=self.fix_seed,
+            controls_start_at_now=True,
+            ac_charge=float_list(ac_charge_hours),
+            dc_charge=float_list(dc_charge_hours),
+            discharge_allowed=int_list(discharge),
+            battery_grid_export_allowed=int_list(battery_grid_export),
+            battery_grid_export_factor=float_list(battery_grid_export_factor),
+            terminal_value=terminal_value_result,
+            ev_charge_hours_float=float_list(eautocharge_hours_float[start_slot:])
+            if eautocharge_hours_float is not None
+            else None,
+            result=GeneticSimulationOutput.from_simulation(simulation_result),
+            ev_obj=GeneticElectricVehicleState.from_battery(self.simulation.ev.to_dict())
+            if self.simulation.ev is not None
+            else None,
+            start_solution=None if start_solution is None else float_list(start_solution),
+            start_solution_datetime=GeneticOptimizationParameters.transform_start_solution_datetime(
+                self._slot0_datetime
+            ),
+            washingstart=washingstart_int,
+            appliance_starts=appliance_starts,
+            appliance_deadline_missed=appliance_deadline_missed,
         )

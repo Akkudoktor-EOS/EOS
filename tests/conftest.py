@@ -978,3 +978,74 @@ def genetic_run_parameters(request: Any, optimization: Any = None) -> Any:
     return GeneticParameters(
         request=request, start_hour=settings.start_datetime.hour, settings=settings
     )
+
+
+def genetic_result_of(solution: Any) -> Any:
+    """The GENETIC result a public solution was built from.
+
+    Tests keep stored solutions (``GeneticSolution`` JSON); the conversion and the visualization
+    take the result of a run (``GeneticResult``).
+
+    Args:
+        solution: A ``GeneticSolution`` response.
+
+    Returns:
+        A ``GeneticResult`` with the solution's values; its request is the echoed ``parameters``.
+    """
+    import dataclasses
+
+    from akkudoktoreos.optimization.genetic import geneticterminalvalue
+    from akkudoktoreos.optimization.genetic.geneticresult import (
+        GeneticElectricVehicleState,
+        GeneticResult,
+        GeneticSimulationOutput,
+    )
+
+    def curve(value: Any) -> Any:
+        if value is None:
+            return None
+        return geneticterminalvalue.TerminalValueCurve(**value.model_dump())
+
+    terminal_value = None
+    if solution.terminal_value is not None:
+        tv = solution.terminal_value
+        terminal_value = geneticterminalvalue.TerminalValueResult(
+            **{
+                name: getattr(tv, name)
+                for name in type(tv).model_fields
+                if name not in ("curve", "continuation_curve", "tail_diagnostics", "tail_plan")
+            },
+            curve=curve(tv.curve),
+            continuation_curve=curve(tv.continuation_curve),
+            tail_diagnostics=None
+            if tv.tail_diagnostics is None
+            else geneticterminalvalue.TailDiagnostics(**tv.tail_diagnostics.model_dump()),
+            tail_plan=[
+                geneticterminalvalue.TailPlanSlot(**slot.model_dump()) for slot in tv.tail_plan
+            ],
+        )
+    simulation = GeneticSimulationOutput(
+        **{
+            field.name: getattr(solution.result, field.name)
+            for field in dataclasses.fields(GeneticSimulationOutput)
+        }
+    )
+    ev = None
+    if solution.ev_obj is not None:
+        ev = GeneticElectricVehicleState(
+            **{
+                field.name: getattr(solution.ev_obj, field.name)
+                for field in dataclasses.fields(GeneticElectricVehicleState)
+            }
+        )
+    return GeneticResult(
+        **{
+            field.name: getattr(solution, field.name)
+            for field in dataclasses.fields(GeneticResult)
+            if field.name not in ("request", "result", "ev_obj", "terminal_value")
+        },
+        request=solution.parameters,
+        result=simulation,
+        ev_obj=ev,
+        terminal_value=terminal_value,
+    )
