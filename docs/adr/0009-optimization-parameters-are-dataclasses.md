@@ -20,4 +20,13 @@ requests are Pydantic models, and the settings models of the configuration stay 
 
 - An invalid optimization parameter set is a bug in parameter preparation, found by its tests,
   not a validation error at run time.
-- Replay files need an explicit (de)serialization of the dataclasses instead of Pydantic's.
+- Replay files need an explicit (de)serialization of the dataclasses instead of Pydantic's; a
+  test asserts that the round trip is lossless.
+- The simulation's device parameters are derived from the optimization request by pure functions
+  (no configuration, no clock, no change to the request), so a replay file may store the request
+  and derive them again. GENETIC0's home appliance still reads today's date there and writes a
+  default time window into the request; it is frozen.
+- The optimization result is a frozen dataclass as well. Where public response models are built
+  from it, its values are normalised as those models validate them (NumPy arrays to lists, NaN to
+  `None`, the fields' number types), so the responses do not change when the result stops being
+  a Pydantic model.

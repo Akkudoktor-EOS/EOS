@@ -30,6 +30,7 @@ optimization run. This is a hard rule.
 - It covers the whole path from configuration, predictions and measurements to
   the parameters handed to an optimizer, for every optimizer (GENETIC,
   GENETIC0 and future ones), including device and operating-point parameters.
+- A NaN reading or prediction value the run reads counts as missing.
 - Replace an invalid or missing input with a **fallback value**:
   1. the configuration field's default,
   2. a heuristic only when there is no default or the default does not fit

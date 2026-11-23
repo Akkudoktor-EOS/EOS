@@ -24,3 +24,7 @@ run and the prediction series the run was optimized against.
 - An optimizer can be run, tested and replayed from a stored set of optimization parameters alone.
 - The optimization parameters grow to carry presentation data (time zone, device IDs, start
   datetime, the prediction series used).
+- The presentation data cover every entry point, not only the automatic run. A client's
+  optimization request may start in another time zone than the configured one or carry longer
+  arrays, so the prepared series span the widest window the conversion can need, and the
+  conversion takes its own share of them (GENETIC0 migration).

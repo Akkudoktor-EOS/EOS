@@ -5,8 +5,9 @@ parameters, and the data the solution conversion presents (time zone, device IDs
 series). They are prepared once before the run by ``genetic0prepare``.
 
 The simulation reads the forecast and device dataclasses, which are derived from the request
-(``Genetic0Request``). The request itself is kept because the result echoes it (until step 5); a
-replay file stores the request and the dataclasses are derived again when it is read.
+(``Genetic0Request``). The request itself is kept for the conversion, the visualization and the
+public responses; a replay file stores the request and the dataclasses are derived again when it
+is read.
 """
 
 import math
