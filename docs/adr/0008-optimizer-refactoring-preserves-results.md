@@ -14,10 +14,18 @@ proven result-identical by its golden tests.
 
 ## Consequences
 
-- Before an optimizer is refactored, its golden tests are extended with replay files: complete
-  optimization parameters in the new parameter type plus the expected result.
+- Before an optimizer is refactored, characterization tests pin its whole output per golden
+  input: the optimization solution, the energy management plan and the visualization, not only
+  the raw result. The raw result alone missed most of what the GENETIC0 migration moved.
+- Replay files (complete optimization parameters in the new parameter type plus the expected
+  result) are added as soon as the optimizer has its parameter type, in the same pull request.
+- Code that breaks an architecture rule in a way whose fix changes results (e.g. a parameter
+  preparation that writes the configuration or cancels the run) is first moved unchanged; the fix
+  follows in its own declared behaviour-change pull request.
+- A refactoring reproduces known bugs of the old output too (GENETIC0 always reports the EV and
+  home appliance IDs `ev1` and `homeappliance1`); they are reported, not fixed on the way.
 - GENETIC0 is migrated first, as the pilot; the registry and the interface arrive with its first
-  migration pull request. GENETIC follows.
+  migration pull request. GENETIC follows on the same path.
 - A GENETIC0 bug that matters to users is fixed in GENETIC (or a new optimizer), not in GENETIC0.
 - One declared exception: GENETIC0's parameter preparation follows the "optimization parameters
   are always valid" rule of the `energy-domain` skill, in a behaviour-change pull request of its

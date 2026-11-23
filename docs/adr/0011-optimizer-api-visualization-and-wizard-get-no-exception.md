@@ -13,7 +13,11 @@ state today. None of them gets an exception from
   through FastAPI's `app.dependency_overrides`, using the registry. The router may import FastAPI,
   Pydantic and its own optimization request, never configuration, EMS state or the server
   (`akkudoktoreos.server`). No other part of the optimizer, its parameter preparation included,
-  imports the server either.
+  imports the server either. It reports errors as the generic `OptimizerProblem`, which the server
+  renders like its own problem responses, and it holds the public response models, built from the
+  optimization parameters and result. The server includes the optimizers' routers before its own
+  routes, so an optimizer's specific path (`.../solution/GENETIC0`) wins over a generic one
+  (`.../solution/{algorithm}`).
 - Wizard steps are not code. They are metadata on the fields of `<name>settings.py` (which fields
   the wizard asks for, and in which order), which EOSdash reads; an optimizer contains no EOSdash
   code.

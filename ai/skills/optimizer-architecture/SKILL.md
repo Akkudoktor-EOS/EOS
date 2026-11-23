@@ -6,8 +6,9 @@ description: Use when creating, changing, refactoring or removing an optimizer (
 # Optimizer Architecture
 
 Terms as in `GLOSSARY.md`: **optimizer**, **parameter preparation**, **optimization
-parameters**, **solution conversion**, **warm start**. The decisions and their reasons are in
-`docs/adr/` 0003 to 0011; read the ADR before deviating from a rule here, and flag any conflict.
+parameters**, **presentation data**, **solution conversion**, **warm start**. The decisions and
+their reasons are in `docs/adr/` 0003 to 0011; read the ADR before deviating from a rule here,
+and flag any conflict.
 
 ## One optimizer, four parts
 
@@ -90,8 +91,23 @@ moment of the run that measurements (e.g. a measured state of charge) refer to.
   completes it from the configuration with the same fallback rules as
   `prepare()`. Keep the request's public schema unchanged; add fields the run
   needs to the optimization parameters, not to the request.
+- **Presentation data cover every entry point.** A client's request may start in another time
+  zone than the configured one or carry longer arrays than an automatic run; prepare the series
+  for the widest window the conversion can need, and let `convert()` take its own share.
+  Building them follows the fallback rules too: a series that cannot be read is left out with
+  an error log.
+- Derive the simulation's device dataclasses from the request with pure functions
+  (`<Name><Thing>Request.to_parameters()`): no configuration, no clock (a date comes from the
+  run start in the parameters), no change to the request. A replay file can then store the
+  request and derive them again. GENETIC0's home appliance breaks this (today's date, writes a
+  default time window into the request); it is frozen, so do not copy it.
 - A run must be reproducible from its stored optimization parameters alone. Add a test that runs
-  from a stored parameter file when you change what goes into the parameters.
+  from a stored parameter file, under a deliberately different configuration, when you change
+  what goes into the parameters, and one that asserts the replay (de)serialization round trip is
+  lossless.
+- The result (`R`) is a frozen dataclass. Where `<name>api.py` builds public response models
+  from it, normalise its values as those models validate them (NumPy arrays to lists, NaN to
+  `None`, the fields' number types), so the responses stay identical.
 
 ## Layout and names (ADR 0010)
 
@@ -116,8 +132,18 @@ classes `<Name><Role>`. This table is the one maintained copy; ADR 0010 links he
 
 - A new module that fits no role still gets the `<name>` prefix. Do not
   invent a second name for an existing role.
+- Nested request models are `<Name><Thing>Request`; `<Name><Device>Parameters`
+  names the simulation's device dataclass.
+- Renaming a Pydantic model changes its schema name in OpenAPI and the
+  configuration documentation, and moving a route into an optimizer's router
+  changes the OpenAPI paths: regenerate the docs and declare it as
+  **Breaking:** in the pull request.
 - Dataclasses are `@dataclass(frozen=True, slots=True)`. A run never changes
-  its inputs.
+  its inputs; parameters hold sequences as tuples.
+- The parameters may keep the Pydantic optimization request they were derived
+  from (GENETIC0 does, for replay files, conversion, visualization and API),
+  an exception to the tuple rule; the algorithm and the simulation read the
+  derived dataclasses, never the request.
 - Only `<name>settings.py`, `<name>request.py`, parameter preparation and
   `<name>api.py` may import `pydantic` or `akkudoktoreos.core.pydantic`.
 
@@ -215,5 +241,9 @@ against `BASELINE`, the violations that existed when it was introduced.
   structural changes needed to follow this architecture, each proven
   result-identical by its golden tests. Fix a GENETIC0 bug in GENETIC instead,
   and report it to the user.
-- Before refactoring an optimizer, add replay files: complete optimization
-  parameters in the new parameter type plus the expected result.
+- Before refactoring an optimizer, pin its whole output per golden input
+  (solution, plan, visualization); add replay files (complete optimization
+  parameters plus the expected result) as soon as the parameter type exists.
+- **Migrating an optimizer** to this architecture: follow the steps,
+  characterization technique and move-then-fix rule in `MIGRATION.md` next to
+  this file.
