@@ -186,6 +186,8 @@ against `BASELINE`, the violations that existed when it was introduced.
 - Otherwise never add an entry to `BASELINE`, and never rename a module to
   `*prepare.py` or `*settings.py` just to pass the test. Remove the entries
   your change fixes; the test fails on stale entries.
+- Moving or splitting a module relabels its entries to the new module one to
+  one, in the same commit and named in the pull request; it adds none.
 - The test discovers optimizers (every package under `optimization/`); do not
   hard-code optimizer names in it.
 - It cannot detect simulation physics moved into a new shared module, nor a

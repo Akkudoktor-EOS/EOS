@@ -7,8 +7,8 @@ it with the optimizer's own dataclasses.
 from dataclasses import dataclass
 from typing import Optional
 
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 
 
@@ -24,7 +24,7 @@ class Genetic0Parameters:
         verbose: Log the progress of the run.
     """
 
-    request: Genetic0OptimizationParameters
+    request: Genetic0Request
     start_hour: int
     generations: Optional[int]
     seed: Optional[int]

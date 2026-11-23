@@ -25,13 +25,15 @@ from akkudoktoreos.devices.devicesabc import (
     ApplianceOperationMode,
     BatteryOperationMode,
 )
-from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
-from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
+from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
+    Genetic0InverterParameters,
+)
 from akkudoktoreos.optimization.genetic0.genetic0devices import (
     Genetic0ParametersBaseModel,
 )
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
@@ -328,7 +330,7 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
-    parameters: Genetic0OptimizationParameters = Field(
+    parameters: Genetic0Request = Field(
         json_schema_extra={"description": "Optimization parameters used to generate solution."}
     )
     ac_charge: list[float] = Field(
@@ -509,7 +511,7 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
         return BatteryOperationMode.IDLE, 1.0
 
     def _inverter_parameters(
-        self, parameters: Optional[Genetic0OptimizationParameters]
+        self, parameters: Optional[Genetic0Request]
     ) -> Optional[Genetic0InverterParameters]:
         """Return the inverter parameters the solution was computed with.
 

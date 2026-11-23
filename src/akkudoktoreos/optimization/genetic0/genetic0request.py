@@ -29,14 +29,16 @@ from akkudoktoreos.core.coreabc import (
     PredictionMixin,
     get_ems,
 )
-from akkudoktoreos.devices.genetic0.genetic0battery import (
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
     Genetic0ElectricVehicleParameters,
     Genetic0SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
+from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
     Genetic0HomeApplianceParameters,
 )
-from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
+from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
+    Genetic0InverterParameters,
+)
 from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
@@ -145,7 +147,7 @@ class Genetic0EnergyManagementParameters(Genetic0ParametersBaseModel):
         return self
 
 
-class Genetic0OptimizationParameters(
+class Genetic0Request(
     ConfigMixin,
     MeasurementMixin,
     PredictionMixin,
@@ -254,7 +256,7 @@ class Genetic0OptimizationParameters(
     @classmethod
     async def prepare(
         cls, start_solution: Optional[list[float]] = None
-    ) -> "Optional[Genetic0OptimizationParameters]":
+    ) -> "Optional[Genetic0Request]":
         """Prepare optimization parameters from config, forecast and measurement data.
 
         Fills in values needed for optimization from available configuration, predictions and
@@ -268,7 +270,7 @@ class Genetic0OptimizationParameters(
                 parameter preparation.
 
         Returns:
-            Genetic0OptimizationParameters: The fully prepared optimization parameters.
+            Genetic0Request: The fully prepared optimization parameters.
 
         Raises:
             ValueError: If required configuration values like start time are missing.
@@ -276,7 +278,7 @@ class Genetic0OptimizationParameters(
         ems = get_ems()
 
         # The optimization paramters
-        oparams: "Optional[Genetic0OptimizationParameters]" = None
+        oparams: "Optional[Genetic0Request]" = None
 
         # Check for run definitions
         if ems.start_datetime is None:
@@ -794,7 +796,7 @@ class Genetic0OptimizationParameters(
 
             # We got all parameter data
             try:
-                oparams = Genetic0OptimizationParameters(
+                oparams = Genetic0Request(
                     ems=Genetic0EnergyManagementParameters(
                         pv_forecast_wh=pvforecast_ac_power,
                         electricity_price_per_wh=elecprice_marketprice_wh,

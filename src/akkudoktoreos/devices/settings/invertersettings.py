@@ -43,11 +43,11 @@ from akkudoktoreos.devices.settings.inverterresolution import (
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 if TYPE_CHECKING:
-    from akkudoktoreos.devices.genetic0.genetic0inverter import (
-        Genetic0InverterParameters,
-    )
     from akkudoktoreos.devices.genetic.inverter import InverterParameters
     from akkudoktoreos.devices.profile.inverterprofile import InverterProfile
+    from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
+        Genetic0InverterParameters,
+    )
 
 
 # Name of the inverter profile used when the user selects none.
@@ -728,7 +728,7 @@ class InverterCommonSettings(DevicesBaseSettings):
         Raises:
             InverterResolutionError: See ``to_genetic_param``.
         """
-        from akkudoktoreos.devices.genetic0.genetic0inverter import (
+        from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
             Genetic0InverterParameters,
         )
 

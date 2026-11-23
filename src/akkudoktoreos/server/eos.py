@@ -56,8 +56,8 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import (
     Genetic0Solution,
@@ -2268,7 +2268,7 @@ async def fastapi_optimize_config(
 
 @app.post("/optimize", tags=["optimize"])
 async def fastapi_optimize(
-    parameters: Genetic0OptimizationParameters,
+    parameters: Genetic0Request,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,

@@ -5,7 +5,7 @@ once before each run; the energy management passes the run start, the warm start
 overrides as arguments.
 
 Transitional (migration step 1): the forecast and device parameters still come from the legacy
-``Genetic0OptimizationParameters.prepare()``, which may fail; step 3 replaces it.
+``Genetic0Request.prepare()``, which may fail; step 3 replaces it.
 """
 
 from collections.abc import Mapping
@@ -15,8 +15,8 @@ from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config
 from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0Parameters
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.utils.datetimeutil import DateTime
@@ -46,14 +46,14 @@ async def prepare(
     start_solution = None
     if warm_start is not None and warm_start.start_solution:
         start_solution = warm_start.start_solution
-    request = await Genetic0OptimizationParameters.prepare(start_solution=start_solution)
+    request = await Genetic0Request.prepare(start_solution=start_solution)
     if request is None:
         raise RuntimeError("Could not prepare optimisation parameters.")
     return _complete(request, start_datetime, overrides)
 
 
 async def prepare_from_request(
-    request: Genetic0OptimizationParameters,
+    request: Genetic0Request,
     start_datetime: DateTime,
     warm_start: Optional[Genetic0Solution],
     overrides: Optional[Mapping[str, Any]] = None,
@@ -74,7 +74,7 @@ async def prepare_from_request(
 
 
 def _complete(
-    request: Genetic0OptimizationParameters,
+    request: Genetic0Request,
     start_datetime: DateTime,
     overrides: Optional[Mapping[str, Any]],
 ) -> Genetic0Parameters:

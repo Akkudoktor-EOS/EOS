@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic0.genetic0battery import (
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
     Genetic0Battery,
     Genetic0SolarPanelBatteryParameters,
 )
@@ -260,7 +260,7 @@ def test_charge_energy_with_charge_factor(setup_pv_battery, wh, charge_factor, e
 
 @pytest.fixture
 def setup_car_battery():
-    from akkudoktoreos.optimization.genetic0.genetic0params import (
+    from akkudoktoreos.optimization.genetic0.genetic0request import (
         Genetic0ElectricVehicleParameters,
     )
 

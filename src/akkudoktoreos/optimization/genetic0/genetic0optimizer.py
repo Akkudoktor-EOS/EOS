@@ -10,8 +10,8 @@ from typing import Any, Optional
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0Parameters
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.optimization import OptimizationSolution
@@ -34,7 +34,7 @@ class Genetic0Optimizer:
 
     async def prepare_from_request(
         self,
-        request: Genetic0OptimizationParameters,
+        request: Genetic0Request,
         start_datetime: DateTime,
         warm_start: Optional[Genetic0Solution],
         overrides: Optional[Mapping[str, Any]] = None,
@@ -47,7 +47,9 @@ class Genetic0Optimizer:
     def run(self, parameters: Genetic0Parameters) -> Genetic0Solution:
         """See ``Optimizer.run()``."""
         # Imported on first use: the simulation is only needed for a run.
-        from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0Optimization
+        from akkudoktoreos.optimization.genetic0.genetic0algorithm import (
+            Genetic0Optimization,
+        )
 
         optimization = Genetic0Optimization(
             verbose=parameters.verbose,

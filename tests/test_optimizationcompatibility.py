@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from akkudoktoreos.optimization.genetic0.genetic0params import (
+from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0EnergyManagementParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticparams import (

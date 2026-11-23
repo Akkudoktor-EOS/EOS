@@ -16,9 +16,9 @@ from pypdf import PdfReader
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0Optimization
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0algorithm import Genetic0Optimization
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.genetic0.genetic0visualize import (
@@ -269,7 +269,7 @@ async def test_optimize(
     # Load input and output data
     parameter_file = DIR_TESTDATA / fn_in
     with parameter_file.open("r") as f_in:
-        input_data = Genetic0OptimizationParameters(**json.load(f_in))
+        input_data = Genetic0Request(**json.load(f_in))
 
     # Fake energy management run start datetime
     ems_eos.set_start_datetime(

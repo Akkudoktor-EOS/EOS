@@ -3,9 +3,11 @@
 
 import json
 
-from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0SimulationResult
-from akkudoktoreos.optimization.genetic0.genetic0params import (
+from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0EnergyManagementParameters,
+)
+from akkudoktoreos.optimization.genetic0.genetic0solution import (
+    Genetic0SimulationResult,
 )
 
 
@@ -129,8 +131,8 @@ if __name__ == "__main__":
 
 def test_genetic0_optimization_parameters_device_translations():
     """Test that German device field names are accepted and re-emitted."""
-    from akkudoktoreos.optimization.genetic0.genetic0params import (
-        Genetic0OptimizationParameters,
+    from akkudoktoreos.optimization.genetic0.genetic0request import (
+        Genetic0Request,
     )
 
     ems_de = {
@@ -140,7 +142,7 @@ def test_genetic0_optimization_parameters_device_translations():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = Genetic0OptimizationParameters.model_validate(dict(
+    params = Genetic0Request.model_validate(dict(
         ems=ems_de,
         pv_akku={"device_id": "battery1", "capacity_wh": 8000},
         inverter=None,
@@ -153,7 +155,7 @@ def test_genetic0_optimization_parameters_device_translations():
     assert params.ev.capacity_wh == 60000
 
     # English input names work as well
-    params_en = Genetic0OptimizationParameters.model_validate(dict(
+    params_en = Genetic0Request.model_validate(dict(
         ems=ems_de,
         pv_battery={"device_id": "battery1", "capacity_wh": 8000},
         inverter=None,

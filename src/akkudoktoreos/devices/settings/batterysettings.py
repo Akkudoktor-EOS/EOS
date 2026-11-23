@@ -120,15 +120,15 @@ from akkudoktoreos.measurement.batterycapacity import (
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 if TYPE_CHECKING:
-    from akkudoktoreos.devices.genetic0.genetic0battery import (
-        Genetic0ElectricVehicleParameters,
-        Genetic0SolarPanelBatteryParameters,
-    )
     from akkudoktoreos.devices.genetic.battery import (
         ElectricVehicleParameters,
         SolarPanelBatteryParameters,
     )
     from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
+    from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
+        Genetic0ElectricVehicleParameters,
+        Genetic0SolarPanelBatteryParameters,
+    )
 
 
 # Default charge rates for battery
@@ -1102,7 +1102,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
-        from akkudoktoreos.devices.genetic0.genetic0battery import (
+        from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
             Genetic0SolarPanelBatteryParameters,
         )
 
@@ -1135,7 +1135,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
-        from akkudoktoreos.devices.genetic0.genetic0battery import (
+        from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
             Genetic0ElectricVehicleParameters,
         )
 

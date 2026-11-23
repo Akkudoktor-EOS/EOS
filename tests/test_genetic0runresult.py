@@ -9,10 +9,10 @@ import pytest
 
 from akkudoktoreos.core import ems as ems_module
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic0 import genetic0 as genetic0_module
+from akkudoktoreos.optimization.genetic0 import genetic0algorithm as genetic0_module
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.optimization.optimizer import OptimizerRun
@@ -31,7 +31,7 @@ def _patch_optimizer(monkeypatch, prefix: str, constructor: Any) -> None:
 def _patch_prepare(monkeypatch, prefix: str, prepare: Any) -> None:
     """Replace the legacy parameter preparation of GENETIC or GENETIC0."""
     parameters_class = (
-        Genetic0OptimizationParameters
+        Genetic0Request
         if prefix == "Genetic0"
         else ems_module.GeneticOptimizationParameters
     )
@@ -269,7 +269,7 @@ async def test_legacy_optimize_explicitly_uses_genetic0(monkeypatch, start_hour)
         run=AsyncMock(return_value=None), optimizer_result=Mock(return_value=None)
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
-    parameters = Genetic0OptimizationParameters.model_validate(
+    parameters = Genetic0Request.model_validate(
         {
             "ems": {
                 "pv_prognose_wh": [0.0, 100.0],

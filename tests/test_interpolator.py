@@ -87,7 +87,7 @@ def test_genetic_interpolator_boundaries_are_finite_and_physical(load, pv):
 
 
 def test_genetic0_inverter_keeps_its_independent_interpolator():
-    from akkudoktoreos.devices.genetic0.genetic0inverter import (
+    from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
         Genetic0Inverter,
         Genetic0InverterParameters,
     )

@@ -17,18 +17,18 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic0.genetic0battery import (
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
     Genetic0Battery,
     Genetic0SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.genetic0.genetic0inverter import (
+from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
     Genetic0InverterParameters,
 )
-from akkudoktoreos.optimization.genetic0.genetic0 import (
+from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0EnergyManagementParameters,
-    Genetic0Simulation,
 )
+from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures
@@ -55,7 +55,7 @@ def _make_inverter(
         max_ac_charge_power_w=max_ac_charge_power_w,
     )
     with patch(
-        "akkudoktoreos.devices.genetic0.genetic0inverter.get_genetic0_load_interpolator",
+        "akkudoktoreos.optimization.genetic0.devices.genetic0inverter.get_genetic0_load_interpolator",
         return_value=mock_self_consumption_predictor,
     ):
         return Genetic0Inverter(params, battery=mock_battery)
@@ -215,9 +215,11 @@ class TestAcChargingInSimulation:
     @pytest.fixture
     def simulation_setup(self, config_eos):
         """Set up a minimal GeneticSimulation with battery and inverter."""
-        from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0Simulation
-        from akkudoktoreos.optimization.genetic0.genetic0params import (
+        from akkudoktoreos.optimization.genetic0.genetic0request import (
             Genetic0EnergyManagementParameters,
+        )
+        from akkudoktoreos.optimization.genetic0.genetic0simulation import (
+            Genetic0Simulation,
         )
 
         config_eos.merge_settings_from_dict(
@@ -550,7 +552,9 @@ def _run_evaluate_with_mocked_sim(
     - self.simulation is replaced by mock_sim
     Then call evaluate() and return the fitness tuple.
     """
-    from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0Optimization
+    from akkudoktoreos.optimization.genetic0.genetic0algorithm import (
+        Genetic0Optimization,
+    )
 
     config_eos.merge_settings_from_dict(
         {

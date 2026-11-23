@@ -37,8 +37,10 @@ The violations that exist when the test lands are listed in a baseline in the te
 violation missing from the baseline fails, and so does a baseline entry that no longer occurs, so
 the baseline only shrinks and every exception is visible in review. The one exception: when a
 module or helper that reads the configuration is added to the list, the existing uses it reveals
-are added to the baseline in the same commit. The test cannot see simulation physics moved into a
-new shared module, nor a helper missing from its list; both rely on review.
+are added to the baseline in the same commit. Moving or splitting a module is no exception: its
+entries are relabelled to the new module one to one, in the same commit and named in the pull
+request, and no entry is added. The test cannot see simulation physics moved into a new shared
+module, nor a helper missing from its list; both rely on review.
 
 ## Considered Options
 

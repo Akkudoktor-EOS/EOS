@@ -14,8 +14,8 @@ from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config, get_ems, get_prediction
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0Request,
 )
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -25,7 +25,7 @@ prediction_eos = get_prediction()
 ems_eos = get_ems()
 
 
-async def prepare_optimization_real_parameters() -> Genetic0OptimizationParameters:
+async def prepare_optimization_real_parameters() -> Genetic0Request:
     """Prepare and return optimization parameters with real world data.
 
     Returns:
@@ -170,7 +170,7 @@ async def prepare_optimization_real_parameters() -> Genetic0OptimizationParamete
     print(f"start_solution: {start_solution}")
 
     # Define parameters for the optimization problem
-    return Genetic0OptimizationParameters.model_validate({
+    return Genetic0Request.model_validate({
             "ems": {
                 "price_per_wh_battery": 0e-05,
                 "feed_in_tariff_per_wh": 7e-05,
@@ -202,7 +202,7 @@ async def prepare_optimization_real_parameters() -> Genetic0OptimizationParamete
         })
 
 
-def prepare_optimization_parameters() -> Genetic0OptimizationParameters:
+def prepare_optimization_parameters() -> Genetic0Request:
     """Prepare and return optimization parameters with predefined data.
 
     Returns:
@@ -364,7 +364,7 @@ def prepare_optimization_parameters() -> Genetic0OptimizationParameters:
     start_solution = None
 
     # Define parameters for the optimization problem
-    return Genetic0OptimizationParameters.model_validate({
+    return Genetic0Request.model_validate({
             "ems": {
                 "price_per_wh_battery": 0e-05,
                 "feed_in_tariff_per_wh": 7e-05,
@@ -411,7 +411,7 @@ def run_optimization(
     # Prepare parameters
     if parameters_file:
         with open(parameters_file, "r") as f:
-            parameters = Genetic0OptimizationParameters(**json.load(f))
+            parameters = Genetic0Request(**json.load(f))
     elif real_world:
         parameters = asyncio.run(prepare_optimization_real_parameters())
     else:

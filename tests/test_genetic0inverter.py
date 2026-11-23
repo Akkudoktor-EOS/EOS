@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from akkudoktoreos.devices.genetic0.genetic0inverter import (
+from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
     Genetic0InverterParameters,
 )
@@ -22,7 +22,7 @@ def inverter(mock_battery) -> Genetic0Inverter:
     mock_self_consumption_predictor = Mock()
     mock_self_consumption_predictor.calculate_self_consumption.return_value = 1.0
     with patch(
-        "akkudoktoreos.devices.genetic0.genetic0inverter.get_genetic0_load_interpolator",
+        "akkudoktoreos.optimization.genetic0.devices.genetic0inverter.get_genetic0_load_interpolator",
         return_value=mock_self_consumption_predictor,
     ):
         iv = Genetic0Inverter(

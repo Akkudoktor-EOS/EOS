@@ -191,6 +191,9 @@ test procedure. These changes are not yet a tagged release.
   calibration, the PV snow feedback and the load adjustment skip it, and `/v1/measurement/energy`
   and `/v1/measurement/household` report it as missing. Set it to `null` for the former behaviour, e.g.
   for a feeder that only sends a reading when the meter value changes.
+- The OpenAPI schema names of the optimizers follow one scheme; fields and paths are unchanged:
+  GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request` and `Genetic0CommonSettings`
+  is `Genetic0Settings`. Clients generated from `openapi.json` must follow the new names.
 
 ### Fixed
 

@@ -3,7 +3,7 @@ from typing import Optional
 from loguru import logger
 from pydantic import Field
 
-from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
 from akkudoktoreos.optimization.genetic0.genetic0devices import Genetic0DeviceParameters
 from akkudoktoreos.optimization.genetic0.genetic0loadinterpolator import (
     get_genetic0_load_interpolator,

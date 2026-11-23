@@ -143,7 +143,7 @@ Note:
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/Genetic0OptimizationParameters-Input"
+  "$ref": "#/components/schemas/Genetic0Request-Input"
 }
 
 **Responses**:
