@@ -4,16 +4,13 @@ from typing import Any, Optional
 
 import numpy as np
 from loguru import logger
-from numpydantic import NDArray, Shape
-from pydantic import ConfigDict, Field
 
-from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
 )
-from akkudoktoreos.optimization.genetic.devices.geneticinverter import Inverter
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import GeneticInverter
+from akkudoktoreos.optimization.genetic.geneticenergymanagement import (
     GeneticEnergyManagementParameters,
 )
 
@@ -31,92 +28,40 @@ def _slot_values(values: Any) -> Any:
     return values
 
 
-class GeneticSimulation(PydanticBaseModel):
-    """Device simulation for GENETIC optimization algorithm."""
+class GeneticSimulation:
+    """Device simulation for GENETIC optimization algorithm.
 
-    # Disable validation on assignment to speed up simulation runs.
-    model_config = ConfigDict(
-        validate_assignment=False,
-    )
+    ``prepare()`` sets the forecasts, prices and devices of a run; ``simulate()`` evaluates one
+    candidate plan.
+    """
 
-    start_hour: int = Field(
-        default=0,
-        ge=0,
-        le=23,
-        json_schema_extra={"description": "Starting hour on day for optimizations."},
-    )
-
-    optimization_hours: Optional[int] = Field(
-        default=24,
-        ge=0,
-        json_schema_extra={"description": "Number of hours into the future for optimizations."},
-    )
-
-    prediction_hours: Optional[int] = Field(
-        default=48,
-        ge=0,
-        json_schema_extra={"description": "Number of hours into the future for predictions"},
-    )
-
-    load_energy_array: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
-        },
-    )
-    pv_prediction_wh: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
-        },
-    )
-    elect_price_hourly: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
-        },
-    )
-    elect_revenue_per_hour_arr: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the feed-in compensation in euros per watt-hour."
-        },
-    )
-    direct_marketing_enabled: bool = Field(
-        default=False,
-        json_schema_extra={
-            "description": "Use direct marketing behavior for feed-in/export decisions."
-        },
-    )
-    battery: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    ev: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    home_appliances: list[HomeAppliance] = Field(
-        default_factory=list,
-        json_schema_extra={"description": "Flexible consumers scheduled by the optimizer."},
-    )
-    inverter: Optional[Inverter] = Field(default=None, json_schema_extra={"description": "TBD."})
-
-    ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    dc_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    bat_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    bat_grid_export_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={"description": "Hourly permission for battery discharge into the grid."},
-    )
-    ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-
-    home_appliance_start_hour: Optional[int] = Field(default=None)
+    def __init__(self) -> None:
+        """Create an empty simulation; ``prepare()`` fills it."""
+        # Starting slot of the latest simulate() call.
+        self.start_hour: int = 0
+        self.optimization_hours: Optional[int] = 24
+        self.prediction_hours: Optional[int] = 48
+        # Per-slot forecasts and prices [Wh, currency/Wh].
+        self.load_energy_array: Optional[np.ndarray] = None
+        self.pv_prediction_wh: Optional[np.ndarray] = None
+        self.elect_price_hourly: Optional[np.ndarray] = None
+        self.elect_revenue_per_hour_arr: Optional[np.ndarray] = None
+        # Use direct marketing behavior for feed-in/export decisions.
+        self.direct_marketing_enabled: bool = False
+        self.battery: Optional[GeneticBattery] = None
+        self.ev: Optional[GeneticBattery] = None
+        # Flexible consumers scheduled by the optimizer.
+        self.home_appliances: list[HomeAppliance] = []
+        self.inverter: Optional[GeneticInverter] = None
+        # Per-slot actions of the candidate plan.
+        self.ac_charge_hours: Optional[np.ndarray] = None
+        self.dc_charge_hours: Optional[np.ndarray] = None
+        self.bat_discharge_hours: Optional[np.ndarray] = None
+        # Per-slot permission for battery discharge into the grid.
+        self.bat_grid_export_hours: Optional[np.ndarray] = None
+        self.ev_charge_hours: Optional[np.ndarray] = None
+        self.ev_discharge_hours: Optional[np.ndarray] = None
+        self.home_appliance_start_hour: Optional[int] = None
 
     @property
     def home_appliance(self) -> Optional[HomeAppliance]:
@@ -132,9 +77,9 @@ class GeneticSimulation(PydanticBaseModel):
         parameters: GeneticEnergyManagementParameters,
         optimization_hours: int,
         prediction_hours: int,
-        ev: Optional[Battery] = None,
+        ev: Optional[GeneticBattery] = None,
         home_appliance: Optional[HomeAppliance] = None,
-        inverter: Optional[Inverter] = None,
+        inverter: Optional[GeneticInverter] = None,
         direct_marketing_enabled: bool = False,
         home_appliances: Optional[list[HomeAppliance]] = None,
     ) -> None:
@@ -153,7 +98,7 @@ class GeneticSimulation(PydanticBaseModel):
         self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
         self.elect_revenue_per_hour_arr = (
             np.array(parameters.feed_in_tariff_per_wh, float)
-            if isinstance(parameters.feed_in_tariff_per_wh, list)
+            if isinstance(parameters.feed_in_tariff_per_wh, (list, tuple))
             else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
         )
 
@@ -416,13 +361,14 @@ class GeneticSimulation(PydanticBaseModel):
         # plain Battery formula (two method calls per slot otherwise).
         battery_soc_direct = bool(
             battery_fast
-            and type(battery_fast).current_soc_percentage is Battery.current_soc_percentage
+            and type(battery_fast).current_soc_percentage is GeneticBattery.current_soc_percentage
         )
         ev_soc_direct = bool(
-            ev_fast and type(ev_fast).current_soc_percentage is Battery.current_soc_percentage
+            ev_fast
+            and type(ev_fast).current_soc_percentage is GeneticBattery.current_soc_percentage
         )
         battery_lcos_direct = False
-        if battery_fast is not None and type(battery_fast) is Battery:
+        if battery_fast is not None and type(battery_fast) is GeneticBattery:
             battery_lcos_direct = True
             if battery_fast._curves is None:
                 battery_discharged_raw_fast = battery_fast._discharged_raw_wh_per_slot

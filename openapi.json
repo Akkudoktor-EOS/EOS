@@ -6393,330 +6393,6 @@
         "title": "ElecPriceTibberCommonSettings",
         "description": "Common settings for the Tibber electricity price provider."
       },
-      "ElectricVehicleParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of electric vehicle",
-            "examples": [
-              "ev1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours.",
-            "examples": [
-              8000
-            ]
-          },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "A float representing the charging efficiency of the battery.",
-            "default": 0.88
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "A float representing the discharge efficiency of the battery.",
-            "default": 1.0
-          },
-          "max_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power in watts.",
-            "default": 5000
-          },
-          "max_discharge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Discharge Power W",
-            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
-            "examples": [
-              null,
-              4000
-            ]
-          },
-          "initial_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Initial Soc Percentage",
-            "description": "An integer representing the current state of charge (SOC) of the battery in percentage.",
-            "default": 0,
-            "examples": [
-              42
-            ]
-          },
-          "min_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Min Soc Percentage",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-            "default": 0,
-            "examples": [
-              10
-            ]
-          },
-          "max_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Max Soc Percentage",
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-            "default": 100
-          },
-          "charge_rates": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Rates",
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
-            "examples": [
-              [
-                0.0,
-                0.25,
-                0.5,
-                0.75,
-                1.0
-              ],
-              null
-            ]
-          },
-          "grid_export_rates": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Grid Export Rates",
-            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. These levels are available to algorithms that explicitly enable battery-to-grid export. None leaves the choice of export levels to the caller.",
-            "examples": [
-              [
-                0.25,
-                0.5,
-                0.75,
-                1.0
-              ],
-              [
-                1.0
-              ],
-              null
-            ]
-          },
-          "charge_power_limit_w_by_soc": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Power Limit W By Soc",
-            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
-            "examples": [
-              null
-            ]
-          },
-          "discharge_power_limit_w_by_soc": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discharge Power Limit W By Soc",
-            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
-            "examples": [
-              null
-            ]
-          },
-          "charging_efficiency_curve": {
-            "anyOf": [
-              {
-                "items": {
-                  "prefixItems": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ],
-                  "type": "array",
-                  "maxItems": 2,
-                  "minItems": 2
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charging Efficiency Curve",
-            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
-            "examples": [
-              null,
-              [
-                [
-                  0.0,
-                  0.975
-                ],
-                [
-                  0.5,
-                  0.96
-                ],
-                [
-                  1.0,
-                  0.94
-                ]
-              ]
-            ]
-          },
-          "discharging_efficiency_curve": {
-            "anyOf": [
-              {
-                "items": {
-                  "prefixItems": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ],
-                  "type": "array",
-                  "maxItems": 2,
-                  "minItems": 2
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discharging Efficiency Curve",
-            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
-            "examples": [
-              null,
-              [
-                [
-                  0.0,
-                  0.975
-                ],
-                [
-                  1.0,
-                  0.96
-                ]
-              ]
-            ]
-          },
-          "min_soc_deadline_datetime": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min Soc Deadline Datetime",
-            "description": "Absolute moment by which 'min_soc_percentage' has to be reached (departure time). A date time without timezone is read as local time. None means end of the optimization horizon.",
-            "examples": [
-              null,
-              "2026-07-16T07:00:00+02:00"
-            ]
-          },
-          "min_soc_max_duration_h": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min Soc Max Duration H",
-            "description": "Maximum time from the start of the optimization until 'min_soc_percentage' has to be reached [h]. Combined with 'min_soc_deadline_datetime' the earlier of the two applies.",
-            "examples": [
-              null,
-              6.0
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "capacity_wh"
-        ],
-        "title": "ElectricVehicleParameters",
-        "description": "Battery Electric Vehicle Device Simulation Configuration."
-      },
       "ElectricVehicleResult": {
         "properties": {
           "device_id": {
@@ -9800,7 +9476,666 @@
         "title": "Genetic0SolutionLegacy",
         "description": "GENETIC0 solution legacy dataset."
       },
-      "GeneticEnergyManagementParameters": {
+      "GeneticBatteryRequest": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of battery",
+            "examples": [
+              "battery1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "examples": [
+              8000
+            ]
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "A float representing the charging efficiency of the battery.",
+            "default": 0.88
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "A float representing the discharge efficiency of the battery.",
+            "default": 0.88
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power in watts.",
+            "default": 5000
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Initial Soc Percentage",
+            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
+            "default": 0,
+            "examples": [
+              42
+            ]
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              10
+            ]
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
+            "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. These levels are available to algorithms that explicitly enable battery-to-grid export. None leaves the choice of export levels to the caller.",
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
+                1.0
+              ],
+              null
+            ]
+          },
+          "charge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Power Limit W By Soc",
+            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "discharge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Power Limit W By Soc",
+            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "charging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charging Efficiency Curve",
+            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  0.5,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.94
+                ]
+              ]
+            ]
+          },
+          "discharging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharging Efficiency Curve",
+            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
+            ]
+          },
+          "levelized_cost_of_storage_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Levelized Cost Of Storage Kwh",
+            "description": "Levelized cost of storage applied once to each kWh delivered by the battery [EUR/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
+            ]
+          },
+          "full_charge_soc_percentage": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Soc Percentage",
+            "description": "State of charge a due full charge has to reach at least once before 'full_charge_deadline_datetime' [%]. Must not exceed 'max_soc_percentage'. None means no full charge is due.",
+            "examples": [
+              null,
+              100
+            ]
+          },
+          "full_charge_deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Deadline Datetime",
+            "description": "Moment by which 'full_charge_soc_percentage' has to be reached. A date time without timezone is read as local time. None means end of the optimization horizon.",
+            "examples": [
+              null,
+              "2026-11-20T07:00:00+01:00"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "capacity_wh"
+        ],
+        "title": "GeneticBatteryRequest",
+        "description": "PV battery device simulation configuration."
+      },
+      "GeneticElectricVehicleRequest": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of electric vehicle",
+            "examples": [
+              "ev1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "examples": [
+              8000
+            ]
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "A float representing the charging efficiency of the battery.",
+            "default": 0.88
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "A float representing the discharge efficiency of the battery.",
+            "default": 1.0
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power in watts.",
+            "default": 5000
+          },
+          "max_discharge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Discharge Power W",
+            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
+            "examples": [
+              null,
+              4000
+            ]
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Initial Soc Percentage",
+            "description": "An integer representing the current state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              42
+            ]
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              10
+            ]
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
+            "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. These levels are available to algorithms that explicitly enable battery-to-grid export. None leaves the choice of export levels to the caller.",
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
+                1.0
+              ],
+              null
+            ]
+          },
+          "charge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Power Limit W By Soc",
+            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "discharge_power_limit_w_by_soc": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharge Power Limit W By Soc",
+            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
+            "examples": [
+              null
+            ]
+          },
+          "charging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charging Efficiency Curve",
+            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  0.5,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.94
+                ]
+              ]
+            ]
+          },
+          "discharging_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discharging Efficiency Curve",
+            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
+            "examples": [
+              null,
+              [
+                [
+                  0.0,
+                  0.975
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
+            ]
+          },
+          "min_soc_deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Deadline Datetime",
+            "description": "Absolute moment by which 'min_soc_percentage' has to be reached (departure time). A date time without timezone is read as local time. None means end of the optimization horizon.",
+            "examples": [
+              null,
+              "2026-07-16T07:00:00+02:00"
+            ]
+          },
+          "min_soc_max_duration_h": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Max Duration H",
+            "description": "Maximum time from the start of the optimization until 'min_soc_percentage' has to be reached [h]. Combined with 'min_soc_deadline_datetime' the earlier of the two applies.",
+            "examples": [
+              null,
+              6.0
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "capacity_wh"
+        ],
+        "title": "GeneticElectricVehicleRequest",
+        "description": "Battery Electric Vehicle Device Simulation Configuration."
+      },
+      "GeneticEnergyManagementRequest": {
         "properties": {
           "pv_forecast_wh": {
             "items": {
@@ -9914,7 +10249,7 @@
           "preis_euro_pro_wh_akku",
           "gesamtlast"
         ],
-        "title": "GeneticEnergyManagementParameters",
+        "title": "GeneticEnergyManagementRequest",
         "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
       },
       "GeneticForecastsRequest": {
@@ -10002,15 +10337,462 @@
         "title": "GeneticForecastsRequest",
         "description": "External series from local midnight, in slot Wh and currency per Wh.\n\nThe interval is configured in optimization.genetic.interval_sec. Omitted\nseries are read from the configured providers, preserving their raw coverage."
       },
+      "GeneticHomeApplianceRequest": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of home appliance",
+            "examples": [
+              "dishwasher"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "consumption_wh": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumption Wh",
+            "description": "An integer representing the energy consumption of a household device in watt-hours.",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration H",
+            "description": "An integer representing the usage duration of a household device in hours.",
+            "examples": [
+              3
+            ]
+          },
+          "num_cycles": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Num Cycles",
+            "description": "Number of cycles the appliance must run.",
+            "default": 1,
+            "examples": [
+              2
+            ]
+          },
+          "completed_cycles": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Completed Cycles",
+            "description": "Cycles already completed on the first planning day.",
+            "default": 0
+          },
+          "run_started_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Started Datetime",
+            "description": "Start of the run in progress, None when the appliance is not running. The run is kept until the device reports it as finished: its remaining load is fixed from now on, independent of windows, deadline and gene, and it is not counted in 'completed_cycles' yet.",
+            "examples": [
+              null,
+              "2026-11-14T00:47:45+01:00"
+            ]
+          },
+          "min_cycle_gap_h": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Min Cycle Gap H",
+            "description": "Minimum idle time between the end of one cycle and the start of the next cycle.",
+            "default": 0,
+            "examples": [
+              1
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CycleTimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Allowed per-cycle time windows. Each window's `value` encodes the 0-based cycle index it applies to; multiple windows may share a cycle index. When omitted, every cycle is unconstrained across the full prediction horizon.",
+            "examples": [
+              [
+                {
+                  "duration": "3 hours",
+                  "start_time": "10:00",
+                  "value": 0
+                }
+              ]
+            ]
+          },
+          "shared_time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Allowed recurring windows shared by every cycle; intersected with per-cycle windows."
+          },
+          "load_profile_power_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Power W",
+            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts. Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
+            "examples": [
+              [
+                200.0,
+                2000.0,
+                1800.0,
+                100.0
+              ]
+            ]
+          },
+          "load_profile_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Interval Seconds",
+            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
+            "examples": [
+              900,
+              3600
+            ]
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ConsumerScheduleMode",
+            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
+            "default": "ONCE",
+            "examples": [
+              "ONCE",
+              "DAILY"
+            ]
+          },
+          "earliest_start_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Start Datetime",
+            "description": "Absolute earliest moment the run may start. Starts before it are dropped, in addition to 'time_windows' and the horizon. A date time without timezone is read as local time. This bound is never relaxed.",
+            "examples": [
+              null,
+              "2026-07-15T20:00:00+02:00"
+            ]
+          },
+          "deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Datetime",
+            "description": "Absolute deadline: the complete run must have *finished* at or before this moment (e.g. end of the day, or 03:00 tonight). A date time without timezone is read as local time. See 'deadline_policy' for what happens when no start can meet it.",
+            "examples": [
+              null,
+              "2026-07-16T03:00:00+02:00"
+            ]
+          },
+          "deadline_policy": {
+            "$ref": "#/components/schemas/ConsumerDeadlinePolicy",
+            "description": "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT runs as early as possible instead (warning logged), STRICT keeps the deadline (a ONCE consumer then fails the optimization).",
+            "default": "BEST_EFFORT",
+            "examples": [
+              "BEST_EFFORT",
+              "STRICT"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id"
+        ],
+        "title": "GeneticHomeApplianceRequest",
+        "description": "Configuration for a simulated home appliance device."
+      },
+      "GeneticInverterRequest": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of inverter",
+            "examples": [
+              "inverter1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "max_power_wh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Power Wh",
+            "examples": [
+              10000
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "ID of battery",
+            "examples": [
+              null,
+              "battery1"
+            ]
+          },
+          "ac_to_dc_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ac To Dc Efficiency",
+            "description": "Efficiency of AC to DC conversion (for AC/grid charging of battery). Set to 0 to disable AC charging via inverter. Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0,
+              0.0
+            ]
+          },
+          "dc_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dc To Ac Efficiency",
+            "description": "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0
+            ]
+          },
+          "dc_to_ac_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc To Ac Efficiency Curve",
+            "description": "Load-dependent efficiency of DC to AC conversion as a list of (load_fraction, efficiency) points. The load fraction is the AC power of the conversion relative to max_power_wh [0.0 ... 1.0]; points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. Default None (constant dc_to_ac_efficiency).",
+            "examples": [
+              null,
+              [
+                [
+                  0.02,
+                  0.8
+                ],
+                [
+                  0.07,
+                  0.93
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.95
+                ]
+              ]
+            ]
+          },
+          "dc_to_ac_efficiency_reference_load_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dc To Ac Efficiency Reference Load Fraction",
+            "description": "Load fraction at which dc_to_ac_efficiency_curve is evaluated where stored battery energy is valued without a specific conversion (e.g. remaining battery energy at the end of the horizon, AC charge break-even). Should represent the typical load the battery serves, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
+            "default": 0.06,
+            "examples": [
+              0.06,
+              0.1
+            ]
+          },
+          "ac_to_dc_efficiency_curve": {
+            "anyOf": [
+              {
+                "items": {
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ],
+                  "type": "array",
+                  "maxItems": 2,
+                  "minItems": 2
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ac To Dc Efficiency Curve",
+            "description": "Load-dependent efficiency of AC to DC conversion (AC/grid charging of the battery) as a list of (load_fraction, efficiency) points. The load fraction is the AC power drawn relative to max_power_wh [0.0 ... 1.0]; same rules as dc_to_ac_efficiency_curve. When set, the curve replaces ac_to_dc_efficiency for the energy drawn from the grid; ac_to_dc_efficiency still converts the AC charge power limit and should be the efficiency at that limit. Default None (constant ac_to_dc_efficiency).",
+            "examples": [
+              null,
+              [
+                [
+                  0.05,
+                  0.86
+                ],
+                [
+                  0.3,
+                  0.96
+                ],
+                [
+                  1.0,
+                  0.96
+                ]
+              ]
+            ]
+          },
+          "max_ac_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Charge Power W",
+            "description": "Maximum AC charging power in watts. None means no additional limit (battery's own max_charge_power_w applies). Set to 0 to disable AC charging.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
+          },
+          "ac_charge_limits_total_charge": {
+            "type": "boolean",
+            "title": "Ac Charge Limits Total Charge",
+            "description": "True if the AC charge setpoint caps the battery's total charge power, PV included. PV surplus above it is exported, not stored. False keeps the default model: PV surplus charges first and the grid adds ac_charge x max_charge_power_w on top.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "max_power_wh"
+        ],
+        "title": "GeneticInverterRequest",
+        "description": "Inverter Device Simulation Configuration."
+      },
       "GeneticOptimizationParameters": {
         "properties": {
           "ems": {
-            "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
+            "$ref": "#/components/schemas/GeneticEnergyManagementRequest"
           },
           "pv_battery": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/GeneticBatteryRequest"
               },
               {
                 "type": "null"
@@ -10021,7 +10803,7 @@
           "inverter": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/InverterParameters"
+                "$ref": "#/components/schemas/GeneticInverterRequest"
               },
               {
                 "type": "null"
@@ -10031,7 +10813,7 @@
           "ev": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ElectricVehicleParameters"
+                "$ref": "#/components/schemas/GeneticElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -10042,7 +10824,7 @@
           "dishwasher": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/HomeApplianceParameters"
+                "$ref": "#/components/schemas/GeneticHomeApplianceRequest"
               },
               {
                 "type": "null"
@@ -10102,7 +10884,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/HomeApplianceParameters"
+                  "$ref": "#/components/schemas/GeneticHomeApplianceRequest"
                 },
                 "type": "array"
               },
@@ -10133,7 +10915,7 @@
           "pv_akku": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/GeneticBatteryRequest"
               },
               {
                 "type": "null"
@@ -10146,7 +10928,7 @@
           "eauto": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ElectricVehicleParameters"
+                "$ref": "#/components/schemas/GeneticElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -11873,240 +12655,6 @@
         "title": "HomeApplianceCommonSettings",
         "description": "Controllable home appliance device settings.\n\nRepresents a shiftable load whose start time \u2014 and optionally the\nstart times for multiple sequential runs \u2014 can be deferred by the\noptimiser within per-cycle allowed time windows.\n\nThe number of remaining cycles to plan is determined at runtime by\nreading ``cycles_completed_measurement_key`` from the measurement\nstore inside ``HomeApplianceDevice.setup_run``.\n\n``num_cycles`` is required when ``cycle_time_windows`` is ``None``\n(unconstrained); when windows are provided it is derived from\n``cycle_time_windows.num_cycles()``.\n\nSingle-cycle, unconstrained (start any time)\n---------------------------------------------\n\n::\n\n    device_id: dishwasher\n    consumption_wh: 1500\n    duration_h: 2\n    num_cycles: 1\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n\nSingle-cycle, constrained to one window\n----------------------------------------\n\nEach window's ``value`` field carries the **cycle index** (0-based).\nWindows without a ``value`` are ignored by the optimizer::\n\n    device_id: dishwasher\n    consumption_wh: 1500\n    duration_h: 2\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n    cycle_time_windows:\n      windows:\n        - start_time: \"10:00\"\n          duration: \"12 hours\"\n          value: 0\n\nMulti-cycle, per-cycle windows\n--------------------------------\n\nTwo cycles, each with its own window.  Cycle 0 runs in the morning,\ncycle 1 in the evening::\n\n    device_id: washing_machine\n    consumption_wh: 2000\n    duration_h: 2\n    min_cycle_gap_h: 1\n    ports:\n      - port_id: p_ac\n        bus_id: bus_ac\n        direction: sink\n    cycle_time_windows:\n      windows:\n        - start_time: \"07:00\"\n          duration: \"5 hours\"\n          value: 0\n        - start_time: \"17:00\"\n          duration: \"5 hours\"\n          value: 1\n\nMulti-cycle, shared window (both cycles may run any time 10:00-20:00)\n-----------------------------------------------------------------------\n\nAssign the same-shaped windows to distinct cycle indices so the\noptimizer can place them independently::\n\n    cycle_time_windows:\n      windows:\n        - start_time: \"10:00\"\n          duration: \"10 hours\"\n          value: 0\n        - start_time: \"10:00\"\n          duration: \"10 hours\"\n          value: 1"
       },
-      "HomeApplianceParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of home appliance",
-            "examples": [
-              "dishwasher"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "consumption_wh": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Consumption Wh",
-            "description": "An integer representing the energy consumption of a household device in watt-hours.",
-            "examples": [
-              2000
-            ]
-          },
-          "duration_h": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Duration H",
-            "description": "An integer representing the usage duration of a household device in hours.",
-            "examples": [
-              3
-            ]
-          },
-          "num_cycles": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Num Cycles",
-            "description": "Number of cycles the appliance must run.",
-            "default": 1,
-            "examples": [
-              2
-            ]
-          },
-          "completed_cycles": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Completed Cycles",
-            "description": "Cycles already completed on the first planning day.",
-            "default": 0
-          },
-          "run_started_datetime": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Started Datetime",
-            "description": "Start of the run in progress, None when the appliance is not running. The run is kept until the device reports it as finished: its remaining load is fixed from now on, independent of windows, deadline and gene, and it is not counted in 'completed_cycles' yet.",
-            "examples": [
-              null,
-              "2026-11-14T00:47:45+01:00"
-            ]
-          },
-          "min_cycle_gap_h": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Min Cycle Gap H",
-            "description": "Minimum idle time between the end of one cycle and the start of the next cycle.",
-            "default": 0,
-            "examples": [
-              1
-            ]
-          },
-          "time_windows": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CycleTimeWindowSequence-Output"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Allowed per-cycle time windows. Each window's `value` encodes the 0-based cycle index it applies to; multiple windows may share a cycle index. When omitted, every cycle is unconstrained across the full prediction horizon.",
-            "examples": [
-              [
-                {
-                  "duration": "3 hours",
-                  "start_time": "10:00",
-                  "value": 0
-                }
-              ]
-            ]
-          },
-          "shared_time_windows": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TimeWindowSequence-Output"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Allowed recurring windows shared by every cycle; intersected with per-cycle windows."
-          },
-          "load_profile_power_w": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load Profile Power W",
-            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts. Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
-            "examples": [
-              [
-                200.0,
-                2000.0,
-                1800.0,
-                100.0
-              ]
-            ]
-          },
-          "load_profile_interval_seconds": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load Profile Interval Seconds",
-            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
-            "examples": [
-              900,
-              3600
-            ]
-          },
-          "schedule_mode": {
-            "$ref": "#/components/schemas/ConsumerScheduleMode",
-            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
-            "default": "ONCE",
-            "examples": [
-              "ONCE",
-              "DAILY"
-            ]
-          },
-          "earliest_start_datetime": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Earliest Start Datetime",
-            "description": "Absolute earliest moment the run may start. Starts before it are dropped, in addition to 'time_windows' and the horizon. A date time without timezone is read as local time. This bound is never relaxed.",
-            "examples": [
-              null,
-              "2026-07-15T20:00:00+02:00"
-            ]
-          },
-          "deadline_datetime": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deadline Datetime",
-            "description": "Absolute deadline: the complete run must have *finished* at or before this moment (e.g. end of the day, or 03:00 tonight). A date time without timezone is read as local time. See 'deadline_policy' for what happens when no start can meet it.",
-            "examples": [
-              null,
-              "2026-07-16T03:00:00+02:00"
-            ]
-          },
-          "deadline_policy": {
-            "$ref": "#/components/schemas/ConsumerDeadlinePolicy",
-            "description": "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT runs as early as possible instead (warning logged), STRICT keeps the deadline (a ONCE consumer then fails the optimization).",
-            "default": "BEST_EFFORT",
-            "examples": [
-              "BEST_EFFORT",
-              "STRICT"
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id"
-        ],
-        "title": "HomeApplianceParameters",
-        "description": "Configuration for a simulated home appliance device."
-      },
       "HomeAssistantAdapterCommonSettings-Input": {
         "properties": {
           "config_entity_ids": {
@@ -13382,219 +13930,6 @@
         ],
         "title": "InverterCommonSettings",
         "description": "Inverter device settings.\n\nAn inverter bridges a DC bus (PV / battery) and an AC bus (grid /\nhousehold). It must therefore have at least one DC port and one AC\nport."
-      },
-      "InverterParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of inverter",
-            "examples": [
-              "inverter1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "max_power_wh": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Max Power Wh",
-            "examples": [
-              10000
-            ]
-          },
-          "battery_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Battery Id",
-            "description": "ID of battery",
-            "examples": [
-              null,
-              "battery1"
-            ]
-          },
-          "ac_to_dc_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Ac To Dc Efficiency",
-            "description": "Efficiency of AC to DC conversion (for AC/grid charging of battery). Set to 0 to disable AC charging via inverter. Default 1.0 for backward compatibility (no additional inverter loss).",
-            "default": 1.0,
-            "examples": [
-              0.95,
-              1.0,
-              0.0
-            ]
-          },
-          "dc_to_ac_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Dc To Ac Efficiency",
-            "description": "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). Default 1.0 for backward compatibility (no additional inverter loss).",
-            "default": 1.0,
-            "examples": [
-              0.95,
-              1.0
-            ]
-          },
-          "dc_to_ac_efficiency_curve": {
-            "anyOf": [
-              {
-                "items": {
-                  "prefixItems": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ],
-                  "type": "array",
-                  "maxItems": 2,
-                  "minItems": 2
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dc To Ac Efficiency Curve",
-            "description": "Load-dependent efficiency of DC to AC conversion as a list of (load_fraction, efficiency) points. The load fraction is the AC power of the conversion relative to max_power_wh [0.0 ... 1.0]; points must be strictly increasing in load fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces dc_to_ac_efficiency. Default None (constant dc_to_ac_efficiency).",
-            "examples": [
-              null,
-              [
-                [
-                  0.02,
-                  0.8
-                ],
-                [
-                  0.07,
-                  0.93
-                ],
-                [
-                  0.3,
-                  0.96
-                ],
-                [
-                  1.0,
-                  0.95
-                ]
-              ]
-            ]
-          },
-          "dc_to_ac_efficiency_reference_load_fraction": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Dc To Ac Efficiency Reference Load Fraction",
-            "description": "Load fraction at which dc_to_ac_efficiency_curve is evaluated where stored battery energy is valued without a specific conversion (e.g. remaining battery energy at the end of the horizon, AC charge break-even). Should represent the typical load the battery serves, e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. Default 0.06.",
-            "default": 0.06,
-            "examples": [
-              0.06,
-              0.1
-            ]
-          },
-          "ac_to_dc_efficiency_curve": {
-            "anyOf": [
-              {
-                "items": {
-                  "prefixItems": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ],
-                  "type": "array",
-                  "maxItems": 2,
-                  "minItems": 2
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ac To Dc Efficiency Curve",
-            "description": "Load-dependent efficiency of AC to DC conversion (AC/grid charging of the battery) as a list of (load_fraction, efficiency) points. The load fraction is the AC power drawn relative to max_power_wh [0.0 ... 1.0]; same rules as dc_to_ac_efficiency_curve. When set, the curve replaces ac_to_dc_efficiency for the energy drawn from the grid; ac_to_dc_efficiency still converts the AC charge power limit and should be the efficiency at that limit. Default None (constant ac_to_dc_efficiency).",
-            "examples": [
-              null,
-              [
-                [
-                  0.05,
-                  0.86
-                ],
-                [
-                  0.3,
-                  0.96
-                ],
-                [
-                  1.0,
-                  0.96
-                ]
-              ]
-            ]
-          },
-          "max_ac_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Ac Charge Power W",
-            "description": "Maximum AC charging power in watts. None means no additional limit (battery's own max_charge_power_w applies). Set to 0 to disable AC charging.",
-            "examples": [
-              null,
-              0,
-              5000
-            ]
-          },
-          "ac_charge_limits_total_charge": {
-            "type": "boolean",
-            "title": "Ac Charge Limits Total Charge",
-            "description": "True if the AC charge setpoint caps the battery's total charge power, PV included. PV surplus above it is exported, not stored. False keeps the default model: PV surplus charges first and the grid adds ac_charge x max_charge_power_w on top.",
-            "default": false,
-            "examples": [
-              false,
-              true
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "max_power_wh"
-        ],
-        "title": "InverterParameters",
-        "description": "Inverter Device Simulation Configuration."
       },
       "InverterProfileAdjustment": {
         "properties": {
@@ -17700,341 +18035,6 @@
         "type": "object",
         "title": "SettingsEOS",
         "description": "Settings for all EOS.\n\nOnly used to update the configuration with specific settings."
-      },
-      "SolarPanelBatteryParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of battery",
-            "examples": [
-              "battery1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours.",
-            "examples": [
-              8000
-            ]
-          },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "A float representing the charging efficiency of the battery.",
-            "default": 0.88
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "A float representing the discharge efficiency of the battery.",
-            "default": 0.88
-          },
-          "max_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power in watts.",
-            "default": 5000
-          },
-          "max_discharge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Discharge Power W",
-            "description": "Maximum discharging power in watts. 0 means discharging is inhibited. None uses max_charge_power_w.",
-            "examples": [
-              null,
-              4000
-            ]
-          },
-          "initial_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Initial Soc Percentage",
-            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
-            "default": 0,
-            "examples": [
-              42
-            ]
-          },
-          "min_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Min Soc Percentage",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-            "default": 0,
-            "examples": [
-              10
-            ]
-          },
-          "max_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Max Soc Percentage",
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-            "default": 100
-          },
-          "charge_rates": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Rates",
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
-            "examples": [
-              [
-                0.0,
-                0.25,
-                0.5,
-                0.75,
-                1.0
-              ],
-              null
-            ]
-          },
-          "grid_export_rates": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Grid Export Rates",
-            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. These levels are available to algorithms that explicitly enable battery-to-grid export. None leaves the choice of export levels to the caller.",
-            "examples": [
-              [
-                0.25,
-                0.5,
-                0.75,
-                1.0
-              ],
-              [
-                1.0
-              ],
-              null
-            ]
-          },
-          "charge_power_limit_w_by_soc": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Power Limit W By Soc",
-            "description": "Maximum charging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_charge_power_w. None means no SoC dependent limit.",
-            "examples": [
-              null
-            ]
-          },
-          "discharge_power_limit_w_by_soc": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discharge Power Limit W By Soc",
-            "description": "Maximum discharging power [W] per state of charge, e.g. from a battery profile. 101 values, index i is the limit at SoC i %. Further limits max_discharge_power_w. None means no SoC dependent limit.",
-            "examples": [
-              null
-            ]
-          },
-          "charging_efficiency_curve": {
-            "anyOf": [
-              {
-                "items": {
-                  "prefixItems": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ],
-                  "type": "array",
-                  "maxItems": 2,
-                  "minItems": 2
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charging Efficiency Curve",
-            "description": "Power dependent charging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the charging power relative to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing in power fraction, efficiencies in (0, 1]. Values are interpolated linearly and clamped to the first/last point. When set, the curve replaces charging_efficiency in the simulation. None means constant charging_efficiency.",
-            "examples": [
-              null,
-              [
-                [
-                  0.0,
-                  0.975
-                ],
-                [
-                  0.5,
-                  0.96
-                ],
-                [
-                  1.0,
-                  0.94
-                ]
-              ]
-            ]
-          },
-          "discharging_efficiency_curve": {
-            "anyOf": [
-              {
-                "items": {
-                  "prefixItems": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "number"
-                    }
-                  ],
-                  "type": "array",
-                  "maxItems": 2,
-                  "minItems": 2
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discharging Efficiency Curve",
-            "description": "Power dependent discharging efficiency as a list of (power_fraction, efficiency) points. The power fraction is the discharging power relative to max_discharge_power_w [0.0 ... 1.0]; same rules as charging_efficiency_curve. When set, the curve replaces discharging_efficiency in the simulation. None means constant discharging_efficiency.",
-            "examples": [
-              null,
-              [
-                [
-                  0.0,
-                  0.975
-                ],
-                [
-                  1.0,
-                  0.96
-                ]
-              ]
-            ]
-          },
-          "levelized_cost_of_storage_kwh": {
-            "type": "number",
-            "minimum": 0.0,
-            "title": "Levelized Cost Of Storage Kwh",
-            "description": "Levelized cost of storage applied once to each kWh delivered by the battery [EUR/kWh].",
-            "default": 0.0,
-            "examples": [
-              0.12
-            ]
-          },
-          "full_charge_soc_percentage": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 100.0,
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Full Charge Soc Percentage",
-            "description": "State of charge a due full charge has to reach at least once before 'full_charge_deadline_datetime' [%]. Must not exceed 'max_soc_percentage'. None means no full charge is due.",
-            "examples": [
-              null,
-              100
-            ]
-          },
-          "full_charge_deadline_datetime": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Full Charge Deadline Datetime",
-            "description": "Moment by which 'full_charge_soc_percentage' has to be reached. A date time without timezone is read as local time. None means end of the optimization horizon.",
-            "examples": [
-              null,
-              "2026-11-20T07:00:00+01:00"
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "capacity_wh"
-        ],
-        "title": "SolarPanelBatteryParameters",
-        "description": "PV battery device simulation configuration."
       },
       "TailDiagnostics": {
         "properties": {

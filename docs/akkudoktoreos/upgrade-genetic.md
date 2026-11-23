@@ -118,8 +118,9 @@ time, charging power and supported charge rates.
   GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request`, its device and forecast
   models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`;
   GENETIC's `ConfigOptimizationRequest` is `GeneticRequest`, `RuntimeForecasts` is
-  `GeneticForecastsRequest` and `GeneticCommonSettings` is `GeneticSettings`. Clients generated
-  from `openapi.json` must follow the new names.
+  `GeneticForecastsRequest`, its device and forecast models are `Genetic<Thing>Request` (e.g.
+  `SolarPanelBatteryParameters` is `GeneticBatteryRequest`) and `GeneticCommonSettings` is
+  `GeneticSettings`. Clients generated from `openapi.json` must follow the new names.
 
 The new report endpoint is
 `GET /v1/energy-management/optimization/solution/GENETIC/pdf`. It renders the stored

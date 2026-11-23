@@ -26,15 +26,15 @@ from akkudoktoreos.devices.settings.invertersettings import (
 )
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-    Battery,
-    SolarPanelBatteryParameters,
+    GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-    Inverter,
-    InverterParameters,
+    GeneticInverter,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticEnergyManagementRequest,
+    GeneticInverterRequest,
 )
 from akkudoktoreos.optimization.genetic.geneticsimulation import (
     GeneticSimulation,
@@ -51,22 +51,22 @@ def _make_inverter(
     battery=None,
     dc_to_ac_efficiency: float = 1.0,
     **kwargs,
-) -> Inverter:
+) -> GeneticInverter:
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=predictor,
     ):
-        return Inverter(
-            InverterParameters(
+        return GeneticInverter(
+            GeneticInverterRequest(
                 device_id="inverter1",
                 max_power_wh=max_power_wh,
                 battery_id=battery.parameters.device_id if battery else None,
                 dc_to_ac_efficiency=dc_to_ac_efficiency,
                 dc_to_ac_efficiency_curve=curve,
                 **kwargs,
-            ),
+            ).to_parameters(),
             battery=battery,
         )
 
@@ -88,18 +88,18 @@ def _passthrough_battery() -> Mock:
 class TestCurveValidation:
     def test_none_is_allowed(self):
         assert validate_efficiency_curve(None) is None
-        params = InverterParameters(device_id="inverter1", max_power_wh=1000)
+        params = GeneticInverterRequest(device_id="inverter1", max_power_wh=1000)
         assert params.dc_to_ac_efficiency_curve is None
         assert params.dc_to_ac_efficiency_reference_load_fraction == pytest.approx(0.06)
 
     def test_valid_curve_is_accepted(self):
-        params = InverterParameters(
+        params = GeneticInverterRequest(
             device_id="inverter1", max_power_wh=1000, dc_to_ac_efficiency_curve=CURVE
         )
         assert params.dc_to_ac_efficiency_curve == CURVE
 
     def test_json_lists_are_accepted(self):
-        params = InverterParameters.model_validate(
+        params = GeneticInverterRequest.model_validate(
             {
                 "device_id": "inverter1",
                 "max_power_wh": 1000,
@@ -124,14 +124,14 @@ class TestCurveValidation:
     )
     def test_invalid_curve_is_rejected(self, curve):
         with pytest.raises(ValidationError):
-            InverterParameters(
+            GeneticInverterRequest(
                 device_id="inverter1", max_power_wh=1000, dc_to_ac_efficiency_curve=curve
             )
 
     @pytest.mark.parametrize("fraction", [-0.1, 1.1])
     def test_reference_load_fraction_range(self, fraction):
         with pytest.raises(ValidationError):
-            InverterParameters(
+            GeneticInverterRequest(
                 device_id="inverter1",
                 max_power_wh=1000,
                 dc_to_ac_efficiency_reference_load_fraction=fraction,
@@ -174,15 +174,15 @@ class TestInterpolation:
         """max_power_wh is scaled to the slot, so 250 Wh in 15 min is 1 kW."""
         predictor = Mock()
         with patch(
-            "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+            "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
             return_value=predictor,
         ):
-            inverter = Inverter(
-                InverterParameters(
+            inverter = GeneticInverter(
+                GeneticInverterRequest(
                     device_id="inverter1",
                     max_power_wh=5000.0,
                     dc_to_ac_efficiency_curve=CURVE,
-                ),
+                ).to_parameters(),
                 slot_duration_h=0.25,
             )
         # 1 kW of 5 kW -> load fraction 0.2
@@ -245,8 +245,8 @@ class TestProcessEnergyWithCurve:
 
     def test_grid_export_uses_efficiency_at_export_level(self, config_eos):
         """A full-power export runs at the efficiency of the rated load."""
-        battery = Battery(
-            SolarPanelBatteryParameters(
+        battery = GeneticBattery(
+            GeneticBatteryRequest(
                 device_id="battery1",
                 capacity_wh=10000,
                 initial_soc_percentage=100,
@@ -254,7 +254,7 @@ class TestProcessEnergyWithCurve:
                 charging_efficiency=1.0,
                 discharging_efficiency=1.0,
                 max_charge_power_w=1000,
-            ),
+            ).to_parameters(),
             prediction_hours=1,
         )
         battery.reset()
@@ -297,8 +297,8 @@ class TestReferenceEfficiency:
         """Stored energy is valued with the efficiency at the reference load."""
 
         def tail_curve(efficiency_curve):
-            battery = Battery(
-                SolarPanelBatteryParameters(
+            battery = GeneticBattery(
+                GeneticBatteryRequest(
                     device_id="battery1",
                     capacity_wh=1000,
                     max_charge_power_w=1000,
@@ -306,16 +306,16 @@ class TestReferenceEfficiency:
                     discharging_efficiency=1.0,
                     initial_soc_percentage=50,
                     charge_rates=[0, 0.5, 1],
-                ),
+                ).to_parameters(),
                 prediction_hours=1,
             )
-            inverter = Inverter(
-                InverterParameters(
+            inverter = GeneticInverter(
+                GeneticInverterRequest(
                     device_id="inverter1",
                     battery_id="battery1",
                     max_power_wh=5000,
                     dc_to_ac_efficiency_curve=efficiency_curve,
-                ),
+                ).to_parameters(),
                 battery=battery,
             )
             return build_tail_value_curve(
@@ -352,8 +352,8 @@ def _simulate(config_eos, efficiency_curve, dc_to_ac_efficiency=0.95):
             "optimization": {"genetic": {"tail_horizon_hours": 0, "horizon_hours": hours}},
         }
     )
-    battery = Battery(
-        SolarPanelBatteryParameters(
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=10000,
             initial_soc_percentage=60,
@@ -361,25 +361,25 @@ def _simulate(config_eos, efficiency_curve, dc_to_ac_efficiency=0.95):
             charging_efficiency=0.95,
             discharging_efficiency=0.95,
             max_charge_power_w=4000,
-        ),
+        ).to_parameters(),
         prediction_hours=hours,
     )
     battery.reset()
-    inverter = Inverter(
-        InverterParameters(
+    inverter = GeneticInverter(
+        GeneticInverterRequest(
             device_id="inverter1",
             max_power_wh=5000,
             battery_id="battery1",
             dc_to_ac_efficiency=dc_to_ac_efficiency,
             ac_to_dc_efficiency=0.95,
             dc_to_ac_efficiency_curve=efficiency_curve,
-        ),
+        ).to_parameters(),
         battery=battery,
     )
     rng = np.random.default_rng(42)
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters.model_validate(
+        GeneticEnergyManagementRequest.model_validate(
             dict(
                 pv_prognose_wh=list(np.maximum(rng.normal(1500, 1500, hours), 0.0)),
                 strompreis_euro_pro_wh=list(rng.uniform(0.0001, 0.0004, hours)),
@@ -387,7 +387,7 @@ def _simulate(config_eos, efficiency_curve, dc_to_ac_efficiency=0.95):
                 preis_euro_pro_wh_akku=0.0001,
                 gesamtlast=list(rng.uniform(100, 3000, hours)),
             )
-        ),
+        ).to_parameters(),
         optimization_hours=hours,
         prediction_hours=hours,
         inverter=inverter,
@@ -472,9 +472,9 @@ def _real_battery(
     max_power_w: float = 1000.0,
     discharging_efficiency: float = 1.0,
     slot_duration_h: float = 1.0,
-) -> Battery:
-    battery = Battery(
-        SolarPanelBatteryParameters(
+) -> GeneticBattery:
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=capacity_wh,
             initial_soc_percentage=soc_percentage,
@@ -482,7 +482,7 @@ def _real_battery(
             charging_efficiency=1.0,
             discharging_efficiency=discharging_efficiency,
             max_charge_power_w=max_power_w,
-        ),
+        ).to_parameters(),
         prediction_hours=1,
         slot_duration_h=slot_duration_h,
     )
@@ -491,21 +491,21 @@ def _real_battery(
     return battery
 
 
-def _real_inverter(battery: Battery, curve=None, slot_duration_h: float = 1.0, **kwargs) -> Inverter:
+def _real_inverter(battery: GeneticBattery, curve=None, slot_duration_h: float = 1.0, **kwargs) -> GeneticInverter:
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=predictor,
     ):
-        return Inverter(
-            InverterParameters(
+        return GeneticInverter(
+            GeneticInverterRequest(
                 device_id="inverter1",
                 max_power_wh=1000.0,
                 battery_id="battery1",
                 dc_to_ac_efficiency_curve=curve,
                 **kwargs,
-            ),
+            ).to_parameters(),
             battery=battery,
             slot_duration_h=slot_duration_h,
         )
@@ -680,12 +680,12 @@ class TestSolveAcForChargeDcEnergy:
 class TestChargeFromGridWithCurve:
     def test_curve_is_validated(self):
         with pytest.raises(ValidationError):
-            InverterParameters(
+            GeneticInverterRequest(
                 device_id="inverter1", max_power_wh=1000, ac_to_dc_efficiency_curve=[(0.5, 0.9)]
             )
 
     @staticmethod
-    def _empty_battery() -> Battery:
+    def _empty_battery() -> GeneticBattery:
         battery = _real_battery(soc_percentage=0)
         battery.charge_array = np.ones(1)
         return battery

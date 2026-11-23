@@ -20,20 +20,22 @@ from akkudoktoreos.devices.settings.invertersettings import (
     InverterProfileAdjustment,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-    Battery,
-    SolarPanelBatteryParameters,
+    GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-    Inverter,
-    InverterParameters,
+    GeneticInverter,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticInverterRequest,
 )
 
 MAX_CHARGE_W = 5000
 
 
-def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[Inverter, Battery]:
-    battery = Battery(
-        SolarPanelBatteryParameters(
+def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[GeneticInverter, GeneticBattery]:
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=20000,
             initial_soc_percentage=20,
@@ -42,7 +44,7 @@ def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[Inverter, Ba
             min_soc_percentage=0,
             max_soc_percentage=100,
             max_charge_power_w=MAX_CHARGE_W,
-        ),
+        ).to_parameters(),
         prediction_hours=4,
     )
     battery.reset()
@@ -51,24 +53,24 @@ def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[Inverter, Ba
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=predictor,
     ):
-        inverter = Inverter(
-            InverterParameters(
+        inverter = GeneticInverter(
+            GeneticInverterRequest(
                 device_id="inverter1",
                 max_power_wh=10000,
                 battery_id="battery1",
                 ac_to_dc_efficiency=1.0,
                 max_ac_charge_power_w=max_ac_charge_power_w,
                 ac_charge_limits_total_charge=limits_total,
-            ),
+            ).to_parameters(),
             battery=battery,
         )
     return inverter, battery
 
 
-def _run_ac_slot(inverter: Inverter, battery: Battery, pv_wh: float, factor: float):
+def _run_ac_slot(inverter: GeneticInverter, battery: GeneticBattery, pv_wh: float, factor: float):
     """Run one AC slot the way GeneticSimulation.simulate() does."""
     battery.charge_array[0] = factor
     battery.discharge_array[0] = 0
@@ -156,8 +158,8 @@ class TestGeneticSimulation:
 
     @pytest.fixture
     def simulate(self, config_eos):
-        from akkudoktoreos.optimization.genetic.geneticparams import (
-            GeneticEnergyManagementParameters,
+        from akkudoktoreos.optimization.genetic.geneticrequest import (
+            GeneticEnergyManagementRequest,
         )
         from akkudoktoreos.optimization.genetic.geneticsimulation import (
             GeneticSimulation,
@@ -169,8 +171,8 @@ class TestGeneticSimulation:
         hours = config_eos.prediction.hours
 
         def _simulate(limits_total: bool, ac_factor: float, dc_factor: float):
-            battery = Battery(
-                SolarPanelBatteryParameters(
+            battery = GeneticBattery(
+                GeneticBatteryRequest(
                     device_id="battery1",
                     capacity_wh=30000,
                     initial_soc_percentage=20,
@@ -179,22 +181,22 @@ class TestGeneticSimulation:
                     min_soc_percentage=0,
                     max_soc_percentage=100,
                     max_charge_power_w=MAX_CHARGE_W,
-                ),
+                ).to_parameters(),
                 prediction_hours=hours,
             )
             battery.reset()
-            inverter = Inverter(
-                InverterParameters(
+            inverter = GeneticInverter(
+                GeneticInverterRequest(
                     device_id="inverter1",
                     max_power_wh=10000,
                     battery_id="battery1",
                     ac_charge_limits_total_charge=limits_total,
-                ),
+                ).to_parameters(),
                 battery=battery,
             )
             sim = GeneticSimulation()
             sim.prepare(
-                GeneticEnergyManagementParameters.model_validate(
+                GeneticEnergyManagementRequest.model_validate(
                     dict(
                         pv_prognose_wh=[8000.0] * hours,
                         strompreis_euro_pro_wh=[0.0003] * hours,
@@ -202,7 +204,7 @@ class TestGeneticSimulation:
                         preis_euro_pro_wh_akku=0.0001,
                         gesamtlast=[0.0] * hours,
                     )
-                ),
+                ).to_parameters(),
                 optimization_hours=config_eos.optimization.genetic.horizon_hours,
                 prediction_hours=hours,
                 inverter=inverter,

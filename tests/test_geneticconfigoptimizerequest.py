@@ -17,10 +17,10 @@ from akkudoktoreos.core.coreabc import get_measurement
 from akkudoktoreos.core.ems import EnergyManagement, EnergyManagementStage
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic import geneticprepare
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
+    GeneticRequest,
 )
-from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationCommonSettings,

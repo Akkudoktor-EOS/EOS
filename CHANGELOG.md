@@ -199,8 +199,9 @@ test procedure. These changes are not yet a tagged release.
   GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request`, its device and forecast
   models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`;
   GENETIC's `ConfigOptimizationRequest` is `GeneticRequest`, `RuntimeForecasts` is
-  `GeneticForecastsRequest` and `GeneticCommonSettings` is `GeneticSettings`. Clients generated
-  from `openapi.json` must follow the new names.
+  `GeneticForecastsRequest`, its device and forecast models are `Genetic<Thing>Request` (e.g.
+  `SolarPanelBatteryParameters` is `GeneticBatteryRequest`) and `GeneticCommonSettings` is
+  `GeneticSettings`. Clients generated from `openapi.json` must follow the new names.
 
 ### Fixed
 
@@ -256,6 +257,9 @@ test procedure. These changes are not yet a tagged release.
   follow their `tz`, or UTC without one, instead of the timezone of the EOS host. A series takes
   the timezone of its data. The keys name the same instants as before; only their UTC offsets
   can differ ([#1592](https://github.com/Akkudoktor-EOS/EOS/issues/1592)).
+- The date-times of a GENETIC request (battery full-charge deadline, EV minimum-SoC deadline,
+  home appliance start window and run start) are held in UTC instead of the timezone of the EOS
+  host. Echoed requests and replay files show them with `Z`; they name the same instants.
 
 ### Security
 

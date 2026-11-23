@@ -22,13 +22,13 @@ from deap import base, creator, tools
 from loguru import logger
 
 from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
-from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
 )
-from akkudoktoreos.optimization.genetic.devices.geneticinverter import Inverter
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import GeneticInverter
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticRunSettings
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsimulation import GeneticSimulation
@@ -797,8 +797,8 @@ class GeneticOptimization:
 
     def _build_terminal_value_curve(
         self,
-        battery: Optional[Battery],
-        inverter: Optional[Inverter],
+        battery: Optional[GeneticBattery],
+        inverter: Optional[GeneticInverter],
     ) -> Optional[TerminalValueCurve]:
         """Build continuation at the effective tail end, then solve the tail.
 
@@ -3698,20 +3698,20 @@ class GeneticOptimization:
 
         # Initialize PV and EV batteries. slot_duration_h lets the Battery scale
         # its power caps (max_charge_power_w) to a per-slot energy cap.
-        akku: Optional[Battery] = None
+        akku: Optional[GeneticBattery] = None
         if parameters.pv_battery:
-            akku = Battery(
-                parameters.pv_battery,
+            akku = GeneticBattery(
+                parameters.pv_battery.to_parameters(),
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
                 first_slot_fraction=self.first_slot_fraction,
             )
             akku.set_charge_per_hour(np.full(self.control_end_slot, 0))
 
-        eauto: Optional[Battery] = None
+        eauto: Optional[GeneticBattery] = None
         if parameters.ev:
-            eauto = Battery(
-                parameters.ev,
+            eauto = GeneticBattery(
+                parameters.ev.to_parameters(),
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
                 first_slot_fraction=self.first_slot_fraction,
@@ -3818,18 +3818,19 @@ class GeneticOptimization:
 
         # Initialize the inverter and energy management system. slot_duration_h
         # lets the Inverter scale max_power_wh to a per-slot energy cap.
-        inverter: Optional[Inverter] = None
+        inverter: Optional[GeneticInverter] = None
         if parameters.inverter:
-            inverter = Inverter(
-                parameters.inverter,
+            inverter = GeneticInverter(
+                parameters.inverter.to_parameters(),
                 battery=akku,
                 slot_duration_h=self.slot_duration_h,
                 first_slot_fraction=self.first_slot_fraction,
+                self_consumption_backend=self.settings.self_consumption_interpolator,
             )
 
         # Prepare device simulation
         self.simulation.prepare(
-            parameters=parameters.ems,
+            parameters=parameters.ems.to_parameters(),
             optimization_hours=self.settings.horizon_hours,
             prediction_hours=self.control_end_slot,
             inverter=inverter,  # battery is part of inverter

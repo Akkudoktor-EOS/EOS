@@ -16,10 +16,10 @@ from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
+    GeneticRequest,
 )
-from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 

@@ -515,6 +515,7 @@
                 "timezone": "Europe/Berlin"
             },
             "timezone": "Europe/Berlin",
+            "self_consumption_interpolator": "scipy",
             "verbose": false
         }
     }

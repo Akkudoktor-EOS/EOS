@@ -15,8 +15,8 @@ from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     _release_freed_memory,
     _unpack_genes,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticEnergyManagementRequest,
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
@@ -613,7 +613,7 @@ class TestWarmStartAlignment:
     def test_parameters_accept_iso_start_solution_datetime(self, config_eos: ConfigEOS):
         parameters = GeneticOptimizationParameters.model_validate(
             dict(
-                ems=GeneticEnergyManagementParameters.model_validate(
+                ems=GeneticEnergyManagementRequest.model_validate(
                     dict(
                         pv_prognose_wh=[0.0, 0.0],
                         strompreis_euro_pro_wh=[0.0, 0.0],

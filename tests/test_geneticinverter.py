@@ -6,12 +6,14 @@ import pytest
 from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-    Battery,
-    SolarPanelBatteryParameters,
+    GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-    Inverter,
-    InverterParameters,
+    GeneticInverter,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticInverterRequest,
 )
 
 
@@ -28,17 +30,17 @@ def mock_battery() -> Mock:
 
 
 @pytest.fixture
-def inverter(mock_battery) -> Inverter:
+def inverter(mock_battery) -> GeneticInverter:
     mock_self_consumption_predictor = Mock()
     mock_self_consumption_predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=mock_self_consumption_predictor,
     ):
-        iv = Inverter(
-            InverterParameters(
+        iv = GeneticInverter(
+            GeneticInverterRequest(
                 device_id="iv1", max_power_wh=500.0, battery_id=mock_battery.parameters.device_id
-            ),
+            ).to_parameters(),
             battery=mock_battery,
         )
         return iv
@@ -46,27 +48,27 @@ def inverter(mock_battery) -> Inverter:
 
 def test_quarter_hour_load_and_grid_export_share_discharge_power_limit():
     """Local supply plus direct export may not exceed one slot's battery budget."""
-    battery = Battery(
-        SolarPanelBatteryParameters(
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery",
             capacity_wh=10000,
             charging_efficiency=1.0,
             discharging_efficiency=1.0,
             max_charge_power_w=7000,
             initial_soc_percentage=100,
-        ),
+        ).to_parameters(),
         prediction_hours=1,
         slot_duration_h=0.25,
     )
     battery.set_discharge_per_hour(np.array([1]))
-    quarter_hour_inverter = Inverter(
-        InverterParameters(
+    quarter_hour_inverter = GeneticInverter(
+        GeneticInverterRequest(
             device_id="inverter",
             max_power_wh=10000,
             battery_id="battery",
             dc_to_ac_efficiency=1.0,
             ac_to_dc_efficiency=1.0,
-        ),
+        ).to_parameters(),
         battery=battery,
         slot_duration_h=0.25,
     )
@@ -136,11 +138,11 @@ def test_probabilistic_bypass_conserves_energy_without_battery():
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.return_value = 150.0
     with patch(
-        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=predictor,
     ):
-        inverter_without_battery = Inverter(
-            InverterParameters(device_id="inverter", max_power_wh=1000.0)
+        inverter_without_battery = GeneticInverter(
+            GeneticInverterRequest(device_id="inverter", max_power_wh=1000.0).to_parameters()
         )
 
     generation = 600.0
@@ -162,11 +164,11 @@ def test_probabilistic_bypass_conserves_energy_on_quarter_hour_grid():
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.return_value = 600.0
     with patch(
-        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=predictor,
     ):
-        inverter_without_battery = Inverter(
-            InverterParameters(device_id="inverter", max_power_wh=2000.0),
+        inverter_without_battery = GeneticInverter(
+            GeneticInverterRequest(device_id="inverter", max_power_wh=2000.0).to_parameters(),
             slot_duration_h=0.25,
         )
 
@@ -512,8 +514,8 @@ class TestInverterSettings:
 
 def test_battery_discharge_limit_caps_load_and_grid_export():
     """The inverter's inlined discharge uses the battery's discharge power limit."""
-    battery = Battery(
-        SolarPanelBatteryParameters(
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery",
             capacity_wh=10000,
             charging_efficiency=1.0,
@@ -521,19 +523,19 @@ def test_battery_discharge_limit_caps_load_and_grid_export():
             max_charge_power_w=7000,
             max_discharge_power_w=4000,
             initial_soc_percentage=100,
-        ),
+        ).to_parameters(),
         prediction_hours=1,
         slot_duration_h=0.25,
     )
     battery.set_discharge_per_hour(np.array([1]))
-    quarter_hour_inverter = Inverter(
-        InverterParameters(
+    quarter_hour_inverter = GeneticInverter(
+        GeneticInverterRequest(
             device_id="inverter",
             max_power_wh=10000,
             battery_id="battery",
             dc_to_ac_efficiency=1.0,
             ac_to_dc_efficiency=1.0,
-        ),
+        ).to_parameters(),
         battery=battery,
         slot_duration_h=0.25,
     )
@@ -560,16 +562,16 @@ class TestFirstSlotFraction:
         predictor = Mock()
         predictor.calculate_expected_direct_consumption.side_effect = min
         with patch(
-            "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
+            "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
             return_value=predictor,
         ):
-            inverter = Inverter(
-                InverterParameters(
+            inverter = GeneticInverter(
+                GeneticInverterRequest(
                     device_id="inverter1",
                     max_power_wh=4000.0,
                     battery_id=battery.parameters.device_id if battery else None,
                     **parameters,
-                ),
+                ).to_parameters(),
                 battery=battery,
                 first_slot_fraction=first_slot_fraction,
             )
@@ -599,15 +601,15 @@ class TestFirstSlotFraction:
         assert inverter.dc_to_ac_efficiency_at(1000.0) == pytest.approx(0.97)
 
     def test_ac_charge_in_slot_0_uses_the_remaining_part(self):
-        battery = Battery(
-            SolarPanelBatteryParameters(
+        battery = GeneticBattery(
+            GeneticBatteryRequest(
                 device_id="battery1",
                 capacity_wh=40_000,
                 initial_soc_percentage=0,
                 min_soc_percentage=0,
                 max_charge_power_w=8_000,
                 charging_efficiency=1.0,
-            ),
+            ).to_parameters(),
             prediction_hours=2,
             first_slot_fraction=0.25,
         )

@@ -29,15 +29,16 @@ from akkudoktoreos.optimization.genetic.geneticparameters import (
     GeneticParameters,
     GeneticRunSettings,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticEnergyManagementRequest,
     GeneticOptimizationParameters,
+    GeneticRequest,
 )
-from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsettings import TerminalValueMode
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimizer import RunClock
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 # Settings that a run can override.
 OVERRIDE_KEYS = ("generations", "individuals", "seed")
@@ -175,6 +176,9 @@ def run_settings(
         start_datetime=start_datetime,
         observation_datetime=observation_datetime,
         timezone=config.general.timezone,
+        self_consumption_interpolator=GridInterpolatorBackend(
+            config.optimization.self_consumption_interpolator
+        ),
         verbose=bool(config.server.verbose),
     )
 
@@ -646,7 +650,7 @@ async def resolve_request(
             start_solution_time = warm_start.start_solution_datetime
     return GeneticOptimizationParameters(
         forecast_interval_seconds=settings.interval_sec,
-        ems=GeneticEnergyManagementParameters(
+        ems=GeneticEnergyManagementRequest(
             pv_forecast_wh=pv,
             total_load=load,
             electricity_price_per_wh=prices,

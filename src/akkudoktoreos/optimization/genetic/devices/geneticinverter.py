@@ -1,151 +1,72 @@
+"""Inverter of the GENETIC simulation."""
+
 from bisect import bisect_left
+from dataclasses import dataclass
 from typing import Optional
 
 from loguru import logger
-from pydantic import Field, field_validator
 
-from akkudoktoreos.devices.devicesabc import (
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
+from akkudoktoreos.optimization.genetic.geneticefficiency import (
     interpolate_efficiency_curve,
     solve_ac_for_charge_dc_energy,
     solve_ac_for_dc_energy,
-    validate_efficiency_curve,
 )
-from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
-from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
-from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
+from akkudoktoreos.optimization.genetic.geneticloadinterpolator import (
+    get_genetic_load_interpolator,
+)
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
-class InverterParameters(DeviceParameters):
-    """Inverter Device Simulation Configuration."""
+@dataclass(frozen=True, slots=True)
+class GeneticInverterParameters:
+    """An inverter of the simulation, derived from its request.
 
-    device_id: str = Field(
-        json_schema_extra={"description": "ID of inverter", "examples": ["inverter1"]}
-    )
-    max_power_wh: float = Field(gt=0, json_schema_extra={"examples": [10000]})
-    battery_id: Optional[str] = Field(
-        default=None,
-        json_schema_extra={"description": "ID of battery", "examples": [None, "battery1"]},
-    )
-    ac_to_dc_efficiency: float = Field(
-        default=1.0,
-        ge=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Efficiency of AC to DC conversion (for AC/grid charging of battery). "
-                "Set to 0 to disable AC charging via inverter. "
-                "Default 1.0 for backward compatibility (no additional inverter loss)."
-            ),
-            "examples": [0.95, 1.0, 0.0],
-        },
-    )
-    dc_to_ac_efficiency: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). "
-                "Default 1.0 for backward compatibility (no additional inverter loss)."
-            ),
-            "examples": [0.95, 1.0],
-        },
-    )
-    dc_to_ac_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Load-dependent efficiency of DC to AC conversion as a list of "
-                "(load_fraction, efficiency) points. The load fraction is the AC power "
-                "of the conversion relative to max_power_wh [0.0 ... 1.0]; points must be "
-                "strictly increasing in load fraction, efficiencies in (0, 1]. Values are "
-                "interpolated linearly and clamped to the first/last point. When set, the "
-                "curve replaces dc_to_ac_efficiency. "
-                "Default None (constant dc_to_ac_efficiency)."
-            ),
-            "examples": [None, [[0.02, 0.8], [0.07, 0.93], [0.3, 0.96], [1.0, 0.95]]],
-        },
-    )
-    dc_to_ac_efficiency_reference_load_fraction: float = Field(
-        default=0.06,
-        ge=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Load fraction at which dc_to_ac_efficiency_curve is evaluated where "
-                "stored battery energy is valued without a specific conversion "
-                "(e.g. remaining battery energy at the end of the horizon, AC charge "
-                "break-even). Should represent the typical load the battery serves, "
-                "e.g. the night-time base load. Only used with dc_to_ac_efficiency_curve. "
-                "Default 0.06."
-            ),
-            "examples": [0.06, 0.1],
-        },
-    )
-    ac_to_dc_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Load-dependent efficiency of AC to DC conversion (AC/grid charging of the "
-                "battery) as a list of (load_fraction, efficiency) points. The load "
-                "fraction is the AC power drawn relative to max_power_wh [0.0 ... 1.0]; "
-                "same rules as dc_to_ac_efficiency_curve. When set, the curve replaces "
-                "ac_to_dc_efficiency for the energy drawn from the grid; "
-                "ac_to_dc_efficiency still converts the AC charge power limit and should "
-                "be the efficiency at that limit. Default None (constant "
-                "ac_to_dc_efficiency)."
-            ),
-            "examples": [None, [[0.05, 0.86], [0.3, 0.96], [1.0, 0.96]]],
-        },
-    )
-    max_ac_charge_power_w: Optional[float] = Field(
-        default=None,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Maximum AC charging power in watts. "
-                "None means no additional limit (battery's own max_charge_power_w applies). "
-                "Set to 0 to disable AC charging."
-            ),
-            "examples": [None, 0, 5000],
-        },
-    )
-    ac_charge_limits_total_charge: bool = Field(
-        default=False,
-        json_schema_extra={
-            "description": (
-                "True if the AC charge setpoint caps the battery's total charge power, "
-                "PV included. PV surplus above it is exported, not stored. False keeps "
-                "the default model: PV surplus charges first and the grid adds "
-                "ac_charge x max_charge_power_w on top."
-            ),
-            "examples": [False, True],
-        },
-    )
+    Attributes:
+        device_id: ID of the inverter.
+        max_power_wh: Maximum power [W], the energy per hour it can convert.
+        battery_id: ID of the battery behind the inverter, if any.
+        ac_to_dc_efficiency: Efficiency of AC to DC conversion (grid charging).
+        dc_to_ac_efficiency: Efficiency of DC to AC conversion.
+        dc_to_ac_efficiency_curve: DC to AC efficiency by load fraction.
+        dc_to_ac_efficiency_reference_load_fraction: Load fraction at which stored energy is
+            valued with the DC to AC curve.
+        ac_to_dc_efficiency_curve: AC to DC efficiency by load fraction.
+        max_ac_charge_power_w: Maximum AC charging power [W]; ``None`` is no extra limit.
+        ac_charge_limits_total_charge: The AC charge setpoint caps the total charge power.
+    """
 
-    @field_validator("dc_to_ac_efficiency_curve", "ac_to_dc_efficiency_curve")
-    @classmethod
-    def _validate_efficiency_curves(
-        cls, value: Optional[list[tuple[float, float]]]
-    ) -> Optional[list[tuple[float, float]]]:
-        return validate_efficiency_curve(value)
+    device_id: str
+    max_power_wh: float
+    battery_id: Optional[str]
+    ac_to_dc_efficiency: float
+    dc_to_ac_efficiency: float
+    dc_to_ac_efficiency_curve: Optional[tuple[tuple[float, float], ...]]
+    dc_to_ac_efficiency_reference_load_fraction: float
+    ac_to_dc_efficiency_curve: Optional[tuple[tuple[float, float], ...]]
+    max_ac_charge_power_w: Optional[float]
+    ac_charge_limits_total_charge: bool
 
 
-class Inverter:
+class GeneticInverter:
+    """Inverter of the simulation: converts PV, battery and grid energy within its power."""
+
     def __init__(
         self,
-        parameters: InverterParameters,
-        battery: Optional[Battery] = None,
+        parameters: GeneticInverterParameters,
+        battery: Optional[GeneticBattery] = None,
         slot_duration_h: float = 1.0,
         first_slot_fraction: float = 1.0,
+        self_consumption_backend: GridInterpolatorBackend = GridInterpolatorBackend.SCIPY,
     ):
         # `first_slot_fraction` is the part of slot 0 still ahead when the
         # optimization runs within that slot; slot 0 then moves only that part
         # of the slot energy (see Battery).
         if not 0.0 < first_slot_fraction <= 1.0:
             raise ValueError(f"first_slot_fraction must be in (0, 1], got {first_slot_fraction}.")
-        self.parameters: InverterParameters = parameters
-        self.battery: Optional[Battery] = battery
+        self.parameters: GeneticInverterParameters = parameters
+        self.battery: Optional[GeneticBattery] = battery
+        self.self_consumption_backend = self_consumption_backend
         self.slot_duration_h: float = slot_duration_h
         self.first_slot_fraction: float = first_slot_fraction
         self._setup()
@@ -162,7 +83,9 @@ class Inverter:
             error_msg = f"Battery ID mismatch - {self.parameters.battery_id} is configured; got {self.battery.parameters.device_id}."
             logger.error(error_msg)
             raise ValueError(error_msg)
-        self.self_consumption_predictor = get_eos_load_interpolator()
+        self.self_consumption_predictor = get_genetic_load_interpolator(
+            self.self_consumption_backend
+        )
         # max_power_wh is supplied as power [W] but used as the maximum energy
         # the inverter can move during one optimization slot.
         self.max_power_wh = self.parameters.max_power_wh * self.slot_duration_h
@@ -196,7 +119,7 @@ class Inverter:
         """
         if self.dc_to_ac_efficiency_curve is None:
             return self.dc_to_ac_efficiency
-        curve: list[tuple[float, float]] = self.dc_to_ac_efficiency_curve
+        curve: tuple[tuple[float, float], ...] = self.dc_to_ac_efficiency_curve
         slot_max_power_wh = self.max_power_wh * scale
         load_fraction = ac_wh / slot_max_power_wh if slot_max_power_wh > 0 else 0.0
         # This runs for every battery discharge of every candidate plan. Find
@@ -320,7 +243,7 @@ class Inverter:
         if not battery or requested_ac_wh <= 0.0:
             return 0.0, 0.0
         scale = self.first_slot_fraction if hour == 0 else 1.0
-        if type(battery) is not Battery:
+        if type(battery) is not GeneticBattery:
             # Another battery implementation: ask it, step by step.
             if not battery.discharge_released(hour):
                 return 0.0, 0.0

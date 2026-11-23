@@ -25,13 +25,11 @@ from akkudoktoreos.devices.devicesabc import (
     ApplianceOperationMode,
     BatteryOperationMode,
 )
-from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
-from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-    InverterParameters,
-)
-from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticInverterRequest,
     GeneticOptimizationParameters,
+    GeneticParametersBaseModel,
 )
 from akkudoktoreos.optimization.genetic.geneticterminalvalue import TerminalValueResult
 from akkudoktoreos.optimization.optimization import OptimizationSolution
@@ -401,7 +399,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
-        if isinstance(field, Battery):
+        if isinstance(field, GeneticBattery):
             return ElectricVehicleResult(**field.to_dict())
         return field
 
@@ -611,7 +609,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
     def _inverter_parameters_list(
         self, parameters: Optional[GeneticOptimizationParameters]
-    ) -> list[InverterParameters]:
+    ) -> list[GeneticInverterRequest]:
         """Return the inverter parameters the solution was computed with, as a list.
 
         Without stored parameters, the first configured inverter is resolved from

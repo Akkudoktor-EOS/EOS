@@ -32,7 +32,9 @@ from akkudoktoreos.config.configabc import (
 )
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
-    HomeApplianceParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticHomeApplianceRequest,
 )
 from akkudoktoreos.utils.datetimeutil import Time, to_datetime, to_duration
 
@@ -2413,7 +2415,7 @@ class TestTimeWindowBoundaries:
         # Exercise the serialized settings used by the dashboard/API as well.
         sequence = CycleTimeWindowSequence.model_validate_json(sequence.model_dump_json())
         appliance = HomeAppliance(
-            parameters=HomeApplianceParameters(
+            parameters=GeneticHomeApplianceRequest(
                 device_id="dishwasher",
                 duration_h=2,
                 consumption_wh=2000,

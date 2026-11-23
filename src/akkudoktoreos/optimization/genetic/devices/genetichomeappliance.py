@@ -31,28 +31,26 @@ Cycle start times are repaired according to the following rules:
 
 import math
 from collections.abc import Sequence
-from typing import Any, Optional, Self
+from typing import Any, Optional
 
 import numpy as np
 from loguru import logger
-from pydantic import Field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import (
     CycleTimeWindowSequence,
     TimeWindow,
-    TimeWindowSequence,
     ValueTimeWindow,
 )
 from akkudoktoreos.devices.devicesabc import (
     ConsumerDeadlinePolicy,
     ConsumerScheduleMode,
-    validate_home_appliance_load_definition,
 )
-from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticHomeApplianceRequest,
+)
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
-    compare_datetimes,
     to_datetime,
     to_duration,
     to_time,
@@ -115,201 +113,6 @@ def resample_power_to_slot_energy(
     return out
 
 
-class HomeApplianceParameters(DeviceParameters):
-    """Configuration for a simulated home appliance device."""
-
-    device_id: str = Field(
-        json_schema_extra={
-            "description": "ID of home appliance",
-            "examples": ["dishwasher"],
-        }
-    )
-    consumption_wh: Optional[int] = Field(
-        default=None,
-        gt=0,
-        json_schema_extra={
-            "description": (
-                "An integer representing the energy consumption "
-                "of a household device in watt-hours."
-            ),
-            "examples": [2000],
-        },
-    )
-    duration_h: Optional[int] = Field(
-        default=None,
-        gt=0,
-        json_schema_extra={
-            "description": (
-                "An integer representing the usage duration of a household device in hours."
-            ),
-            "examples": [3],
-        },
-    )
-    num_cycles: int = Field(
-        default=1,
-        gt=0,
-        json_schema_extra={
-            "description": "Number of cycles the appliance must run.",
-            "examples": [2],
-        },
-    )
-    completed_cycles: int = Field(
-        default=0, ge=0, description="Cycles already completed on the first planning day."
-    )
-    run_started_datetime: Optional[DateTime] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Start of the run in progress, None when the appliance is not "
-                "running. The run is kept until the device reports it as finished: "
-                "its remaining load is fixed from now on, independent of windows, "
-                "deadline and gene, and it is not counted in 'completed_cycles' yet."
-            ),
-            "examples": [None, "2026-11-14T00:47:45+01:00"],
-        },
-    )
-
-    min_cycle_gap_h: int = Field(
-        default=0,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Minimum idle time between the end of one cycle and the start of the next cycle."
-            ),
-            "examples": [1],
-        },
-    )
-    time_windows: Optional[CycleTimeWindowSequence] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Allowed per-cycle time windows. Each window's `value` "
-                "encodes the 0-based cycle index it applies to; multiple "
-                "windows may share a cycle index. When omitted, every "
-                "cycle is unconstrained across the full prediction "
-                "horizon."
-            ),
-            "examples": [
-                [
-                    {
-                        "start_time": "10:00",
-                        "duration": "3 hours",
-                        "value": 0,
-                    },
-                ],
-            ],
-        },
-    )
-
-    shared_time_windows: Optional[TimeWindowSequence] = Field(
-        default=None,
-        description="Allowed recurring windows shared by every cycle; intersected with per-cycle windows.",
-    )
-
-    load_profile_power_w: Optional[list[float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Explicit load profile describing a single complete run as a "
-                "sequence of non-negative power values in watts. Each value "
-                "covers 'load_profile_interval_seconds'. Mutually exclusive with "
-                "consumption_wh/duration_h."
-            ),
-            "examples": [[200.0, 2000.0, 1800.0, 100.0]],
-        },
-    )
-    load_profile_interval_seconds: Optional[int] = Field(
-        default=None,
-        gt=0,
-        json_schema_extra={
-            "description": (
-                "Duration of one 'load_profile_power_w' step in seconds. Defaults "
-                "to the configured optimization interval when a profile is given."
-            ),
-            "examples": [900, 3600],
-        },
-    )
-    schedule_mode: ConsumerScheduleMode = Field(
-        default=ConsumerScheduleMode.ONCE,
-        json_schema_extra={
-            "description": (
-                "Scheduling mode: ONCE (a single run within the horizon) or DAILY "
-                "(one run per local calendar day with a feasible full run)."
-            ),
-            "examples": ["ONCE", "DAILY"],
-        },
-    )
-    earliest_start_datetime: Optional[DateTime] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Absolute earliest moment the run may start. Starts before it are "
-                "dropped, in addition to 'time_windows' and the horizon. A date "
-                "time without timezone is read as local time. This bound is never "
-                "relaxed."
-            ),
-            "examples": [None, "2026-07-15T20:00:00+02:00"],
-        },
-    )
-    deadline_datetime: Optional[DateTime] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Absolute deadline: the complete run must have *finished* at or "
-                "before this moment (e.g. end of the day, or 03:00 tonight). A "
-                "date time without timezone is read as local time. See "
-                "'deadline_policy' for what happens when no start can meet it."
-            ),
-            "examples": [None, "2026-07-16T03:00:00+02:00"],
-        },
-    )
-    deadline_policy: ConsumerDeadlinePolicy = Field(
-        default=ConsumerDeadlinePolicy.BEST_EFFORT,
-        json_schema_extra={
-            "description": (
-                "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT "
-                "runs as early as possible instead (warning logged), STRICT keeps "
-                "the deadline (a ONCE consumer then fails the optimization)."
-            ),
-            "examples": ["BEST_EFFORT", "STRICT"],
-        },
-    )
-
-    @field_validator(
-        "earliest_start_datetime", "deadline_datetime", "run_started_datetime", mode="before"
-    )
-    @classmethod
-    def transform_to_datetime(cls, value: Any) -> Optional[DateTime]:
-        """Accept the usual date time representations, naive input is local time."""
-        if value is None:
-            return None
-        return to_datetime(value)
-
-    @model_validator(mode="after")
-    def validate_load_definition(self) -> Self:
-        """Ensure a complete load definition and valid completed-cycle count."""
-        if self.completed_cycles > self.num_cycles:
-            raise ValueError("completed_cycles must not exceed num_cycles.")
-        validate_home_appliance_load_definition(
-            load_profile_power_w=self.load_profile_power_w,
-            load_profile_interval_seconds=self.load_profile_interval_seconds,
-            consumption_wh=self.consumption_wh,
-            duration_h=self.duration_h,
-        )
-        return self
-
-    @model_validator(mode="after")
-    def validate_schedule_bounds(self) -> Self:
-        """Reject an empty scheduling interval."""
-        if self.earliest_start_datetime is not None and self.deadline_datetime is not None:
-            if compare_datetimes(self.deadline_datetime, self.earliest_start_datetime).le:
-                raise ValueError(
-                    f"deadline_datetime {self.deadline_datetime} must be after "
-                    f"earliest_start_datetime {self.earliest_start_datetime}."
-                )
-        return self
-
-
 class HomeAppliance:
     """Non-vectorized simulation of a multi-cycle home appliance.
 
@@ -324,7 +127,7 @@ class HomeAppliance:
 
     def __init__(
         self,
-        parameters: HomeApplianceParameters,
+        parameters: GeneticHomeApplianceRequest,
         optimization_hours: int,
         prediction_hours: int,
         slot_duration_h: float = 1.0,

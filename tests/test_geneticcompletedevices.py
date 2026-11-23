@@ -16,20 +16,22 @@ from akkudoktoreos.devices.settings.homeappliancesettings import (
 )
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-    Battery,
-    ElectricVehicleParameters,
+    GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
-    HomeApplianceParameters,
     resample_power_to_slot_energy,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticElectricVehicleRequest,
+    GeneticHomeApplianceRequest,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
 def appliance(*, slots: int = 192, slot_h: float = 0.25, **kwargs: Any) -> HomeAppliance:
     return HomeAppliance(
-        HomeApplianceParameters.model_validate(
+        GeneticHomeApplianceRequest.model_validate(
             {
                 "device_id": "washer",
                 "load_profile_power_w": [1200.0, 600.0, 300.0],
@@ -61,7 +63,7 @@ def test_profile_energy_independent_of_slot_grid(input_s: int, slot_s: int) -> N
 
 @pytest.mark.parametrize("profile", [[], [-1], [float("nan")], [float("inf")]])
 def test_invalid_profiles_rejected_in_parameters_and_settings(profile: list[float]) -> None:
-    for model in (HomeApplianceParameters, HomeApplianceCommonSettings):
+    for model in (GeneticHomeApplianceRequest, HomeApplianceCommonSettings):
         with pytest.raises(ValidationError):
             model.model_validate({"device_id": "bad", "load_profile_power_w": profile})
 
@@ -70,7 +72,7 @@ def test_invalid_profiles_rejected_in_parameters_and_settings(profile: list[floa
     "fields", [{"duration_h": 2}, {"consumption_wh": 500}, {"duration_h": 2, "consumption_wh": 500}]
 )
 def test_profile_cannot_silently_override_explicit_flat_definition(fields: dict[str, int]) -> None:
-    for model in (HomeApplianceParameters, HomeApplianceCommonSettings):
+    for model in (GeneticHomeApplianceRequest, HomeApplianceCommonSettings):
         with pytest.raises(ValidationError, match="Conflicting"):
             model.model_validate({"device_id": "bad", "load_profile_power_w": [100.0], **fields})
 
@@ -242,7 +244,7 @@ def test_ev_deadlines_roundtrip_without_changing_slot_physics() -> None:
     assert params.min_soc_deadline_datetime.in_timezone("Europe/Berlin").hour == 7
     assert params.capacity_wh == 10000
     assert params.max_charge_power_w == pytest.approx(4000)
-    battery = Battery(params, prediction_hours=16, slot_duration_h=0.25)
+    battery = GeneticBattery(params.to_parameters(), prediction_hours=16, slot_duration_h=0.25)
     battery.charge_array[0] = 1
     # 4000 W for a 0.25 h slot caps the 2000 Wh request at 1000 Wh; the charging
     # efficiency comes from the battery profile.
@@ -256,7 +258,7 @@ def test_ev_deadlines_roundtrip_without_changing_slot_physics() -> None:
 def test_ev_invalid_departure_durations_rejected(duration: float) -> None:
     # Optimizer parameters take "capacity_wh", settings a profile adjustment.
     for model, capacity in (
-        (ElectricVehicleParameters, {"capacity_wh": 10000}),
+        (GeneticElectricVehicleRequest, {"capacity_wh": 10000}),
         (BatteriesCommonSettings, {"profile_adjustment": {"nominal_capacity_wh": 10000}}),
     ):
         with pytest.raises(ValidationError):
@@ -299,3 +301,35 @@ def test_absolute_deadline_offsets_describe_same_instant(deadline: str) -> None:
     ) == [0, 1, 2]
     assert not device.deadline_missed([2], zero)
     assert device.deadline_missed([3], zero)
+
+
+APPLIANCE_REQUEST: dict[str, Any] = {
+    "device_id": "dishwasher",
+    "consumption_wh": 2000,
+    "duration_h": 2,
+    "num_cycles": 1,
+}
+
+
+@pytest.mark.parametrize("host_timezone", ["Europe/Berlin", "America/New_York"])
+@pytest.mark.parametrize(
+    "model, field, request_data",
+    [
+        (GeneticElectricVehicleRequest, "min_soc_deadline_datetime", {"device_id": "car", "capacity_wh": 10000}),
+        (GeneticHomeApplianceRequest, "earliest_start_datetime", APPLIANCE_REQUEST),
+        (GeneticHomeApplianceRequest, "deadline_datetime", APPLIANCE_REQUEST),
+        (GeneticHomeApplianceRequest, "run_started_datetime", APPLIANCE_REQUEST),
+    ],
+)
+def test_request_date_times_are_held_in_utc(
+    set_other_timezone, host_timezone, model, field, request_data
+) -> None:
+    """Request date-times render the same on every host and read back the same."""
+    set_other_timezone(host_timezone)
+    moment = to_datetime("2026-09-16T09:30:00", in_timezone="Asia/Tokyo")
+    request = model.model_validate({**request_data, field: moment})
+    assert getattr(request, field) == moment
+    assert getattr(request, field).timezone_name == "UTC"
+    dumped = request.model_dump(mode="json")
+    assert dumped[field] == "2026-09-16T00:30:00Z"
+    assert model.model_validate(dumped).model_dump(mode="json") == dumped

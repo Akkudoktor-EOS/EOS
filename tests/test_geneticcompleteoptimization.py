@@ -8,11 +8,11 @@ from conftest import genetic_optimization
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
@@ -220,7 +220,7 @@ def test_ev_soc_penalty_reads_the_deadline_slot(config_eos: ConfigEOS):
     optimization = genetic_optimization(seed=1)
     simulation_result = {"EAuto_SoC_pro_Stunde": [20.0, 35.0, 50.0, 80.0]}
 
-    optimization.simulation.ev = MagicMock(spec=Battery)
+    optimization.simulation.ev = MagicMock(spec=GeneticBattery)
     optimization.simulation.ev.current_soc_percentage.return_value = 80.0
 
     # Without a deadline the final SoC counts.

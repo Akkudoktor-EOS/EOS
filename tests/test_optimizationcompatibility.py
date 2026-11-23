@@ -9,14 +9,14 @@ import pytest
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0EnergyManagementRequest,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticEnergyManagementRequest,
 )
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 
 
 @pytest.mark.parametrize(
-    "model", [GeneticEnergyManagementParameters, Genetic0EnergyManagementRequest]
+    "model", [GeneticEnergyManagementRequest, Genetic0EnergyManagementRequest]
 )
 @pytest.mark.parametrize("tariff", [0.00008, [0.00008, -0.00002]])
 def test_energy_parameter_aliases_preserve_wh_prices(model, tariff):

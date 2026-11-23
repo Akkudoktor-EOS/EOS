@@ -4,20 +4,20 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-    Battery,
-    ElectricVehicleParameters,
-    SolarPanelBatteryParameters,
+    GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
-    HomeApplianceParameters,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-    Inverter,
-    InverterParameters,
+    GeneticInverter,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticElectricVehicleRequest,
+    GeneticEnergyManagementRequest,
+    GeneticHomeApplianceRequest,
+    GeneticInverterRequest,
 )
 from akkudoktoreos.optimization.genetic.geneticsimulation import (
     GeneticSimulation,
@@ -41,27 +41,27 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     assert config_eos.optimization.genetic.horizon_hours == 24
 
     # Initialize the battery and the inverter
-    akku = Battery(
-        SolarPanelBatteryParameters(
+    akku = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=5000,
             initial_soc_percentage=80,
             min_soc_percentage=10,
-        ),
+        ).to_parameters(),
         prediction_hours=config_eos.prediction.hours,
     )
     akku.reset()
 
-    inverter = Inverter(
-        InverterParameters(
+    inverter = GeneticInverter(
+        GeneticInverterRequest(
             device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id
-        ),
+        ).to_parameters(),
         battery=akku,
     )
 
     # Flexible consumer (fixed start at slot 2 for this deterministic test)
     home_appliance = HomeAppliance(
-        HomeApplianceParameters(
+        GeneticHomeApplianceRequest(
             device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
@@ -73,10 +73,10 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     home_appliance.build_load_curve([2])
 
     # Example initialization of electric car battery
-    eauto = Battery(
-        ElectricVehicleParameters(
+    eauto = GeneticBattery(
+        GeneticElectricVehicleRequest(
             device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
-        ),
+        ).to_parameters(),
         prediction_hours=config_eos.prediction.hours,
     )
     eauto.set_charge_per_hour(np.full(config_eos.prediction.hours, 1))
@@ -241,7 +241,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     # Initialize the energy management system with the respective parameters
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters.model_validate(
+        GeneticEnergyManagementRequest.model_validate(
             dict(
                 pv_prognose_wh=pv_prognose_wh,
                 strompreis_euro_pro_wh=strompreis_euro_pro_wh,
@@ -249,7 +249,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
                 preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
                 gesamtlast=gesamtlast,
             )
-        ),
+        ).to_parameters(),
         optimization_hours=config_eos.optimization.genetic.horizon_hours,
         prediction_hours=config_eos.prediction.hours,
         inverter=inverter,
@@ -278,21 +278,21 @@ def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
             "optimization": {"genetic": {"tail_horizon_hours": 0, "horizon_hours": 1}},
         }
     )
-    ev = Battery(
-        ElectricVehicleParameters(
+    ev = GeneticBattery(
+        GeneticElectricVehicleRequest(
             device_id="ev1",
             capacity_wh=1000,
             charging_efficiency=0.8,
             max_charge_power_w=100,
             initial_soc_percentage=0,
             min_soc_percentage=0,
-        ),
+        ).to_parameters(),
         prediction_hours=1,
     )
-    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
+    inverter = GeneticInverter(GeneticInverterRequest(device_id="inverter1", max_power_wh=1000.0).to_parameters())
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters.model_validate(
+        GeneticEnergyManagementRequest.model_validate(
             dict(
                 pv_prognose_wh=[0.0],
                 strompreis_euro_pro_wh=[0.001],
@@ -300,7 +300,7 @@ def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
                 preis_euro_pro_wh_akku=0.0,
                 gesamtlast=[0.0],
             )
-        ),
+        ).to_parameters(),
         optimization_hours=1,
         prediction_hours=1,
         inverter=inverter,
@@ -325,7 +325,7 @@ def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
         }
     )
 
-    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
+    inverter = GeneticInverter(GeneticInverterRequest(device_id="inverter1", max_power_wh=1000.0).to_parameters())
     monkeypatch.setattr(
         inverter.self_consumption_predictor,
         "calculate_expected_direct_consumption",
@@ -334,7 +334,7 @@ def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
 
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters.model_validate(
+        GeneticEnergyManagementRequest.model_validate(
             dict(
                 pv_prognose_wh=[500.0, 500.0],
                 strompreis_euro_pro_wh=[-0.0001, -0.0001],
@@ -342,7 +342,7 @@ def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
                 preis_euro_pro_wh_akku=0.0,
                 gesamtlast=[0.0, 0.0],
             )
-        ),
+        ).to_parameters(),
         optimization_hours=config_eos.optimization.genetic.horizon_hours,
         prediction_hours=config_eos.prediction.hours,
         inverter=inverter,
@@ -368,8 +368,8 @@ def _direct_marketing_battery_export_simulation(
         }
     )
 
-    battery = Battery(
-        SolarPanelBatteryParameters(
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=1000,
             initial_soc_percentage=100,
@@ -378,22 +378,22 @@ def _direct_marketing_battery_export_simulation(
             discharging_efficiency=1.0,
             levelized_cost_of_storage_kwh=levelized_cost_of_storage_kwh,
             max_charge_power_w=500,
-        ),
+        ).to_parameters(),
         prediction_hours=config_eos.prediction.hours,
     )
-    inverter = Inverter(
-        InverterParameters(
+    inverter = GeneticInverter(
+        GeneticInverterRequest(
             device_id="inverter1",
             max_power_wh=500.0,
             battery_id=battery.parameters.device_id,
             dc_to_ac_efficiency=dc_to_ac_efficiency,
-        ),
+        ).to_parameters(),
         battery=battery,
     )
 
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters.model_validate(
+        GeneticEnergyManagementRequest.model_validate(
             dict(
                 pv_prognose_wh=[0.0, 0.0],
                 strompreis_euro_pro_wh=[0.0, 0.0],
@@ -401,7 +401,7 @@ def _direct_marketing_battery_export_simulation(
                 preis_euro_pro_wh_akku=0.0,
                 gesamtlast=[0.0, 0.0],
             )
-        ),
+        ).to_parameters(),
         optimization_hours=config_eos.optimization.genetic.horizon_hours,
         prediction_hours=config_eos.prediction.hours,
         inverter=inverter,
@@ -484,8 +484,8 @@ def test_disabled_ac_charging_clears_the_reported_plan(config_eos):
         }
     )
 
-    battery = Battery(
-        SolarPanelBatteryParameters(
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=10000,
             initial_soc_percentage=50,
@@ -493,22 +493,22 @@ def test_disabled_ac_charging_clears_the_reported_plan(config_eos):
             charging_efficiency=1.0,
             discharging_efficiency=1.0,
             max_charge_power_w=5000,
-        ),
+        ).to_parameters(),
         prediction_hours=config_eos.prediction.hours,
     )
-    inverter = Inverter(
-        InverterParameters(
+    inverter = GeneticInverter(
+        GeneticInverterRequest(
             device_id="inverter1",
             max_power_wh=5000.0,
             battery_id=battery.parameters.device_id,
             max_ac_charge_power_w=0,  # Netzladen deaktiviert
-        ),
+        ).to_parameters(),
         battery=battery,
     )
 
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters.model_validate(
+        GeneticEnergyManagementRequest.model_validate(
             dict(
                 pv_prognose_wh=[0.0, 0.0],
                 strompreis_euro_pro_wh=[0.0003, 0.0003],
@@ -516,7 +516,7 @@ def test_disabled_ac_charging_clears_the_reported_plan(config_eos):
                 preis_euro_pro_wh_akku=0.0,
                 gesamtlast=[0.0, 0.0],
             )
-        ),
+        ).to_parameters(),
         optimization_hours=config_eos.optimization.genetic.horizon_hours,
         prediction_hours=config_eos.prediction.hours,
         inverter=inverter,

@@ -29,7 +29,7 @@ from akkudoktoreos.optimization.genetic.geneticparameters import (
     parameters_from_dict,
     parameters_to_dict,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
@@ -784,6 +784,7 @@ def test_replay(stem: str, config_eos: ConfigEOS, is_finalize: bool) -> None:
             "devices": {"max_electric_vehicles": 0, "max_home_appliances": 0},
         }
     )
+    config_eos.merge_settings_from_dict({"optimization": {"self_consumption_interpolator": "numpy"}})
     ems_eos.set_start_datetime(to_datetime("2027-01-05T03:00:00+00:00", in_timezone="UTC"))
 
     result = GeneticOptimizer().run(parameters)

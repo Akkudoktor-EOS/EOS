@@ -16,10 +16,10 @@ from loguru import logger
 from akkudoktoreos.core.coreabc import get_config, get_ems, get_prediction
 from akkudoktoreos.optimization.genetic import GeneticOptimizer
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticprepare import run_settings
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticprepare import run_settings
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 config_eos = get_config()

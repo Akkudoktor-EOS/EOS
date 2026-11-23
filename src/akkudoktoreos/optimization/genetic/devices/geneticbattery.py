@@ -1,304 +1,71 @@
-import math
+"""Battery and electric vehicle of the GENETIC simulation."""
+
+from dataclasses import dataclass
 from typing import Any, Iterator, Optional
 
 import numpy as np
-from pydantic import Field, field_validator, model_validator
 
-from akkudoktoreos.devices.devicesabc import validate_efficiency_curve
-from akkudoktoreos.devices.settings.batteryresolution import (
-    BATTERY_SOC_TABLE_POINTS as SOC_TABLE_POINTS,
-)
-from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
-from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
-from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+# Values of a power limit table: one per SoC percent, 0 % ... 100 %.
+SOC_TABLE_POINTS = 101
+# Charge rates of a battery that has none of its own.
+DEFAULT_CHARGE_RATES: tuple[float, ...] = (0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
 
 # Resolution of the dense efficiency tables: one value per power percent.
 _EFFICIENCY_TABLE_POINTS = 101
 
 
-def _dense_efficiency_table(curve: Optional[list[tuple[float, float]]]) -> Optional[list[float]]:
+@dataclass(frozen=True, slots=True)
+class GeneticBatteryParameters:
+    """A battery or electric vehicle of the simulation, derived from its request.
+
+    Attributes:
+        device_id: ID of the battery.
+        capacity_wh: Capacity [Wh].
+        charging_efficiency: Charging efficiency (0, 1].
+        discharging_efficiency: Discharging efficiency (0, 1].
+        max_charge_power_w: Maximum charging power [W]; ``None`` is the capacity per hour.
+        max_discharge_power_w: Maximum discharging power [W]; ``None`` is the charging power.
+        initial_soc_percentage: State of charge at the start of the run [%].
+        min_soc_percentage: Lowest state of charge the simulation allows [%]; 0 for an
+            electric vehicle, whose minimum is a charging target instead.
+        max_soc_percentage: Highest state of charge [%].
+        charge_rates: Selectable charge rates; ``None`` or empty uses ``DEFAULT_CHARGE_RATES``.
+        charge_power_limit_w_by_soc: Charging power limit per SoC percent [W].
+        discharge_power_limit_w_by_soc: Discharging power limit per SoC percent [W].
+        charging_efficiency_curve: Charging efficiency by power fraction.
+        discharging_efficiency_curve: Discharging efficiency by power fraction.
+        levelized_cost_of_storage_kwh: Wear cost of stored energy [currency/kWh]; 0 for an
+            electric vehicle.
+        electric_vehicle: The vehicle's BMS ends charging when full, even within a slot.
+    """
+
+    device_id: str
+    capacity_wh: int
+    charging_efficiency: float
+    discharging_efficiency: float
+    max_charge_power_w: Optional[float]
+    max_discharge_power_w: Optional[float]
+    initial_soc_percentage: int
+    min_soc_percentage: int
+    max_soc_percentage: int
+    charge_rates: Optional[tuple[float, ...]]
+    charge_power_limit_w_by_soc: Optional[tuple[float, ...]]
+    discharge_power_limit_w_by_soc: Optional[tuple[float, ...]]
+    charging_efficiency_curve: Optional[tuple[tuple[float, float], ...]]
+    discharging_efficiency_curve: Optional[tuple[tuple[float, float], ...]]
+    levelized_cost_of_storage_kwh: float
+    electric_vehicle: bool
+
+
+def _dense_efficiency_table(
+    curve: Optional[tuple[tuple[float, float], ...]],
+) -> Optional[list[float]]:
     """Interpolate an efficiency curve at every power percent 0 % ... 100 %."""
     if curve is None:
         return None
     fractions, efficiencies = zip(*curve)
     grid = np.linspace(0.0, 1.0, _EFFICIENCY_TABLE_POINTS)
     return [float(value) for value in np.interp(grid, fractions, efficiencies)]
-
-
-def max_charging_power_field(description: Optional[str] = None) -> float:
-    if description is None:
-        description = "Maximum charging power in watts."
-    # 0: the battery may not charge, e.g. the profile inhibits it at a low temperature.
-    return Field(default=5000, ge=0, json_schema_extra={"description": description})
-
-
-def initial_soc_percentage_field(description: str) -> int:
-    return Field(
-        default=0, ge=0, le=100, json_schema_extra={"description": description, "examples": [42]}
-    )
-
-
-def discharging_efficiency_field(default_value: float) -> float:
-    return Field(
-        default=default_value,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": "A float representing the discharge efficiency of the battery."
-        },
-    )
-
-
-class BaseBatteryParameters(DeviceParameters):
-    """Battery Device Simulation Configuration."""
-
-    device_id: str = Field(
-        json_schema_extra={"description": "ID of battery", "examples": ["battery1"]}
-    )
-    capacity_wh: int = Field(
-        gt=0,
-        json_schema_extra={
-            "description": "An integer representing the capacity of the battery in watt-hours.",
-            "examples": [8000],
-        },
-    )
-    charging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": "A float representing the charging efficiency of the battery."
-        },
-    )
-    discharging_efficiency: float = discharging_efficiency_field(0.88)
-    max_charge_power_w: Optional[float] = max_charging_power_field()
-    max_discharge_power_w: Optional[float] = Field(
-        default=None,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Maximum discharging power in watts. 0 means discharging is inhibited. "
-                "None uses max_charge_power_w."
-            ),
-            "examples": [None, 4000],
-        },
-    )
-    initial_soc_percentage: int = initial_soc_percentage_field(
-        "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
-    )
-    min_soc_percentage: int = Field(
-        default=0,
-        ge=0,
-        le=100,
-        json_schema_extra={
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-            "examples": [10],
-        },
-    )
-    max_soc_percentage: int = Field(
-        default=100,
-        ge=0,
-        le=100,
-        json_schema_extra={
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage."
-        },
-    )
-    charge_rates: Optional[list[float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
-            "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
-        },
-    )
-    grid_export_rates: Optional[list[float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Battery-to-grid export rates as factor of maximum discharge "
-                "power ]0.00 ... 1.00]. These levels are available to algorithms "
-                "that explicitly enable battery-to-grid export. None leaves the "
-                "choice of export levels to the caller."
-            ),
-            "examples": [[0.25, 0.5, 0.75, 1.0], [1.0], None],
-        },
-    )
-    charge_power_limit_w_by_soc: Optional[list[float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Maximum charging power [W] per state of charge, e.g. from a battery "
-                f"profile. {SOC_TABLE_POINTS} values, index i is the limit at SoC i %. "
-                "Further limits max_charge_power_w. None means no SoC dependent limit."
-            ),
-            "examples": [None],
-        },
-    )
-    discharge_power_limit_w_by_soc: Optional[list[float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Maximum discharging power [W] per state of charge, e.g. from a battery "
-                f"profile. {SOC_TABLE_POINTS} values, index i is the limit at SoC i %. "
-                "Further limits max_discharge_power_w. None means no SoC dependent limit."
-            ),
-            "examples": [None],
-        },
-    )
-    charging_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Power dependent charging efficiency as a list of (power_fraction, "
-                "efficiency) points. The power fraction is the charging power relative "
-                "to max_charge_power_w [0.0 ... 1.0]; points must be strictly increasing "
-                "in power fraction, efficiencies in (0, 1]. Values are interpolated "
-                "linearly and clamped to the first/last point. When set, the curve "
-                "replaces charging_efficiency in the simulation. None means constant "
-                "charging_efficiency."
-            ),
-            "examples": [None, [[0.0, 0.975], [0.5, 0.96], [1.0, 0.94]]],
-        },
-    )
-    discharging_efficiency_curve: Optional[list[tuple[float, float]]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Power dependent discharging efficiency as a list of (power_fraction, "
-                "efficiency) points. The power fraction is the discharging power "
-                "relative to max_discharge_power_w [0.0 ... 1.0]; same rules as "
-                "charging_efficiency_curve. When set, the curve replaces "
-                "discharging_efficiency in the simulation. None means constant "
-                "discharging_efficiency."
-            ),
-            "examples": [None, [[0.0, 0.975], [1.0, 0.96]]],
-        },
-    )
-
-    @field_validator("charge_power_limit_w_by_soc", "discharge_power_limit_w_by_soc")
-    @classmethod
-    def _validate_power_limit_by_soc(cls, value: Optional[list[float]]) -> Optional[list[float]]:
-        if value is None:
-            return None
-        if len(value) != SOC_TABLE_POINTS:
-            raise ValueError(
-                f"A power limit table needs {SOC_TABLE_POINTS} values (SoC 0 % ... 100 %), "
-                f"got {len(value)}."
-            )
-        for power_w in value:
-            if not math.isfinite(power_w) or power_w < 0:
-                raise ValueError(f"Power limits must be finite and >= 0 W, got {power_w}.")
-        return value
-
-    @field_validator("charging_efficiency_curve", "discharging_efficiency_curve")
-    @classmethod
-    def _validate_efficiency_curve(
-        cls, value: Optional[list[tuple[float, float]]]
-    ) -> Optional[list[tuple[float, float]]]:
-        return validate_efficiency_curve(value)
-
-
-class SolarPanelBatteryParameters(BaseBatteryParameters):
-    """PV battery device simulation configuration."""
-
-    levelized_cost_of_storage_kwh: float = Field(
-        default=0.0,
-        ge=0.0,
-        json_schema_extra={
-            "description": (
-                "Levelized cost of storage applied once to each kWh delivered "
-                "by the battery [EUR/kWh]."
-            ),
-            "examples": [0.12],
-        },
-    )
-    max_charge_power_w: Optional[float] = max_charging_power_field()
-    full_charge_soc_percentage: Optional[int] = Field(
-        default=None,
-        ge=1,
-        le=100,
-        json_schema_extra={
-            "description": (
-                "State of charge a due full charge has to reach at least once "
-                "before 'full_charge_deadline_datetime' [%]. Must not exceed "
-                "'max_soc_percentage'. None means no full charge is due."
-            ),
-            "examples": [None, 100],
-        },
-    )
-    full_charge_deadline_datetime: Optional[DateTime] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Moment by which 'full_charge_soc_percentage' has to be reached. "
-                "A date time without timezone is read as local time. None means "
-                "end of the optimization horizon."
-            ),
-            "examples": [None, "2026-11-20T07:00:00+01:00"],
-        },
-    )
-
-    @field_validator("full_charge_deadline_datetime", mode="before")
-    @classmethod
-    def transform_full_charge_deadline(cls, value: Any) -> Optional[DateTime]:
-        """Accept the usual date time representations, naive input is local time."""
-        if value is None:
-            return None
-        return to_datetime(value)
-
-    @model_validator(mode="after")
-    def validate_full_charge_target(self) -> "SolarPanelBatteryParameters":
-        """A full charge target above the maximum SoC could never be reached."""
-        if (
-            self.full_charge_soc_percentage is not None
-            and self.full_charge_soc_percentage > self.max_soc_percentage
-        ):
-            raise ValueError("full_charge_soc_percentage must be <= max_soc_percentage")
-        return self
-
-
-class ElectricVehicleParameters(BaseBatteryParameters):
-    """Battery Electric Vehicle Device Simulation Configuration."""
-
-    device_id: str = Field(
-        json_schema_extra={"description": "ID of electric vehicle", "examples": ["ev1"]}
-    )
-    discharging_efficiency: float = discharging_efficiency_field(1.0)
-    initial_soc_percentage: int = initial_soc_percentage_field(
-        "An integer representing the current state of charge (SOC) of the battery in percentage."
-    )
-
-    min_soc_deadline_datetime: Optional[DateTime] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Absolute moment by which 'min_soc_percentage' has to be "
-                "reached (departure time). A date time without timezone is read "
-                "as local time. None means end of the optimization horizon."
-            ),
-            "examples": [None, "2026-07-16T07:00:00+02:00"],
-        },
-    )
-    min_soc_max_duration_h: Optional[float] = Field(
-        default=None,
-        gt=0,
-        allow_inf_nan=False,
-        json_schema_extra={
-            "description": (
-                "Maximum time from the start of the optimization until "
-                "'min_soc_percentage' has to be reached [h]. Combined with "
-                "'min_soc_deadline_datetime' the earlier of the two applies."
-            ),
-            "examples": [None, 6.0],
-        },
-    )
-
-    @field_validator("min_soc_deadline_datetime", mode="before")
-    @classmethod
-    def transform_deadline_to_datetime(cls, value: Any) -> Optional[DateTime]:
-        """Accept the usual date time representations, naive input is local time."""
-        if value is None:
-            return None
-        return to_datetime(value)
 
 
 class _PowerCurves:
@@ -340,7 +107,7 @@ class _PowerCurves:
 
     def __init__(
         self,
-        parameters: "BaseBatteryParameters",
+        parameters: GeneticBatteryParameters,
         capacity_wh: float,
         max_charge_power_w: float,
         max_discharge_power_w: float,
@@ -387,7 +154,7 @@ def _table_entry(table: list[float], index: int) -> float:
     return table[index]
 
 
-class Battery:
+class GeneticBattery:
     """Represents a battery device with methods to simulate energy charging and discharging."""
 
     # Battery profile data, set per instance only if the parameters provide it.
@@ -403,7 +170,7 @@ class Battery:
 
     def __init__(
         self,
-        parameters: BaseBatteryParameters,
+        parameters: GeneticBatteryParameters,
         prediction_hours: int,
         slot_duration_h: float = 1.0,
         first_slot_fraction: float = 1.0,
@@ -439,26 +206,17 @@ class Battery:
         self.initial_soc_percentage = self.parameters.initial_soc_percentage
         self.charging_efficiency = self.parameters.charging_efficiency
         self.discharging_efficiency = self.parameters.discharging_efficiency
-        self.levelized_cost_of_storage_kwh = (
-            self.parameters.levelized_cost_of_storage_kwh
-            if isinstance(self.parameters, SolarPanelBatteryParameters)
-            else 0.0
-        )
+        self.levelized_cost_of_storage_kwh = self.parameters.levelized_cost_of_storage_kwh
 
         # Charge rates, in case of None use default
-        self.charge_rates = np.array(BATTERY_DEFAULT_CHARGE_RATES, dtype=float)
+        self.charge_rates = np.array(DEFAULT_CHARGE_RATES, dtype=float)
         if self.parameters.charge_rates:
             charge_rates = np.array(self.parameters.charge_rates, dtype=float)
             charge_rates = np.unique(charge_rates)
             charge_rates.sort()
             self.charge_rates = charge_rates
 
-        # Only assign for storage battery
-        self.min_soc_percentage = (
-            self.parameters.min_soc_percentage
-            if isinstance(self.parameters, SolarPanelBatteryParameters)
-            else 0
-        )
+        self.min_soc_percentage = self.parameters.min_soc_percentage
         self.max_soc_percentage = self.parameters.max_soc_percentage
 
         # Initialize state of charge
@@ -886,7 +644,7 @@ class Battery:
         elif wh is None and charge_factor > 0.0:  # mode 2
             raw_request_wh = max_charge_per_slot_wh_fast * charge_factor
             raw_charge_wh = max(self.max_soc_wh - soc_wh_fast, 0.0) / charging_efficiency_fast
-            if isinstance(self.parameters, ElectricVehicleParameters):
+            if self.parameters.electric_vehicle:
                 # The vehicle BMS ends charging when full, even within a slot.
                 # Keep the feasible pilot/current setting; cap only the energy
                 # below instead of inventing a current below the EV minimum.

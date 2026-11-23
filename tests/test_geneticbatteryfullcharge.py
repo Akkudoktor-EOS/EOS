@@ -28,8 +28,7 @@ from akkudoktoreos.devices.settings.batterysettings import (
 )
 from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-    Battery,
-    SolarPanelBatteryParameters,
+    GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
@@ -39,10 +38,11 @@ from akkudoktoreos.optimization.genetic.geneticfullcharge import (
     enforced_full_charge_deadline,
     full_charge_deadline,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
     GeneticOptimizationParameters,
+    GeneticRequest,
 )
-from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # Run start and observation time of the run the tests prepare; the fixture sets them.
@@ -222,7 +222,7 @@ def test_resolve_full_charge_caps_target_and_threshold(config_eos):
 
 def test_parameters_reject_target_above_max_soc():
     with pytest.raises(ValidationError):
-        SolarPanelBatteryParameters(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=10000,
             max_soc_percentage=90,
@@ -231,7 +231,7 @@ def test_parameters_reject_target_above_max_soc():
 
 
 def test_parameters_parse_naive_deadline_as_local_time():
-    parameters = SolarPanelBatteryParameters.model_validate(
+    parameters = GeneticBatteryRequest.model_validate(
         {
             "device_id": "battery1",
             "capacity_wh": 10000,
@@ -240,6 +240,26 @@ def test_parameters_parse_naive_deadline_as_local_time():
         }
     )
     assert parameters.full_charge_deadline_datetime == to_datetime("2026-11-21T07:00:00")
+
+
+@pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin", "America/New_York"])
+@pytest.mark.parametrize("deadline_timezone", ["UTC", "Asia/Tokyo"])
+def test_parameters_hold_the_deadline_in_utc(
+    set_other_timezone, host_timezone, deadline_timezone
+):
+    set_other_timezone(host_timezone)
+    deadline = to_datetime("2026-11-21T07:00:00", in_timezone=deadline_timezone)
+    parameters = GeneticBatteryRequest(
+        device_id="battery1",
+        capacity_wh=10000,
+        full_charge_soc_percentage=100,
+        full_charge_deadline_datetime=deadline,
+    )
+    assert parameters.full_charge_deadline_datetime == deadline
+    assert parameters.full_charge_deadline_datetime.timezone_name == "UTC"
+    # The serialized deadline reads back the same.
+    dumped = parameters.model_dump(mode="json")
+    assert GeneticBatteryRequest.model_validate(dumped).model_dump(mode="json") == dumped
 
 
 # ---------------------------------------------------------------------------
@@ -546,7 +566,7 @@ def test_maximum_soc_before_deadline_counts(config_eos: ConfigEOS):
     _optimizer_config(config_eos, 24)
     ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     optimization = genetic_optimization(seed=1)
-    optimization.simulation.battery = MagicMock(spec=Battery)
+    optimization.simulation.battery = MagicMock(spec=GeneticBattery)
     optimization.simulation.battery.current_soc_percentage.return_value = 40.0
     result = {"akku_soc_pro_stunde": [30.0, 100.0, 60.0, 50.0]}
 

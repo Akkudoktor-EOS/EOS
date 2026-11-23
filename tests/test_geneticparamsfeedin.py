@@ -14,8 +14,10 @@ import pytest
 
 from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-    Inverter,
-    InverterParameters,
+    GeneticInverter,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticInverterRequest,
 )
 from akkudoktoreos.optimization.genetic.geneticsimulation import (
     GeneticSimulation,
@@ -103,12 +105,12 @@ async def test_provider_revenues_survive_preparation_and_simulation(
 
     # A 1 kWh export at 0.00007 amount/Wh earns 0.07, not 70 or 0.00007.
     # No battery or household load is needed to expose tariff substitution/unit bugs.
-    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=10000))
+    inverter = GeneticInverter(GeneticInverterRequest(device_id="inverter1", max_power_wh=10000).to_parameters())
     inverter.self_consumption_predictor = Mock()
     inverter.self_consumption_predictor.calculate_expected_direct_consumption.return_value = 0.0
     simulation = GeneticSimulation()
     simulation.prepare(
-        parameters.ems, optimization_hours=24, prediction_hours=24, inverter=inverter
+        parameters.ems.to_parameters(), optimization_hours=24, prediction_hours=24, inverter=inverter
     )
     result = simulation.simulate(start_hour=0)
     assert result["Netzeinspeisung_Wh_pro_Stunde"] == pytest.approx([1000.0] * 24)

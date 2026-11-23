@@ -8,9 +8,11 @@ from akkudoktoreos.devices.devices import BatteriesCommonSettings
 from akkudoktoreos.devices.settings.batterysettings import BatteryProfileAdjustment
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-    Battery,
-    ElectricVehicleParameters,
-    SolarPanelBatteryParameters,
+    GeneticBattery,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticElectricVehicleRequest,
 )
 
 
@@ -26,7 +28,7 @@ def setup_pv_battery():
     max_charge_power_w=8000
     hours=24
 
-    params = SolarPanelBatteryParameters(
+    params = GeneticBatteryRequest(
         device_id=device_id,
         capacity_wh=capacity_wh,
         initial_soc_percentage=initial_soc_percentage,
@@ -37,8 +39,8 @@ def setup_pv_battery():
         max_charge_power_w=max_charge_power_w,
         hours=hours,
     )
-    battery = Battery(
-        params,
+    battery = GeneticBattery(
+        params.to_parameters(),
         prediction_hours=48,
     )
     battery.reset()
@@ -122,13 +124,13 @@ def test_battery_discharge_when_empty(setup_pv_battery):
 def test_discharge_preserves_energy_at_or_below_min_soc(
     slot_duration_h, initial_soc, requested_wh
 ):
-    battery = Battery(
-        SolarPanelBatteryParameters(
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=26_400,
             initial_soc_percentage=initial_soc,
             min_soc_percentage=6,
-        ),
+        ).to_parameters(),
         prediction_hours=2,
         slot_duration_h=slot_duration_h,
     )
@@ -278,11 +280,11 @@ def test_charge_energy_with_charge_factor(setup_pv_battery, wh, charge_factor, e
 
 @pytest.fixture
 def setup_car_battery():
-    from akkudoktoreos.optimization.genetic.geneticparams import (
-        ElectricVehicleParameters,
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
+        GeneticElectricVehicleRequest,
     )
 
-    params = ElectricVehicleParameters(
+    params = GeneticElectricVehicleRequest(
         device_id="ev1",
         capacity_wh=40000,
         initial_soc_percentage=60,
@@ -291,8 +293,8 @@ def setup_car_battery():
         max_charge_power_w=7000,
         hours=24,
     )
-    battery = Battery(
-        params,
+    battery = GeneticBattery(
+        params.to_parameters(),
         prediction_hours=48,
     )
     battery.reset()
@@ -332,7 +334,7 @@ def test_car_and_pv_battery_discharge_and_max_charge_power(setup_pv_battery, set
 
 
 def test_quarter_hour_charge_calls_share_one_power_budget():
-    params = SolarPanelBatteryParameters(
+    params = GeneticBatteryRequest(
         device_id="battery1",
         capacity_wh=10_000,
         initial_soc_percentage=0,
@@ -342,7 +344,7 @@ def test_quarter_hour_charge_calls_share_one_power_budget():
         charging_efficiency=1.0,
         discharging_efficiency=1.0,
     )
-    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery = GeneticBattery(params.to_parameters(), prediction_hours=4, slot_duration_h=0.25)
     battery.set_charge_per_hour(np.ones(4))
 
     first_stored, _ = battery.charge_energy(200.0, 0)
@@ -354,7 +356,7 @@ def test_quarter_hour_charge_calls_share_one_power_budget():
 
 
 def test_quarter_hour_discharge_calls_share_one_power_budget():
-    params = SolarPanelBatteryParameters(
+    params = GeneticBatteryRequest(
         device_id="battery1",
         capacity_wh=10_000,
         initial_soc_percentage=100,
@@ -364,7 +366,7 @@ def test_quarter_hour_discharge_calls_share_one_power_budget():
         charging_efficiency=1.0,
         discharging_efficiency=1.0,
     )
-    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery = GeneticBattery(params.to_parameters(), prediction_hours=4, slot_duration_h=0.25)
     battery.set_discharge_per_hour(np.ones(4))
 
     first_delivered, _ = battery.discharge_energy(200.0, 0)
@@ -430,7 +432,7 @@ def test_pv_converter_preserves_id_lcos_charge_and_export_rates():
     assert parameters.charge_rates == [0.0, 0.5, 1.0]
     assert parameters.grid_export_rates == [0.25, 1.0]
     assert parameters.levelized_cost_of_storage_kwh == pytest.approx(0.123)
-    battery = Battery(parameters, prediction_hours=4, slot_duration_h=0.25)
+    battery = GeneticBattery(parameters.to_parameters(), prediction_hours=4, slot_duration_h=0.25)
     assert battery.levelized_cost_of_storage_kwh == pytest.approx(0.123)
 
 
@@ -458,7 +460,7 @@ def test_full_target_charges_to_capacity_without_overcharge():
         min_soc_percentage=100, max_soc_percentage=100)
     params = settings.to_genetic_ev_bat_param()
     params.initial_soc_percentage = 70
-    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery = GeneticBattery(params.to_parameters(), prediction_hours=4, slot_duration_h=0.25)
     battery.charge_array = np.ones(4)
     for slot in range(4):
         battery.charge_energy(wh=1000, hour=slot)
@@ -470,14 +472,14 @@ def test_full_target_charges_to_capacity_without_overcharge():
 _EV_CHARGE_RATES = [0.0] + [amps / 16 for amps in range(6, 17)]
 
 
-def _minimum_current_battery(kind=ElectricVehicleParameters, soc=99, maximum=100):
+def _minimum_current_battery(kind=GeneticElectricVehicleRequest, soc=99, maximum=100):
     parameters = kind(
         device_id="ev-test", capacity_wh=60000,
         initial_soc_percentage=int(soc), charging_efficiency=0.95,
         discharging_efficiency=1.0, max_charge_power_w=11040,
         max_soc_percentage=maximum, charge_rates=_EV_CHARGE_RATES,
     )
-    value = Battery(parameters, prediction_hours=4, slot_duration_h=0.25)
+    value = GeneticBattery(parameters.to_parameters(), prediction_hours=4, slot_duration_h=0.25)
     value.reset()
     value.soc_wh = soc / 100 * value.capacity_wh
     value.charge_array = np.full(4, 0.375)
@@ -514,7 +516,7 @@ class TestEVMinimumCurrent(unittest.TestCase):
         self.assertAlmostEqual(value.soc_wh, 60000 * 0.96)
 
     def test_stationary_battery_keeps_discrete_rate_behavior(self):
-        value = _minimum_current_battery(SolarPanelBatteryParameters, soc=99)
+        value = _minimum_current_battery(GeneticBatteryRequest, soc=99)
         self.assertEqual(value.charge_energy(None, 0, charge_factor=0.375), (0.0, 0.0))
         self.assertEqual(value.soc_wh, 59400)
         self.assertEqual(value.charge_array[0], 0)
@@ -538,7 +540,7 @@ class TestMaxDischargePower:
 
     @staticmethod
     def _battery(max_discharge_power_w=None, slot_duration_h=1.0):
-        params = SolarPanelBatteryParameters(
+        params = GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=10_000,
             initial_soc_percentage=100,
@@ -548,7 +550,7 @@ class TestMaxDischargePower:
             charging_efficiency=1.0,
             discharging_efficiency=1.0,
         )
-        battery = Battery(params, prediction_hours=4, slot_duration_h=slot_duration_h)
+        battery = GeneticBattery(params.to_parameters(), prediction_hours=4, slot_duration_h=slot_duration_h)
         battery.set_discharge_per_hour(np.ones(4))
         return battery
 
@@ -584,7 +586,7 @@ class TestMaxDischargePower:
 
     def test_negative_is_rejected(self):
         with pytest.raises(ValidationError):
-            SolarPanelBatteryParameters(
+            GeneticBatteryRequest(
                 device_id="battery1", capacity_wh=10_000, max_discharge_power_w=-1
             )
 
@@ -621,7 +623,7 @@ class TestPowerCurves:
 
     @staticmethod
     def _battery(soc_percentage=50, slot_duration_h=1.0, **curves):
-        params = SolarPanelBatteryParameters(
+        params = GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=10_000,
             initial_soc_percentage=soc_percentage,
@@ -633,7 +635,7 @@ class TestPowerCurves:
             discharging_efficiency=1.0,
             **curves,
         )
-        battery = Battery(params, prediction_hours=4, slot_duration_h=slot_duration_h)
+        battery = GeneticBattery(params.to_parameters(), prediction_hours=4, slot_duration_h=slot_duration_h)
         battery.set_charge_per_hour(np.ones(4))
         battery.set_discharge_per_hour(np.ones(4))
         return battery
@@ -760,7 +762,7 @@ class TestPowerCurves:
     )
     def test_invalid_curves_are_rejected(self, field, value):
         with pytest.raises(ValidationError):
-            SolarPanelBatteryParameters(device_id="battery1", capacity_wh=10_000, **{field: value})
+            GeneticBatteryRequest(device_id="battery1", capacity_wh=10_000, **{field: value})
 
 
 class TestFirstSlotFraction:
@@ -768,7 +770,7 @@ class TestFirstSlotFraction:
 
     @staticmethod
     def _battery(first_slot_fraction=1.0, soc=50, **curves):
-        params = SolarPanelBatteryParameters(
+        params = GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=40_000,
             initial_soc_percentage=soc,
@@ -780,8 +782,8 @@ class TestFirstSlotFraction:
             discharging_efficiency=1.0,
             **curves,
         )
-        battery = Battery(
-            params, prediction_hours=4, slot_duration_h=1.0, first_slot_fraction=first_slot_fraction
+        battery = GeneticBattery(
+            params.to_parameters(), prediction_hours=4, slot_duration_h=1.0, first_slot_fraction=first_slot_fraction
         )
         battery.set_charge_per_hour(np.ones(4))
         battery.set_discharge_per_hour(np.ones(4))
@@ -810,7 +812,7 @@ class TestFirstSlotFraction:
 
     def test_full_fraction_is_the_plain_slot(self):
         partial = self._battery(first_slot_fraction=1.0)
-        plain = Battery(partial.parameters, prediction_hours=4, slot_duration_h=1.0)
+        plain = GeneticBattery(partial.parameters, prediction_hours=4, slot_duration_h=1.0)
         plain.set_charge_per_hour(np.ones(4))
         assert partial.charge_energy(None, 0, charge_factor=1.0) == plain.charge_energy(
             None, 0, charge_factor=1.0

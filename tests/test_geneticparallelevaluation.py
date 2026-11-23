@@ -20,7 +20,7 @@ from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
     auto_evaluation_workers,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime

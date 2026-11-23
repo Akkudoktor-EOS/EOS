@@ -121,9 +121,9 @@ from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
-    from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-        ElectricVehicleParameters,
-        SolarPanelBatteryParameters,
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
+        GeneticBatteryRequest,
+        GeneticElectricVehicleRequest,
     )
 
 
@@ -1013,8 +1013,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         self,
         operating_parameters: Optional[BatteryOperatingParameters] = None,
         use_profile_tables: bool = True,
-    ) -> "SolarPanelBatteryParameters":
-        """Return SolarPanelBatteryParameters for the GENETIC optimizer.
+    ) -> "GeneticBatteryRequest":
+        """Return GeneticBatteryRequest for the GENETIC optimizer.
 
         Args:
             operating_parameters: Resolved snapshot to convert, e.g. from
@@ -1029,12 +1029,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
-        from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-            SolarPanelBatteryParameters,
+        from akkudoktoreos.optimization.genetic.geneticrequest import (
+            GeneticBatteryRequest,
         )
 
         p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
-        return SolarPanelBatteryParameters(
+        return GeneticBatteryRequest(
             device_id=self.device_id,
             capacity_wh=p.capacity_wh,
             charging_efficiency=p.charging_efficiency,
@@ -1051,8 +1051,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         self,
         operating_parameters: Optional[BatteryOperatingParameters] = None,
         use_profile_tables: bool = True,
-    ) -> "ElectricVehicleParameters":
-        """Return ElectricVehicleParameters for the GENETIC optimizer.
+    ) -> "GeneticElectricVehicleRequest":
+        """Return GeneticElectricVehicleRequest for the GENETIC optimizer.
 
         Args:
             operating_parameters: Resolved snapshot to convert, e.g. from
@@ -1067,12 +1067,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
-        from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
-            ElectricVehicleParameters,
+        from akkudoktoreos.optimization.genetic.geneticrequest import (
+            GeneticElectricVehicleRequest,
         )
 
         p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
-        return ElectricVehicleParameters(
+        return GeneticElectricVehicleRequest(
             device_id=self.device_id,
             capacity_wh=p.capacity_wh,
             charging_efficiency=p.charging_efficiency,

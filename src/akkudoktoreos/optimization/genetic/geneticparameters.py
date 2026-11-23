@@ -12,11 +12,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsettings import TerminalValueMode
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,7 @@ class GeneticRunSettings:
         start_datetime: Start of the run's first slot.
         observation_datetime: Unrounded moment of the run that measurements refer to.
         timezone: Site time zone of the appliance start times; ``None`` is the local time zone.
+        self_consumption_interpolator: How the inverter's self-consumption table is evaluated.
         verbose: Log the progress of the run.
     """
 
@@ -70,6 +72,7 @@ class GeneticRunSettings:
     start_datetime: DateTime
     observation_datetime: DateTime
     timezone: Optional[str]
+    self_consumption_interpolator: GridInterpolatorBackend
     verbose: bool
 
 
@@ -129,6 +132,7 @@ def parameters_to_dict(parameters: GeneticParameters) -> dict[str, Any]:
             "start_datetime": _datetime_to_dict(settings.start_datetime),
             "observation_datetime": _datetime_to_dict(settings.observation_datetime),
             "timezone": settings.timezone,
+            "self_consumption_interpolator": settings.self_consumption_interpolator.value,
             "verbose": settings.verbose,
         },
     }
@@ -173,6 +177,9 @@ def parameters_from_dict(data: Mapping[str, Any]) -> GeneticParameters:
             start_datetime=_datetime_from_dict(settings["start_datetime"]),
             observation_datetime=_datetime_from_dict(settings["observation_datetime"]),
             timezone=settings["timezone"],
+            self_consumption_interpolator=GridInterpolatorBackend(
+                settings["self_consumption_interpolator"]
+            ),
             verbose=settings["verbose"],
         ),
     )

@@ -127,7 +127,7 @@ def test_battery_grid_export_factor_becomes_operation_factor(config_eos):
 
 def test_disjoint_cycle_masks_keep_feasible_non_deadline_order(config_eos):
     from akkudoktoreos.core.coreabc import get_ems
-    from akkudoktoreos.optimization.genetic.geneticparams import (
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
         GeneticOptimizationParameters,
     )
     from akkudoktoreos.utils.datetimeutil import to_datetime

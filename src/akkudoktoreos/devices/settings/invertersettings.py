@@ -44,8 +44,8 @@ from akkudoktoreos.utils.datetimeutil import DateTime
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.profile.inverterprofile import InverterProfile
-    from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-        InverterParameters,
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
+        GeneticInverterRequest,
     )
 
 
@@ -682,8 +682,8 @@ class InverterCommonSettings(DevicesBaseSettings):
 
     def to_genetic_param(
         self, operating_parameters: Optional[InverterOperatingParameters] = None
-    ) -> "InverterParameters":
-        """Return InverterParameters for the GENETIC optimizer.
+    ) -> "GeneticInverterRequest":
+        """Return GeneticInverterRequest for the GENETIC optimizer.
 
         Args:
             operating_parameters: Resolved snapshot to convert, e.g. from
@@ -694,12 +694,12 @@ class InverterCommonSettings(DevicesBaseSettings):
             InverterResolutionError: If the snapshot is resolved here and the
                 inverter cannot be resolved.
         """
-        from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
-            InverterParameters,
+        from akkudoktoreos.optimization.genetic.geneticrequest import (
+            GeneticInverterRequest,
         )
 
         p = operating_parameters or self.resolve_operating_parameters()
-        return InverterParameters(
+        return GeneticInverterRequest(
             device_id=self.device_id,
             max_power_wh=p.max_power_w,
             battery_id=self.battery_id,

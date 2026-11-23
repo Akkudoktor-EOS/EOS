@@ -1,6 +1,6 @@
 """Regression test suite for the repaired HomeAppliance module.
 
-TODO: fix this import to match wherever HomeApplianceParameters / HomeAppliance
+TODO: fix this import to match wherever GeneticHomeApplianceRequest / HomeAppliance
 actually live in the repo.
 """
 from typing import Any
@@ -13,7 +13,9 @@ import pytest
 from akkudoktoreos.config.configabc import CycleTimeWindowSequence, ValueTimeWindow
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
-    HomeApplianceParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticHomeApplianceRequest,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
 
@@ -21,7 +23,7 @@ from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
 # Fixtures / factories
 # ---------------------------------------------------------------------------
 
-def make_params(**overrides) -> HomeApplianceParameters:
+def make_params(**overrides) -> GeneticHomeApplianceRequest:
     defaults: dict[str, Any] = dict(
         device_id="dishwasher",
         consumption_wh=2000,
@@ -31,7 +33,7 @@ def make_params(**overrides) -> HomeApplianceParameters:
         time_windows=None,
     )
     defaults.update(overrides)
-    return HomeApplianceParameters(**defaults)
+    return GeneticHomeApplianceRequest(**defaults)
 
 
 def make_appliance(
@@ -64,7 +66,7 @@ def mock_cycle_windows(cycle_matrix: dict[int, np.ndarray]) -> Mock:
     """Build a Mock standing in for CycleTimeWindowSequence.
 
     ``Mock(spec=CycleTimeWindowSequence)`` satisfies both the pydantic
-    field-type check on ``HomeApplianceParameters.time_windows`` and any
+    field-type check on ``GeneticHomeApplianceRequest.time_windows`` and any
     isinstance check in the module, without needing real windows/pendulum
     datetimes -- useful for isolating _build_duration_feasibility and the
     scheduling/repair logic from the real cycles_to_matrix() implementation.
@@ -191,7 +193,7 @@ class TestDSTAllowedStartSlots:
         if window_field == "time_windows":
             windows = [{**window, "value": 0} for window in windows]
         return HomeAppliance(
-            parameters=HomeApplianceParameters.model_validate(
+            parameters=GeneticHomeApplianceRequest.model_validate(
                 {
                     "device_id": "dishwasher",
                     "load_profile_power_w": [1000],

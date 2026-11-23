@@ -8,8 +8,8 @@ be returned separately as diagnostics so users can inspect the lookahead.
 import numpy as np
 from pydantic import PrivateAttr
 
-from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
-from akkudoktoreos.optimization.genetic.devices.geneticinverter import Inverter
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import GeneticInverter
 from akkudoktoreos.optimization.genetic.geneticterminalvalue import (
     TailPlanSlot,
     TerminalValueCurve,
@@ -35,8 +35,8 @@ def _action_name(action: TailAction) -> str:
 
 def _simulate_action(
     *,
-    bat: Battery,
-    inv: Inverter,
+    bat: GeneticBattery,
+    inv: GeneticInverter,
     energy_wh: float,
     action: TailAction,
     price: float,
@@ -120,15 +120,16 @@ class TailValueCurve(TerminalValueCurve):
         context = self._trace_context
         if not context:
             return []
-        bat = Battery(
+        bat = GeneticBattery(
             context["battery_parameters"],
             prediction_hours=1,
             slot_duration_h=context["slot_duration_h"],
         )
-        inv = Inverter(
+        inv = GeneticInverter(
             context["inverter_parameters"],
             battery=bat,
             slot_duration_h=context["slot_duration_h"],
+            self_consumption_backend=context["self_consumption_backend"],
         )
         conversion = bat.discharging_efficiency * inv.reference_dc_to_ac_efficiency
         state_wh = bat.min_soc_wh + (energy_wh / conversion if conversion > 0 else 0.0)
@@ -205,8 +206,8 @@ class TailValueCurve(TerminalValueCurve):
 
 def build_tail_value_curve(
     *,
-    battery: Battery,
-    inverter: Inverter,
+    battery: GeneticBattery,
+    inverter: GeneticInverter,
     prices_euro_per_wh: np.ndarray,
     load_wh: np.ndarray,
     pv_wh: np.ndarray,
@@ -229,9 +230,16 @@ def build_tail_value_curve(
     ]
     if len({len(a) for a in arrays}) != 1 or any(not np.isfinite(a).all() for a in arrays):
         raise ValueError("Tail forecasts must have equal lengths and contain only finite values")
-    bat = Battery(battery.parameters, prediction_hours=1, slot_duration_h=battery.slot_duration_h)
+    bat = GeneticBattery(
+        battery.parameters, prediction_hours=1, slot_duration_h=battery.slot_duration_h
+    )
     bat.charge_array = np.zeros(1, dtype=float)
-    inv = Inverter(inverter.parameters, battery=bat, slot_duration_h=battery.slot_duration_h)
+    inv = GeneticInverter(
+        inverter.parameters,
+        battery=bat,
+        slot_duration_h=battery.slot_duration_h,
+        self_consumption_backend=inverter.self_consumption_backend,
+    )
     states = np.linspace(bat.min_soc_wh, bat.max_soc_wh, grid_points)
     usable = (
         (states - bat.min_soc_wh) * bat.discharging_efficiency * inv.reference_dc_to_ac_efficiency
@@ -293,6 +301,7 @@ def build_tail_value_curve(
     result._trace_context = {
         "battery_parameters": battery.parameters,
         "inverter_parameters": inverter.parameters,
+        "self_consumption_backend": inverter.self_consumption_backend,
         "slot_duration_h": battery.slot_duration_h,
         "states": states,
         "future_values": future_values,

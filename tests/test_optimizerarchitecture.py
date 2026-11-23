@@ -130,14 +130,22 @@ WORLD_NAMES: dict[str, frozenset[str]] = {
 # Modules that mix the output contract or the public request schema with
 # configuration or Pydantic: from them an optimizer imports only the listed
 # names (ADR 0004, 0007): the solution, its DataFrame type, the operation-mode
-# enums of the plan's instructions and the time windows of a request.
+# enums of the plan's instructions, and the time windows and consumer schedule
+# enums of a request.
 CONTRACT_NAMES: dict[str, frozenset[str]] = {
     "akkudoktoreos.optimization.optimization": frozenset({"OptimizationSolution"}),
     "akkudoktoreos.core.pydantic": frozenset({"PydanticDateTimeDataFrame"}),
     "akkudoktoreos.devices.devicesabc": frozenset(
-        {"ApplianceOperationMode", "BatteryOperationMode"}
+        {
+            "ApplianceOperationMode",
+            "BatteryOperationMode",
+            "ConsumerDeadlinePolicy",
+            "ConsumerScheduleMode",
+        }
     ),
-    "akkudoktoreos.config.configabc": frozenset({"TimeWindow", "TimeWindowSequence"}),
+    "akkudoktoreos.config.configabc": frozenset(
+        {"TimeWindow", "TimeWindowSequence", "CycleTimeWindowSequence"}
+    ),
 }
 # The roles that build the output or define the public schema, the only ones
 # that may import the contract names of these modules; the parameters and the
@@ -382,47 +390,12 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "pydantic",
-            "akkudoktoreos.optimization.genetic.devices.geneticbattery",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.devices.genetichomeappliance",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.devices.geneticinverter",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticsimulation",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticsimulation",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
             "akkudoktoreos.optimization.genetic.geneticabc",
             "akkudoktoreos.core.pydantic",
         ),
         Violation(
             "pydantic",
             "akkudoktoreos.optimization.genetic.geneticabc",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticdevices",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticparams",
             "pydantic",
         ),
         Violation(
@@ -453,32 +426,17 @@ BASELINE: frozenset[Violation] = frozenset(
         Violation(
             "shared-config",
             "akkudoktoreos.devices.settings.batterysettings",
-            "akkudoktoreos.optimization.genetic.devices.geneticbattery",
+            "akkudoktoreos.optimization.genetic.geneticrequest",
         ),
         Violation(
             "shared-config",
             "akkudoktoreos.devices.settings.homeappliancesettings",
-            "akkudoktoreos.optimization.genetic.devices.genetichomeappliance",
+            "akkudoktoreos.optimization.genetic.geneticrequest",
         ),
         Violation(
             "shared-config",
             "akkudoktoreos.devices.settings.invertersettings",
-            "akkudoktoreos.optimization.genetic.devices.geneticinverter",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.devices.geneticbattery",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.devices.geneticbattery",
-            "akkudoktoreos.devices.settings.batteryresolution",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.devices.geneticbattery",
-            "akkudoktoreos.devices.settings.batterysettings",
+            "akkudoktoreos.optimization.genetic.geneticrequest",
         ),
         Violation(
             "world-access",
@@ -489,16 +447,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "world-access",
             "akkudoktoreos.optimization.genetic.devices.genetichomeappliance",
             "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.devices.geneticinverter",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.devices.geneticinverter",
-            "akkudoktoreos.prediction.interpolator",
         ),
         Violation(
             "world-access",
@@ -910,7 +858,7 @@ class TestOptimizerArchitecture:
             ),
             (
                 "from akkudoktoreos.devices.devicesabc import BatteryOperationMode, "
-                "ConsumerScheduleMode\n",
+                "validate_efficiency_curve\n",
                 Violation(
                     "world-access",
                     "akkudoktoreos.optimization.alpha.alphaconvert",

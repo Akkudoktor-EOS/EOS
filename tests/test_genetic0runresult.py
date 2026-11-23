@@ -109,6 +109,7 @@ def offline_ems(monkeypatch):
             ems=SimpleNamespace(mode=EnergyManagementMode.OPTIMIZATION),
             optimization=SimpleNamespace(
                 algorithm=OptimizationAlgorithm.GENETIC,
+                self_consumption_interpolator="scipy",
                 genetic=SimpleNamespace(
                     generations=3,
                     seed=17,
