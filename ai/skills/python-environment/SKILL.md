@@ -48,6 +48,16 @@ pytest or mypy go missing).
 - Do not run commands that remove the workspace `.venv`, e.g. `make clean`
   (`rm -rf build .venv`) or `rm -rf .venv`.
 
+## Running pytest
+
+- Keep pytest's cache plugin: never pass `-p no:cacheprovider`. The server
+  tests (pytest-xprocess) keep their processes in the cache; without it the
+  run stops with a usage error. To skip the server tests, deselect them with
+  `-m "not eos_server"`.
+- Pytest's temporary files go to `TMPDIR`. In the sandbox `/tmp` is a 512 MB
+  tmpfs that a full run fills: point `TMPDIR` to a directory on disk, e.g.
+  `TMPDIR="$HOME/.cache/eos-pytest-tmp"`.
+
 ## Verify
 
 - `uv run python -c "import sys; print(sys.prefix)"` prints the environment

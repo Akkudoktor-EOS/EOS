@@ -98,7 +98,7 @@ clean-bytecode:
 
 # Clean target to remove generated documentation and documentation artefacts
 clean-docs:
-	@echo "Searching and deleting all '_autosum' directories in docs..."
+	@echo "Searching and deleting all '_autosummary' directories in docs..."
 	@find docs -type d -name '_autosummary' -exec rm -rf {} +;
 	@echo "Cleaning docs build directories"
 	rm -rf build/docs

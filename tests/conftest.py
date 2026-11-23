@@ -159,6 +159,63 @@ def mark_server_tests(items: Sequence[pytest.Item]) -> None:
             item.add_marker(pytest.mark.xdist_group(SERVER_MARKER))
 
 
+SERVER_TESTS_NEED_CACHE = (
+    "Tests that start an EOS or EOSdash server need the pytest cache (pytest-xprocess keeps its "
+    "processes there). Run without '-p no:cacheprovider', or deselect them with "
+    "'-m \"not eos_server\"'."
+)
+
+
+def _uses_server_without_cache(config: pytest.Config, item: pytest.Item) -> bool:
+    """Whether the item starts a server while the pytest cache is disabled."""
+    return getattr(config, "cache", None) is None and "xprocess" in getattr(
+        item, "fixturenames", ()
+    )
+
+
+def require_cache_for_server_tests(config: pytest.Config, items: Sequence[pytest.Item]) -> None:
+    """Stop the run if server tests are collected while the pytest cache is disabled.
+
+    pytest-xprocess keeps the server processes in the pytest cache. With ``-p no:cacheprovider``
+    every test using the ``xprocess`` fixture errors with ``'Config' object has no attribute
+    'cache'``, which reads like an environment problem. A single usage error names the cause
+    instead. A pytest-xdist worker cannot report a usage error (it ends as an internal error
+    without the message); there ``fail_server_test_without_cache()`` fails each server test.
+
+    Args:
+        config: The pytest configuration.
+        items: The test items left after deselection.
+
+    Raises:
+        pytest.UsageError: A test uses ``xprocess`` and the cache is disabled.
+    """
+    if hasattr(config, "workerinput"):
+        return
+    if any(_uses_server_without_cache(config, item) for item in items):
+        raise pytest.UsageError(SERVER_TESTS_NEED_CACHE)
+
+
+def fail_server_test_without_cache(config: pytest.Config, item: pytest.Item) -> None:
+    """Fail a server test at setup while the pytest cache is disabled (pytest-xdist workers).
+
+    Args:
+        config: The pytest configuration.
+        item: The test item about to run.
+    """
+    if _uses_server_without_cache(config, item):
+        pytest.fail(SERVER_TESTS_NEED_CACHE, pytrace=False)
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Fail server tests that cannot run, with the cause (see ``require_cache_for_server_tests``)."""
+    fail_server_test_without_cache(item.config, item)
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Check that the server tests left after deselection can run."""
+    require_cache_for_server_tests(session.config, session.items)
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Mark the server tests, and skip the browser tests unless --browser-test is given.
