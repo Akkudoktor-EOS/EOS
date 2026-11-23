@@ -50,7 +50,7 @@ async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypat
     genetic, genetic0 = object(), object()
     fake = SimpleNamespace(
         genetic_solution=Mock(return_value=genetic),
-        genetic0_solution=Mock(return_value=genetic0),
+        optimizer_result=Mock(return_value=genetic0),
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
     monkeypatch.setattr(
@@ -62,10 +62,10 @@ async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypat
     if algorithm == OptimizationAlgorithm.GENETIC:
         assert result is genetic
         fake.genetic_solution.assert_called_once_with()
-        fake.genetic0_solution.assert_not_called()
+        fake.optimizer_result.assert_not_called()
     else:
         assert result is genetic0
-        fake.genetic0_solution.assert_called_once_with()
+        fake.optimizer_result.assert_called_once_with(OptimizationAlgorithm.GENETIC0)
         fake.genetic_solution.assert_not_called()
 
 

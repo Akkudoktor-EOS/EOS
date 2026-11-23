@@ -51,17 +51,30 @@ This is the one maintained copy of the interface; ADR 0006 records the decision 
 ```python
 class Optimizer(Protocol[P, Q, R]):
     name: str
-    async def prepare(self, start_datetime: DateTime, warm_start: R | None) -> P
+    async def prepare(
+        self, start_datetime: DateTime, warm_start: R | None,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> P
     async def prepare_from_request(
-        self, request: Q, start_datetime: DateTime, warm_start: R | None
+        self, request: Q, start_datetime: DateTime, warm_start: R | None,
+        overrides: Mapping[str, Any] | None = None,
     ) -> P
     def run(self, parameters: P) -> R
-    def convert(self, parameters: P, result: R) -> tuple[OptimizationSolution, EnergyManagementPlan]
+    async def convert(
+        self, parameters: P, result: R
+    ) -> tuple[OptimizationSolution, EnergyManagementPlan]
 ```
 
+The code is `akkudoktoreos.optimization.optimizer.Optimizer`; the energy management finds an
+optimizer through `akkudoktoreos.optimization.optimizerregistry.get_optimizer(name)` and keeps
+the last parameters and result per optimizer (`OptimizerRun`); the result is the next warm start.
+
 - `run()` is deterministic: the same optimization parameters give the same result. Generations,
-  individuals, seed and penalties are part of the optimization parameters; apply a REST override
-  (e.g. `?ngen=`) to the parameters before `run()`, never beside them.
+  individuals, seed and penalties are part of the optimization parameters. A run-time override
+  (e.g. `?ngen=`) reaches the preparation as `overrides` (`{"generations": 10}`), never beside the
+  parameters; the preparation applies the keys it knows and logs an error for any other key.
+- `convert()` is `async`, so that an optimizer can migrate step by step while its conversion
+  still awaits reads; once it uses only the parameters and the result, it awaits nothing.
 - **Optimization parameters (`P`), including the simulation's device
   parameters, are plain dataclasses, never Pydantic models** (ADR 0009). They
   are valid because parameter preparation builds them valid, not because a

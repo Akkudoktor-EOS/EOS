@@ -429,13 +429,12 @@ def run_optimization(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
             algorithm=OptimizationAlgorithm.GENETIC0,
-            genetic0_parameters=parameters,
-            genetic0_generations=ngen,
-            genetic0_seed=seed,
+            request=parameters,
+            overrides={"generations": ngen, "seed": seed},
         )
     )
 
-    solution = ems_eos.genetic0_solution()
+    solution = ems_eos.optimizer_result(OptimizationAlgorithm.GENETIC0)
     if solution is None:
         return None
     return solution.model_dump_json()

@@ -252,7 +252,9 @@ class Genetic0OptimizationParameters(
         return float(min(samples, key=lambda sample: sample[0])[1])
 
     @classmethod
-    async def prepare(cls) -> "Optional[Genetic0OptimizationParameters]":
+    async def prepare(
+        cls, start_solution: Optional[list[float]] = None
+    ) -> "Optional[Genetic0OptimizationParameters]":
         """Prepare optimization parameters from config, forecast and measurement data.
 
         Fills in values needed for optimization from available configuration, predictions and
@@ -260,6 +262,10 @@ class Genetic0OptimizationParameters(
 
         Parameters start by definition of the genetic algorithm at hour 0 of the actual date
         (not at start datetime of energy management run)
+
+        Args:
+            start_solution: Start solution of the previous run (warm start), passed in by the
+                parameter preparation.
 
         Returns:
             Genetic0OptimizationParameters: The fully prepared optimization parameters.
@@ -311,12 +317,6 @@ class Genetic0OptimizationParameters(
             cls.config.weather.provider = "OpenMeteo"
         if not cls.config.load.provider:
             cls.config.load.provider = "LoadAkkudoktor"
-
-        # Get start solution from last run
-        start_solution = None
-        last_solution = ems.genetic0_solution()
-        if last_solution and last_solution.start_solution:
-            start_solution = last_solution.start_solution
 
         # Add forecast and device data
         interval = to_duration(cls.config.optimization.genetic0.interval_sec)

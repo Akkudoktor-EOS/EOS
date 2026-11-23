@@ -1,5 +1,6 @@
 """GENETIC0 parameter preparation: time alignment, tariff coverage, and measured SoC."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import numpy as np
@@ -9,6 +10,7 @@ import pytest
 import pytest_asyncio
 
 from akkudoktoreos.core.coreabc import get_ems, get_measurement
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
 from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
@@ -466,3 +468,98 @@ class TestGenetic0DemoData:
         for other in {"pv_battery", "ev", "inverter"} - {field}:
             assert getattr(parameters, other) is not None
         assert config_eos.devices.model_dump(exclude_computed_fields=True) == configured
+
+
+class TestGenetic0PrepareOverrides:
+    """Run-time overrides reach the parameters; unknown keys are logged and ignored."""
+
+    @pytest.fixture
+    def request_parameters(self) -> Genetic0OptimizationParameters:
+        return Genetic0OptimizationParameters.model_validate(
+            {
+                "ems": {
+                    "pv_prognose_wh": [0.0, 100.0],
+                    "gesamtlast": [100.0, 100.0],
+                    "strompreis_euro_pro_wh": [0.0003, 0.0003],
+                    "einspeiseverguetung_euro_pro_wh": 0.00008,
+                    "preis_euro_pro_wh_akku": 0.0,
+                },
+                "pv_akku": None,
+                "eauto": None,
+                "inverter": None,
+            }
+        )
+
+    @pytest.fixture
+    def errors(self, monkeypatch) -> list[str]:
+        logged: list[str] = []
+        monkeypatch.setattr(
+            genetic0prepare.logger, "error", lambda message, *args: logged.append(message)
+        )
+        return logged
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "overrides, generations, seed",
+        [
+            (None, 77, 5),
+            ({}, 77, 5),
+            ({"generations": None, "seed": None}, 77, 5),
+            ({"generations": 12}, 12, 5),
+            ({"generations": 12, "seed": 42}, 12, 42),
+        ],
+    )
+    async def test_known_overrides_replace_the_settings(
+        self, config_eos, request_parameters, errors, overrides, generations, seed
+    ):
+        config_eos.merge_settings_from_dict(
+            {"optimization": {"genetic0": {"generations": 77, "seed": 5}}}
+        )
+        start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
+        parameters = await genetic0prepare.prepare_from_request(
+            request_parameters, start, None, overrides
+        )
+        assert parameters.request is request_parameters
+        assert parameters.start_hour == 10
+        assert (parameters.generations, parameters.seed) == (generations, seed)
+        assert errors == []
+
+    @pytest.mark.asyncio
+    async def test_unknown_override_is_logged_and_ignored(
+        self, config_eos, request_parameters, errors
+    ):
+        config_eos.merge_settings_from_dict(
+            {"optimization": {"genetic0": {"generations": 77, "seed": 5}}}
+        )
+        start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
+        parameters = await genetic0prepare.prepare_from_request(
+            request_parameters, start, None, {"individuals": 3, "generations": 12}
+        )
+        assert (parameters.generations, parameters.seed) == (12, 5)
+        assert errors == ["GENETIC0: Unknown override '{}' ignored."]
+
+
+class TestGenetic0PrepareWarmStart:
+    """The start solution of the previous run seeds the next one."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "warm_start, start_solution",
+        [
+            (None, None),
+            (SimpleNamespace(start_solution=None), None),
+            (SimpleNamespace(start_solution=[]), None),
+            (SimpleNamespace(start_solution=[1.0, 0.0, 2.0]), [1.0, 0.0, 2.0]),
+        ],
+        ids=["no-previous-run", "no-start-solution", "empty-start-solution", "start-solution"],
+    )
+    async def test_previous_start_solution_reaches_the_preparation(
+        self, config_eos, monkeypatch, warm_start, start_solution
+    ):
+        request = Mock()
+        legacy_prepare = AsyncMock(return_value=request)
+        monkeypatch.setattr(Genetic0OptimizationParameters, "prepare", legacy_prepare)
+        start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
+        parameters = await genetic0prepare.prepare(start, warm_start)
+        legacy_prepare.assert_awaited_once_with(start_solution=start_solution)
+        assert parameters.request is request

@@ -3,9 +3,10 @@ import threading
 import traceback
 import urllib.request
 from asyncio import Lock, get_running_loop
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from enum import StrEnum
-from typing import ClassVar, Optional, cast
+from typing import Any, ClassVar, Optional, cast
 
 from loguru import logger
 from pydantic import computed_field
@@ -20,10 +21,6 @@ from akkudoktoreos.core.coreabc import (
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
-)
-from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticparams import (
@@ -34,6 +31,8 @@ from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
 )
+from akkudoktoreos.optimization.optimizer import OptimizerRun
+from akkudoktoreos.optimization.optimizerregistry import get_optimizer
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # The executor to execute the CPU heavy energy management run
@@ -126,9 +125,9 @@ class EnergyManagement(
     # For classic API
     _genetic_solution: ClassVar[Optional[GeneticSolution]] = None
 
-    # Solution of the genetic0 algorithm of latest energy management run with optimization
-    # For classic API
-    _genetic0_solution: ClassVar[Optional[Genetic0Solution]] = None
+    # Parameters and result of the latest run per optimizer of the registry, by optimizer name.
+    # The result is the warm start of the optimizer's next run.
+    _optimizer_runs: ClassVar[dict[str, OptimizerRun[Any, Any]]] = {}
 
     # energy management lock (for energy management run)
     _run_lock: ClassVar[Lock] = Lock()
@@ -227,13 +226,17 @@ class EnergyManagement(
         return cls._genetic_solution
 
     @classmethod
-    def genetic0_solution(cls) -> Optional[Genetic0Solution]:
-        """Get the latest solution of the genetic0 algorithm.
+    def optimizer_result(cls, name: str) -> Optional[Any]:
+        """Get the result of the latest successful run of an optimizer of the registry.
+
+        Args:
+            name: The optimizer's name, e.g. ``"GENETIC0"``.
 
         Returns:
-            Optional[Genetic0Solution]: The latest solution of the genetic algorithm.
+            The optimizer's native optimization result, or None if it has not run yet.
         """
-        return cls._genetic0_solution
+        run = cls._optimizer_runs.get(name)
+        return None if run is None else run.result
 
     async def run(
         self,
@@ -246,12 +249,11 @@ class EnergyManagement(
         genetic_generations: Optional[int] = None,
         genetic_individuals: Optional[int] = None,
         genetic_seed: Optional[int] = None,
-        genetic0_parameters: Optional[Genetic0OptimizationParameters] = None,
-        genetic0_generations: Optional[int] = None,
-        genetic0_seed: Optional[int] = None,
+        request: Optional[Any] = None,
+        overrides: Optional[Mapping[str, Any]] = None,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
-    ) -> Optional[GeneticSolution | Genetic0Solution]:
+    ) -> Optional[Any]:
         """Run the energy management.
 
         This method initializes the energy management run by setting its
@@ -281,14 +283,11 @@ class EnergyManagement(
             genetic_individuals (int, optional): Population size override for this run.
             genetic_seed (int, optional): The seed for the `GENETIC` algorithm. Defaults
                 to the algorithm's internal random seed if not specified.
-            genetic0_parameters (Genetic0OptimizationParameters, optional): The
-                parameter set for the `GENETIC0` algorithm. If not provided, it will
-                be constructed based on the current configuration and predictions.
-            genetic0_generations (int, optional): The number of generations for the
-                `GENETIC0` algorithm. Defaults to the algorithm's internal default (400)
-                if not specified.
-            genetic0_seed (int, optional): The seed for the `GENETIC0` algorithm. Defaults
-                to the algorithm's internal random seed if not specified.
+            request (optional): An optimization request for an optimizer of the registry
+                (e.g. `GENETIC0`), completed by its `prepare_from_request()`. If not provided,
+                the optimizer prepares its parameters from configuration and predictions.
+            overrides (Mapping, optional): Run-time overrides of the settings of an optimizer
+                of the registry, e.g. ``{"generations": 10, "seed": 42}``.
             force_enable (bool, optional): If True, bypasses any disabled state
                 to force the update process. This is mostly applicable to
                 prediction providers.
@@ -374,7 +373,10 @@ class EnergyManagement(
             if algorithm is None:
                 algorithm = self.config.optimization.algorithm
 
-            run_solution: GeneticSolution | Genetic0Solution
+            run_solution: Any
+            optimizer = (
+                None if algorithm == OptimizationAlgorithm.GENETIC else get_optimizer(algorithm)
+            )
 
             # --- GENETIC algorithm ---
             if algorithm == OptimizationAlgorithm.GENETIC:
@@ -446,59 +448,38 @@ class EnergyManagement(
                     EnergyManagement._genetic_solution,
                 )
 
-            # --- GENETIC0 algorithm ---
-            elif algorithm == OptimizationAlgorithm.GENETIC0:
+            # --- Optimizers of the registry ---
+            elif optimizer is not None:
                 # Prepare optimization parameters
-                # This also creates default configurations for missing values and updates the predictions
                 logger.info(f"{algorithm}: Starting optimzation parameter preparation.")
-                if genetic0_parameters is None:
-                    genetic0_parameters = await Genetic0OptimizationParameters.prepare()
-                    if genetic0_parameters is None:
-                        logger.error(
-                            f"{algorithm}: Energy management run canceled. "
-                            "Could not prepare optimisation parameters."
-                        )
-                        EnergyManagement._stage = EnergyManagementStage.IDLE
-                        return None
-
-                # Take values from config if not given
-                if genetic0_generations is None:
-                    genetic0_generations = self.config.optimization.genetic0.generations
-                if genetic0_seed is None:
-                    genetic0_seed = self.config.optimization.genetic0.seed
-
                 if EnergyManagement._start_datetime is None:  # Make mypy happy - already set by us
                     raise RuntimeError(f"{algorithm}: Start datetime not set.")
+                start = EnergyManagement._start_datetime
+                previous = EnergyManagement._optimizer_runs.get(optimizer.name)
+                warm_start = None if previous is None else previous.result
+                try:
+                    if request is None:
+                        parameters = await optimizer.prepare(start, warm_start, overrides)
+                    else:
+                        parameters = await optimizer.prepare_from_request(
+                            request, start, warm_start, overrides
+                        )
+                except Exception:
+                    # Until every optimizer's preparation never fails (ADR 0006).
+                    logger.exception(
+                        f"{algorithm}: Energy management run canceled. "
+                        "Could not prepare optimisation parameters."
+                    )
+                    EnergyManagement._stage = EnergyManagementStage.IDLE
+                    return None
 
                 # --- Optimization (CPU-bound → MUST offload) ---
                 try:
-                    # Imported on first use: a server that runs GENETIC never needs
-                    # the GENETIC0 optimizer and its simulation.
-                    from akkudoktoreos.optimization.genetic0.genetic0 import (
-                        Genetic0Optimization,
-                    )
-
-                    genetic0_optimization = Genetic0Optimization(
-                        verbose=bool(self.config.server.verbose),
-                        fixed_seed=genetic0_seed,
-                    )
-
                     loop = get_running_loop()
-                    start_hour = EnergyManagement._start_datetime.hour
-                    genetic0_solution = await loop.run_in_executor(
-                        None,
-                        lambda: genetic0_optimization.optimize_ems(
-                            start_hour=start_hour,
-                            parameters=cast(
-                                Genetic0OptimizationParameters, genetic0_parameters
-                            ),  # cast for mypy
-                            ngen=genetic0_generations,
-                        ),
-                    )
+                    result = await loop.run_in_executor(None, optimizer.run, parameters)
 
                     # Build all representations before publishing any of them.
-                    optimization_solution = await genetic0_solution.optimization_solution()
-                    plan = genetic0_solution.energy_management_plan()
+                    optimization_solution, plan = await optimizer.convert(parameters, result)
 
                 except Exception:
                     logger.exception(f"{algorithm}: Energy management optimization failed.")
@@ -506,16 +487,14 @@ class EnergyManagement(
                     return None
 
                 # Publish a consistent set without yielding to another coroutine.
-                EnergyManagement._genetic0_solution = genetic0_solution
+                EnergyManagement._optimizer_runs[optimizer.name] = OptimizerRun(
+                    parameters=parameters, result=result
+                )
                 EnergyManagement._optimization_solution = optimization_solution
                 EnergyManagement._plan = plan
-                run_solution = genetic0_solution
+                run_solution = result
 
-                logger.debug(
-                    "{}: Energy management genetic solution:\n{}",
-                    algorithm,
-                    EnergyManagement._genetic0_solution,
-                )
+                logger.debug("{}: Energy management optimizer result:\n{}", algorithm, result)
 
             else:
                 logger.error(f"Unknown optimization algorithm: '{algorithm}'. Skipping.")

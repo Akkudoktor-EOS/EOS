@@ -1869,7 +1869,7 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
     if algorithm == OptimizationAlgorithm.GENETIC:
         solution = get_ems().genetic_solution()
     elif algorithm == OptimizationAlgorithm.GENETIC0:
-        solution = get_ems().genetic0_solution()
+        solution = get_ems().optimizer_result(algorithm)
 
     if solution is None:
         raise EOSProblem(
@@ -2296,8 +2296,8 @@ async def fastapi_optimize(
         start_datetime=start_datetime,
         mode=EnergyManagementMode.OPTIMIZATION,
         algorithm=OptimizationAlgorithm.GENETIC0,
-        genetic0_parameters=parameters,
-        genetic0_generations=ngen,
+        request=parameters,
+        overrides={"generations": ngen},
     )
 
     if solution is None:
@@ -2326,7 +2326,7 @@ async def fastapi_optimize(
 @app.get("/visualization_results.pdf", tags=["optimize"])
 def get_pdf() -> Response:
     # Endpoint to serve the generated PDF with visualization results
-    genetic0_solution = get_ems().genetic0_solution()
+    genetic0_solution = get_ems().optimizer_result(OptimizationAlgorithm.GENETIC0)
     if genetic0_solution is None:
         raise EOSProblem(
             status=404,
