@@ -88,3 +88,36 @@ class TestServerMarker:
                 assert item.get_closest_marker("eos_server") is not None, item.nodeid
                 group = item.get_closest_marker("xdist_group")
                 assert group is not None and group.args == ("eos_server",), item.nodeid
+
+
+def fake_config(**attributes: Any) -> pytest.Config:
+    """A stand-in for the pytest configuration with the given attributes, e.g. ``cache``."""
+    return type("Config", (), attributes)()
+
+
+class TestServerTestsNeedTheCache:
+    """pytest-xprocess keeps its state in the pytest cache; without it every server test errors."""
+
+    def test_server_tests_without_cache_stop_the_run(self) -> None:
+        """``-p no:cacheprovider`` turns into one clear usage error, not 19 cryptic ones."""
+        with pytest.raises(pytest.UsageError, match="no:cacheprovider"):
+            conftest.require_cache_for_server_tests(fake_config(), [FakeItem("xprocess")])  # type: ignore[list-item]
+
+    def test_server_tests_with_cache_run(self) -> None:
+        """With the cache, server tests run as usual."""
+        config = fake_config(cache=object())
+        conftest.require_cache_for_server_tests(config, [FakeItem("xprocess")])  # type: ignore[list-item]
+        conftest.fail_server_test_without_cache(config, FakeItem("xprocess"))  # type: ignore[arg-type]
+
+    def test_other_tests_run_without_cache(self) -> None:
+        """Tests that start no server do not need the cache."""
+        config = fake_config()
+        conftest.require_cache_for_server_tests(config, [FakeItem("tmp_path")])  # type: ignore[list-item]
+        conftest.fail_server_test_without_cache(config, FakeItem("tmp_path"))  # type: ignore[arg-type]
+
+    def test_xdist_worker_fails_each_server_test_with_the_cause(self) -> None:
+        """A worker cannot report a usage error, so each server test fails with the message."""
+        config = fake_config(workerinput={})
+        conftest.require_cache_for_server_tests(config, [FakeItem("xprocess")])  # type: ignore[list-item]
+        with pytest.raises(pytest.fail.Exception, match="no:cacheprovider"):
+            conftest.fail_server_test_without_cache(config, FakeItem("xprocess"))  # type: ignore[arg-type]

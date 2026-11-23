@@ -621,7 +621,7 @@ class TestGenetic0Presentation:
         monkeypatch.setattr(genetic0prepare, "get_prediction", lambda: prediction)
         # 09:00 UTC is 10:00 in Berlin: read from the earlier hour, so the series cover every
         # hour the conversion may show (it slices them to its own count).
-        start = to_datetime("2026-01-14T09:00:00+00:00")
+        start = to_datetime("2026-01-14T09:00:00+00:00", in_timezone="UTC")
         settings = genetic0prepare._run_settings(None)
 
         presentation = await genetic0prepare._presentation(start, settings, False)

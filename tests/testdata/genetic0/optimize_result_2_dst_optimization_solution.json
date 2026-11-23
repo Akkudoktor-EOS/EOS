@@ -12,7 +12,7 @@
     ],
     "prediction": {
         "data": {
-            "2026-03-28T09:00:00+00:00": {
+            "2026-03-28T10:00:00+01:00": {
                 "date_time": "2026-03-28T10:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1046.5,
                 "pvforecast_dc_energy_wh": 1056.5,
@@ -23,7 +23,7 @@
                 "loadakkudoktor_std_energy_wh": 1106.5,
                 "loadakkudoktor_mean_energy_wh": 1116.5
             },
-            "2026-03-28T10:00:00+00:00": {
+            "2026-03-28T11:00:00+01:00": {
                 "date_time": "2026-03-28T11:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1047.0,
                 "pvforecast_dc_energy_wh": 1057.0,
@@ -34,7 +34,7 @@
                 "loadakkudoktor_std_energy_wh": 1107.0,
                 "loadakkudoktor_mean_energy_wh": 1117.0
             },
-            "2026-03-28T11:00:00+00:00": {
+            "2026-03-28T12:00:00+01:00": {
                 "date_time": "2026-03-28T12:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1047.5,
                 "pvforecast_dc_energy_wh": 1057.5,
@@ -45,7 +45,7 @@
                 "loadakkudoktor_std_energy_wh": 1107.5,
                 "loadakkudoktor_mean_energy_wh": 1117.5
             },
-            "2026-03-28T12:00:00+00:00": {
+            "2026-03-28T13:00:00+01:00": {
                 "date_time": "2026-03-28T13:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1048.0,
                 "pvforecast_dc_energy_wh": 1058.0,
@@ -56,7 +56,7 @@
                 "loadakkudoktor_std_energy_wh": 1108.0,
                 "loadakkudoktor_mean_energy_wh": 1118.0
             },
-            "2026-03-28T13:00:00+00:00": {
+            "2026-03-28T14:00:00+01:00": {
                 "date_time": "2026-03-28T14:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1048.5,
                 "pvforecast_dc_energy_wh": 1058.5,
@@ -67,7 +67,7 @@
                 "loadakkudoktor_std_energy_wh": 1108.5,
                 "loadakkudoktor_mean_energy_wh": 1118.5
             },
-            "2026-03-28T14:00:00+00:00": {
+            "2026-03-28T15:00:00+01:00": {
                 "date_time": "2026-03-28T15:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1049.0,
                 "pvforecast_dc_energy_wh": 1059.0,
@@ -78,7 +78,7 @@
                 "loadakkudoktor_std_energy_wh": 1109.0,
                 "loadakkudoktor_mean_energy_wh": 1119.0
             },
-            "2026-03-28T15:00:00+00:00": {
+            "2026-03-28T16:00:00+01:00": {
                 "date_time": "2026-03-28T16:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1049.5,
                 "pvforecast_dc_energy_wh": 1059.5,
@@ -89,7 +89,7 @@
                 "loadakkudoktor_std_energy_wh": 1109.5,
                 "loadakkudoktor_mean_energy_wh": 1119.5
             },
-            "2026-03-28T16:00:00+00:00": {
+            "2026-03-28T17:00:00+01:00": {
                 "date_time": "2026-03-28T17:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1050.0,
                 "pvforecast_dc_energy_wh": 1060.0,
@@ -100,7 +100,7 @@
                 "loadakkudoktor_std_energy_wh": 1110.0,
                 "loadakkudoktor_mean_energy_wh": 1120.0
             },
-            "2026-03-28T17:00:00+00:00": {
+            "2026-03-28T18:00:00+01:00": {
                 "date_time": "2026-03-28T18:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1050.5,
                 "pvforecast_dc_energy_wh": 1060.5,
@@ -111,7 +111,7 @@
                 "loadakkudoktor_std_energy_wh": 1110.5,
                 "loadakkudoktor_mean_energy_wh": 1120.5
             },
-            "2026-03-28T18:00:00+00:00": {
+            "2026-03-28T19:00:00+01:00": {
                 "date_time": "2026-03-28T19:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1051.0,
                 "pvforecast_dc_energy_wh": 1061.0,
@@ -122,7 +122,7 @@
                 "loadakkudoktor_std_energy_wh": 1111.0,
                 "loadakkudoktor_mean_energy_wh": 1121.0
             },
-            "2026-03-28T19:00:00+00:00": {
+            "2026-03-28T20:00:00+01:00": {
                 "date_time": "2026-03-28T20:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1051.5,
                 "pvforecast_dc_energy_wh": 1061.5,
@@ -133,7 +133,7 @@
                 "loadakkudoktor_std_energy_wh": 1111.5,
                 "loadakkudoktor_mean_energy_wh": 1121.5
             },
-            "2026-03-28T20:00:00+00:00": {
+            "2026-03-28T21:00:00+01:00": {
                 "date_time": "2026-03-28T21:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1052.0,
                 "pvforecast_dc_energy_wh": 1062.0,
@@ -144,7 +144,7 @@
                 "loadakkudoktor_std_energy_wh": 1112.0,
                 "loadakkudoktor_mean_energy_wh": 1122.0
             },
-            "2026-03-28T21:00:00+00:00": {
+            "2026-03-28T22:00:00+01:00": {
                 "date_time": "2026-03-28T22:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1052.5,
                 "pvforecast_dc_energy_wh": 1062.5,
@@ -155,7 +155,7 @@
                 "loadakkudoktor_std_energy_wh": 1112.5,
                 "loadakkudoktor_mean_energy_wh": 1122.5
             },
-            "2026-03-28T22:00:00+00:00": {
+            "2026-03-28T23:00:00+01:00": {
                 "date_time": "2026-03-28T23:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1053.0,
                 "pvforecast_dc_energy_wh": 1063.0,
@@ -166,7 +166,7 @@
                 "loadakkudoktor_std_energy_wh": 1113.0,
                 "loadakkudoktor_mean_energy_wh": 1123.0
             },
-            "2026-03-28T23:00:00+00:00": {
+            "2026-03-29T00:00:00+01:00": {
                 "date_time": "2026-03-29T00:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1053.5,
                 "pvforecast_dc_energy_wh": 1063.5,
@@ -177,7 +177,7 @@
                 "loadakkudoktor_std_energy_wh": 1113.5,
                 "loadakkudoktor_mean_energy_wh": 1123.5
             },
-            "2026-03-29T00:00:00+00:00": {
+            "2026-03-29T01:00:00+01:00": {
                 "date_time": "2026-03-29T01:00:00+01:00",
                 "pvforecast_ac_energy_wh": 1054.0,
                 "pvforecast_dc_energy_wh": 1064.0,
@@ -188,7 +188,7 @@
                 "loadakkudoktor_std_energy_wh": 1114.0,
                 "loadakkudoktor_mean_energy_wh": 1124.0
             },
-            "2026-03-29T01:00:00+00:00": {
+            "2026-03-29T03:00:00+02:00": {
                 "date_time": "2026-03-29T03:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1054.5,
                 "pvforecast_dc_energy_wh": 1064.5,
@@ -199,7 +199,7 @@
                 "loadakkudoktor_std_energy_wh": 1114.5,
                 "loadakkudoktor_mean_energy_wh": 1124.5
             },
-            "2026-03-29T02:00:00+00:00": {
+            "2026-03-29T04:00:00+02:00": {
                 "date_time": "2026-03-29T04:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1055.0,
                 "pvforecast_dc_energy_wh": 1065.0,
@@ -210,7 +210,7 @@
                 "loadakkudoktor_std_energy_wh": 1115.0,
                 "loadakkudoktor_mean_energy_wh": 1125.0
             },
-            "2026-03-29T03:00:00+00:00": {
+            "2026-03-29T05:00:00+02:00": {
                 "date_time": "2026-03-29T05:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1055.5,
                 "pvforecast_dc_energy_wh": 1065.5,
@@ -221,7 +221,7 @@
                 "loadakkudoktor_std_energy_wh": 1115.5,
                 "loadakkudoktor_mean_energy_wh": 1125.5
             },
-            "2026-03-29T04:00:00+00:00": {
+            "2026-03-29T06:00:00+02:00": {
                 "date_time": "2026-03-29T06:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1056.0,
                 "pvforecast_dc_energy_wh": 1066.0,
@@ -232,7 +232,7 @@
                 "loadakkudoktor_std_energy_wh": 1116.0,
                 "loadakkudoktor_mean_energy_wh": 1126.0
             },
-            "2026-03-29T05:00:00+00:00": {
+            "2026-03-29T07:00:00+02:00": {
                 "date_time": "2026-03-29T07:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1056.5,
                 "pvforecast_dc_energy_wh": 1066.5,
@@ -243,7 +243,7 @@
                 "loadakkudoktor_std_energy_wh": 1116.5,
                 "loadakkudoktor_mean_energy_wh": 1126.5
             },
-            "2026-03-29T06:00:00+00:00": {
+            "2026-03-29T08:00:00+02:00": {
                 "date_time": "2026-03-29T08:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1057.0,
                 "pvforecast_dc_energy_wh": 1067.0,
@@ -254,7 +254,7 @@
                 "loadakkudoktor_std_energy_wh": 1117.0,
                 "loadakkudoktor_mean_energy_wh": 1127.0
             },
-            "2026-03-29T07:00:00+00:00": {
+            "2026-03-29T09:00:00+02:00": {
                 "date_time": "2026-03-29T09:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1057.5,
                 "pvforecast_dc_energy_wh": 1067.5,
@@ -265,7 +265,7 @@
                 "loadakkudoktor_std_energy_wh": 1117.5,
                 "loadakkudoktor_mean_energy_wh": 1127.5
             },
-            "2026-03-29T08:00:00+00:00": {
+            "2026-03-29T10:00:00+02:00": {
                 "date_time": "2026-03-29T10:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1058.0,
                 "pvforecast_dc_energy_wh": 1068.0,
@@ -276,7 +276,7 @@
                 "loadakkudoktor_std_energy_wh": 1118.0,
                 "loadakkudoktor_mean_energy_wh": 1128.0
             },
-            "2026-03-29T09:00:00+00:00": {
+            "2026-03-29T11:00:00+02:00": {
                 "date_time": "2026-03-29T11:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1058.5,
                 "pvforecast_dc_energy_wh": 1068.5,
@@ -287,7 +287,7 @@
                 "loadakkudoktor_std_energy_wh": 1118.5,
                 "loadakkudoktor_mean_energy_wh": 1128.5
             },
-            "2026-03-29T10:00:00+00:00": {
+            "2026-03-29T12:00:00+02:00": {
                 "date_time": "2026-03-29T12:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1059.0,
                 "pvforecast_dc_energy_wh": 1069.0,
@@ -298,7 +298,7 @@
                 "loadakkudoktor_std_energy_wh": 1119.0,
                 "loadakkudoktor_mean_energy_wh": 1129.0
             },
-            "2026-03-29T11:00:00+00:00": {
+            "2026-03-29T13:00:00+02:00": {
                 "date_time": "2026-03-29T13:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1059.5,
                 "pvforecast_dc_energy_wh": 1069.5,
@@ -309,7 +309,7 @@
                 "loadakkudoktor_std_energy_wh": 1119.5,
                 "loadakkudoktor_mean_energy_wh": 1129.5
             },
-            "2026-03-29T12:00:00+00:00": {
+            "2026-03-29T14:00:00+02:00": {
                 "date_time": "2026-03-29T14:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1060.0,
                 "pvforecast_dc_energy_wh": 1070.0,
@@ -320,7 +320,7 @@
                 "loadakkudoktor_std_energy_wh": 1120.0,
                 "loadakkudoktor_mean_energy_wh": 1130.0
             },
-            "2026-03-29T13:00:00+00:00": {
+            "2026-03-29T15:00:00+02:00": {
                 "date_time": "2026-03-29T15:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1060.5,
                 "pvforecast_dc_energy_wh": 1070.5,
@@ -331,7 +331,7 @@
                 "loadakkudoktor_std_energy_wh": 1120.5,
                 "loadakkudoktor_mean_energy_wh": 1130.5
             },
-            "2026-03-29T14:00:00+00:00": {
+            "2026-03-29T16:00:00+02:00": {
                 "date_time": "2026-03-29T16:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1061.0,
                 "pvforecast_dc_energy_wh": 1071.0,
@@ -342,7 +342,7 @@
                 "loadakkudoktor_std_energy_wh": 1121.0,
                 "loadakkudoktor_mean_energy_wh": 1131.0
             },
-            "2026-03-29T15:00:00+00:00": {
+            "2026-03-29T17:00:00+02:00": {
                 "date_time": "2026-03-29T17:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1061.5,
                 "pvforecast_dc_energy_wh": 1071.5,
@@ -353,7 +353,7 @@
                 "loadakkudoktor_std_energy_wh": 1121.5,
                 "loadakkudoktor_mean_energy_wh": 1131.5
             },
-            "2026-03-29T16:00:00+00:00": {
+            "2026-03-29T18:00:00+02:00": {
                 "date_time": "2026-03-29T18:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1062.0,
                 "pvforecast_dc_energy_wh": 1072.0,
@@ -364,7 +364,7 @@
                 "loadakkudoktor_std_energy_wh": 1122.0,
                 "loadakkudoktor_mean_energy_wh": 1132.0
             },
-            "2026-03-29T17:00:00+00:00": {
+            "2026-03-29T19:00:00+02:00": {
                 "date_time": "2026-03-29T19:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1062.5,
                 "pvforecast_dc_energy_wh": 1072.5,
@@ -375,7 +375,7 @@
                 "loadakkudoktor_std_energy_wh": 1122.5,
                 "loadakkudoktor_mean_energy_wh": 1132.5
             },
-            "2026-03-29T18:00:00+00:00": {
+            "2026-03-29T20:00:00+02:00": {
                 "date_time": "2026-03-29T20:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1063.0,
                 "pvforecast_dc_energy_wh": 1073.0,
@@ -386,7 +386,7 @@
                 "loadakkudoktor_std_energy_wh": 1123.0,
                 "loadakkudoktor_mean_energy_wh": 1133.0
             },
-            "2026-03-29T19:00:00+00:00": {
+            "2026-03-29T21:00:00+02:00": {
                 "date_time": "2026-03-29T21:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1063.5,
                 "pvforecast_dc_energy_wh": 1073.5,
@@ -397,7 +397,7 @@
                 "loadakkudoktor_std_energy_wh": 1123.5,
                 "loadakkudoktor_mean_energy_wh": 1133.5
             },
-            "2026-03-29T20:00:00+00:00": {
+            "2026-03-29T22:00:00+02:00": {
                 "date_time": "2026-03-29T22:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1064.0,
                 "pvforecast_dc_energy_wh": 1074.0,
@@ -408,7 +408,7 @@
                 "loadakkudoktor_std_energy_wh": 1124.0,
                 "loadakkudoktor_mean_energy_wh": 1134.0
             },
-            "2026-03-29T21:00:00+00:00": {
+            "2026-03-29T23:00:00+02:00": {
                 "date_time": "2026-03-29T23:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1064.5,
                 "pvforecast_dc_energy_wh": 1074.5,
@@ -419,7 +419,7 @@
                 "loadakkudoktor_std_energy_wh": 1124.5,
                 "loadakkudoktor_mean_energy_wh": 1134.5
             },
-            "2026-03-29T22:00:00+00:00": {
+            "2026-03-30T00:00:00+02:00": {
                 "date_time": "2026-03-30T00:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1065.0,
                 "pvforecast_dc_energy_wh": 1075.0,
@@ -449,7 +449,7 @@
     },
     "solution": {
         "data": {
-            "2026-03-28T09:00:00+00:00": {
+            "2026-03-28T10:00:00+01:00": {
                 "date_time": "2026-03-28T10:00:00+01:00",
                 "load_energy_wh": 1053.07,
                 "grid_feedin_energy_wh": 0.0,
@@ -521,7 +521,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T10:00:00+00:00": {
+            "2026-03-28T11:00:00+01:00": {
                 "date_time": "2026-03-28T11:00:00+01:00",
                 "load_energy_wh": 10240.91,
                 "grid_feedin_energy_wh": 0.0,
@@ -593,7 +593,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T11:00:00+00:00": {
+            "2026-03-28T12:00:00+01:00": {
                 "date_time": "2026-03-28T12:00:00+01:00",
                 "load_energy_wh": 14186.56,
                 "grid_feedin_energy_wh": 0.0,
@@ -665,7 +665,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T12:00:00+00:00": {
+            "2026-03-28T13:00:00+01:00": {
                 "date_time": "2026-03-28T13:00:00+01:00",
                 "load_energy_wh": 11620.03,
                 "grid_feedin_energy_wh": 0.0,
@@ -737,7 +737,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T13:00:00+00:00": {
+            "2026-03-28T14:00:00+01:00": {
                 "date_time": "2026-03-28T14:00:00+01:00",
                 "load_energy_wh": 11218.67,
                 "grid_feedin_energy_wh": 0.0,
@@ -809,7 +809,7 @@
                 "homeappliance1_off_op_mode": 0.0,
                 "homeappliance1_off_op_factor": 0.0
             },
-            "2026-03-28T14:00:00+00:00": {
+            "2026-03-28T15:00:00+01:00": {
                 "date_time": "2026-03-28T15:00:00+01:00",
                 "load_energy_wh": 7609.82,
                 "grid_feedin_energy_wh": 0.0,
@@ -881,7 +881,7 @@
                 "homeappliance1_off_op_mode": 0.0,
                 "homeappliance1_off_op_factor": 0.0
             },
-            "2026-03-28T15:00:00+00:00": {
+            "2026-03-28T16:00:00+01:00": {
                 "date_time": "2026-03-28T16:00:00+01:00",
                 "load_energy_wh": 9082.22,
                 "grid_feedin_energy_wh": 0.0,
@@ -953,7 +953,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T16:00:00+00:00": {
+            "2026-03-28T17:00:00+01:00": {
                 "date_time": "2026-03-28T17:00:00+01:00",
                 "load_energy_wh": 10280.78,
                 "grid_feedin_energy_wh": 0.0,
@@ -1025,7 +1025,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T17:00:00+00:00": {
+            "2026-03-28T18:00:00+01:00": {
                 "date_time": "2026-03-28T18:00:00+01:00",
                 "load_energy_wh": 2177.92,
                 "grid_feedin_energy_wh": 0.0,
@@ -1097,7 +1097,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T18:00:00+00:00": {
+            "2026-03-28T19:00:00+01:00": {
                 "date_time": "2026-03-28T19:00:00+01:00",
                 "load_energy_wh": 1178.71,
                 "grid_feedin_energy_wh": 0.0,
@@ -1169,7 +1169,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T19:00:00+00:00": {
+            "2026-03-28T20:00:00+01:00": {
                 "date_time": "2026-03-28T20:00:00+01:00",
                 "load_energy_wh": 1050.98,
                 "grid_feedin_energy_wh": 0.0,
@@ -1241,7 +1241,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T20:00:00+00:00": {
+            "2026-03-28T21:00:00+01:00": {
                 "date_time": "2026-03-28T21:00:00+01:00",
                 "load_energy_wh": 1988.56,
                 "grid_feedin_energy_wh": 0.0,
@@ -1313,7 +1313,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T21:00:00+00:00": {
+            "2026-03-28T22:00:00+01:00": {
                 "date_time": "2026-03-28T22:00:00+01:00",
                 "load_energy_wh": 912.38,
                 "grid_feedin_energy_wh": 0.0,
@@ -1385,7 +1385,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T22:00:00+00:00": {
+            "2026-03-28T23:00:00+01:00": {
                 "date_time": "2026-03-28T23:00:00+01:00",
                 "load_energy_wh": 1704.6100000000001,
                 "grid_feedin_energy_wh": 0.0,
@@ -1457,7 +1457,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-28T23:00:00+00:00": {
+            "2026-03-29T00:00:00+01:00": {
                 "date_time": "2026-03-29T00:00:00+01:00",
                 "load_energy_wh": 516.37,
                 "grid_feedin_energy_wh": 0.0,
@@ -1529,7 +1529,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T00:00:00+00:00": {
+            "2026-03-29T01:00:00+01:00": {
                 "date_time": "2026-03-29T01:00:00+01:00",
                 "load_energy_wh": 868.05,
                 "grid_feedin_energy_wh": 0.0,
@@ -1601,7 +1601,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T01:00:00+00:00": {
+            "2026-03-29T03:00:00+02:00": {
                 "date_time": "2026-03-29T03:00:00+02:00",
                 "load_energy_wh": 694.34,
                 "grid_feedin_energy_wh": 0.0,
@@ -1673,7 +1673,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T02:00:00+00:00": {
+            "2026-03-29T04:00:00+02:00": {
                 "date_time": "2026-03-29T04:00:00+02:00",
                 "load_energy_wh": 608.79,
                 "grid_feedin_energy_wh": 0.0,
@@ -1745,7 +1745,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T03:00:00+00:00": {
+            "2026-03-29T05:00:00+02:00": {
                 "date_time": "2026-03-29T05:00:00+02:00",
                 "load_energy_wh": 556.31,
                 "grid_feedin_energy_wh": 0.0,
@@ -1817,7 +1817,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T04:00:00+00:00": {
+            "2026-03-29T06:00:00+02:00": {
                 "date_time": "2026-03-29T06:00:00+02:00",
                 "load_energy_wh": 488.89,
                 "grid_feedin_energy_wh": 0.0,
@@ -1889,7 +1889,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T05:00:00+00:00": {
+            "2026-03-29T07:00:00+02:00": {
                 "date_time": "2026-03-29T07:00:00+02:00",
                 "load_energy_wh": 506.91,
                 "grid_feedin_energy_wh": 0.0,
@@ -1961,7 +1961,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T06:00:00+00:00": {
+            "2026-03-29T08:00:00+02:00": {
                 "date_time": "2026-03-29T08:00:00+02:00",
                 "load_energy_wh": 804.89,
                 "grid_feedin_energy_wh": 0.0,
@@ -2033,7 +2033,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T07:00:00+00:00": {
+            "2026-03-29T09:00:00+02:00": {
                 "date_time": "2026-03-29T09:00:00+02:00",
                 "load_energy_wh": 1141.98,
                 "grid_feedin_energy_wh": 0.0,
@@ -2105,7 +2105,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T08:00:00+00:00": {
+            "2026-03-29T10:00:00+02:00": {
                 "date_time": "2026-03-29T10:00:00+02:00",
                 "load_energy_wh": 1056.97,
                 "grid_feedin_energy_wh": 0.0,
@@ -2177,7 +2177,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T09:00:00+00:00": {
+            "2026-03-29T11:00:00+02:00": {
                 "date_time": "2026-03-29T11:00:00+02:00",
                 "load_energy_wh": 992.46,
                 "grid_feedin_energy_wh": 0.0,
@@ -2249,7 +2249,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T10:00:00+00:00": {
+            "2026-03-29T12:00:00+02:00": {
                 "date_time": "2026-03-29T12:00:00+02:00",
                 "load_energy_wh": 1155.99,
                 "grid_feedin_energy_wh": 0.0,
@@ -2321,7 +2321,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T11:00:00+00:00": {
+            "2026-03-29T13:00:00+02:00": {
                 "date_time": "2026-03-29T13:00:00+02:00",
                 "load_energy_wh": 827.01,
                 "grid_feedin_energy_wh": 0.0,
@@ -2393,7 +2393,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T12:00:00+00:00": {
+            "2026-03-29T14:00:00+02:00": {
                 "date_time": "2026-03-29T14:00:00+02:00",
                 "load_energy_wh": 1257.98,
                 "grid_feedin_energy_wh": 0.0,
@@ -2465,7 +2465,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T13:00:00+00:00": {
+            "2026-03-29T15:00:00+02:00": {
                 "date_time": "2026-03-29T15:00:00+02:00",
                 "load_energy_wh": 1232.67,
                 "grid_feedin_energy_wh": 156.06587377864435,
@@ -2537,7 +2537,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T14:00:00+00:00": {
+            "2026-03-29T16:00:00+02:00": {
                 "date_time": "2026-03-29T16:00:00+02:00",
                 "load_energy_wh": 871.26,
                 "grid_feedin_energy_wh": 3678.7636146358536,
@@ -2609,7 +2609,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T15:00:00+00:00": {
+            "2026-03-29T17:00:00+02:00": {
                 "date_time": "2026-03-29T17:00:00+02:00",
                 "load_energy_wh": 860.88,
                 "grid_feedin_energy_wh": 2086.994116068604,
@@ -2681,7 +2681,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T16:00:00+00:00": {
+            "2026-03-29T18:00:00+02:00": {
                 "date_time": "2026-03-29T18:00:00+02:00",
                 "load_energy_wh": 1158.03,
                 "grid_feedin_energy_wh": 1132.4162643420734,
@@ -2753,7 +2753,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T17:00:00+00:00": {
+            "2026-03-29T19:00:00+02:00": {
                 "date_time": "2026-03-29T19:00:00+02:00",
                 "load_energy_wh": 1222.72,
                 "grid_feedin_energy_wh": 148.64025532125078,
@@ -2825,7 +2825,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T18:00:00+00:00": {
+            "2026-03-29T20:00:00+02:00": {
                 "date_time": "2026-03-29T20:00:00+02:00",
                 "load_energy_wh": 1221.04,
                 "grid_feedin_energy_wh": 0.0,
@@ -2897,7 +2897,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T19:00:00+00:00": {
+            "2026-03-29T21:00:00+02:00": {
                 "date_time": "2026-03-29T21:00:00+02:00",
                 "load_energy_wh": 949.99,
                 "grid_feedin_energy_wh": 0.0,
@@ -2969,7 +2969,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T20:00:00+00:00": {
+            "2026-03-29T22:00:00+02:00": {
                 "date_time": "2026-03-29T22:00:00+02:00",
                 "load_energy_wh": 987.01,
                 "grid_feedin_energy_wh": 0.0,
@@ -3041,7 +3041,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T21:00:00+00:00": {
+            "2026-03-29T23:00:00+02:00": {
                 "date_time": "2026-03-29T23:00:00+02:00",
                 "load_energy_wh": 733.99,
                 "grid_feedin_energy_wh": 0.0,
@@ -3113,7 +3113,7 @@
                 "homeappliance1_off_op_mode": 1.0,
                 "homeappliance1_off_op_factor": 1.0
             },
-            "2026-03-29T22:00:00+00:00": {
+            "2026-03-30T00:00:00+02:00": {
                 "date_time": "2026-03-30T00:00:00+02:00",
                 "load_energy_wh": 592.97,
                 "grid_feedin_energy_wh": 0.0,

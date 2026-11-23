@@ -57,7 +57,7 @@ async def resolve(request: GeneticRequest, warm_start: Any = None) -> GeneticOpt
 
 ems_eos = get_ems(init=True)  # init once
 
-NOW = to_datetime("2026-11-20T12:00:00+01:00")
+NOW = to_datetime("2026-11-20T12:00:00", in_timezone="Europe/Berlin")
 
 
 def _daily(days: int, value: float, now: DateTime = NOW) -> list[tuple[DateTime, Any]]:

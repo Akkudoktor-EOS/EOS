@@ -12,168 +12,168 @@
     ],
     "prediction": {
         "data": {
-            "2026-09-16T08:00:00+00:00": {
+            "2026-09-16T10:00:00+02:00": {
                 "date_time": "2026-09-16T10:00:00+02:00",
                 "pvforecast_ac_energy_wh": 3127.325929872119,
                 "loadforecast_energy_wh": 546.0,
                 "elec_price_amt_kwh": 0.2944,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T09:00:00+00:00": {
+            "2026-09-16T11:00:00+02:00": {
                 "date_time": "2026-09-16T11:00:00+02:00",
                 "pvforecast_ac_energy_wh": 3603.8754716096764,
                 "loadforecast_energy_wh": 561.5,
                 "elec_price_amt_kwh": 0.3026,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T10:00:00+00:00": {
+            "2026-09-16T12:00:00+02:00": {
                 "date_time": "2026-09-16T12:00:00+02:00",
                 "pvforecast_ac_energy_wh": 3899.7116487272947,
                 "loadforecast_energy_wh": 577.0,
                 "elec_price_amt_kwh": 0.31079999999999997,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T11:00:00+00:00": {
+            "2026-09-16T13:00:00+02:00": {
                 "date_time": "2026-09-16T13:00:00+02:00",
                 "pvforecast_ac_energy_wh": 4000.0,
                 "loadforecast_energy_wh": 592.5,
                 "elec_price_amt_kwh": 0.319,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T12:00:00+00:00": {
+            "2026-09-16T14:00:00+02:00": {
                 "date_time": "2026-09-16T14:00:00+02:00",
                 "pvforecast_ac_energy_wh": 3899.7116487272947,
                 "loadforecast_energy_wh": 608.0,
                 "elec_price_amt_kwh": 0.32720000000000005,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T13:00:00+00:00": {
+            "2026-09-16T15:00:00+02:00": {
                 "date_time": "2026-09-16T15:00:00+02:00",
                 "pvforecast_ac_energy_wh": 3603.8754716096764,
                 "loadforecast_energy_wh": 623.5,
                 "elec_price_amt_kwh": 0.33540000000000003,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T14:00:00+00:00": {
+            "2026-09-16T16:00:00+02:00": {
                 "date_time": "2026-09-16T16:00:00+02:00",
                 "pvforecast_ac_energy_wh": 3127.3259298721196,
                 "loadforecast_energy_wh": 639.0,
                 "elec_price_amt_kwh": 0.3436,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T15:00:00+00:00": {
+            "2026-09-16T17:00:00+02:00": {
                 "date_time": "2026-09-16T17:00:00+02:00",
                 "pvforecast_ac_energy_wh": 2493.9592074349357,
                 "loadforecast_energy_wh": 654.5,
                 "elec_price_amt_kwh": 0.3518,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T16:00:00+00:00": {
+            "2026-09-16T18:00:00+02:00": {
                 "date_time": "2026-09-16T18:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1735.5349564702328,
                 "loadforecast_energy_wh": 670.0,
                 "elec_price_amt_kwh": 0.36000000000000004,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T17:00:00+00:00": {
+            "2026-09-16T19:00:00+02:00": {
                 "date_time": "2026-09-16T19:00:00+02:00",
                 "pvforecast_ac_energy_wh": 890.0837358252563,
                 "loadforecast_energy_wh": 685.5,
                 "elec_price_amt_kwh": 0.3682000000000001,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T18:00:00+00:00": {
+            "2026-09-16T20:00:00+02:00": {
                 "date_time": "2026-09-16T20:00:00+02:00",
                 "pvforecast_ac_energy_wh": 4.898587196589413e-13,
                 "loadforecast_energy_wh": 701.0,
                 "elec_price_amt_kwh": 0.37640000000000007,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T19:00:00+00:00": {
+            "2026-09-16T21:00:00+02:00": {
                 "date_time": "2026-09-16T21:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 716.5,
                 "elec_price_amt_kwh": 0.3846,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T20:00:00+00:00": {
+            "2026-09-16T22:00:00+02:00": {
                 "date_time": "2026-09-16T22:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 732.0,
                 "elec_price_amt_kwh": 0.3927999999999999,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T21:00:00+00:00": {
+            "2026-09-16T23:00:00+02:00": {
                 "date_time": "2026-09-16T23:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 747.5,
                 "elec_price_amt_kwh": 0.40099999999999997,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T22:00:00+00:00": {
+            "2026-09-17T00:00:00+02:00": {
                 "date_time": "2026-09-17T00:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 763.0,
                 "elec_price_amt_kwh": 0.4092,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-16T23:00:00+00:00": {
+            "2026-09-17T01:00:00+02:00": {
                 "date_time": "2026-09-17T01:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 778.5,
                 "elec_price_amt_kwh": 0.4174,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T00:00:00+00:00": {
+            "2026-09-17T02:00:00+02:00": {
                 "date_time": "2026-09-17T02:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 350.0,
                 "elec_price_amt_kwh": 0.2,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T01:00:00+00:00": {
+            "2026-09-17T03:00:00+02:00": {
                 "date_time": "2026-09-17T03:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 365.5,
                 "elec_price_amt_kwh": 0.20820000000000002,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T02:00:00+00:00": {
+            "2026-09-17T04:00:00+02:00": {
                 "date_time": "2026-09-17T04:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 381.0,
                 "elec_price_amt_kwh": 0.21640000000000004,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T03:00:00+00:00": {
+            "2026-09-17T05:00:00+02:00": {
                 "date_time": "2026-09-17T05:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 396.5,
                 "elec_price_amt_kwh": 0.22460000000000002,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T04:00:00+00:00": {
+            "2026-09-17T06:00:00+02:00": {
                 "date_time": "2026-09-17T06:00:00+02:00",
                 "pvforecast_ac_energy_wh": 0.0,
                 "loadforecast_energy_wh": 412.0,
                 "elec_price_amt_kwh": 0.2328,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T05:00:00+00:00": {
+            "2026-09-17T07:00:00+02:00": {
                 "date_time": "2026-09-17T07:00:00+02:00",
                 "pvforecast_ac_energy_wh": 890.0837358252576,
                 "loadforecast_energy_wh": 427.5,
                 "elec_price_amt_kwh": 0.241,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T06:00:00+00:00": {
+            "2026-09-17T08:00:00+02:00": {
                 "date_time": "2026-09-17T08:00:00+02:00",
                 "pvforecast_ac_energy_wh": 1735.5349564702324,
                 "loadforecast_energy_wh": 443.0,
                 "elec_price_amt_kwh": 0.24919999999999998,
                 "feed_in_tariff_amt_kwh": 0.08
             },
-            "2026-09-17T07:00:00+00:00": {
+            "2026-09-17T09:00:00+02:00": {
                 "date_time": "2026-09-17T09:00:00+02:00",
                 "pvforecast_ac_energy_wh": 2493.959207434934,
                 "loadforecast_energy_wh": 458.5,
@@ -195,7 +195,7 @@
     },
     "solution": {
         "data": {
-            "2026-09-16T08:00:00+00:00": {
+            "2026-09-16T10:00:00+02:00": {
                 "date_time": "2026-09-16T10:00:00+02:00",
                 "load_energy_wh": 546.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -268,7 +268,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T09:00:00+00:00": {
+            "2026-09-16T11:00:00+02:00": {
                 "date_time": "2026-09-16T11:00:00+02:00",
                 "load_energy_wh": 561.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -341,7 +341,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T10:00:00+00:00": {
+            "2026-09-16T12:00:00+02:00": {
                 "date_time": "2026-09-16T12:00:00+02:00",
                 "load_energy_wh": 577.0,
                 "grid_feedin_energy_wh": 2958.075648623817,
@@ -414,7 +414,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T11:00:00+00:00": {
+            "2026-09-16T13:00:00+02:00": {
                 "date_time": "2026-09-16T13:00:00+02:00",
                 "load_energy_wh": 6092.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -487,7 +487,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T12:00:00+00:00": {
+            "2026-09-16T14:00:00+02:00": {
                 "date_time": "2026-09-16T14:00:00+02:00",
                 "load_energy_wh": 11608.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -560,7 +560,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T13:00:00+00:00": {
+            "2026-09-16T15:00:00+02:00": {
                 "date_time": "2026-09-16T15:00:00+02:00",
                 "load_energy_wh": 623.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -633,7 +633,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T14:00:00+00:00": {
+            "2026-09-16T16:00:00+02:00": {
                 "date_time": "2026-09-16T16:00:00+02:00",
                 "load_energy_wh": 639.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -706,7 +706,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T15:00:00+00:00": {
+            "2026-09-16T17:00:00+02:00": {
                 "date_time": "2026-09-16T17:00:00+02:00",
                 "load_energy_wh": 654.5,
                 "grid_feedin_energy_wh": 451.5412653258918,
@@ -779,7 +779,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T16:00:00+00:00": {
+            "2026-09-16T18:00:00+02:00": {
                 "date_time": "2026-09-16T18:00:00+02:00",
                 "load_energy_wh": 1670.0,
                 "grid_feedin_energy_wh": 582.1154687194551,
@@ -852,7 +852,7 @@
                 "dishwasher_off_op_mode": 0.0,
                 "dishwasher_off_op_factor": 0.0
             },
-            "2026-09-16T17:00:00+00:00": {
+            "2026-09-16T19:00:00+02:00": {
                 "date_time": "2026-09-16T19:00:00+02:00",
                 "load_energy_wh": 1685.5,
                 "grid_feedin_energy_wh": 176.266547383638,
@@ -925,7 +925,7 @@
                 "dishwasher_off_op_mode": 0.0,
                 "dishwasher_off_op_factor": 0.0
             },
-            "2026-09-16T18:00:00+00:00": {
+            "2026-09-16T20:00:00+02:00": {
                 "date_time": "2026-09-16T20:00:00+02:00",
                 "load_energy_wh": 701.0,
                 "grid_feedin_energy_wh": 1.2092590479839883e-15,
@@ -998,7 +998,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T19:00:00+00:00": {
+            "2026-09-16T21:00:00+02:00": {
                 "date_time": "2026-09-16T21:00:00+02:00",
                 "load_energy_wh": 716.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -1071,7 +1071,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T20:00:00+00:00": {
+            "2026-09-16T22:00:00+02:00": {
                 "date_time": "2026-09-16T22:00:00+02:00",
                 "load_energy_wh": 732.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -1144,7 +1144,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T21:00:00+00:00": {
+            "2026-09-16T23:00:00+02:00": {
                 "date_time": "2026-09-16T23:00:00+02:00",
                 "load_energy_wh": 747.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -1217,7 +1217,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T22:00:00+00:00": {
+            "2026-09-17T00:00:00+02:00": {
                 "date_time": "2026-09-17T00:00:00+02:00",
                 "load_energy_wh": 763.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -1290,7 +1290,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-16T23:00:00+00:00": {
+            "2026-09-17T01:00:00+02:00": {
                 "date_time": "2026-09-17T01:00:00+02:00",
                 "load_energy_wh": 778.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -1363,7 +1363,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T00:00:00+00:00": {
+            "2026-09-17T02:00:00+02:00": {
                 "date_time": "2026-09-17T02:00:00+02:00",
                 "load_energy_wh": 350.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -1436,7 +1436,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T01:00:00+00:00": {
+            "2026-09-17T03:00:00+02:00": {
                 "date_time": "2026-09-17T03:00:00+02:00",
                 "load_energy_wh": 365.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -1509,7 +1509,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T02:00:00+00:00": {
+            "2026-09-17T04:00:00+02:00": {
                 "date_time": "2026-09-17T04:00:00+02:00",
                 "load_energy_wh": 381.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -1582,7 +1582,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T03:00:00+00:00": {
+            "2026-09-17T05:00:00+02:00": {
                 "date_time": "2026-09-17T05:00:00+02:00",
                 "load_energy_wh": 396.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -1655,7 +1655,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T04:00:00+00:00": {
+            "2026-09-17T06:00:00+02:00": {
                 "date_time": "2026-09-17T06:00:00+02:00",
                 "load_energy_wh": 412.0,
                 "grid_feedin_energy_wh": 0.0,
@@ -1728,7 +1728,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T05:00:00+00:00": {
+            "2026-09-17T07:00:00+02:00": {
                 "date_time": "2026-09-17T07:00:00+02:00",
                 "load_energy_wh": 427.5,
                 "grid_feedin_energy_wh": 0.0,
@@ -1801,7 +1801,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T06:00:00+00:00": {
+            "2026-09-17T08:00:00+02:00": {
                 "date_time": "2026-09-17T08:00:00+02:00",
                 "load_energy_wh": 443.0,
                 "grid_feedin_energy_wh": 92.15139507411254,
@@ -1874,7 +1874,7 @@
                 "dishwasher_off_op_mode": 1.0,
                 "dishwasher_off_op_factor": 1.0
             },
-            "2026-09-17T07:00:00+00:00": {
+            "2026-09-17T09:00:00+02:00": {
                 "date_time": "2026-09-17T09:00:00+02:00",
                 "load_energy_wh": 458.5,
                 "grid_feedin_energy_wh": 2037.6677847656467,

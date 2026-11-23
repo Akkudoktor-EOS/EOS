@@ -45,7 +45,10 @@ HOURS = 24
         (2, 4, 1),
     ],
 )
-def test_auto_workers_keep_one_core_free(cores, cpu_limit, expected):
+def test_auto_workers_keep_one_core_free(monkeypatch, cores, cpu_limit, expected):
+    # ``cpu_limit=None`` reads the host's cgroup limit; the cases without a limit must not
+    # depend on the machine the tests run on (a CPU quota in a container or sandbox).
+    monkeypatch.setattr(genetic_module, "_cgroup_cpu_limit", lambda: None)
     assert auto_evaluation_workers(cores=cores, cpu_limit=cpu_limit) == expected
 
 

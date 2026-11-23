@@ -106,6 +106,23 @@ def sphinx_changed(version_and_hash) -> Optional[str]:
     return new_hash
 
 
+def test_cleanup_removes_generated_autosummary(tmp_path: Path) -> None:
+    """The Sphinx test's cleanup finds the folders Sphinx generates, also nested ones.
+
+    Outside the ``docs`` class, so the unit test run covers it.
+    """
+    stale = tmp_path / "akkudoktoreos" / "_autosummary"
+    stale.mkdir(parents=True)
+    (stale / "akkudoktoreos.removed.rst").write_text("stale")
+    kept = tmp_path / "akkudoktoreos" / "summary.md"
+    kept.write_text("kept")
+
+    TestSphinxDocumentation._cleanup_autosummary_dirs(tmp_path)
+
+    assert not stale.exists()
+    assert kept.exists()
+
+
 @pytest.mark.docs
 class TestSphinxDocumentation:
     """Test class to verify Sphinx documentation generation.
@@ -122,9 +139,16 @@ class TestSphinxDocumentation:
         str(SPHINX_JOBS),
     ]
 
-    def _cleanup_autosum_dirs(self):
-        """Delete all *_autosum folders inside docs/."""
-        for folder in DIR_DOCS.rglob("*_autosum"):
+    @staticmethod
+    def _cleanup_autosummary_dirs(docs_dir: Path = DIR_DOCS) -> None:
+        """Delete all generated ``_autosummary`` folders inside ``docs_dir``.
+
+        Stubs of renamed or removed modules otherwise survive and break the build.
+
+        Args:
+            docs_dir: The documentation folder.
+        """
+        for folder in list(docs_dir.rglob("_autosummary")):
             if folder.is_dir():
                 shutil.rmtree(folder)
 
@@ -147,7 +171,7 @@ class TestSphinxDocumentation:
             pytest.skip("Skipping Sphinx test — not finalize")
 
         # Clean directories
-        self._cleanup_autosum_dirs()
+        self._cleanup_autosummary_dirs()
         self._cleanup_build_dir()
 
         # Set environment for sphinx run (sphinx will make eos create a config file)
