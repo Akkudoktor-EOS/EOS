@@ -6,18 +6,30 @@ from typing import Any
 import numpy as np
 import pytest
 import pytest_asyncio
+from conftest import genetic_optimization, genetic_run_parameters
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_ems, get_measurement
 from akkudoktoreos.core.emplan import DDBCInstruction
 from akkudoktoreos.measurement.measurement import Measurement
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
+from akkudoktoreos.optimization.genetic import geneticconvert, geneticprepare
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticOptimizationParameters,
+    GeneticRequest,
+)
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+
+
+async def resolve(request: GeneticRequest) -> GeneticOptimizationParameters:
+    """Prepare ``request`` at the run start and observation time of the energy management."""
+    ems = get_ems()
+    return await geneticprepare.resolve_request(
+        request, ems.start_datetime, ems.observation_datetime, None
+    )
 
 
 @pytest.fixture(autouse=True, params=["UTC", "Europe/Berlin"])
@@ -91,13 +103,13 @@ def parameters(
     )
 
 
-def run(params: GeneticOptimizationParameters) -> tuple[GeneticOptimization, GeneticSolution]:
-    optimizer = GeneticOptimization(fixed_seed=42)
+def run(params: GeneticOptimizationParameters) -> tuple[GeneticOptimization, GeneticResult]:
+    optimizer = genetic_optimization(seed=42)
     solution = optimizer.optimize_ems(params, ngen=1, individuals=12)
     return optimizer, solution
 
 
-def run_local_starts(solution: GeneticSolution) -> list[DateTime]:
+def run_local_starts(solution: GeneticResult) -> list[DateTime]:
     """Compare scheduled instants in the run zone, independently of output zone."""
     timezone = get_ems().start_datetime.timezone_name
     assert timezone is not None
@@ -111,6 +123,18 @@ def profile(**kwargs: Any) -> dict[str, Any]:
         "load_profile_interval_seconds": 600,
         **kwargs,
     }
+
+
+def test_real_run_echoes_the_request_without_inventing_windows(config_eos: ConfigEOS) -> None:
+    """A consumer without windows stays without windows in the request the result echoes."""
+    configure(config_eos)
+    request = parameters(consumers=[profile()])
+    _, solution = run(request)
+    assert request.home_appliances is not None
+    assert request.home_appliances[0].time_windows is None
+    assert solution.request.home_appliances is not None
+    assert solution.request.home_appliances[0].time_windows is None
+    assert len(run_local_starts(solution)) == 1
 
 
 def test_real_optimizer_keeps_reverse_cycle_window_identity(config_eos: ConfigEOS) -> None:
@@ -346,7 +370,7 @@ async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
         key=key, start_datetime=zero, end_datetime=zero.add(seconds=1)
     )
     assert len(dates) == 1 and counts == [1.0]
-    prepared = await ConfigOptimizationRequest.model_validate(
+    prepared = await resolve(GeneticRequest.model_validate(
         {
             "forecasts": {
                 "pv_forecast_wh": [0.0] * 16,
@@ -355,12 +379,93 @@ async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
                 "feed_in_tariff_per_wh": [0.0001] * 16,
             }
         }
-    ).resolve()
+    ))
     assert prepared.home_appliances is not None
     assert prepared.home_appliances[0].completed_cycles == 1
     _, solution = run(prepared)
     assert [start.hour for start in run_local_starts(solution)] == [2]
     assert sum(solution.result.home_appliance_energy_wh["washer"]) == pytest.approx(350.0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [3.0, 1.5, -1.0, "two"])
+async def test_invalid_completed_cycle_count_is_ignored(
+    config_eos: ConfigEOS,
+    isolated_measurement: Measurement,
+    count: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A count that is no whole number of the appliance's cycles is logged and ignored."""
+    configure(config_eos)
+    config_eos.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_batteries": 0,
+                "batteries": {},
+                "max_electric_vehicles": 0,
+                "electric_vehicles": {},
+                "max_inverters": 1,
+                "inverters": {"inv": {"profile_adjustment": {"nominal_power_w": 10000}}},
+                "max_home_appliances": 1,
+                "home_appliances": {"washer": profile(num_cycles=2)},
+            }
+        }
+    )
+    await isolated_measurement.update_value(
+        get_ems().start_datetime, "washer.cycles_completed", count
+    )
+    prepared = await resolve(GeneticRequest.model_validate(
+        {
+            "forecasts": {
+                "pv_forecast_wh": [0.0] * 16,
+                "total_load": [0.0] * 16,
+                "electricity_price_per_wh": [0.0003] * 16,
+                "feed_in_tariff_per_wh": [0.0001] * 16,
+            }
+        }
+    ))
+    assert prepared.home_appliances is not None
+    assert prepared.home_appliances[0].completed_cycles == 0
+    assert f"Invalid completed cycle count {count!r}" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_unresolvable_home_appliance_is_left_out(
+    config_eos: ConfigEOS, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A home appliance whose parameters cannot be derived is left out, logged."""
+    configure(config_eos)
+    config_eos.merge_settings_from_dict(
+        {
+            "devices": {
+                "max_batteries": 0,
+                "batteries": {},
+                "max_electric_vehicles": 0,
+                "electric_vehicles": {},
+                "max_inverters": 1,
+                "inverters": {"inv": {"profile_adjustment": {"nominal_power_w": 10000}}},
+                "max_home_appliances": 1,
+                "home_appliances": {"washer": profile(num_cycles=1)},
+            }
+        }
+    )
+
+    def fail(*args: Any, **kwargs: Any) -> Any:
+        raise ValueError("no profile")
+
+    monkeypatch.setattr(geneticprepare, "home_appliance_request", fail)
+    prepared = await resolve(GeneticRequest.model_validate(
+        {
+            "forecasts": {
+                "pv_forecast_wh": [0.0] * 16,
+                "total_load": [0.0] * 16,
+                "electricity_price_per_wh": [0.0003] * 16,
+                "feed_in_tariff_per_wh": [0.0001] * 16,
+            }
+        }
+    ))
+    assert not prepared.home_appliances
+    assert "Home appliance 'washer' cannot be resolved, left out: no profile" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -383,7 +488,7 @@ async def test_real_multiple_consumers_keep_separate_solution_channels(
     assert sum(solution.result.home_appliance_energy_wh["washer"]) == pytest.approx(350.0)
     assert sum(solution.result.home_appliance_energy_wh["dryer"]) == pytest.approx(500.0)
     assert sum(solution.result.grid_consumption_wh_per_hour) == pytest.approx(850.0)
-    exported = await solution.optimization_solution()
+    exported = await geneticconvert.optimization_solution(genetic_run_parameters(solution.request), solution)
     table = exported.solution.to_dataframe()
     assert table["washer_energy_wh"].sum() == pytest.approx(350.0)
     assert table["dryer_energy_wh"].sum() == pytest.approx(500.0)
@@ -403,11 +508,11 @@ async def test_profile_zero_power_phase_keeps_device_running_until_complete(
         shared_time_windows={"windows": [{"start_time": "01:00", "duration": "45 minutes"}]},
     )
     _, solution = run(parameters(consumers=[consumer]))
-    exported = await solution.optimization_solution()
+    exported = await geneticconvert.optimization_solution(genetic_run_parameters(solution.request), solution)
     table = exported.solution.to_dataframe()
     assert table["washer_energy_wh"].tolist()[4:7] == [300.0, 0.0, 300.0]
     assert table["washer_run_op_mode"].tolist()[4:7] == [1.0, 1.0, 1.0]
-    plan = solution.energy_management_plan()
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.request), solution)
     assert {item.resource_id for item in plan.instructions} == {"washer"}
     commands = [
         (item.execution_time.hour, item.execution_time.minute, str(item.operation_mode_id))
@@ -454,7 +559,7 @@ async def test_meter_only_record_does_not_hide_completed_cycles(
     # Cycle count through the measurement API, then the adapter's meter reading.
     await measurement.update_value(run_time.subtract(seconds=30), "washer.cycles_completed", 1.0)
     await measurement.update_value(run_time, "load_meter", 1234.5)
-    prepared = await ConfigOptimizationRequest.model_validate(
+    prepared = await resolve(GeneticRequest.model_validate(
         {
             "forecasts": {
                 "pv_forecast_wh": [0.0] * 20,
@@ -463,7 +568,7 @@ async def test_meter_only_record_does_not_hide_completed_cycles(
                 "feed_in_tariff_per_wh": [0.0001] * 20,
             }
         }
-    ).resolve()
+    ))
     assert prepared.home_appliances is not None
     assert prepared.home_appliances[0].completed_cycles == 1
 
@@ -497,7 +602,7 @@ def run_zone() -> str:
     return timezone
 
 
-def heater_commands(solution: GeneticSolution) -> list[tuple[int, int, str]]:
+def heater_commands(solution: GeneticResult) -> list[tuple[int, int, str]]:
     timezone = run_zone()
     return [
         (
@@ -505,12 +610,12 @@ def heater_commands(solution: GeneticSolution) -> list[tuple[int, int, str]]:
             item.execution_time.in_timezone(timezone).minute,
             str(item.operation_mode_id),
         )
-        for item in solution.energy_management_plan().instructions
+        for item in geneticconvert.energy_management_plan(genetic_run_parameters(solution.request), solution).instructions
         if isinstance(item, DDBCInstruction) and item.resource_id == "heater"
     ]
 
 
-def heater_starts(solution: GeneticSolution) -> list[tuple[int, int]]:
+def heater_starts(solution: GeneticResult) -> list[tuple[int, int]]:
     timezone = run_zone()
     return [
         (moment.in_timezone(timezone).hour, moment.in_timezone(timezone).minute)
@@ -628,7 +733,7 @@ def configure_heater_device(config: ConfigEOS, **kwargs: Any) -> None:
 
 
 async def resolve_heater() -> GeneticOptimizationParameters:
-    prepared = await ConfigOptimizationRequest.model_validate(
+    prepared = await resolve(GeneticRequest.model_validate(
         {
             "forecasts": {
                 "pv_forecast_wh": [0.0] * 24,
@@ -637,7 +742,7 @@ async def resolve_heater() -> GeneticOptimizationParameters:
                 "feed_in_tariff_per_wh": [0.0001] * 24,
             }
         }
-    ).resolve()
+    ))
     assert prepared.home_appliances is not None
     return prepared
 

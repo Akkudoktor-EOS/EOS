@@ -9,11 +9,11 @@ from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
 )
-from akkudoktoreos.optimization.genetic0 import Genetic0Settings
-from akkudoktoreos.optimization.genetic.geneticsettings import (
-    GeneticCommonSettings,
+from akkudoktoreos.optimization.genetic import (
+    GeneticSettings,
     normalize_genetic_settings,
 )
+from akkudoktoreos.optimization.genetic0 import Genetic0Settings
 from akkudoktoreos.utils.datetimeutil import DateTime
 from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
@@ -51,8 +51,8 @@ class OptimizationCommonSettings(SettingsBaseModel):
         },
     )
 
-    genetic: GeneticCommonSettings = Field(
-        default_factory=GeneticCommonSettings,
+    genetic: GeneticSettings = Field(
+        default_factory=GeneticSettings,
         json_schema_extra={
             "description": "GENETIC optimization algorithm configuration.",
             "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],

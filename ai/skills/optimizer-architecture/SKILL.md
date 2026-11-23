@@ -35,7 +35,9 @@ and flag any conflict.
   `OptimizationSolution` may be imported. The other contract names of
   `CONTRACT_NAMES` (`PydanticDateTimeDataFrame` of the solution, the plan's
   `BatteryOperationMode` and `ApplianceOperationMode`, the request schema's
-  `TimeWindow` and `TimeWindowSequence`) are allowed only in the request,
+  time windows (`TimeWindow`, `TimeWindowSequence`, `ValueTimeWindow`,
+  `CycleTimeWindowSequence`) and consumer enums (`ConsumerScheduleMode`,
+  `ConsumerDeadlinePolicy`)) are allowed only in the request,
   conversion, visualization and API modules (`CONTRACT_ROLES`), never in the
   parameters or the simulation.
 - Parameter preparation runs once per run, never fails, never returns `None` and follows the
@@ -57,6 +59,7 @@ This is the one maintained copy of the interface; ADR 0006 records the decision 
 ```python
 class Optimizer(Protocol[P, Q, R]):
     name: str
+    def run_clock(self) -> RunClock  # slot_seconds, timezone (None: server time)
     async def prepare(
         self, start_datetime: DateTime, observation_datetime: DateTime,
         warm_start: R | None, overrides: Mapping[str, Any] | None = None,
@@ -77,6 +80,9 @@ optimizer through `akkudoktoreos.optimization.optimizerregistry.get_optimizer(na
 the last parameters and result per optimizer (`OptimizerRun`); the result is the next warm start.
 `start_datetime` is the start of the run's first slot; `observation_datetime` is the unrounded
 moment of the run that measurements (e.g. a measured state of charge) refer to.
+`run_clock()` is how the energy management learns the optimizer's slot length and the time zone
+of a run without an explicit start; the optimizer reads them from its settings in its parameter
+preparation, and the energy management reads no optimizer's settings.
 
 - `run()` is deterministic: the same optimization parameters give the same result. Generations,
   individuals, seed and penalties are part of the optimization parameters. A run-time override

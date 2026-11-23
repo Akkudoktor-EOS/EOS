@@ -10,7 +10,7 @@ import sys
 import traceback
 from contextlib import asynccontextmanager
 from enum import Enum
-from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
+from typing import Annotated, Any, AsyncGenerator, Dict, List, NoReturn, Optional, Union
 from urllib.parse import urljoin, urlsplit
 
 import psutil
@@ -57,8 +57,6 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationSolution,
@@ -1869,74 +1867,31 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
     return solution
 
 
-@app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
-async def fastapi_energy_management_optimization_solution_algorithm_get(
-    algorithm: OptimizationAlgorithm,
-) -> GeneticSolution:
-    """Get the latest algorithm specific solution of the optimization.
+@app.get(
+    "/v1/energy-management/optimization/solution/{algorithm}",
+    tags=["energy-management"],
+    include_in_schema=False,
+    response_model=None,
+)
+def fastapi_energy_management_optimization_solution_unknown_get(algorithm: str) -> NoReturn:
+    """Answer a solution request for an algorithm without its own solution endpoint.
 
-    Optimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).
+    The registered optimizers serve their solutions from their own routers, which take
+    precedence; any other algorithm name is unknown.
 
     Args:
-        algorithm: Optimization algorithm
+        algorithm: Name of the requested optimization algorithm.
+
+    Raises:
+        EOSProblem: Always, with status 404.
     """
-    solution: Optional[GeneticSolution] = None
-
-    if algorithm not in get_config().optimization.algorithms:
-        raise EOSProblem(
-            status=404,
-            title="Algorithm specific optimization solution retrieval failed",
-            detail=f"Optimization algorithm '{algorithm}' unknown.",
-        )
-
-    if algorithm == OptimizationAlgorithm.GENETIC:
-        solution = get_ems().genetic_solution()
-
-    if solution is None:
-        raise EOSProblem(
-            status=404,
-            title="Algorithm specific optimization solution retrieval failed",
-            detail=(
-                f"Can not get the '{algorithm}' optimization solution.\n"
-                f"Did you configure automatic '{algorithm}' optimization?\n"
-                "Did you run the optimization/ energy management?"
-            ),
-        )
-
-    return solution
-
-
-@app.get(
-    "/v1/energy-management/optimization/solution/GENETIC/pdf",
-    tags=["energy-management"],
-    response_class=Response,
-    responses={200: {"content": {"application/pdf": {}}}},
-)
-async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> Response:
-    """Render the retained GENETIC result without rerunning optimization.
-
-    Rendering runs outside the event loop. Copy the result before offloading;
-    its recorded timestamp, interval and inputs own the report's time grid.
-    The legacy /visualization_results.pdf route continues to serve GENETIC0.
-    """
-    retained = get_ems().genetic_solution()
-    if retained is None:
-        raise EOSProblem(
-            status=404,
-            title="Optimization solution report retrieval failed",
-            detail="Can not get the 'GENETIC' optimization solution.",
-        )
-    snapshot = retained.model_copy(deep=True)
-    # matplotlib is only needed for the PDF report; import it on first use.
-    from akkudoktoreos.optimization.genetic.geneticvisualize import (
-        genetic_prepare_visualize,
-    )
-
-    pdf = await asyncio.to_thread(genetic_prepare_visualize, solution=snapshot)
-    return Response(
-        content=pdf,
-        media_type="application/pdf",
-        headers={"Content-Disposition": 'inline; filename="optimization-genetic.pdf"'},
+    raise EOSProblem(
+        status=404,
+        title="Unknown optimization algorithm",
+        detail=(
+            f"Optimization algorithm '{algorithm}' unknown; "
+            f"known algorithms: {', '.join(optimizer_names())}."
+        ),
     )
 
 
@@ -2245,46 +2200,6 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
     # Return both forecasts as a JSON response
     return ForecastResponse(temperature=temp_air_list, pvpower=ac_power_list)
-
-
-@app.post("/v1/optimize", tags=["optimize"])
-async def fastapi_optimize_config(
-    request: Request,
-    parameters: ConfigOptimizationRequest = Body(default_factory=ConfigOptimizationRequest),
-) -> GeneticSolution:
-    """Optimize GENETIC using configured devices and optional fresh runtime inputs.
-
-    Static settings belong in configuration; query overrides are rejected.
-    Forecast arrays start at local
-    midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
-    An empty body uses configured providers. Explicit SoC values take precedence over
-    fresh measured states of charge; missing usable measurements default to an assumed
-    initial SoC of 0% without blocking a plan.
-    The deprecated /optimize endpoint continues to run hourly GENETIC0.
-    """
-    if request.query_params:
-        raise HTTPException(
-            status_code=422,
-            detail="Configure optimization settings; query overrides are not supported.",
-        )
-    solution = await get_ems().run(
-        mode=EnergyManagementMode.OPTIMIZATION,
-        algorithm=OptimizationAlgorithm.GENETIC,
-        genetic_parameters=parameters,
-    )
-    if solution is None:
-        raise EOSProblem(
-            status=503,
-            title="GENETIC optimization failed",
-            detail="No new solution was produced. Check configured devices and forecast coverage.",
-        )
-    if not isinstance(solution, GeneticSolution):
-        raise EOSProblem(
-            status=500,
-            title="Unexpected optimization algorithm result",
-            detail="GENETIC did not return its native solution type.",
-        )
-    return solution
 
 
 @app.get("/site-map", include_in_schema=False)

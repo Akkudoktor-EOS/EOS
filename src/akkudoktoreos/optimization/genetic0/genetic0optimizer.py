@@ -14,7 +14,7 @@ from akkudoktoreos.optimization.genetic0.genetic0request import (
 )
 from akkudoktoreos.optimization.genetic0.genetic0result import Genetic0Result
 from akkudoktoreos.optimization.optimization import OptimizationSolution
-from akkudoktoreos.optimization.optimizer import OptimizerApi
+from akkudoktoreos.optimization.optimizer import OptimizerApi, RunClock
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 
@@ -22,6 +22,10 @@ class Genetic0Optimizer:
     """The GENETIC0 optimizer."""
 
     name = "GENETIC0"
+
+    def run_clock(self) -> RunClock:
+        """See ``Optimizer.run_clock()``: hourly slots in the server's local time."""
+        return RunClock(slot_seconds=3600)
 
     async def prepare(
         self,

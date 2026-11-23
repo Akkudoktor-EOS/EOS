@@ -16,12 +16,18 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization
 
-from akkudoktoreos.devices.genetic.battery import (
-    Battery,
-    SolarPanelBatteryParameters,
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    GeneticBattery,
 )
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    GeneticInverter,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticInverterRequest,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures
@@ -34,12 +40,12 @@ def _make_inverter(
     max_ac_charge_power_w=None,
     max_power_wh: float = 10000.0,
     mock_battery=None,
-) -> Inverter:
+) -> GeneticInverter:
     """Create an Inverter with custom efficiency parameters and a mock battery."""
     mock_self_consumption_predictor = Mock()
     mock_self_consumption_predictor.calculate_expected_direct_consumption.side_effect = min
 
-    params = InverterParameters(
+    params = GeneticInverterRequest(
         device_id="inv1",
         max_power_wh=max_power_wh,
         battery_id=mock_battery.parameters.device_id if mock_battery else None,
@@ -48,10 +54,10 @@ def _make_inverter(
         max_ac_charge_power_w=max_ac_charge_power_w,
     )
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=mock_self_consumption_predictor,
     ):
-        return Inverter(params, battery=mock_battery)
+        return GeneticInverter(params.to_parameters(), battery=mock_battery)
 
 
 @pytest.fixture
@@ -64,7 +70,7 @@ def mock_battery() -> Mock:
 
 
 # ===================================================================
-# 1. InverterParameters – new fields and defaults
+# 1. GeneticInverterRequest – new fields and defaults
 # ===================================================================
 
 
@@ -72,13 +78,13 @@ class TestInverterParametersDefaults:
     """Verify backward-compatible defaults for new parameters."""
 
     def test_defaults(self):
-        params = InverterParameters(device_id="inv1", max_power_wh=5000)
+        params = GeneticInverterRequest(device_id="inv1", max_power_wh=5000)
         assert params.dc_to_ac_efficiency == 1.0
         assert params.ac_to_dc_efficiency == 1.0
         assert params.max_ac_charge_power_w is None
 
     def test_custom_values(self):
-        params = InverterParameters(
+        params = GeneticInverterRequest(
             device_id="inv1",
             max_power_wh=5000,
             dc_to_ac_efficiency=0.95,
@@ -90,17 +96,17 @@ class TestInverterParametersDefaults:
         assert params.max_ac_charge_power_w == 3000
 
     def test_ac_to_dc_zero_disables_ac_charging(self):
-        params = InverterParameters(
+        params = GeneticInverterRequest(
             device_id="inv1", max_power_wh=5000, ac_to_dc_efficiency=0.0
         )
         assert params.ac_to_dc_efficiency == 0.0
 
     def test_dc_to_ac_must_be_positive(self):
         with pytest.raises(Exception):
-            InverterParameters(device_id="inv1", max_power_wh=5000, dc_to_ac_efficiency=0.0)
+            GeneticInverterRequest(device_id="inv1", max_power_wh=5000, dc_to_ac_efficiency=0.0)
 
     def test_max_ac_charge_power_zero(self):
-        params = InverterParameters(
+        params = GeneticInverterRequest(
             device_id="inv1", max_power_wh=5000, max_ac_charge_power_w=0
         )
         assert params.max_ac_charge_power_w == 0
@@ -215,9 +221,11 @@ class TestAcChargingInSimulation:
     @pytest.fixture
     def simulation_setup(self, config_eos):
         """Set up a minimal GeneticSimulation with battery and inverter."""
-        from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
-        from akkudoktoreos.optimization.genetic.geneticparams import (
-            GeneticEnergyManagementParameters,
+        from akkudoktoreos.optimization.genetic.geneticrequest import (
+            GeneticEnergyManagementRequest,
+        )
+        from akkudoktoreos.optimization.genetic.geneticsimulation import (
+            GeneticSimulation,
         )
 
         config_eos.merge_settings_from_dict(
@@ -236,8 +244,8 @@ class TestAcChargingInSimulation:
             battery_initial_soc_pct: int = 50,
             battery_max_charge_power_w: int = 5000,
         ):
-            akku = Battery(
-                SolarPanelBatteryParameters(
+            akku = GeneticBattery(
+                GeneticBatteryRequest(
                     device_id="battery1",
                     capacity_wh=battery_capacity_wh,
                     initial_soc_percentage=battery_initial_soc_pct,
@@ -246,32 +254,32 @@ class TestAcChargingInSimulation:
                     min_soc_percentage=0,
                     max_soc_percentage=100,
                     max_charge_power_w=battery_max_charge_power_w,
-                ),
+                ).to_parameters(),
                 prediction_hours=prediction_hours,
             )
             akku.reset()
 
-            inverter = Inverter(
-                InverterParameters(
+            inverter = GeneticInverter(
+                GeneticInverterRequest(
                     device_id="inverter1",
                     max_power_wh=10000,
                     battery_id="battery1",
                     ac_to_dc_efficiency=ac_to_dc_efficiency,
                     dc_to_ac_efficiency=dc_to_ac_efficiency,
                     max_ac_charge_power_w=max_ac_charge_power_w,
-                ),
+                ).to_parameters(),
                 battery=akku,
             )
 
             simulation = GeneticSimulation()
             simulation.prepare(
-                GeneticEnergyManagementParameters.model_validate(dict(
+                GeneticEnergyManagementRequest.model_validate(dict(
                     pv_prognose_wh=[0.0] * prediction_hours,  # No PV
                     strompreis_euro_pro_wh=[0.0003] * prediction_hours,  # ~30ct/kWh
                     einspeiseverguetung_euro_pro_wh=0.00008,
                     preis_euro_pro_wh_akku=0.0001,
                     gesamtlast=[1000.0] * prediction_hours,  # 1 kW constant load
-                )),
+                )).to_parameters(),
                 optimization_hours=config_eos.optimization.genetic.horizon_hours,
                 prediction_hours=prediction_hours,
                 inverter=inverter,
@@ -465,14 +473,14 @@ class TestResidualBatteryValue:
 
     def test_current_energy_content_unaffected(self):
         """Battery.current_energy_content() is DC-only; inverter eff applied in optimizer."""
-        akku = Battery(
-            SolarPanelBatteryParameters(
+        akku = GeneticBattery(
+            GeneticBatteryRequest(
                 device_id="bat1",
                 capacity_wh=10000,
                 initial_soc_percentage=50,
                 discharging_efficiency=0.90,
                 min_soc_percentage=0,
-            ),
+            ).to_parameters(),
             prediction_hours=24,
         )
         akku.reset()
@@ -551,7 +559,9 @@ def _run_evaluate_with_mocked_sim(
     - self.simulation is replaced by mock_sim
     Then call evaluate() and return the fitness tuple.
     """
-    from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+        GeneticOptimization,
+    )
 
     config_eos.merge_settings_from_dict(
         {
@@ -565,8 +575,8 @@ def _run_evaluate_with_mocked_sim(
     }
 
     optim = GeneticOptimization.__new__(GeneticOptimization)
-    # Minimal __init__ state expected by evaluate()
-    optim.config = config_eos
+    # Minimal __init__ state expected by evaluate(): the run settings of the configuration.
+    optim.settings = genetic_optimization().settings
     optim.optimize_ev = False
     optim.verbose = False
     optim.opti_param = {"home_appliance": 0}

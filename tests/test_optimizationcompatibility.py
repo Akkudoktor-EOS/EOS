@@ -6,17 +6,18 @@ from unittest.mock import Mock
 
 import pytest
 
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0EnergyManagementRequest,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticEnergyManagementRequest,
 )
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 
 
 @pytest.mark.parametrize(
-    "model", [GeneticEnergyManagementParameters, Genetic0EnergyManagementRequest]
+    "model", [GeneticEnergyManagementRequest, Genetic0EnergyManagementRequest]
 )
 @pytest.mark.parametrize("tariff", [0.00008, [0.00008, -0.00002]])
 def test_energy_parameter_aliases_preserve_wh_prices(model, tariff):
@@ -46,15 +47,12 @@ def test_energy_parameter_aliases_preserve_wh_prices(model, tariff):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("algorithm", list(OptimizationAlgorithm))
 async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypatch, algorithm):
-    """GENETIC is served by the generic route, GENETIC0 by its own router (ADR 0005)."""
+    """Each optimizer serves its own solution from its router (ADR 0005, 0011)."""
     from httpx import ASGITransport, AsyncClient
 
     from akkudoktoreos.server import eos
 
-    fake = SimpleNamespace(
-        genetic_solution=Mock(return_value=None),
-        optimizer_run=Mock(return_value=None),
-    )
+    fake = SimpleNamespace(optimizer_run=Mock(return_value=None))
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
     monkeypatch.setattr(
         eos,
@@ -67,12 +65,27 @@ async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypat
         response = await client.get(f"/v1/energy-management/optimization/solution/{algorithm}")
     assert response.status_code == 404
     assert response.json()["title"] == "Algorithm specific optimization solution retrieval failed"
-    if algorithm == OptimizationAlgorithm.GENETIC:
-        fake.genetic_solution.assert_called_once_with()
-        fake.optimizer_run.assert_not_called()
-    else:
-        fake.optimizer_run.assert_called_once_with("GENETIC0")
-        fake.genetic_solution.assert_not_called()
+    fake.optimizer_run.assert_called_once_with(str(algorithm))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("algorithm", ["genetic", "FOO"])
+async def test_unknown_algorithm_solution_is_a_problem_response(algorithm):
+    """An algorithm without its own solution endpoint gets a 404 problem response, not HTML."""
+    from httpx import ASGITransport, AsyncClient
+
+    from akkudoktoreos.server import eos
+
+    async with AsyncClient(
+        transport=ASGITransport(app=eos.app, raise_app_exceptions=False), base_url="http://test"
+    ) as client:
+        response = await client.get(f"/v1/energy-management/optimization/solution/{algorithm}")
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("application/problem+json")
+    problem = response.json()
+    assert problem["title"] == "Unknown optimization algorithm"
+    assert f"'{algorithm}' unknown" in problem["detail"]
+    assert "GENETIC0" in problem["detail"]
 
 
 @pytest.mark.parametrize("algorithm", ["genetic", "genetic0"])
@@ -118,10 +131,10 @@ def test_device_maps_feed_algorithm_specific_converters(algorithm):
         inverter = genetic0prepare.inverter_request(hybrid)
         appliance = genetic0prepare.home_appliance_request(washer)
     else:
-        battery = storage.to_genetic_pv_bat_param()
-        ev = car.to_genetic_ev_bat_param()
-        inverter = hybrid.to_genetic_param()
-        appliance = washer.to_genetic_param()
+        battery = geneticprepare.battery_request(storage)
+        ev = geneticprepare.electric_vehicle_request(car)
+        inverter = geneticprepare.inverter_request(hybrid)
+        appliance = geneticprepare.home_appliance_request(washer)
     assert (battery.device_id, ev.device_id, inverter.device_id, appliance.device_id) == (
         "storage",
         "car",

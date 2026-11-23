@@ -1,0 +1,99 @@
+{
+    "id": "plan-genetic@<now>",
+    "generated_at": "<now>",
+    "valid_from": "2026-09-16T10:15:00+02:00",
+    "valid_until": null,
+    "instructions": [
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T10:15:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "ev1@<now>",
+            "execution_time": "2026-09-16T10:15:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "ev1",
+            "operation_mode_id": "IDLE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "ev1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T12:45:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T13:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T15:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "IDLE",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T19:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-16T21:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-17T00:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "SELF_CONSUMPTION",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        },
+        {
+            "id": "battery1@<now>",
+            "execution_time": "2026-09-17T09:00:00+02:00",
+            "abnormal_condition": false,
+            "type": "FRBCInstruction",
+            "actuator_id": "battery1",
+            "operation_mode_id": "NON_EXPORT",
+            "operation_mode_factor": 1.0,
+            "resource_id": "battery1"
+        }
+    ],
+    "comment": "Energy management plan derived from GeneticSolution."
+}

@@ -1,0 +1,77 @@
+"""GENETIC behind the optimizer interface (ADR 0006)."""
+
+from collections.abc import Mapping
+from typing import Any, Optional
+
+from akkudoktoreos.core.emplan import EnergyManagementPlan
+from akkudoktoreos.optimization.genetic import geneticconvert, geneticprepare
+from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
+from akkudoktoreos.optimization.optimization import OptimizationSolution
+from akkudoktoreos.optimization.optimizer import OptimizerApi, RunClock
+from akkudoktoreos.utils.datetimeutil import DateTime
+
+
+class GeneticOptimizer:
+    """The GENETIC optimizer."""
+
+    name = "GENETIC"
+
+    def run_clock(self) -> RunClock:
+        """See ``Optimizer.run_clock()``."""
+        return geneticprepare.run_clock()
+
+    async def prepare(
+        self,
+        start_datetime: DateTime,
+        observation_datetime: DateTime,
+        warm_start: Optional[GeneticResult],
+        overrides: Optional[Mapping[str, Any]] = None,
+    ) -> GeneticParameters:
+        """See ``Optimizer.prepare()``."""
+        return await geneticprepare.prepare(
+            start_datetime, observation_datetime, warm_start, overrides
+        )
+
+    async def prepare_from_request(
+        self,
+        request: GeneticRequest,
+        start_datetime: DateTime,
+        observation_datetime: DateTime,
+        warm_start: Optional[GeneticResult],
+        overrides: Optional[Mapping[str, Any]] = None,
+    ) -> GeneticParameters:
+        """See ``Optimizer.prepare_from_request()``."""
+        return await geneticprepare.prepare_from_request(
+            request, start_datetime, observation_datetime, warm_start, overrides
+        )
+
+    def run(self, parameters: GeneticParameters) -> GeneticResult:
+        """See ``Optimizer.run()``."""
+        # Imported on first use: the simulation is only needed for a run.
+        from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+            GeneticOptimization,
+        )
+
+        optimization = GeneticOptimization(parameters.settings)
+        return optimization.optimize_ems(
+            start_hour=parameters.start_hour,
+            parameters=parameters.request,
+            ngen=parameters.settings.generations,
+            individuals=parameters.settings.individuals,
+            start_solution_datetime=parameters.start_solution_datetime,
+        )
+
+    def api(self) -> OptimizerApi:
+        """See ``Optimizer.api()``."""
+        # Imported on first use: the router is only needed by the server.
+        from akkudoktoreos.optimization.genetic import geneticapi
+
+        return geneticapi.api()
+
+    async def convert(
+        self, parameters: GeneticParameters, result: GeneticResult
+    ) -> tuple[OptimizationSolution, EnergyManagementPlan]:
+        """See ``Optimizer.convert()``."""
+        return await geneticconvert.convert(parameters, result)

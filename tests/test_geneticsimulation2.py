@@ -2,23 +2,27 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
-from akkudoktoreos.devices.genetic.battery import (
-    Battery,
-    ElectricVehicleParameters,
-    SolarPanelBatteryParameters,
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    GeneticBattery,
 )
-from akkudoktoreos.devices.genetic.homeappliance import (
-    HomeAppliance,
-    HomeApplianceParameters,
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+    GeneticHomeAppliance,
 )
-from akkudoktoreos.devices.genetic.inverter import (
-    Inverter,
-    InverterParameters,
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    GeneticInverter,
 )
-from akkudoktoreos.optimization.genetic.genetic import (
-    GeneticEnergyManagementParameters,
-    GeneticSimulation,
+from akkudoktoreos.optimization.genetic.geneticapi import (
     GeneticSimulationResult,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticElectricVehicleRequest,
+    GeneticEnergyManagementRequest,
+    GeneticHomeApplianceRequest,
+    GeneticInverterRequest,
+)
+from akkudoktoreos.optimization.genetic.geneticsimulation import (
+    GeneticSimulation,
 )
 from akkudoktoreos.utils.datetimeutil import to_duration, to_time
 
@@ -37,39 +41,39 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
     assert config_eos.optimization.genetic.horizon_hours == 24
 
     # Initialize the battery and the inverter
-    akku = Battery(
-        SolarPanelBatteryParameters(
+    akku = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=5000,
             initial_soc_percentage=80,
             min_soc_percentage=10,
-        ),
+        ).to_parameters(),
         prediction_hours = config_eos.prediction.hours,
     )
     akku.reset()
 
-    inverter = Inverter(
-        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id),
+    inverter = GeneticInverter(
+        GeneticInverterRequest(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id).to_parameters(),
         battery = akku,
     )
 
     # Household device (currently not used, set to None)
-    home_appliance = HomeAppliance(
-        HomeApplianceParameters(
+    home_appliance = GeneticHomeAppliance(
+        GeneticHomeApplianceRequest(
             device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
             time_windows=None,
-        ),
+        ).to_parameters(),
         optimization_hours = config_eos.optimization.genetic.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
     )
 
     # Example initialization of electric car battery
-    eauto = Battery(
-        ElectricVehicleParameters(
+    eauto = GeneticBattery(
+        GeneticElectricVehicleRequest(
             device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
-        ),
+        ).to_parameters(),
         prediction_hours = config_eos.prediction.hours,
     )
 
@@ -140,13 +144,13 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
     # Initialize the energy management system with the respective parameters
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters.model_validate(dict(
+        GeneticEnergyManagementRequest.model_validate(dict(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
-        )),
+        )).to_parameters(),
         optimization_hours = config_eos.optimization.genetic.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,
@@ -160,7 +164,8 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
     dc = np.full(config_eos.prediction.hours, 0.0)
     dc[11] = 1
     simulation.dc_charge_hours = dc
-    simulation.home_appliance_start_hour = 2
+    assert simulation.home_appliance is not None
+    simulation.home_appliance.build_load_curve([2])
 
     return simulation
 

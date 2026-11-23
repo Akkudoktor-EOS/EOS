@@ -370,9 +370,9 @@ class ConsumerDeadlinePolicy(StrEnum):
         automation.
 
     - STRICT:
-        Keep the deadline. A ONCE consumer without a feasible start makes the
-        optimization fail; a DAILY consumer is simply not scheduled on days
-        without a feasible start.
+        Keep the deadline. A ONCE consumer without a feasible start is left out
+        of the optimization run (error logged); a DAILY consumer is simply not
+        scheduled on days without a feasible start.
     """
 
     BEST_EFFORT = "BEST_EFFORT"

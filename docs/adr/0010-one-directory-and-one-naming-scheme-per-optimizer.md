@@ -18,7 +18,7 @@ fit a role use the `<name>` prefix as well, also inside subdirectories such as `
 
 ## Consequences
 
-- The public classes are renamed (e.g. `GeneticOptimizationParameters` → `GeneticRequest`,
+- The public classes are renamed (e.g. `ConfigOptimizationRequest` → `GeneticRequest`,
   `GeneticCommonSettings` → `GeneticSettings`). Field names and payloads stay unchanged; the
   schema names in OpenAPI and the configuration documentation change. Nested request models are
   renamed `<Name><Thing>Request` as well (e.g. `Genetic0InverterParameters` →

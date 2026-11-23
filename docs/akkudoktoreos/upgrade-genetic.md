@@ -35,7 +35,9 @@ automations and scripts do not. Check those paths and the saved configuration af
 migration. Battery wear cost is named `levelized_cost_of_storage_amt_kwh`.
 
 The new GENETIC currently supports one inverter, one stationary battery, one EV and
-multiple household appliances. It rejects unsupported counts or inconsistent links.
+multiple household appliances. Surplus devices and a battery not linked to the inverter are
+left out of the run, and each is logged as an error; without a usable inverter the run plans
+grid energy only. Check the log after migrating your devices.
 
 ### 2. The two optimizer endpoints have different contracts
 
@@ -59,7 +61,7 @@ in the body and query-string overrides are rejected. Do not migrate by changing 
 The legacy endpoint remains available, but the surrounding configuration has changed.
 That is not a promise that every old script works unchanged.
 
-### 3. SoC measurements are optional; complete forecasts are required
+### 3. Missing SoC measurements and forecasts get logged fallbacks
 
 Request SoC values are integer percentages from 0 to 100, keyed by device ID. Automatic
 measurement lookup instead reads a factor from 0 to 1 using the configured measurement
@@ -76,10 +78,14 @@ The default measurement freshness limit is 300 seconds, controlled by
 `optimization.genetic.measurement_max_age_seconds`. This limit determines whether a
 measurement can be used; it does not require an update before every run.
 
-Missing forecasts within the control period also stop the run. A shorter forecast
-continuation is allowed and reported. Failed calls return an error; they no longer look
-like a successful new run by returning an older result. Existing automations should
-handle errors and verify the timestamp of any separately retrieved stored plan.
+Missing or invalid forecasts within the control period do not stop the run either. A
+forecast value that is missing, NaN or infinite within the control horizon gets a fallback:
+PV 0, an even load of 3000 kWh per year, a price or feed-in tariff carried forward (else the
+next known value, else 0); a negative PV or load value becomes 0. Each fallback is logged as
+an error: check the log after setting up your forecasts. A shorter forecast continuation is
+allowed and reported. Failed calls return an error; they no longer look like a successful
+new run by returning an older result. Existing automations should handle errors and verify
+the timestamp of any separately retrieved stored plan.
 
 A charging target may equal the configured maximum SoC. For example,
 `devices.electric_vehicles.car.min_soc_percentage = 100` is valid when
@@ -110,12 +116,20 @@ time, charging power and supported charge rates.
   legacy GENETIC0 response format.
 - The OpenAPI schema names of the optimizers follow one scheme; fields and paths are unchanged:
   GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request`, its device and forecast
-  models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`.
-  Clients generated from `openapi.json` must follow the new names.
+  models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`;
+  GENETIC's `ConfigOptimizationRequest` is `GeneticRequest`, `RuntimeForecasts` is
+  `GeneticForecastsRequest`, its device and forecast models are `Genetic<Thing>Request` (e.g.
+  `SolarPanelBatteryParameters` is `GeneticBatteryRequest`) and `GeneticCommonSettings` is
+  `GeneticSettings`. Clients generated from `openapi.json` must follow the new names.
+- The `parameters` echoed in a GENETIC result are the request as sent: a home appliance without
+  time windows shows `time_windows: null`, no placeholder window.
 
 The new report endpoint is
 `GET /v1/energy-management/optimization/solution/GENETIC/pdf`. It renders the stored
 GENETIC result and returns 404 if none exists. The legacy PDF endpoint remains separate.
+The stored GENETIC result itself is `GET /v1/energy-management/optimization/solution/GENETIC`
+(GENETIC0: `.../solution/GENETIC0`). The generic route `.../solution/{algorithm}` is gone; use
+the algorithm's own path. Any other algorithm name gets a 404 problem response (formerly 422).
 
 ### 5. Costs and schedules may change even with the same forecasts
 
@@ -154,8 +168,9 @@ storage interfaces: await those methods. HTTP clients continue to exchange JSON.
    compare units, timestamps, expected energy flows and costs before applying commands.
 4. Try an EV deadline and a household-appliance window if you use them. Check the stored
    result, execution plan and PDF agree. Test the legacy endpoint if you still rely on it.
-5. Test one missing-forecast or stale-measurement case. Confirm your automation handles
-   the error and does not execute an old plan as a new one.
+5. Test one missing-forecast or stale-measurement case. Confirm the run reports its fallback
+   in the log, and that your automation handles failed calls and does not execute an old plan
+   as a new one.
 
 Automated tests cover the model and API contracts. They do not replace checking your
 actual Home Assistant entities, Node-RED flows, forecast sources and connected devices.
