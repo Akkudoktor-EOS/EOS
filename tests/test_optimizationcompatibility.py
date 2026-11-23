@@ -52,7 +52,7 @@ async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypat
     from akkudoktoreos.server import eos
 
     fake = SimpleNamespace(
-        genetic_solution=Mock(return_value=None),
+        optimizer_result=Mock(return_value=None),
         optimizer_run=Mock(return_value=None),
     )
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
@@ -68,11 +68,11 @@ async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypat
     assert response.status_code == 404
     assert response.json()["title"] == "Algorithm specific optimization solution retrieval failed"
     if algorithm == OptimizationAlgorithm.GENETIC:
-        fake.genetic_solution.assert_called_once_with()
+        fake.optimizer_result.assert_called_once_with("GENETIC")
         fake.optimizer_run.assert_not_called()
     else:
         fake.optimizer_run.assert_called_once_with("GENETIC0")
-        fake.genetic_solution.assert_not_called()
+        fake.optimizer_result.assert_not_called()
 
 
 @pytest.mark.parametrize("algorithm", ["genetic", "genetic0"])

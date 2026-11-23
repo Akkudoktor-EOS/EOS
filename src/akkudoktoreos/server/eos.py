@@ -1890,7 +1890,7 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
         )
 
     if algorithm == OptimizationAlgorithm.GENETIC:
-        solution = get_ems().genetic_solution()
+        solution = get_ems().optimizer_result(algorithm)
 
     if solution is None:
         raise EOSProblem(
@@ -1919,7 +1919,7 @@ async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> R
     its recorded timestamp, interval and inputs own the report's time grid.
     The legacy /visualization_results.pdf route continues to serve GENETIC0.
     """
-    retained = get_ems().genetic_solution()
+    retained = get_ems().optimizer_result(OptimizationAlgorithm.GENETIC)
     if retained is None:
         raise EOSProblem(
             status=404,
@@ -2270,7 +2270,7 @@ async def fastapi_optimize_config(
     solution = await get_ems().run(
         mode=EnergyManagementMode.OPTIMIZATION,
         algorithm=OptimizationAlgorithm.GENETIC,
-        genetic_parameters=parameters,
+        request=parameters,
     )
     if solution is None:
         raise EOSProblem(

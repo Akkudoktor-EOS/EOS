@@ -609,26 +609,6 @@ class TestWarmStartAlignment:
 
         assert opt._start_solution_for_run_start(previous, slot0.add(minutes=offset_minutes)) is None
 
-    def test_start_datetime_falls_back_to_last_solution_of_this_server(self,
-        config_eos: ConfigEOS, monkeypatch: pytest.MonkeyPatch
-    ):
-        opt, slot0 = _warm_start_optimizer(config_eos, interval=900)
-        last_start = slot0.subtract(minutes=15)
-        monkeypatch.setattr(
-            type(get_ems()),
-            "_genetic_solution",
-            SimpleNamespace(start_solution=[19.0, 32.0, 14.0], start_solution_datetime=last_start),
-        )
-
-        same = SimpleNamespace(start_solution=[19, 32, 14], start_solution_datetime=None)
-        other = SimpleNamespace(start_solution=[19, 32, 15], start_solution_datetime=None)
-        explicit_start = slot0.subtract(minutes=30)
-        explicit = SimpleNamespace(start_solution=[19, 32, 14], start_solution_datetime=explicit_start)
-
-        assert opt._resolve_start_solution_datetime(same) == last_start  # type: ignore[arg-type]
-        assert opt._resolve_start_solution_datetime(other) is None  # type: ignore[arg-type]
-        assert opt._resolve_start_solution_datetime(explicit) == explicit_start  # type: ignore[arg-type]
-
     def test_parameters_accept_iso_start_solution_datetime(self, config_eos: ConfigEOS):
         parameters = GeneticOptimizationParameters.model_validate(
             dict(

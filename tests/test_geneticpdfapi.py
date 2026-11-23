@@ -24,7 +24,7 @@ def retained_result():
 
 
 def test_missing_algorithm_report_returns_404(config_eos, monkeypatch):
-    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(genetic_solution=lambda: None))
+    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(optimizer_result=lambda name: None))
     response = TestClient(eos.app).get("/v1/energy-management/optimization/solution/GENETIC/pdf")
     assert response.status_code == 404
     assert response.headers["content-type"].startswith("application/problem+json")
@@ -32,7 +32,7 @@ def test_missing_algorithm_report_returns_404(config_eos, monkeypatch):
 
 def test_retained_algorithm_result_renders_real_pdf(config_eos, monkeypatch, retained_result):
     solution = retained_result
-    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(genetic_solution=lambda: solution))
+    monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(optimizer_result={"GENETIC": solution}.get))
     # A later run and changed configuration must not retime the retained report.
     from akkudoktoreos.core.coreabc import get_ems
     from akkudoktoreos.optimization.genetic import geneticvisualize
@@ -60,7 +60,7 @@ async def test_render_is_offloaded_and_uses_an_owned_copy(config_eos, monkeypatc
     monkeypatch.setattr(
         eos,
         "get_ems",
-        lambda: SimpleNamespace(genetic_solution=lambda: solution),
+        lambda: SimpleNamespace(optimizer_result={"GENETIC": solution}.get),
     )
     original_controls = list(solution.ac_charge)
 

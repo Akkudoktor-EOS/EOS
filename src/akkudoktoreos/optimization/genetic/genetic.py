@@ -2067,28 +2067,6 @@ class GeneticOptimization(OptimizationBase):
         )
         return migrated
 
-    def _resolve_start_solution_datetime(
-        self, parameters: GeneticOptimizationParameters
-    ) -> Optional[DateTime]:
-        """Start of the slot that gene 0 of the supplied warm start controls.
-
-        An explicit ``start_solution_datetime`` wins. Clients that only echo
-        ``start_solution`` get the start of this server's last solution when the
-        genomes are identical; for any other genome the start is unknown.
-        """
-        if parameters.start_solution_datetime is not None:
-            return parameters.start_solution_datetime
-        if parameters.start_solution is None:
-            return None
-        last_solution = self.ems.genetic_solution()
-        if (
-            last_solution is not None
-            and last_solution.start_solution is not None
-            and list(last_solution.start_solution) == list(parameters.start_solution)
-        ):
-            return last_solution.start_solution_datetime
-        return None
-
     def _start_solution_for_run_start(
         self,
         start_solution: Optional[list[float]],
@@ -4554,7 +4532,7 @@ class GeneticOptimization(OptimizationBase):
         )
 
         start_time = time.time()
-        start_solution_datetime = self._resolve_start_solution_datetime(parameters)
+        start_solution_datetime = parameters.start_solution_datetime
         start_solution, extra_data = self.optimize(
             self._start_solution_for_run_start(parameters.start_solution, start_solution_datetime),
             ngen=generations,

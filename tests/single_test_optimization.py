@@ -13,11 +13,11 @@ import numpy as np
 from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config, get_ems, get_prediction
-from akkudoktoreos.core.emsettings import EnergyManagementMode
+from akkudoktoreos.optimization.genetic import GeneticOptimizer
+from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 config_eos = get_config()
@@ -425,20 +425,18 @@ def run_optimization(
     else:
         start_datetime = to_datetime().set(hour=start_hour)
 
-    asyncio.run(
-        ems_eos.run(
-            start_datetime=start_datetime,
-            mode=EnergyManagementMode.OPTIMIZATION,
-            algorithm=OptimizationAlgorithm.GENETIC,
-            genetic_parameters=parameters,
-            genetic_generations=ngen,
-            genetic_seed=seed,
+    # The parameters are complete already: run the optimizer on them, without preparation.
+    start = ems_eos.set_start_datetime(start_datetime)
+    solution = GeneticOptimizer().run(
+        GeneticParameters(
+            request=parameters,
+            start_hour=start.hour,
+            generations=ngen,
+            individuals=None,
+            seed=seed,
+            verbose=verbose,
         )
     )
-
-    solution = ems_eos.genetic_solution()
-    if solution is None:
-        return None
     return solution.model_dump_json()
 
 

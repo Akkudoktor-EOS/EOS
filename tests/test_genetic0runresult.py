@@ -9,10 +9,15 @@ import pytest
 
 from akkudoktoreos.core import ems as ems_module
 from akkudoktoreos.core.emsettings import EnergyManagementMode
+from akkudoktoreos.optimization.genetic import genetic as genetic_module
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0 import genetic0algorithm as genetic0_module
 from akkudoktoreos.optimization.genetic0 import genetic0convert, genetic0prepare
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0Request,
+)
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.optimization.optimizer import OptimizerRun
@@ -21,11 +26,11 @@ from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
 def _patch_optimizer(monkeypatch, prefix: str, constructor: Any) -> None:
-    """Replace the optimizer class that EnergyManagement.run() instantiates.
+    """Replace the optimizer class that the optimizer's ``run()`` instantiates.
 
-    GENETIC0 is imported on first use inside its optimizer, so it is patched at its source.
+    Both are imported on first use inside their optimizer, so they are patched at their source.
     """
-    module = genetic0_module if prefix == "Genetic0" else ems_module
+    module = genetic0_module if prefix == "Genetic0" else genetic_module
     monkeypatch.setattr(module, prefix + "Optimization", constructor)
 
 
@@ -34,7 +39,7 @@ def _patch_prepare(monkeypatch, prefix: str, prepare: Any) -> None:
     if prefix == "Genetic0":
         monkeypatch.setattr(genetic0prepare, "prepare_request", prepare)
     else:
-        monkeypatch.setattr(ems_module.GeneticOptimizationParameters, "prepare", prepare)
+        monkeypatch.setattr(GeneticOptimizationParameters, "prepare", prepare)
 
 
 def _warm_start_of(call: Any) -> Any:
@@ -44,12 +49,12 @@ def _warm_start_of(call: Any) -> Any:
 
 
 def _assert_prepared_without_request(prefix: str, prepare: Any) -> None:
-    """GENETIC0 passes start, observation time and warm start (none here) into its preparation."""
+    """Both pass the warm start (none here) into their legacy preparation."""
     if prefix == "Genetic0":
         prepare.assert_awaited_once()
         assert _warm_start_of(prepare.await_args) is None
     else:
-        prepare.assert_awaited_once_with()
+        prepare.assert_awaited_once_with(warm_start=None)
 
 
 def _conversion_arguments(prefix: str) -> dict[str, Any]:
@@ -59,31 +64,29 @@ def _conversion_arguments(prefix: str) -> dict[str, Any]:
 
 def _native_solution(prefix: str) -> Any:
     """The native solution the latest run published for GENETIC or GENETIC0."""
-    cls = ems_module.EnergyManagement
-    if prefix == "Genetic0":
-        return cls.optimizer_result("GENETIC0")
-    return cls._genetic_solution
+    return ems_module.EnergyManagement.optimizer_result(prefix.upper())
 
 
 def _set_native_solution(monkeypatch, prefix: str, solution: Any) -> None:
     """Publish ``solution`` as the result of a previous run of GENETIC or GENETIC0."""
-    cls = ems_module.EnergyManagement
-    if prefix == "Genetic0":
-        runs = {"GENETIC0": OptimizerRun(parameters=object(), result=solution)}
-        monkeypatch.setattr(cls, "_optimizer_runs", runs)
-    else:
-        monkeypatch.setattr(cls, "_genetic_solution", solution)
+    runs = {prefix.upper(): OptimizerRun(parameters=object(), result=solution)}
+    monkeypatch.setattr(ems_module.EnergyManagement, "_optimizer_runs", runs)
 
 
-def _supplied(prefix: str, parameters: Any, generations: int, seed: int) -> dict[str, Any]:
+def _stand_in_request() -> SimpleNamespace:
+    """A request both preparations accept.
+
+    GENETIC0's preparation looks at its home appliance; GENETIC's resolves it into the legacy
+    parameters, here the request itself.
+    """
+    request = SimpleNamespace(dishwasher=None)
+    request.resolve = AsyncMock(return_value=request)
+    return request
+
+
+def _supplied(parameters: Any, generations: int, seed: int) -> dict[str, Any]:
     """Run arguments that supply the parameters, generations and seed of a run."""
-    if prefix == "Genetic0":
-        return {"request": parameters, "overrides": {"generations": generations, "seed": seed}}
-    return {
-        "genetic_parameters": parameters,
-        "genetic_generations": generations,
-        "genetic_seed": seed,
-    }
+    return {"request": parameters, "overrides": {"generations": generations, "seed": seed}}
 
 
 @pytest.fixture
@@ -96,7 +99,6 @@ def offline_ems(monkeypatch):
         "_last_run_datetime",
         "_plan",
         "_optimization_solution",
-        "_genetic_solution",
     ):
         monkeypatch.setattr(cls, name, None)
     monkeypatch.setattr(cls, "_optimizer_runs", {})
@@ -124,7 +126,8 @@ def offline_ems(monkeypatch):
         adapter=SimpleNamespace(update_data=AsyncMock()),
         set_start_datetime=cls.set_start_datetime,
     )
-    # GENETIC0's parameter preparation reads the settings and predictions itself.
+    # The parameter preparations read the settings (and GENETIC0's the predictions) themselves.
+    monkeypatch.setattr(geneticprepare, "get_config", lambda: ems.config)
     monkeypatch.setattr(genetic0prepare, "get_config", lambda: ems.config)
     monkeypatch.setattr(
         genetic0prepare, "get_prediction", lambda: SimpleNamespace(record_keys=[])
@@ -202,8 +205,7 @@ async def test_optimization_routes_only_selected_algorithm(
     other_name = "Genetic0" if selected_name == "Genetic" else "Genetic"
     suffix = "genetic" if algorithm == OptimizationAlgorithm.GENETIC else "genetic0"
     other_suffix = "genetic0" if suffix == "genetic" else "genetic"
-    # GENETIC0's preparation looks at the request's home appliance.
-    sentinel_parameters = SimpleNamespace(dishwasher=None)
+    sentinel_parameters = _stand_in_request()
     sentinel_result, sentinel_plan = object(), object()
     solution = SimpleNamespace(
         optimization_solution=AsyncMock(return_value=sentinel_result),
@@ -228,9 +230,9 @@ async def test_optimization_routes_only_selected_algorithm(
         offline_ems.config.optimization.algorithm = OptimizationAlgorithm(other_suffix.upper())
         kwargs["algorithm"] = algorithm
     if supplied:
-        kwargs.update(_supplied(selected_name, sentinel_parameters, 7, 43))
+        kwargs.update(_supplied(sentinel_parameters, 7, 43))
         if algorithm == OptimizationAlgorithm.GENETIC:
-            kwargs["genetic_individuals"] = 11
+            kwargs["overrides"]["individuals"] = 11
     run_result = await ems_module.EnergyManagement.run(offline_ems, **kwargs)
     assert run_result is solution
     selected = constructors[selected_name]
@@ -434,7 +436,7 @@ async def test_conversion_failure_preserves_consistent_previous_results(
     constructor = Mock()
     constructor.return_value.optimize_ems.return_value = solution
     _patch_optimizer(monkeypatch, prefix, constructor)
-    supplied_parameters = _supplied(prefix, SimpleNamespace(dishwasher=None), 3, 17)
+    supplied_parameters = _supplied(_stand_in_request(), 3, 17)
     result = await cls.run(
         offline_ems,
         algorithm=OptimizationAlgorithm(prefix.upper()),

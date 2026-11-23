@@ -653,7 +653,7 @@ async def test_golden_output_from_configuration(
     monkeypatch.setattr(EnergyManagement, "prediction", prediction)
     monkeypatch.setattr(ConfigOptimizationRequest, "prediction", prediction)
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
-    monkeypatch.setattr(EnergyManagement, "_genetic_solution", None)
+    monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     monkeypatch.setattr(geneticsolution, "get_prediction", no_prediction)
     if case.rich:
         # The previous run, an hour earlier, is the warm start of the pinned one.
@@ -665,8 +665,7 @@ async def test_golden_output_from_configuration(
         warm_start = await ems_eos.run(
             start_datetime=previous,
             mode=EnergyManagementMode.OPTIMIZATION,
-            genetic_generations=3,
-            genetic_seed=GOLDEN_SEED,
+            overrides={"generations": 3, "seed": GOLDEN_SEED},
         )
         assert warm_start is not None
     monkeypatch.setattr(
@@ -675,8 +674,10 @@ async def test_golden_output_from_configuration(
     prepared: list[GeneticOptimizationParameters] = []
     resolve = ConfigOptimizationRequest.resolve
 
-    async def record_resolve(self: ConfigOptimizationRequest) -> GeneticOptimizationParameters:
-        parameters = await resolve(self)
+    async def record_resolve(
+        self: ConfigOptimizationRequest, warm_start: Optional[GeneticSolution] = None
+    ) -> GeneticOptimizationParameters:
+        parameters = await resolve(self, warm_start=warm_start)
         prepared.append(parameters)
         return parameters
 
@@ -686,8 +687,7 @@ async def test_golden_output_from_configuration(
     solution = await ems_eos.run(
         start_datetime=observation,
         mode=EnergyManagementMode.OPTIMIZATION,
-        genetic_generations=3,
-        genetic_seed=GOLDEN_SEED,
+        overrides={"generations": 3, "seed": GOLDEN_SEED},
     )
     assert solution is not None
     assert len(prepared) == 1

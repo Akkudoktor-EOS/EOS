@@ -79,9 +79,7 @@ def configured_request(config_eos, monkeypatch):
         }
     )
     start = to_datetime("2026-09-12T10:15:00Z", in_timezone="UTC")
-    ems = SimpleNamespace(
-        start_datetime=start, observation_datetime=start, genetic_solution=lambda: None
-    )
+    ems = SimpleNamespace(start_datetime=start, observation_datetime=start)
     monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
     measurement = Mock(key_to_lists=AsyncMock(return_value=([], [])))
     monkeypatch.setattr(ConfigOptimizationRequest, "measurement", measurement)
@@ -169,6 +167,28 @@ async def test_forecastsolar_resolves_without_runtime_override(
     assert energy[17 * 3600 // interval : 24 * 3600 // interval] == [0] * (7 * 3600 // interval)
     assert np.isfinite(energy[10 * 3600 // interval : 34 * 3600 // interval]).all()
     await pv.delete_by_datetime()
+
+
+@pytest.mark.asyncio
+async def test_echoed_warm_start_gets_the_start_of_the_last_solution(configured_request):
+    """A client that only echoes the genome of this server's last solution keeps its start."""
+    _, ems, _, data = configured_request
+    last_start = ems.start_datetime.subtract(minutes=15)
+    warm_start = SimpleNamespace(start_solution=[19.0, 32.0, 14.0], start_solution_datetime=last_start)
+    explicit_start = ems.start_datetime.subtract(minutes=30)
+
+    async def resolved_start(**fields: Any) -> Any:
+        request = ConfigOptimizationRequest.model_validate({**data, **fields})
+        parameters = await request.resolve(warm_start=warm_start)  # type: ignore[arg-type]
+        return parameters.start_solution_datetime
+
+    assert await resolved_start(start_solution=[19, 32, 14]) == last_start
+    assert await resolved_start(start_solution=[19, 32, 15]) is None
+    assert (
+        await resolved_start(start_solution=[19, 32, 14], start_solution_datetime=explicit_start)
+        == explicit_start
+    )
+    assert await resolved_start() == last_start
 
 
 @pytest.mark.asyncio
@@ -376,7 +396,7 @@ def test_http_empty_body_is_configuration_request_and_failure_cannot_return_cach
     client = TestClient(eos.app)
     response = client.post("/v1/optimize")
     assert response.status_code == 503
-    assert isinstance(run.call_args.kwargs["genetic_parameters"], ConfigOptimizationRequest)
+    assert isinstance(run.call_args.kwargs["request"], ConfigOptimizationRequest)
     assert run.call_args.kwargs["algorithm"] == OptimizationAlgorithm.GENETIC
     response = client.post("/v1/optimize", json={"devices": {}})
     assert response.status_code == 422
@@ -409,19 +429,18 @@ async def test_real_ems_returns_coherent_quarter_hour_solution_and_plan(
     if automatic:
         original = ConfigOptimizationRequest.resolve
 
-        async def resolve_default(self):
-            return await original(request)
+        async def resolve_default(self, warm_start=None):
+            return await original(request, warm_start=warm_start)
 
         monkeypatch.setattr(ConfigOptimizationRequest, "resolve", resolve_default)
     solution = await ems.run(
         start_datetime=fake.start_datetime.add(minutes=2),
         mode=EnergyManagementMode.OPTIMIZATION,
-        genetic_parameters=None if automatic else request,
-        genetic_generations=10,
-        genetic_seed=42,
+        request=None if automatic else request,
+        overrides={"generations": 10, "seed": 42},
     )
     assert solution is not None
-    assert solution is ems.genetic_solution()
+    assert solution is ems.optimizer_result("GENETIC")
     assert solution is not None  # run() returns Any; `is` narrowed to Optional
     assert solution.start_solution_datetime == fake.start_datetime
     assert len(solution.ac_charge) == 4
@@ -437,7 +456,7 @@ async def test_automatic_run_reads_real_resolver_provider_units_and_measured_soc
     _, fake, measurement, _ = configured_request
     ems = EnergyManagement()
     monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
-    monkeypatch.setattr(EnergyManagement, "_genetic_solution", None)
+    monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     measurement.key_to_lists.return_value = ([fake.start_datetime], [0.42])
     values = {
         "pvforecast_ac_power": 1000.0,
@@ -458,8 +477,7 @@ async def test_automatic_run_reads_real_resolver_provider_units_and_measured_soc
     solution = await ems.run(
         start_datetime=fake.start_datetime,
         mode=EnergyManagementMode.OPTIMIZATION,
-        genetic_generations=10,
-        genetic_seed=42,
+        overrides={"generations": 10, "seed": 42},
     )
     assert solution is not None
     assert solution.parameters is not None
@@ -483,7 +501,7 @@ async def test_http_real_genetic_result_serializes_native_quarter_hour_contract(
         data["soc"] = {}
     ems = EnergyManagement()
     monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
-    monkeypatch.setattr(EnergyManagement, "_genetic_solution", None)
+    monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     monkeypatch.setattr(EnergyManagement, "prediction", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
 
@@ -564,7 +582,7 @@ async def test_http_config_and_real_optimizer_allow_full_ev_target(configured_re
     data["soc"]["ev"] = soc
     ems = EnergyManagement()
     monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
-    monkeypatch.setattr(EnergyManagement, "_genetic_solution", None)
+    monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     monkeypatch.setattr(EnergyManagement, "prediction", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
 

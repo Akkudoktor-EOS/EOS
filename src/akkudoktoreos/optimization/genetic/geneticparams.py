@@ -9,7 +9,7 @@ forecasts, and fallback defaults, preparing them for optimization runs.
 """
 
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from loguru import logger
 from pydantic import (
@@ -35,6 +35,9 @@ from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
 from akkudoktoreos.devices.genetic.inverter import InverterParameters
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+
+if TYPE_CHECKING:
+    from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 
 # Do not import directly from akkudoktoreos.core.coreabc
 # EnergyManagementSystemMixin - Creates circular dependency with ems.py
@@ -282,18 +285,26 @@ class GeneticOptimizationParameters(
         return start_solution
 
     @classmethod
-    async def prepare(cls) -> "Optional[GeneticOptimizationParameters]":
+    async def prepare(
+        cls, warm_start: "Optional[GeneticSolution]" = None
+    ) -> "Optional[GeneticOptimizationParameters]":
         """Resolve configured devices and fresh forecasts for automatic optimization.
 
         Missing inputs cancel the run without changing providers or inventing devices.
         The same resolver serves the configuration-owned HTTP request.
+
+        Args:
+            warm_start: Result of the previous GENETIC run of this server, if any.
+
+        Returns:
+            The parameters, or ``None`` when inputs are missing.
         """
         from akkudoktoreos.optimization.genetic.configrequest import (
             ConfigOptimizationRequest,
         )
 
         try:
-            return await ConfigOptimizationRequest().resolve()
+            return await ConfigOptimizationRequest().resolve(warm_start=warm_start)
         except Exception as exc:
             logger.error(
                 "Cannot prepare GENETIC parameters; canceling optimization with provider {}: {}",

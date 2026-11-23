@@ -362,26 +362,6 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.configrequest",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.genetic",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-        ),
-        Violation(
-            "internals",
             "akkudoktoreos.optimization.optimization",
             "akkudoktoreos.optimization.genetic.geneticsettings",
         ),

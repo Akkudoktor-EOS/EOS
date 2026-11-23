@@ -272,9 +272,7 @@ def full_charge_request(config_eos, monkeypatch):
         }
     )
     start = to_datetime("2026-09-12T10:15:00Z", in_timezone="UTC")
-    ems = SimpleNamespace(
-        start_datetime=start, observation_datetime=start, genetic_solution=lambda: None
-    )
+    ems = SimpleNamespace(start_datetime=start, observation_datetime=start)
     monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
     measurement = Mock(key_to_lists=AsyncMock(return_value=([], [])))
     monkeypatch.setattr(ConfigOptimizationRequest, "measurement", measurement)

@@ -1,7 +1,7 @@
 """Configuration-owned GENETIC requests with fresh runtime observations."""
 
 import math
-from typing import Annotated, Any, Optional
+from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 import pandas as pd
 from loguru import logger
@@ -26,6 +26,9 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
+
+if TYPE_CHECKING:
+    from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 
 # How far back the latest "run started" report of a home appliance is looked up.
 RUN_STARTED_LOOKBACK_HOURS = 48
@@ -129,8 +132,19 @@ class ConfigOptimizationRequest(
         timezone = observation_time.timezone
         return started.in_timezone(timezone) if timezone is not None else started
 
-    async def resolve(self) -> GeneticOptimizationParameters:
-        """Resolve inside the EMS lock after its slot start has been established."""
+    async def resolve(
+        self, warm_start: Optional["GeneticSolution"] = None
+    ) -> GeneticOptimizationParameters:
+        """Resolve inside the EMS lock after its slot start has been established.
+
+        Args:
+            warm_start: Result of the previous GENETIC run of this server, if any. Its genome
+                seeds the run when the request carries none; a request that echoes it without
+                a start datetime gets the start datetime of that run.
+
+        Returns:
+            The forecast and device parameters of the run.
+        """
         config = self.config
         settings = config.optimization.genetic
         config.validate_optimization_horizons()
@@ -369,12 +383,19 @@ class ConfigOptimizationRequest(
                 )
         if any(value < 0 for values in (pv, load) for value in values[first:last]):
             raise ValueError("PV and load energy must be nonnegative.")
-        previous = ems.genetic_solution()
-        warm_start = self.start_solution
-        warm_start_time = self.start_solution_datetime
-        if warm_start is None and previous is not None:
-            warm_start = previous.start_solution
-            warm_start_time = previous.start_solution_datetime
+        start_solution = self.start_solution
+        start_solution_time = self.start_solution_datetime
+        if warm_start is not None:
+            if start_solution is None:
+                start_solution = warm_start.start_solution
+                start_solution_time = warm_start.start_solution_datetime
+            elif (
+                start_solution_time is None
+                and warm_start.start_solution is not None
+                and list(warm_start.start_solution) == list(start_solution)
+            ):
+                # A client that only echoes the genome of this server's last solution.
+                start_solution_time = warm_start.start_solution_datetime
         return GeneticOptimizationParameters(
             forecast_interval_seconds=settings.interval_sec,
             ems=GeneticEnergyManagementParameters(
@@ -393,6 +414,6 @@ class ConfigOptimizationRequest(
                 if supplied.temperature_forecast is not None
                 else None
             ),
-            start_solution=warm_start,
-            start_solution_datetime=warm_start_time,
+            start_solution=start_solution,
+            start_solution_datetime=start_solution_time,
         )
