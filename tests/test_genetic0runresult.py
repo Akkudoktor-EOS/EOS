@@ -52,6 +52,12 @@ def _assert_prepared_without_request(prefix: str, prepare: Any) -> None:
         prepare.assert_awaited_once_with()
 
 
+def _conversion_arguments(prefix: str) -> dict[str, Any]:
+    """GENETIC0 passes the preparation's home-appliance decision to its conversion."""
+    # The offline configuration has max_home_appliances = 0.
+    return {"home_appliance_enabled": False} if prefix == "Genetic0" else {}
+
+
 def _native_solution(prefix: str) -> Any:
     """The native solution the latest run published for GENETIC or GENETIC0."""
     cls = ems_module.EnergyManagement
@@ -181,7 +187,8 @@ async def test_optimization_routes_only_selected_algorithm(
     other_name = "Genetic0" if selected_name == "Genetic" else "Genetic"
     suffix = "genetic" if algorithm == OptimizationAlgorithm.GENETIC else "genetic0"
     other_suffix = "genetic0" if suffix == "genetic" else "genetic"
-    sentinel_parameters = object()
+    # GENETIC0's preparation looks at the request's home appliance.
+    sentinel_parameters = SimpleNamespace(dishwasher=None)
     sentinel_result, sentinel_plan = object(), object()
     solution = SimpleNamespace(
         optimization_solution=AsyncMock(return_value=sentinel_result),
@@ -239,8 +246,9 @@ async def test_optimization_routes_only_selected_algorithm(
         preparers[selected_name].assert_not_awaited()
     else:
         _assert_prepared_without_request(selected_name, preparers[selected_name])
-    solution.optimization_solution.assert_awaited_once_with()
-    solution.energy_management_plan.assert_called_once_with()
+    conversion_arguments = _conversion_arguments(selected_name)
+    solution.optimization_solution.assert_awaited_once_with(**conversion_arguments)
+    solution.energy_management_plan.assert_called_once_with(**conversion_arguments)
     cls = ems_module.EnergyManagement
     assert _native_solution(selected_name) is solution
     assert _native_solution(other_name) is None
@@ -271,8 +279,9 @@ async def test_non_optimization_modes_never_optimize(monkeypatch, offline_ems, m
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("prefix", ["Genetic", "Genetic0"])
+@pytest.mark.parametrize("prefix", ["Genetic"])
 async def test_missing_preparation_does_not_dispatch_controls(monkeypatch, offline_ems, prefix):
+    """GENETIC may still cancel; GENETIC0's preparation never does (TestGenetic0AlwaysValid)."""
     constructor = Mock()
     _patch_optimizer(monkeypatch, prefix, constructor)
     prepare = AsyncMock(return_value=None)
@@ -398,14 +407,14 @@ async def test_conversion_failure_preserves_consistent_previous_results(
     constructor = Mock()
     constructor.return_value.optimize_ems.return_value = solution
     _patch_optimizer(monkeypatch, prefix, constructor)
-    supplied_parameters = _supplied(prefix, object(), 3, 17)
+    supplied_parameters = _supplied(prefix, SimpleNamespace(dishwasher=None), 3, 17)
     result = await cls.run(
         offline_ems,
         algorithm=OptimizationAlgorithm(prefix.upper()),
         **supplied_parameters,
     )
     assert result is None
-    conversion.assert_awaited_once_with()
+    conversion.assert_awaited_once_with(**_conversion_arguments(prefix))
     assert solution.energy_management_plan.call_count == (phase == "plan")
     assert offline_ems.adapter.update_data.await_count == 1
     assert (
@@ -503,7 +512,7 @@ async def test_previous_genetic0_result_is_the_warm_start_of_the_next_run(
         second,
     ]
     _patch_optimizer(monkeypatch, "Genetic0", constructor)
-    prepare = AsyncMock(return_value=object())
+    prepare = AsyncMock(return_value=SimpleNamespace(dishwasher=None))
     _patch_prepare(monkeypatch, "Genetic0", prepare)
     for _ in range(3):
         await cls.run(offline_ems, algorithm=OptimizationAlgorithm.GENETIC0)

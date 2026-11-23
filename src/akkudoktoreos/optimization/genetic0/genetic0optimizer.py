@@ -65,6 +65,7 @@ class Genetic0Optimizer:
         self, parameters: Genetic0Parameters, result: Genetic0Solution
     ) -> tuple[OptimizationSolution, EnergyManagementPlan]:
         """See ``Optimizer.convert()``."""
-        optimization_solution = await result.optimization_solution()
-        plan = result.energy_management_plan()
+        enabled = parameters.presentation.home_appliance_enabled
+        optimization_solution = await result.optimization_solution(home_appliance_enabled=enabled)
+        plan = result.energy_management_plan(home_appliance_enabled=enabled)
         return optimization_solution, plan

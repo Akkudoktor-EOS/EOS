@@ -609,7 +609,20 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
 
         return effective_ac, effective_dc, effective_dis
 
-    async def optimization_solution(self) -> OptimizationSolution:
+    def _home_appliance_enabled(self, enabled: Optional[bool]) -> bool:
+        """Whether the solution contains the home appliance.
+
+        The parameter preparation decides it (``Genetic0Presentation.home_appliance_enabled``);
+        without that decision the configuration decides, as before.
+        """
+        if enabled is not None:
+            return enabled
+        max_home_appliances = self.config.devices.max_home_appliances
+        return bool(max_home_appliances and max_home_appliances > 0)
+
+    async def optimization_solution(
+        self, home_appliance_enabled: Optional[bool] = None
+    ) -> OptimizationSolution:
         """Provide the genetic solution as a general optimization solution.
 
         The battery modes are controlled by the grid control triggers:
@@ -779,7 +792,7 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
                     solution[key] = operation[key]
 
         # Add home appliance data
-        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
+        if self._home_appliance_enabled(home_appliance_enabled):
             # Use config and not self.washingstart as washingstart may be None (no start)
             # even if configured to be started.
             homeappliance_device_id = self._homeappliance_device_id()
@@ -908,7 +921,9 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
 
         return optimization_solution
 
-    def energy_management_plan(self) -> EnergyManagementPlan:
+    def energy_management_plan(
+        self, home_appliance_enabled: Optional[bool] = None
+    ) -> EnergyManagementPlan:
         """Provide the genetic solution as an energy management plan."""
         start_datetime = get_ems().start_datetime
         start_day_hour = start_datetime.in_timezone(self.config.general.timezone).hour
@@ -1014,7 +1029,7 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
                     )
 
         # Add home appliance instructions (demand driven based control)
-        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
+        if self._home_appliance_enabled(home_appliance_enabled):
             # Use config and not self.washingstart as washingstart may be None (no start)
             # even if configured to be started.
             resource_id = self._homeappliance_device_id()

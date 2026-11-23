@@ -6,9 +6,10 @@ settings and the data the solution conversion presents. The energy management pa
 start, the observation time, the warm start and run-time overrides as arguments; the preparation
 reads no EMS state.
 
-Transitional (migration step 3): ``prepare_request()`` is the legacy preparation moved here
-unchanged. It may still write demo providers and devices into the configuration and may cancel
-the run; step 3b makes it follow the "optimization parameters are always valid" rule.
+The preparation always creates a valid parameter set (energy-domain skill, "Optimization
+parameters are always valid"): it never fails, never cancels the run, never writes the
+configuration and never invents devices. A missing or invalid input is replaced by a fallback
+value, logged at error level with the input and the substitute.
 """
 
 import math
@@ -61,22 +62,16 @@ FALLBACK_BATTERY_DEVICE_ID = "battery1"
 EV_DEVICE_ID = "ev1"
 HOME_APPLIANCE_DEVICE_ID = "homeappliance1"
 
-
-# Demo devices: used if no device of a kind is configured.
-DEMO_BATTERY_SETTINGS: dict = {
-    "device_id": "battery1",
-    "profile_adjustment": {"nominal_capacity_wh": 8000},
-}
-DEMO_INVERTER_SETTINGS: dict = {
-    "device_id": "inverter1",
-    "profile_adjustment": {"nominal_power_w": 10000},
-}
-DEMO_ELECTRIC_VEHICLE_SETTINGS: dict = {
-    "device_id": "ev1",
-    "profile_adjustment": {"nominal_capacity_wh": 50000},
-    "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-    "min_soc_percentage": 70,
-}
+# Fallback values of the preparation (energy-domain skill). Settings use their defaults.
+FALLBACK_PREDICTION_HOURS = 48
+FALLBACK_INDIVIDUALS = 300
+FALLBACK_GENERATIONS = 400
+# No price known at all: 0, like a fixed-price provider without time windows.
+FALLBACK_PRICE_PER_WH = 0.0
+# No feed-in tariff known at all: no feed-in revenue.
+FALLBACK_FEED_IN_TARIFF_PER_WH = 0.0
+# No load forecast: 3000 kWh per year, spread evenly over the hours of the year.
+FALLBACK_LOAD_W = 3000.0 * 1000.0 / 8760.0
 
 
 async def prepare(
@@ -94,18 +89,16 @@ async def prepare(
         overrides: Run-time overrides of ``generations`` and ``seed``.
 
     Returns:
-        The optimization parameters of the run.
-
-    Raises:
-        RuntimeError: The legacy preparation could not build the request (until step 3b).
+        The optimization parameters of the run; always valid, never ``None``.
     """
     start_solution = None
     if warm_start is not None and warm_start.start_solution:
         start_solution = warm_start.start_solution
     request = await prepare_request(start_datetime, observation_datetime, start_solution)
-    if request is None:
-        raise RuntimeError("Could not prepare optimisation parameters.")
-    return await _complete(request, start_datetime, overrides)
+    # The solution shows the home appliance the preparation put into the request.
+    return await _complete(
+        request, start_datetime, overrides, home_appliance_enabled=request.dishwasher is not None
+    )
 
 
 async def prepare_from_request(
@@ -128,20 +121,28 @@ async def prepare_from_request(
     Returns:
         The optimization parameters of the run.
     """
-    return await _complete(request, start_datetime, overrides)
+    # A client's request is shown with the configured home appliances, as before.
+    max_home_appliances = get_config().devices.max_home_appliances
+    return await _complete(
+        request,
+        start_datetime,
+        overrides,
+        home_appliance_enabled=bool(max_home_appliances and max_home_appliances > 0),
+    )
 
 
 async def _complete(
     request: Genetic0Request,
     start_datetime: DateTime,
     overrides: Optional[Mapping[str, Any]],
+    home_appliance_enabled: bool,
 ) -> Genetic0Parameters:
     settings = _run_settings(overrides)
     return Genetic0Parameters(
         request=request,
         start_hour=start_datetime.hour,
         settings=settings,
-        presentation=await _presentation(start_datetime, settings),
+        presentation=await _presentation(start_datetime, settings, home_appliance_enabled),
     )
 
 
@@ -156,10 +157,17 @@ def _run_settings(overrides: Optional[Mapping[str, Any]]) -> Genetic0RunSettings
         elif value is not None:
             values[key] = value
 
-    prediction_hours = config.prediction.hours
-    if prediction_hours is None:
-        prediction_hours = 48
-        logger.error("GENETIC0: prediction.hours not configured, using {}.", prediction_hours)
+    prediction_hours = _prediction_hours()
+    horizon_hours = genetic0.horizon_hours
+    individuals = genetic0.individuals
+    if individuals is None:
+        individuals = FALLBACK_INDIVIDUALS
+        logger.error("GENETIC0: optimization.genetic0.individuals not set, using {}.", individuals)
+    if values["generations"] is None:
+        values["generations"] = FALLBACK_GENERATIONS
+        logger.error(
+            "GENETIC0: optimization.genetic0.generations not set, using {}.", values["generations"]
+        )
 
     ev_charge_rates = None
     electric_vehicles = config.devices.electric_vehicles
@@ -177,8 +185,8 @@ def _run_settings(overrides: Optional[Mapping[str, Any]]) -> Genetic0RunSettings
 
     return Genetic0RunSettings(
         prediction_hours=prediction_hours,
-        horizon_hours=genetic0.horizon_hours,
-        individuals=genetic0.individuals,
+        horizon_hours=horizon_hours,
+        individuals=individuals,
         generations=values["generations"],
         seed=values["seed"],
         penalties=dict(genetic0.penalties),
@@ -190,7 +198,7 @@ def _run_settings(overrides: Optional[Mapping[str, Any]]) -> Genetic0RunSettings
 
 
 async def _presentation(
-    start_datetime: DateTime, settings: Genetic0RunSettings
+    start_datetime: DateTime, settings: Genetic0RunSettings, home_appliance_enabled: bool
 ) -> Genetic0Presentation:
     """The data the solution conversion presents, read once before the run."""
     config = get_config()
@@ -214,24 +222,27 @@ async def _presentation(
     for key, fill_method in PRESENTATION_PREDICTIONS:
         if hours <= 0 or key not in prediction.record_keys:
             continue
-        array = await prediction.key_to_array(
-            key=key,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            interval=to_duration("1 hours"),
-            fill_method=fill_method,
-        )
+        try:
+            array = await prediction.key_to_array(
+                key=key,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval=to_duration("1 hours"),
+                fill_method=fill_method,
+            )
+        except Exception as error:
+            logger.error("GENETIC0: Prediction '{}' not readable, not presented: {}", key, error)
+            continue
         if array is not None:
             series[key] = tuple(float(value) for value in np.asarray(array, dtype=float))
 
-    max_home_appliances = config.devices.max_home_appliances
     return Genetic0Presentation(
         start_datetime=start_datetime,
         timezone=timezone,
         battery_device_id=battery_device_id,
         ev_device_id=EV_DEVICE_ID,
         home_appliance_device_id=HOME_APPLIANCE_DEVICE_ID,
-        home_appliance_enabled=bool(max_home_appliances and max_home_appliances > 0),
+        home_appliance_enabled=home_appliance_enabled,
         prediction_series=series,
     )
 
@@ -319,11 +330,11 @@ async def prepare_request(
     start_datetime: DateTime,
     observation_datetime: DateTime,
     start_solution: Optional[list[float]] = None,
-) -> Optional[Genetic0Request]:
-    """Prepare optimization parameters from config, forecast and measurement data.
+) -> Genetic0Request:
+    """Prepare the forecast and device parameters from configuration, predictions and measurements.
 
-    Fills in values needed for optimization from available configuration, predictions and
-    measurements. If some data is missing, default or demo values are used.
+    Never fails: a missing or invalid input is replaced by a fallback value and logged at error
+    level. The configuration is never changed and no device is invented.
 
     The parameter arrays start at hour 0 of the start day, not at the start of the run; the
     run starts at index ``start_datetime.hour``.
@@ -335,58 +346,11 @@ async def prepare_request(
             parameter preparation.
 
     Returns:
-        Genetic0Request: The fully prepared optimization parameters.
-
-    Raises:
-        ValueError: If required configuration values like start time are missing.
+        The forecast and device parameters of the run.
     """
     config = get_config()
     prediction = get_prediction()
 
-    # The optimization paramters
-    oparams: "Optional[Genetic0Request]" = None
-
-    # Check for run definitions
-    if start_datetime is None:
-        error_msg = "Start datetime unknown."
-        logger.error(error_msg)
-        raise ValueError(error_msg)
-    # Check for general predictions conditions
-    if config.general.latitude is None:
-        default_latitude = 52.52
-        logger.info(f"Latitude unknown - defaulting to {default_latitude}.")
-        config.general.latitude = default_latitude
-    if config.general.longitude is None:
-        default_longitude = 13.405
-        logger.info(f"Longitude unknown - defaulting to {default_longitude}.")
-        config.general.longitude = default_longitude
-    if config.prediction.hours is None:
-        logger.info("Prediction hours unknown - defaulting to 48 hours.")
-        config.prediction.hours = 48
-    if config.prediction.historic_hours is None:
-        logger.info("Prediction historic hours unknown - defaulting to 24 hours.")
-        config.prediction.historic_hours = 24
-    # Check optimization definitions. interval_sec is fixed to 1 hour.
-    if config.optimization.genetic0.horizon_hours is None:
-        logger.info("Optimization horizon unknown - defaulting to 24 hours.")
-        config.optimization.genetic0.horizon_hours = 24
-    # Check genetic algorithm definitions
-    if config.optimization.genetic0.individuals is None:
-        logger.info("Genetic individuals unknown - defaulting to 300.")
-        config.optimization.genetic0.individuals = 300
-    if config.optimization.genetic0.generations is None:
-        logger.info("Genetic generations unknown - defaulting to 400.")
-        config.optimization.genetic0.generations = 400
-    if "ev_soc_miss" not in config.optimization.genetic0.penalties:
-        logger.info("Genetic penalties unknown - defaulting to ev_soc_miss = 10.")
-        config.optimization.genetic0.penalties["ev_soc_miss"] = 10
-    # Setup some basic providers if not set
-    if not config.weather.provider:
-        config.weather.provider = "OpenMeteo"
-    if not config.load.provider:
-        config.load.provider = "LoadAkkudoktor"
-
-    # Add forecast and device data
     interval = to_duration(config.optimization.genetic0.interval_sec)
     power_to_energy_per_interval_factor = config.optimization.genetic0.interval_sec / 3600
     # GENETIC0 indexes the parameter arrays by wall-clock hour (the simulation
@@ -398,234 +362,65 @@ async def prepare_request(
     parameter_start_datetime = start_datetime.set(second=0, microsecond=0).subtract(
         hours=start_datetime.hour
     )
-    parameter_end_datetime = parameter_start_datetime.add(hours=config.prediction.hours)
-    max_retries = 10
+    parameter_end_datetime = parameter_start_datetime.add(hours=_prediction_hours())
+    slots = int(
+        (parameter_end_datetime - parameter_start_datetime).total_seconds()
+        / interval.total_seconds()
+    )
 
-    for attempt in range(1, max_retries + 1):
-        # Collect all the data for optimisation, but do not exceed max retries
-        if attempt > max_retries:
-            error_msg = f"Maximum retries {max_retries} for parameter collection exceeded. Parameter preparation attempt {attempt}."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        # Assure predictions are uptodate
+    # Assure predictions are up to date; stored predictions are used if the update fails.
+    try:
         await prediction.update_data()
+    except Exception as error:
+        logger.error("GENETIC0: Prediction update failed, using the stored predictions: {}", error)
 
-        try:  # Try first - predition is also needed by the default PV forecast
-            array = await prediction.key_to_array(
-                key="weather_temp_air",
-                start_datetime=parameter_start_datetime,
-                end_datetime=parameter_end_datetime,
-                interval=interval,
-                fill_method="ffill",
-            )
-            weather_temp_air = array.tolist()
-        except Exception as e:
-            logger.info(
-                "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                attempt,
-                e,
-            )
-            config.weather.provider = "OpenMeteo"
-            # Retry
-            continue
-        # Try electricity fees next - predition is also needed by the default electricity price
-        # If no provider is set the fees default to 0 anyway
-        if config.elecfee.provider:
-            try:
-                array = await prediction.key_to_array(
-                    key="elecfee_consumption_amt_kwh",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                )
-            except Exception as e:
-                logger.info(
-                    "No electricity fee data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                config.merge_settings_from_dict(
-                    {
-                        "elecfee": {
-                            "provider": "ElecFeeFixed",
-                            "elecfeefixed": {
-                                "consumption_amt_kwh": {
-                                    "windows": [
-                                        {
-                                            "start_time": "00:00",
-                                            "duration": "24 hours",
-                                            "value": 0.21,
-                                        },
-                                    ]
-                                },
-                                "consumption_percent_amt": {
-                                    "windows": [
-                                        {
-                                            "start_time": "00:00",
-                                            "duration": "24 hours",
-                                            "value": 19.0,
-                                        },
-                                    ]
-                                },
-                                "feedin_amt_kwh": {
-                                    "windows": [
-                                        {
-                                            "start_time": "00:00",
-                                            "duration": "24 hours",
-                                            "value": 0.0,
-                                        },
-                                    ]
-                                },
-                                "feedin_percent_amt": {
-                                    "windows": [
-                                        {
-                                            "start_time": "00:00",
-                                            "duration": "24 hours",
-                                            "value": 0.0,
-                                        },
-                                    ]
-                                },
-                            },
-                        },
-                    }
-                )
-                # Retry
-                continue
+    async def read(key: str, fill_method: FillMethod) -> Optional[np.ndarray]:
         try:
             array = await prediction.key_to_array(
-                key="pvforecast_ac_power",
+                key=key,
                 start_datetime=parameter_start_datetime,
                 end_datetime=parameter_end_datetime,
                 interval=interval,
-                fill_method="linear",
+                fill_method=fill_method,
             )
-            pvforecast_ac_power = (array * power_to_energy_per_interval_factor).tolist()
-        except Exception as e:
-            logger.info(
-                "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                attempt,
-                e,
-            )
-            config.merge_settings_from_dict(
-                {
-                    "pvforecast": {
-                        "provider": "PVForecastPVLib",
-                        "max_planes": 4,
-                        "planes": [
-                            {
-                                "surface_tilt": 7,
-                                "surface_azimuth": 170,
-                                "userhorizon": [20, 27, 22, 20],
-                                "peakpower": 5.0,
-                                "module_model": "AXITEC_AC_410MH_144S",
-                                "inverter_model": "Sungrow__SH25T",
-                                "inverter_paco": 10000,
-                                "modules_per_string": 12,
-                                "strings_per_inverter": 1,
-                            },
-                            {
-                                "surface_tilt": 7,
-                                "surface_azimuth": 90,
-                                "userhorizon": [30, 30, 30, 50],
-                                "peakpower": 4.8,
-                                "module_model": "AXITEC_AC_410MH_144S",
-                                "inverter_model": "Sungrow__SH25T",
-                                "inverter_paco": 10000,
-                                "modules_per_string": 12,
-                                "strings_per_inverter": 1,
-                            },
-                            {
-                                "surface_tilt": 60,
-                                "surface_azimuth": 140,
-                                "userhorizon": [60, 30, 0, 30],
-                                "peakpower": 1.4,
-                                "module_model": "AXITEC_AC_410MH_144S",
-                                "inverter_model": "Sungrow__SH25T",
-                                "inverter_paco": 2000,
-                                "modules_per_string": 5,
-                                "strings_per_inverter": 1,
-                            },
-                            {
-                                "surface_tilt": 45,
-                                "surface_azimuth": 185,
-                                "userhorizon": [45, 25, 30, 60],
-                                "peakpower": 1.6,
-                                "module_model": "AXITEC_AC_410MH_144S",
-                                "inverter_model": "Sungrow__SH25T",
-                                "inverter_paco": 1400,
-                                "modules_per_string": 4,
-                                "strings_per_inverter": 1,
-                            },
-                        ],
-                    },
-                }
-            )
-            # Retry
-            continue
-        try:
-            array = await prediction.key_to_array(
-                key="elecprice_marketprice_wh",
-                start_datetime=parameter_start_datetime,
-                end_datetime=parameter_end_datetime,
-                interval=interval,
-                fill_method="ffill",
-            )
-            elecprice_marketprice_wh = array.tolist()
-        except Exception as e:
-            logger.info(
-                "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                attempt,
-                e,
-            )
-            config.merge_settings_from_dict(
-                {
-                    "elecprice": {
-                        "elecpricefixed": {
-                            "elecprice_marketprice_amt_kwh": {
-                                "windows": [
-                                    {
-                                        "duration": "1 day",
-                                        "start_time": "00:00:00.000000",
-                                        "value": 0.288,
-                                    }
-                                ]
-                            }
-                        },
-                        "provider": "ElecPriceFixed",
-                    },
-                },
-            )
-            # Retry
-            continue
-        try:
-            array = await prediction.key_to_array(
-                key="loadforecast_power_w",
-                start_datetime=parameter_start_datetime,
-                end_datetime=parameter_end_datetime,
-                interval=interval,
-                fill_method="ffill",
-            )
-            loadforecast_power_w = array.tolist()
-        except Exception as e:
-            logger.info(
-                "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                attempt,
-                e,
-            )
-            config.merge_settings_from_dict(
-                {
-                    "load": {
-                        "provider": "LoadAkkudoktor",
-                        "loadakkudoktor": {
-                            "loadakkudoktor_year_energy_kwh": "3000",
-                        },
-                    },
-                }
-            )
-            # Retry
-            continue
+        except Exception as error:
+            logger.error("GENETIC0: Prediction '{}' not available: {}", key, error)
+            return None
+        if array is None or len(array) != slots:
+            logger.error("GENETIC0: Prediction '{}' does not cover the run.", key)
+            return None
+        return np.asarray(array, dtype=float)
+
+    # Temperature: optional, only presented.
+    temperature = await read("weather_temp_air", "ffill")
+    weather_temp_air: Optional[list[Optional[float]]] = None
+    if temperature is None:
+        logger.error("GENETIC0: No temperature forecast; the run has none.")
+    else:
+        weather_temp_air = [None if math.isnan(value) else value for value in temperature]
+
+    # PV: missing values are 0.
+    pv = await read("pvforecast_ac_power", "linear")
+    if pv is None:
+        logger.error("GENETIC0: No PV forecast; using 0 Wh.")
+        pv = np.zeros(slots)
+    elif np.isnan(pv).any():
+        logger.error("GENETIC0: PV forecast incomplete; using 0 Wh for the missing hours.")
+        pv = np.nan_to_num(pv, nan=0.0)
+    pvforecast_ac_power = (pv * power_to_energy_per_interval_factor).tolist()
+
+    # Prices: the last known price carried forward.
+    price = await read("elecprice_marketprice_wh", "ffill")
+    elecprice_marketprice_wh = _carry_forward(
+        price, slots, FALLBACK_PRICE_PER_WH, "electricity price"
+    ).tolist()
+
+    # Load: the load default.
+    load = await read("loadforecast_power_w", "ffill")
+    loadforecast_power_w = _carry_forward(load, slots, FALLBACK_LOAD_W, "load forecast").tolist()
+
+    # Feed-in tariff: a covered control horizon is used as it is, otherwise carried forward.
+    try:
         tariff_values = await bounded_forecast_array(
             prediction,
             key="feed_in_tariff_wh",
@@ -633,256 +428,249 @@ async def prepare_request(
             end_datetime=parameter_end_datetime,
             interval=interval,
         )
-        first = int(
-            (start_datetime - parameter_start_datetime).total_seconds() / interval.total_seconds()
+    except Exception as error:
+        logger.error("GENETIC0: Feed-in tariff not available: {}", error)
+        tariff_values = np.full(slots, np.nan)
+    first = int(
+        (start_datetime - parameter_start_datetime).total_seconds() / interval.total_seconds()
+    )
+    last = first + config.optimization.genetic0.horizon_hours
+    if last > len(tariff_values) or not all(
+        math.isfinite(value) for value in tariff_values[first:last]
+    ):
+        logger.error(
+            "GENETIC0: Missing feed-in tariff within the control horizon (provider {}); "
+            "carrying the last known tariff forward.",
+            config.feedintariff.provider,
         )
-        last = first + config.optimization.genetic0.horizon_hours
-        if last > len(tariff_values) or not all(
-            math.isfinite(value) for value in tariff_values[first:last]
-        ):
-            logger.error(
-                "Missing feed-in tariff within the GENETIC0 control horizon; "
-                "canceling optimization with provider {}.",
-                config.feedintariff.provider,
-            )
-            return None
-        feed_in_tariff_wh = tariff_values.tolist()
+        tariff_values = _carry_forward(
+            tariff_values, slots, FALLBACK_FEED_IN_TARIFF_PER_WH, "feed-in tariff"
+        )
+    feed_in_tariff_wh = tariff_values.tolist()
 
-        # Add device data
+    battery_params, battery_lcos_kwh = await _battery(observation_datetime)
+    electric_vehicle_params = await _electric_vehicle(observation_datetime)
+    inverter_params = await _inverter()
+    home_appliance_params = _home_appliance()
 
-        # Batteries
-        # ---------
-        if config.devices.max_batteries is None:
-            logger.info("Number of battery devices not configured - defaulting to 1.")
-            config.devices.max_batteries = 1
-        if config.devices.max_batteries == 0:
-            battery_params = None
-            battery_lcos_kwh = 0
-        else:
-            if config.devices.batteries is None:
-                logger.info("No battery device data available - defaulting to demo data.")
-                config.devices.batteries = {"battery1": dict(DEMO_BATTERY_SETTINGS)}  # type: ignore[dict-item]
-            # Take first battery
-            battery_config = list(config.devices.batteries.values())[0]
-            try:
-                # A configuration error gives default values, reported as error.
-                (
-                    battery_parameters,
-                    _,
-                ) = await battery_config.resolve_current_operating_parameters_or_defaults()
-                battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
-            except Exception as e:
-                # Never cancel the run, never change the user's configuration and
-                # never invent a device: optimize without this battery.
-                logger.error(
-                    "Battery '{}' cannot be prepared for the optimization: {} "
-                    "The battery is left out of this run.",
-                    battery_config.device_id,
-                    e,
-                )
-                battery_params = None
-                battery_lcos_kwh = 0
-            if battery_params is not None:
-                # Levelized cost of ownership
-                if battery_config.levelized_cost_of_storage_amt_kwh is None:
-                    logger.info(
-                        "No battery device LCOS data available - defaulting to 0 [amount/kWh]. Parameter preparation attempt {}.",
-                        attempt,
-                    )
-                    battery_config.levelized_cost_of_storage_amt_kwh = 0
-                battery_lcos_kwh = battery_config.levelized_cost_of_storage_amt_kwh  # type: ignore[assignment]
-                # Initial SOC
-                try:
-                    initial_soc_factor = await _nearest_soc_factor(
-                        battery_config.measurement_key_soc_factor, observation_datetime
-                    )
-                    if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
-                        logger.error(
-                            f"Invalid battery initial SoC factor {initial_soc_factor} - defaulting to 0.0."
-                        )
-                        initial_soc_factor = 0.0
-                    # genetic parameter is 0..100 as int
-                    initial_soc_percentage = int(initial_soc_factor * 100)
-                except Exception:
-                    initial_soc_percentage = None
-                if initial_soc_percentage is None:
-                    logger.info(
-                        f"No battery device SoC data (measurement key = '{battery_config.measurement_key_soc_factor}') available - defaulting to 0."
-                    )
-                    initial_soc_percentage = 0
-                battery_params.initial_soc_percentage = initial_soc_percentage
+    ems = {
+        "pv_forecast_wh": pvforecast_ac_power,
+        "electricity_price_per_wh": elecprice_marketprice_wh,
+        "feed_in_tariff_per_wh": feed_in_tariff_wh,
+        "total_load": loadforecast_power_w,
+    }
+    try:
+        return Genetic0Request(
+            ems=Genetic0EnergyManagementParameters(
+                **ems, price_per_wh_battery=battery_lcos_kwh / 1000
+            ),
+            temperature_forecast=weather_temp_air,
+            pv_battery=battery_params,
+            ev=electric_vehicle_params,
+            inverter=inverter_params,
+            dishwasher=home_appliance_params,
+            start_solution=start_solution,
+        )
+    except Exception as error:
+        logger.error(
+            "GENETIC0: Parameters with devices are invalid ({}); optimizing without devices, "
+            "temperature forecast and start solution.",
+            error,
+        )
+    try:
+        return Genetic0Request(
+            ems=Genetic0EnergyManagementParameters(**ems, price_per_wh_battery=0.0),
+            temperature_forecast=None,
+            pv_battery=None,
+            ev=None,
+            inverter=None,
+            dishwasher=None,
+        )
+    except Exception as error:
+        logger.error(
+            "GENETIC0: Forecast parameters are invalid ({}); using 0 Wh PV, price and feed-in "
+            "tariff 0 and the fallback load.",
+            error,
+        )
+    zeros = [0.0] * slots
+    return Genetic0Request(
+        ems=Genetic0EnergyManagementParameters(
+            pv_forecast_wh=zeros,
+            electricity_price_per_wh=zeros,
+            feed_in_tariff_per_wh=zeros,
+            total_load=[FALLBACK_LOAD_W * power_to_energy_per_interval_factor] * slots,
+            price_per_wh_battery=0.0,
+        ),
+        temperature_forecast=None,
+        pv_battery=None,
+        ev=None,
+        inverter=None,
+        dishwasher=None,
+    )
 
-        # Electric Vehicles
-        # -----------------
-        if config.devices.max_electric_vehicles is None:
-            logger.info("Number of electric_vehicle devices not configured - defaulting to 1.")
-            config.devices.max_electric_vehicles = 1
-        if config.devices.max_electric_vehicles == 0:
-            electric_vehicle_params = None
-        else:
-            if config.devices.electric_vehicles is None:
-                logger.info("No electric vehicle device data available - defaulting to demo data.")
-                config.devices.max_electric_vehicles = 1
-                config.devices.electric_vehicles = {
-                    "ev1": dict(DEMO_ELECTRIC_VEHICLE_SETTINGS)  # type: ignore[dict-item]
-                }
-            # Take first electric_vehicle
-            electric_vehicle_config = list(config.devices.electric_vehicles.values())[0]
-            try:
-                # A configuration error gives default values, reported as error.
-                (
-                    ev_parameters,
-                    _,
-                ) = await electric_vehicle_config.resolve_current_operating_parameters_or_defaults()
-                electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(
-                    ev_parameters
-                )
-            except Exception as e:
-                # Never cancel the run, never change the user's configuration and
-                # never invent a device: optimize without this electric vehicle.
-                logger.error(
-                    "Electric vehicle '{}' cannot be prepared for the optimization: {} "
-                    "The electric vehicle is left out of this run.",
-                    electric_vehicle_config.device_id,
-                    e,
-                )
-                electric_vehicle_params = None
-            if electric_vehicle_params is not None:
-                # Initial SOC
-                try:
-                    initial_soc_factor = await _nearest_soc_factor(
-                        electric_vehicle_config.measurement_key_soc_factor,
-                        observation_datetime,
-                    )
-                    if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
-                        logger.error(
-                            f"Invalid electric vehicle initial SoC factor {initial_soc_factor} - defaulting to 0.0."
-                        )
-                        initial_soc_factor = 0.0
-                    # genetic parameter is 0..100 as int
-                    initial_soc_percentage = int(initial_soc_factor * 100)
-                except Exception:
-                    initial_soc_percentage = None
-                if initial_soc_percentage is None:
-                    logger.info(
-                        f"No electric vehicle device SoC data (measurement key = '{electric_vehicle_config.measurement_key_soc_factor}') available - defaulting to 0."
-                    )
-                    initial_soc_percentage = 0
-                electric_vehicle_params.initial_soc_percentage = initial_soc_percentage
 
-        # Inverters
-        # ---------
-        if config.devices.max_inverters is None:
-            logger.info("Number of inverter devices not configured - defaulting to 1.")
-            config.devices.max_inverters = 1
-        if config.devices.max_inverters == 0:
-            inverter_params = None
-        else:
-            if config.devices.inverters is None:
-                logger.info("No inverter device data available - defaulting to demo data.")
-                config.devices.inverters = {
-                    "inverter1": {  # type: ignore[dict-item]
-                        **DEMO_INVERTER_SETTINGS,
-                        "battery_id": battery_config.device_id,
-                    },
-                }
-            # Take first inverter
-            inverter_config = list(config.devices.inverters.values())[0]
-            try:
-                # A configuration error gives default values, reported as error.
-                inverter_params = inverter_config.to_genetic0_param(
-                    await inverter_config.resolve_current_operating_parameters_or_defaults()
-                )
-            except Exception as e:
-                # Never cancel the run, never change the user's configuration and
-                # never invent a device: optimize without this inverter.
-                logger.error(
-                    "Inverter '{}' cannot be prepared for the optimization: {} "
-                    "The inverter is left out of this run.",
-                    inverter_config.device_id,
-                    e,
-                )
-                inverter_params = None
+def _prediction_hours() -> int:
+    """``prediction.hours``, or its fallback."""
+    hours = get_config().prediction.hours
+    if hours is None:
+        logger.error(
+            "GENETIC0: prediction.hours not configured, using {}.", FALLBACK_PREDICTION_HOURS
+        )
+        return FALLBACK_PREDICTION_HOURS
+    return hours
 
-        # Home Appliances
-        # ---------------
-        if config.devices.max_home_appliances is None:
-            logger.info("Number of home appliance devices not configured - defaulting to 1.")
-            config.devices.max_home_appliances = 1
-        if config.devices.max_home_appliances == 0:
-            home_appliance_params = None
-        else:
-            home_appliance_params = None
-            if config.devices.home_appliances is None:
-                logger.info("No home appliance device data available - defaulting to demo data.")
-                config.devices.home_appliances = {
-                    "dishwasher1": {
-                        "device_id": "dishwasher1",
-                        "consumption_wh": 2000,
-                        "duration_h": 3.0,
-                        "cycle_time_windows": {
-                            "windows": [
-                                {
-                                    "start_time": "08:00",
-                                    "duration": "5 hours",
-                                },
-                                {
-                                    "start_time": "15:00",
-                                    "duration": "3 hours",
-                                },
-                            ],
-                        },
-                    },
-                }
-            try:
-                # Take first appliance
-                home_appliance_config = list(config.devices.home_appliances.values())[0]
-                home_appliance_params = home_appliance_config.to_genetic0_param()
-            except Exception as e:
-                logger.info(
-                    "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                config.devices.home_appliances = {
-                    "dishwasher1": {  # type: ignore[dict-item]
-                        "device_id": "dishwasher1",
-                        "consumption_wh": 2000,
-                        "duration_h": 3.0,
-                        "cycle_time_windows": None,
-                    },
-                }
-                # Retry
-                continue
 
-        # We got all parameter data
-        try:
-            oparams = Genetic0Request(
-                ems=Genetic0EnergyManagementParameters(
-                    pv_forecast_wh=pvforecast_ac_power,
-                    electricity_price_per_wh=elecprice_marketprice_wh,
-                    feed_in_tariff_per_wh=feed_in_tariff_wh,
-                    total_load=loadforecast_power_w,
-                    price_per_wh_battery=battery_lcos_kwh / 1000,
-                ),
-                temperature_forecast=weather_temp_air,
-                pv_battery=battery_params,
-                ev=electric_vehicle_params,
-                inverter=inverter_params,
-                dishwasher=home_appliance_params,
-                start_solution=start_solution,
-            )
-        except Exception as e:
-            logger.info(
-                "Can not prepare optimization parameters - will retry. Parameter preparation attempt {}: {}",
-                attempt,
-                e,
-            )
-            oparams = None
-            # Retry
-            continue
+def _carry_forward(
+    values: Optional[np.ndarray], slots: int, fallback: float, name: str
+) -> np.ndarray:
+    """Fill gaps with the last known value, leading gaps with the first known one.
 
-        # Parameters prepared
-        break
+    Args:
+        values: The series, or ``None`` if it is missing.
+        slots: Length of the series.
+        fallback: Value if nothing is known.
+        name: Name of the series for the error log.
 
-    return oparams
+    Returns:
+        A series of ``slots`` finite values.
+    """
+    if values is None or len(values) != slots:
+        values = np.full(slots, np.nan)
+    series = pd.Series(np.asarray(values, dtype=float)).replace([np.inf, -np.inf], np.nan)
+    if not series.isna().any():
+        return series.to_numpy()
+    if series.isna().all():
+        logger.error("GENETIC0: No {} known; using {}.", name, fallback)
+        return np.full(slots, fallback)
+    logger.error("GENETIC0: {} incomplete; carrying the last known value forward.", name)
+    return series.ffill().bfill().to_numpy()
+
+
+async def _battery(observation_datetime: DateTime) -> tuple[Optional[Any], float]:
+    """Parameters and levelized cost per kWh of the first configured battery, if it can be prepared."""
+    config = get_config()
+    batteries = config.devices.batteries
+    if config.devices.max_batteries == 0 or not batteries:
+        logger.info("GENETIC0: No battery configured; optimizing without battery.")
+        return None, 0.0
+    battery_config = list(batteries.values())[0]
+    try:
+        # A configuration error gives default values, reported as error.
+        (
+            battery_parameters,
+            _,
+        ) = await battery_config.resolve_current_operating_parameters_or_defaults()
+        battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
+    except Exception as error:
+        logger.error(
+            "Battery '{}' cannot be prepared for the optimization: {} "
+            "The battery is left out of this run.",
+            battery_config.device_id,
+            error,
+        )
+        return None, 0.0
+
+    battery_lcos_kwh = battery_config.levelized_cost_of_storage_amt_kwh
+    if battery_lcos_kwh is None:
+        logger.error(
+            "GENETIC0: Battery '{}' has no levelized cost of storage; using 0 per kWh.",
+            battery_config.device_id,
+        )
+        battery_lcos_kwh = 0.0
+    battery_params.initial_soc_percentage = await _initial_soc_percentage(
+        "battery", battery_config.measurement_key_soc_factor, observation_datetime
+    )
+    return battery_params, float(battery_lcos_kwh)
+
+
+async def _electric_vehicle(observation_datetime: DateTime) -> Optional[Any]:
+    """Parameters of the first configured electric vehicle, if it can be prepared."""
+    config = get_config()
+    electric_vehicles = config.devices.electric_vehicles
+    if config.devices.max_electric_vehicles == 0 or not electric_vehicles:
+        logger.info("GENETIC0: No electric vehicle configured; optimizing without one.")
+        return None
+    electric_vehicle_config = list(electric_vehicles.values())[0]
+    try:
+        # A configuration error gives default values, reported as error.
+        (
+            ev_parameters,
+            _,
+        ) = await electric_vehicle_config.resolve_current_operating_parameters_or_defaults()
+        electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(ev_parameters)
+    except Exception as error:
+        logger.error(
+            "Electric vehicle '{}' cannot be prepared for the optimization: {} "
+            "The electric vehicle is left out of this run.",
+            electric_vehicle_config.device_id,
+            error,
+        )
+        return None
+    electric_vehicle_params.initial_soc_percentage = await _initial_soc_percentage(
+        "electric vehicle", electric_vehicle_config.measurement_key_soc_factor, observation_datetime
+    )
+    return electric_vehicle_params
+
+
+async def _inverter() -> Optional[Any]:
+    """Parameters of the first configured inverter, if it can be prepared."""
+    config = get_config()
+    inverters = config.devices.inverters
+    if config.devices.max_inverters == 0 or not inverters:
+        logger.info("GENETIC0: No inverter configured; optimizing without inverter.")
+        return None
+    inverter_config = list(inverters.values())[0]
+    try:
+        # A configuration error gives default values, reported as error.
+        return inverter_config.to_genetic0_param(
+            await inverter_config.resolve_current_operating_parameters_or_defaults()
+        )
+    except Exception as error:
+        logger.error(
+            "Inverter '{}' cannot be prepared for the optimization: {} "
+            "The inverter is left out of this run.",
+            inverter_config.device_id,
+            error,
+        )
+        return None
+
+
+def _home_appliance() -> Optional[Any]:
+    """Parameters of the first configured home appliance, if it can be prepared."""
+    config = get_config()
+    home_appliances = config.devices.home_appliances
+    if config.devices.max_home_appliances == 0 or not home_appliances:
+        logger.info("GENETIC0: No home appliance configured; optimizing without one.")
+        return None
+    home_appliance_config = list(home_appliances.values())[0]
+    try:
+        return home_appliance_config.to_genetic0_param()
+    except Exception as error:
+        logger.error(
+            "Home appliance '{}' cannot be prepared for the optimization: {} "
+            "The home appliance is left out of this run.",
+            home_appliance_config.device_id,
+            error,
+        )
+        return None
+
+
+async def _initial_soc_percentage(kind: str, key: str, observation_datetime: DateTime) -> int:
+    """Measured state of charge in percent, or 0 if none is known or it is invalid."""
+    try:
+        initial_soc_factor = await _nearest_soc_factor(key, observation_datetime)
+    except Exception as error:
+        logger.error(
+            "GENETIC0: No {} state of charge (measurement key '{}'): {}; using 0 %.",
+            kind,
+            key,
+            error,
+        )
+        return 0
+    if not math.isfinite(initial_soc_factor) or not 0.0 <= initial_soc_factor <= 1.0:
+        logger.error(
+            "GENETIC0: Invalid {} state of charge factor {}; using 0 %.", kind, initial_soc_factor
+        )
+        return 0
+    # genetic parameter is 0..100 as int
+    return int(initial_soc_factor * 100)

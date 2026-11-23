@@ -144,8 +144,6 @@ test procedure. These changes are not yet a tagged release.
   `dc_to_ac_efficiency_curve`), `ac_charge_limits_total_charge` and `cell_chemistry` are dropped
   with an error log: the profile values apply. A generic profile without own power limits is
   limited to the former default of 5000 W. Home Assistant configuration paths follow.
-- GENETIC0 no longer replaces configured devices by demo devices; a device that cannot be
-  prepared is left out of the run.
 - GENETIC rejects incomplete control forecasts instead of inventing usable inputs. Unsupported
   device counts and inconsistent battery links also fail explicitly. A missing, future, invalid
   or stale state of charge no longer cancels the run: an explicit SoC in the request takes
@@ -156,8 +154,11 @@ test procedure. These changes are not yet a tagged release.
   battery/inverter limits, losses and wear costs can change the chosen plan and its costs.
 - The electricity-fee framework replaces old `elecprice.charges_kwh` / `vat_rate` fields.
   Those old fields are dropped during migration: configure and verify fees explicitly.
-- Without PV or price predictions, the GENETIC0 parameter preparation falls back to demo
-  providers that need no internet service: `PVForecastPVLib` and `ElecPriceFixed`.
+- GENETIC0's parameter preparation never cancels a run and never writes the configuration. A
+  missing or invalid input (location, horizon, a prediction) gets a fallback for the run, logged
+  as an error naming it, and a device that cannot be prepared is left out of the run. It no
+  longer switches to demo providers or writes defaults and demo devices into the configuration:
+  configure providers and devices explicitly.
 - The configuration is saved to the configuration file automatically by default.
 - Quarter-hour clients must use the returned timestamps and interval, not assume 24 hourly
   values. Runtime forecast energy is Wh per slot and prices are currency per Wh.
