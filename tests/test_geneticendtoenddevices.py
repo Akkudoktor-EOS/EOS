@@ -125,6 +125,18 @@ def profile(**kwargs: Any) -> dict[str, Any]:
     }
 
 
+def test_real_run_echoes_the_request_without_inventing_windows(config_eos: ConfigEOS) -> None:
+    """A consumer without windows stays without windows in the request the result echoes."""
+    configure(config_eos)
+    request = parameters(consumers=[profile()])
+    _, solution = run(request)
+    assert request.home_appliances is not None
+    assert request.home_appliances[0].time_windows is None
+    assert solution.request.home_appliances is not None
+    assert solution.request.home_appliances[0].time_windows is None
+    assert len(run_local_starts(solution)) == 1
+
+
 def test_real_optimizer_keeps_reverse_cycle_window_identity(config_eos: ConfigEOS) -> None:
     configure(config_eos)
     consumer = profile(

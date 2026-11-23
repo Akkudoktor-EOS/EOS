@@ -61,7 +61,6 @@ class GeneticSimulation:
         self.bat_grid_export_hours: Optional[np.ndarray] = None
         self.ev_charge_hours: Optional[np.ndarray] = None
         self.ev_discharge_hours: Optional[np.ndarray] = None
-        self.home_appliance_start_hour: Optional[int] = None
 
     @property
     def home_appliance(self) -> Optional[GeneticHomeAppliance]:
@@ -87,7 +86,6 @@ class GeneticSimulation:
 
         Populate internal arrays and device references used during simulation.
         """
-        self.home_appliance_start_hour = None
         self.optimization_hours = optimization_hours
         self.prediction_hours = prediction_hours
         self.direct_marketing_enabled = direct_marketing_enabled
@@ -124,7 +122,6 @@ class GeneticSimulation:
         self.ev_discharge_hours = np.full(self.prediction_hours, 0.0)
 
     def reset(self) -> None:
-        self.home_appliance_start_hour = None
         if self.ev:
             self.ev.reset()
         if self.battery:
@@ -136,11 +133,6 @@ class GeneticSimulation:
         akku_soc_pro_stunde begin of the hour, initial hour state!
         last_wh_pro_stunde integral of last hour (end state)
         """
-        # Preserve the singular hourly simulator API. Native schedules are built beforehand.
-        if self.home_appliance is not None and self.home_appliance_start_hour is not None:
-            self.home_appliance_start_hour = self.home_appliance.set_starting_time(
-                self.home_appliance_start_hour, start_hour
-            )
         # Remember start hour
         self.start_hour = start_hour
 

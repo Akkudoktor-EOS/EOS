@@ -124,7 +124,7 @@ def test_cycle_and_shared_windows_intersect_after_completed_cycle() -> None:
     device = GeneticHomeAppliance(geneticprepare.home_appliance_request(settings).to_parameters(), 48, 192, 0.25)
     device.set_completed_cycles(1)
     zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
-    assert device.remaining_cycle_indices == [1]
+    assert device.num_remaining_cycles == 1
     assert device.allowed_start_slots(
         slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96, cycle_index=1
     ) == [74, 75, 76]
@@ -138,12 +138,6 @@ def test_cycle_and_shared_windows_intersect_after_completed_cycle() -> None:
     assert device.allowed_start_slots(
         slot0_datetime=zero, earliest_slot=96, horizon_end_slot=192, cycle_index=1
     ) == [170, 171, 172]
-
-
-def test_legacy_multiple_cycles_use_slots_and_physical_idle_gap() -> None:
-    device = appliance(slots=96, num_cycles=2, min_cycle_gap_h=1)
-    assert device.set_starting_times([4, 4]) == [4, 10]
-    assert device.get_load_curve().sum() == pytest.approx(700)
 
 
 def test_touching_cycle_windows_preserve_union() -> None:
@@ -267,13 +261,12 @@ def test_ev_invalid_departure_durations_rejected(duration: float) -> None:
             model.model_validate({"device_id": "car", **capacity, "min_soc_max_duration_h": duration})
 
 
-def test_completed_cycles_parameter_initializes_remaining_global_ids() -> None:
+def test_completed_cycles_parameter_initializes_remaining_cycles() -> None:
     device = appliance(num_cycles=3, completed_cycles=2)
     assert device.completed_cycles == 2
-    assert device.remaining_cycle_indices == [2]
     assert device.num_remaining_cycles == 1
     done = appliance(num_cycles=3, completed_cycles=3)
-    assert done.remaining_cycle_indices == []
+    assert done.num_remaining_cycles == 0
     with pytest.raises(ValidationError, match="completed_cycles"):
         appliance(num_cycles=2, completed_cycles=3)
 

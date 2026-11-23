@@ -23,7 +23,6 @@ from typing_extensions import Self
 from akkudoktoreos.config.configabc import (
     CycleTimeWindowSequence,
     TimeWindowSequence,
-    ValueTimeWindow,
 )
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.devices.devicesabc import (
@@ -55,8 +54,6 @@ from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     compare_datetimes,
     to_datetime,
-    to_duration,
-    to_time,
 )
 
 
@@ -803,27 +800,6 @@ class GeneticHomeApplianceRequest(GeneticDeviceRequest):
             deadline_datetime=self.deadline_datetime,
             deadline_policy=GeneticDeadlinePolicy(str(self.deadline_policy)),
         )
-
-    def echo_default_time_windows(self, prediction_slots: int) -> None:
-        """Put the placeholder cycle window into the request if it has no windows.
-
-        Known behaviour, reproduced (migration "move, then fix"): the simulation used to write
-        this placeholder into the request, so the result echoes it. The window belongs to no
-        cycle and spans ``prediction_slots`` hours (slots, used as hours); it constrains
-        nothing.
-
-        Args:
-            prediction_slots: Number of slots of the simulation.
-        """
-        if self.time_windows is None:
-            self.time_windows = CycleTimeWindowSequence(
-                windows=[
-                    ValueTimeWindow(
-                        start_time=to_time("00:00"),
-                        duration=to_duration(f"{prediction_slots} hours"),
-                    ),
-                ]
-            )
 
 
 class GeneticEnergyManagementRequest(GeneticParametersBaseModel):

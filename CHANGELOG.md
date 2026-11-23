@@ -212,6 +212,8 @@ test procedure. These changes are not yet a tagged release.
   belonged to the failed run; successful results and plans are published together.
 - The optimization no longer fails after a server restart.
 - The device IDs in the solution follow the configuration.
+- The GENETIC result echoes the request as sent: a home appliance without time windows no longer
+  shows an invented placeholder window in `parameters`.
 - Restored JSON measurements retain their timestamps and values.
 - Configuration updates made at runtime, e.g. by `PUT /v1/config`, are no longer discarded when the
   same configuration key is set in the EOS configuration file or in the environment

@@ -121,6 +121,8 @@ time, charging power and supported charge rates.
   `GeneticForecastsRequest`, its device and forecast models are `Genetic<Thing>Request` (e.g.
   `SolarPanelBatteryParameters` is `GeneticBatteryRequest`) and `GeneticCommonSettings` is
   `GeneticSettings`. Clients generated from `openapi.json` must follow the new names.
+- The `parameters` echoed in a GENETIC result are the request as sent: a home appliance without
+  time windows shows `time_windows: null`, no placeholder window.
 
 The new report endpoint is
 `GET /v1/energy-management/optimization/solution/GENETIC/pdf`. It renders the stored

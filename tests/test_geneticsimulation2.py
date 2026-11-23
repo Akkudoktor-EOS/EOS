@@ -164,7 +164,8 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
     dc = np.full(config_eos.prediction.hours, 0.0)
     dc[11] = 1
     simulation.dc_charge_hours = dc
-    simulation.home_appliance_start_hour = 2
+    assert simulation.home_appliance is not None
+    simulation.home_appliance.build_load_curve([2])
 
     return simulation
 

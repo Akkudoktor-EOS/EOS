@@ -2451,20 +2451,7 @@
                 "completed_cycles": 0,
                 "run_started_datetime": null,
                 "min_cycle_gap_h": 0,
-                "time_windows": {
-                    "windows": [
-                        {
-                            "start_time": "00:00:00.000000",
-                            "duration": "4 days",
-                            "end_time": null,
-                            "day_of_week": null,
-                            "date": null,
-                            "month": null,
-                            "locale": null,
-                            "value": null
-                        }
-                    ]
-                },
+                "time_windows": null,
                 "shared_time_windows": null,
                 "load_profile_power_w": null,
                 "load_profile_interval_seconds": null,

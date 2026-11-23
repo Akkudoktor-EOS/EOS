@@ -320,7 +320,8 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     simulation.dc_charge_hours[start_hour] = 1.0
     simulation.bat_discharge_hours[start_hour] = 1.0
     simulation.ev_charge_hours[start_hour] = 1.0
-    simulation.home_appliance_start_hour = 2
+    assert simulation.home_appliance is not None
+    simulation.home_appliance.build_load_curve([2])
 
     return simulation
 

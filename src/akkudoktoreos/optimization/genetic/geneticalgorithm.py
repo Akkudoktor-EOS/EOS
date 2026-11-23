@@ -3782,8 +3782,6 @@ class GeneticOptimization:
         # layout. slot0_datetime (the run start) turns decoded start
         # slots into absolute local timestamps and drives DAILY day grouping.
         self._slot0_datetime = self.settings.start_datetime
-        for appliance_params in home_appliance_params:
-            appliance_params.echo_default_time_windows(self.control_end_slot)
         home_appliances = [
             GeneticHomeAppliance(
                 parameters=appliance_params.to_parameters(),

@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.config.configabc import CycleTimeWindowSequence
-from akkudoktoreos.optimization.genetic.devices.genetictimewindow import (
-    cycles_to_matrix,
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+    GeneticHomeAppliance,
 )
 from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticHomeApplianceRequest,
@@ -41,7 +41,12 @@ WINDOWS: list[dict[str, Any]] = [
         ("2026-10-24T00:00:00", 3600),
     ],
 )
-def test_cycle_matrix_matches_the_settings_windows(start: str, interval_s: int) -> None:
+def test_window_coverage_matches_the_settings_windows(start: str, interval_s: int) -> None:
+    """Per cycle, the run's window check covers the same grid steps as the settings windows.
+
+    A one-second run is allowed where a window contains its start (the end is exclusive), so the
+    run's check (``_windows_allow_run``) is compared with the settings' per-step coverage.
+    """
     settings = CycleTimeWindowSequence.model_validate({"windows": WINDOWS})
     request = GeneticHomeApplianceRequest(
         device_id="washer", consumption_wh=1000, duration_h=1, time_windows=settings
@@ -53,11 +58,33 @@ def test_cycle_matrix_matches_the_settings_windows(start: str, interval_s: int) 
     interval = to_duration(interval_s)
 
     expected_cycles, expected = settings.cycles_to_matrix(first, last, interval)
-    cycles, matrix = cycles_to_matrix(windows, first, last, interval)
+    # The settings floor the grid start to the interval in wall-clock time.
+    wall_s = first.hour * 3600 + first.minute * 60 + first.second + first.microsecond / 1_000_000
+    grid = [
+        first.subtract(seconds=wall_s % interval_s).add(seconds=step * interval_s)
+        for step in range(expected.shape[1])
+    ]
+    one_second = to_duration(1)
+    cycles = sorted({int(window.value) for window in windows if window.value is not None})
+    matrix = np.array(
+        [
+            [
+                1.0
+                if GeneticHomeAppliance._windows_allow_run(
+                    [w for w in windows if w.value is not None and int(w.value) == cycle],
+                    moment,
+                    one_second,
+                    merge=True,
+                )
+                else 0.0
+                for moment in grid
+            ]
+            for cycle in cycles
+        ]
+    )
 
     assert cycles == expected_cycles
     np.testing.assert_array_equal(matrix, expected)
-
 
 def test_window_start_and_end_match_the_settings_windows() -> None:
     settings = CycleTimeWindowSequence.model_validate({"windows": WINDOWS})
@@ -70,4 +97,3 @@ def test_window_start_and_end_match_the_settings_windows() -> None:
         anchor = to_datetime("2026-10-24T12:00:00", in_timezone="Europe/Berlin").add(days=day)
         for own, shared in zip(windows, settings.windows):
             assert own.start_end(anchor) == shared._window_start_end(anchor)
-            assert own.matches_start_date(anchor) == shared._matches_start_date(anchor)

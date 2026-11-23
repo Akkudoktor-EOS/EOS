@@ -2426,15 +2426,10 @@ class TestTimeWindowBoundaries:
             optimization_hours=24,
         )
         start = pendulum.datetime(2026, 10, 26)
-        appliance.start_allowed = []
-        appliance.start_earliest = []
-        appliance.start_latest = []
 
-        appliance._build_cycle_start_allowed(
-            appliance.cycle_windows, start, start.add(days=1), to_duration("1 hour")
-        )
-
-        np.testing.assert_array_equal(np.flatnonzero(appliance.start_allowed[0]), [8, 9, 10])
+        assert appliance.allowed_start_slots(
+            slot0_datetime=start, earliest_slot=0, horizon_end_slot=24, cycle_index=0
+        ) == [8, 9, 10]
 
 
 class TestTimeWindowDST:
