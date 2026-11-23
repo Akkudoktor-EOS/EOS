@@ -7,6 +7,9 @@ description: Use when working on optimization logic, adapters, controllers, devi
 
 - Keep optimization logic separate from device-specific communication where
   practical.
+- How an optimizer is structured, what it may read and import, and how it
+  stays independent of other optimizers: see the `optimizer-architecture`
+  skill.
 - Follow existing adapter and controller interfaces.
 - Respect the distinction between long-horizon energy optimization and fast
   local device control.
