@@ -29,7 +29,11 @@ optimizer, not even its package.
 - The output contract still lives in `optimization/optimization.py` together with
   `OptimizationCommonSettings`; it moves to a module of its own during the migration. Until then
   only the contract classes (`OptimizationSolution`) may be imported from there outside parameter
-  preparation; the architecture test lists them.
+  preparation; the architecture test lists them. The same holds for the contract types that live
+  in otherwise banned modules: the solution's `PydanticDateTimeDataFrame`, the operation-mode enums
+  the plan's instructions name and the request schema's time windows (`TimeWindow`,
+  `TimeWindowSequence`), but only in the modules that build the output or define the request; the
+  parameters and the simulation never see them.
 - The operation-mode enums and settings-side resolution stay shared because they describe the
   configuration, not an optimizer; an optimizer translates them into its own types during
-  parameter preparation.
+  parameter preparation, and uses the enums again only to name operation modes in its output.
