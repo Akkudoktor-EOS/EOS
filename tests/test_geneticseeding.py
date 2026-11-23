@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization
 from deap import creator, tools
 
 from akkudoktoreos.config.config import ConfigEOS
@@ -35,7 +36,7 @@ def _configure_hourly_grid(config_eos: ConfigEOS, *, start_hour: int = 0) -> Non
 
 def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = True
     opt.ev_possible_charge_values = [0.0, 1.0]
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
@@ -115,7 +116,7 @@ def test_release_freed_memory_is_safe_to_call():
 
 def test_fitness_cache_restores_canonical_ev_genome(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = True
     opt.ev_possible_charge_values = [0.0, 1.0]
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
@@ -149,7 +150,7 @@ def test_fitness_cache_restores_canonical_ev_genome(config_eos: ConfigEOS):
 
 def test_fitness_cache_never_stores_failed_evaluations(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     parameters = SimpleNamespace(
@@ -172,7 +173,7 @@ def test_fitness_cache_never_stores_failed_evaluations(config_eos: ConfigEOS):
 
 def test_fitness_cache_includes_first_run_relative_control(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos, start_hour=10)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=10)
     parameters = SimpleNamespace(
@@ -200,7 +201,7 @@ def test_fitness_cache_includes_first_run_relative_control(config_eos: ConfigEOS
 
 def test_mutated_warm_start_neighbors_stay_within_control_horizon(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos, start_hour=10)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=10)
     start_solution = [0.0] * opt.control_slots
@@ -218,7 +219,7 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
 ):
     _configure_hourly_grid(config_eos)
     config_eos.optimization.genetic.individuals = 300
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     start_solution = [5.0] * opt.control_slots
@@ -263,7 +264,7 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
 def test_small_population_scales_warm_and_educated_seed_families(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
     config_eos.optimization.genetic.individuals = 100
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     start_solution = [5.0] * opt.control_slots
@@ -315,7 +316,7 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
 
 def test_adaptive_evolution_soft_restarts_collapsed_population(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     opt.toolbox.register("evaluate", lambda individual: (float(sum(individual)),))
@@ -347,7 +348,7 @@ def test_adaptive_evolution_soft_restarts_collapsed_population(config_eos: Confi
 
 def test_local_search_moves_weak_export_to_later_expensive_import(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.optimize_dc_charge = True
     opt.optimize_battery_grid_export = True
@@ -395,7 +396,7 @@ def test_local_search_moves_weak_export_to_later_expensive_import(config_eos: Co
 
 def test_educated_guesses_encode_high_price_direct_marketing(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.optimize_dc_charge = True
     opt.optimize_battery_grid_export = True
@@ -422,7 +423,7 @@ def test_educated_guesses_encode_high_price_direct_marketing(config_eos: ConfigE
 
 def test_flat_feed_in_tariff_does_not_seed_direct_marketing(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.optimize_dc_charge = True
     opt.optimize_battery_grid_export = True
@@ -483,7 +484,7 @@ def _immigrant_selection_pool(opt: GeneticOptimization, protection: int):
 
 def test_protected_immigrants_survive_the_selection(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
 
@@ -503,7 +504,7 @@ def test_protected_immigrants_survive_the_selection(config_eos: ConfigEOS):
 
 def test_immigrant_protection_expires_after_its_generations(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
 
@@ -520,7 +521,7 @@ def test_immigrant_protection_expires_after_its_generations(config_eos: ConfigEO
 
 def test_offspring_do_not_inherit_immigrant_protection(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     opt.toolbox.register("evaluate", lambda individual: (float(sum(individual)),))
@@ -549,7 +550,7 @@ def _warm_start_optimizer(
         }
     )
     slot0 = get_ems(init=True).set_start_datetime(to_datetime().set(hour=8, minute=0, second=0))
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = optimize_ev
     opt.appliance_layout = SimpleNamespace(n_genes=n_appliance_genes, genes=[])  # type: ignore[assignment]
     opt._slot0_datetime = slot0

@@ -16,6 +16,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization
 
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     Battery,
@@ -572,8 +573,8 @@ def _run_evaluate_with_mocked_sim(
     }
 
     optim = GeneticOptimization.__new__(GeneticOptimization)
-    # Minimal __init__ state expected by evaluate()
-    optim.config = config_eos
+    # Minimal __init__ state expected by evaluate(): the run settings of the configuration.
+    optim.settings = genetic_optimization().settings
     optim.optimize_ev = False
     optim.verbose = False
     optim.opti_param = {"home_appliance": 0}

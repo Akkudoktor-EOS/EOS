@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 import uvicorn
+from conftest import genetic_optimization
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
@@ -104,7 +105,7 @@ def _parameters(
 
 def _run(config_eos: ConfigEOS, workers: int, cache_entries):
     parameters = _parameters(config_eos, workers, cache_entries)
-    optimization = GeneticOptimization(fixed_seed=7)
+    optimization = genetic_optimization(seed=7)
     used: list[int] = []
     original_start = optimization._start_evaluation_pool
 

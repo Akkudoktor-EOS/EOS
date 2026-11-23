@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import genetic_optimization
 from pypdf import PdfReader
 
 from akkudoktoreos.config.config import ConfigEOS
@@ -18,14 +19,19 @@ from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.core.ems import EnergyManagement
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic import geneticsolution
+from akkudoktoreos.optimization.genetic import geneticprepare, geneticsolution
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
+)
+from akkudoktoreos.optimization.genetic.geneticoptimizer import GeneticOptimizer
+from akkudoktoreos.optimization.genetic.geneticparameters import (
+    GeneticParameters,
+    parameters_from_dict,
+    parameters_to_dict,
 )
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.genetic.geneticvisualize import (
     GeneticVisualizationReport,
@@ -120,14 +126,14 @@ async def test_optimize(
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()
 
-    genetic_optimization = GeneticOptimization(fixed_seed=fixed_seed)
+    optimization = genetic_optimization(seed=fixed_seed)
 
     # Activate with pytest --finalize
     if ngen > 10 and not is_finalize:
         pytest.skip()
 
     # Call the optimization function
-    genetic_solution = genetic_optimization.optimize_ems(
+    genetic_solution = optimization.optimize_ems(
         parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
     )
 
@@ -415,21 +421,45 @@ def golden_settings(case: GoldenCase, workers: Optional[int] = None) -> dict[str
     }
 
 
-def run_golden_case(
+def golden_parameters(
     case: GoldenCase, config_eos: ConfigEOS, workers: Optional[int] = None
-) -> GeneticSolution:
-    """Run a golden input with its settings and run start."""
+) -> GeneticParameters:
+    """The parameters of a golden input with its settings and run start."""
     config_eos.merge_settings_from_dict(golden_settings(case, workers))
     with (DIR_TESTDATA / case.input_file).open("r") as f_in:
-        parameters = GeneticOptimizationParameters(**json.load(f_in))
+        request = GeneticOptimizationParameters(**json.load(f_in))
     observation = to_datetime(case.start, in_timezone=GOLDEN_TIMEZONE).add(
         minutes=case.observation_offset_minutes
     )
-    ems_eos.set_start_datetime(observation, interval_seconds=case.interval_sec)
+    start = ems_eos.set_start_datetime(observation, interval_seconds=case.interval_sec)
     CacheEnergyManagementStore().clear()
-    return GeneticOptimization(fixed_seed=GOLDEN_SEED).optimize_ems(
-        parameters=parameters, start_hour=ems_eos.start_datetime.hour, ngen=case.generations
+    # The golden input holds complete forecast and device parameters; the preparation adds the
+    # run settings.
+    settings = geneticprepare.run_settings(
+        start, observation, {"generations": case.generations, "seed": GOLDEN_SEED}
     )
+    return GeneticParameters(request=request, start_hour=start.hour, settings=settings)
+
+
+def run_golden_case(
+    case: GoldenCase, config_eos: ConfigEOS, workers: Optional[int] = None
+) -> GeneticSolution:
+    """Run a golden input with its settings and run start; check its replay file."""
+    parameters = golden_parameters(case, config_eos, workers)
+    solution = GeneticOptimizer().run(parameters)
+    if workers is None:
+        check_replay(parameters, f"golden_{case.stem}", f"golden_{case.stem}_result.json")
+    return solution
+
+
+def check_replay(parameters: GeneticParameters, stem: str, expected_result: str) -> None:
+    """Compare the run's parameters with its replay file; write ``new_<replay>`` on a miss."""
+    replay = {"expected_result": expected_result, "parameters": parameters_to_dict(parameters)}
+    # Lossless: what is written reads back to the same values (compared as JSON text, so a
+    # NaN of a forecast gap compares equal).
+    written = json.dumps(replay["parameters"])
+    assert json.dumps(parameters_to_dict(parameters_from_dict(json.loads(written)))) == written
+    check_golden(replay, f"replay_{stem}.json")
 
 
 @pytest.mark.asyncio
@@ -653,7 +683,7 @@ async def test_golden_output_from_configuration(
         ),
     )
     monkeypatch.setattr(EnergyManagement, "prediction", prediction)
-    monkeypatch.setattr(GeneticRequest, "prediction", prediction)
+    monkeypatch.setattr(geneticprepare, "get_prediction", Mock(return_value=prediction))
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     monkeypatch.setattr(geneticsolution, "get_prediction", no_prediction)
@@ -661,7 +691,9 @@ async def test_golden_output_from_configuration(
         # The previous run, an hour earlier, is the warm start of the pinned one.
         previous = observation.subtract(hours=1)
         monkeypatch.setattr(
-            GeneticRequest, "measurement", FakeConfigMeasurement(previous, rich=True)
+            geneticprepare,
+            "get_measurement",
+            Mock(return_value=FakeConfigMeasurement(previous, rich=True)),
         )
         CacheEnergyManagementStore().clear()
         warm_start = await ems_eos.run(
@@ -671,19 +703,19 @@ async def test_golden_output_from_configuration(
         )
         assert warm_start is not None
     monkeypatch.setattr(
-        GeneticRequest, "measurement", FakeConfigMeasurement(observation, case.rich)
+        geneticprepare,
+        "get_measurement",
+        Mock(return_value=FakeConfigMeasurement(observation, case.rich)),
     )
     prepared: list[GeneticOptimizationParameters] = []
-    resolve = GeneticRequest.resolve
+    resolve = geneticprepare.resolve_request
 
-    async def record_resolve(
-        self: GeneticRequest, warm_start: Optional[GeneticSolution] = None
-    ) -> GeneticOptimizationParameters:
-        parameters = await resolve(self, warm_start=warm_start)
+    async def record_resolve(*args: Any) -> GeneticOptimizationParameters:
+        parameters = await resolve(*args)
         prepared.append(parameters)
         return parameters
 
-    monkeypatch.setattr(GeneticRequest, "resolve", record_resolve)
+    monkeypatch.setattr(geneticprepare, "resolve_request", record_resolve)
     CacheEnergyManagementStore().clear()
 
     solution = await ems_eos.run(
@@ -694,6 +726,9 @@ async def test_golden_output_from_configuration(
     assert solution is not None
     assert len(prepared) == 1
     check_golden(prepared[0].model_dump(mode="json"), f"golden_{case.stem}_parameters.json")
+    run = ems_eos.optimizer_run("GENETIC")
+    assert run is not None
+    check_replay(run.parameters, f"golden_{case.stem}", f"golden_{case.stem}_result.json")
     check_golden(solution.model_dump(mode="json"), f"golden_{case.stem}_result.json")
     optimization_solution = ems_eos.optimization_solution()
     assert optimization_solution is not None
@@ -710,3 +745,56 @@ async def test_golden_output_from_configuration(
         pdf = genetic_prepare_visualize(solution=solution)
     pages = len(PdfReader(BytesIO(pdf)).pages)
     check_golden({"pages": pages, "calls": calls}, f"golden_{case.stem}_visualize.json")
+
+
+REPLAY_STEMS = [f"golden_{case.stem}" for case in GOLDEN_CASES] + [
+    f"golden_{case.stem}" for case in CONFIG_CASES
+]
+
+
+@pytest.mark.parametrize("stem", REPLAY_STEMS)
+def test_replay(stem: str, config_eos: ConfigEOS, is_finalize: bool) -> None:
+    """A run reproduces its golden result from the stored parameters alone (ADR 0006, 0008).
+
+    The configuration and the run start are set to different values on purpose: the run must
+    not read them.
+    """
+    replay = json.loads((DIR_TESTDATA / f"replay_{stem}.json").read_text())
+    parameters = parameters_from_dict(replay["parameters"])
+    generations = parameters.settings.generations
+    if generations is not None and generations > QUICK_GENERATIONS and not is_finalize:
+        pytest.skip("Activate with pytest --finalize")
+    config_eos.merge_settings_from_dict(
+        {
+            "general": {"timezone_override": "America/New_York"},
+            "prediction": {"hours": 30},
+            "optimization": {
+                "genetic": {
+                    "interval_sec": 3600 if parameters.settings.interval_sec == 900 else 900,
+                    "horizon_hours": 6,
+                    "tail_horizon_hours": 0,
+                    "individuals": 11,
+                    "generations": 12,
+                    "seed": 1,
+                    "terminal_value_mode": "FIXED",
+                    "penalties": {"ev_soc_miss": 99, "ac_charge_break_even": 3},
+                }
+            },
+            "feedintariff": {"direct_marketing_enabled": False},
+            "devices": {"max_electric_vehicles": 0, "max_home_appliances": 0},
+        }
+    )
+    ems_eos.set_start_datetime(to_datetime("2027-01-05T03:00:00+00:00", in_timezone="UTC"))
+
+    result = GeneticOptimizer().run(parameters)
+
+    check_golden(result.model_dump(mode="json"), replay["expected_result"])
+
+
+def test_replay_keeps_a_forecast_gap() -> None:
+    """A gap the preparation keeps is ``null`` in the replay file and NaN in the parameters."""
+    replay = json.loads((DIR_TESTDATA / "replay_golden_config_rich.json").read_text())
+    assert replay["parameters"]["request"]["ems"]["total_load"][3] is None
+    parameters = parameters_from_dict(replay["parameters"])
+    assert math.isnan(parameters.request.ems.total_load[3])
+    assert parameters_to_dict(parameters)["request"]["ems"]["total_load"][3] is None

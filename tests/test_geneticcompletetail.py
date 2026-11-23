@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import genetic_optimization
 from loguru import logger
 
 from akkudoktoreos.config.config import SettingsEOSDefaults
@@ -209,7 +210,7 @@ def setup_run(config, interval=3600, start_hour=0, hours=72, prediction_hours=72
             ev=None,
         )
     )
-    return GeneticOptimization(fixed_seed=42), params
+    return genetic_optimization(seed=42), params
 
 
 @pytest.mark.parametrize("interval", [3600, 900])
@@ -299,13 +300,16 @@ async def test_provider_values_are_not_extrapolated():
 def test_future_opportunity_changes_optimal_control_soc(config_eos):
     final_energy = []
     for negative_price in (0.5, -1.0):
-        opt, params = setup_run(config_eos, hours=3)
+        _, params = setup_run(config_eos, hours=3)
         config_eos.merge_settings_from_dict(
             {"optimization": {"genetic": {"horizon_hours": 1, "tail_horizon_hours": 2}}}
         )
+        # The run settings are taken when the algorithm is created.
+        opt = genetic_optimization(seed=42)
         params.ems.electricity_price_per_wh = [0.0005, negative_price / 1000, 0.0003]
         params.ems.feed_in_tariff_per_wh = [0.00002, 0, 0.0003]
         result = opt.optimize_ems(params, ngen=3, individuals=20)
+        assert result.terminal_value is not None
         final_energy.append(result.terminal_value.battery_energy_wh)
     assert final_energy[0] > final_energy[1]
 

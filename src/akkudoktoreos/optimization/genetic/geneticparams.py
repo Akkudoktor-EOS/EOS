@@ -1,17 +1,13 @@
-"""GENETIC algorithm paramters.
+"""GENETIC forecast and device parameters (Pydantic).
 
-This module defines the Pydantic-based configuration and input parameter models
-used in the energy optimization routines, including photovoltaic forecasts,
-electricity pricing, and system component parameters.
-
-It also provides a method to assemble these parameters from predictions,
-forecasts, and fallback defaults, preparing them for optimization runs.
+The forecasts, prices and device parameters of a run. ``geneticprepare`` assembles them; the
+optimization parameters (``geneticparameters``) carry them until step 4 of the migration
+replaces them with dataclasses, and the solution presents them.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import Any, Optional, Union
 
-from loguru import logger
 from pydantic import (
     AliasChoices,
     ConfigDict,
@@ -22,11 +18,6 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from akkudoktoreos.core.coreabc import (
-    ConfigMixin,
-    MeasurementMixin,
-    PredictionMixin,
-)
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,
@@ -39,13 +30,6 @@ from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
 )
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
-
-if TYPE_CHECKING:
-    from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-
-# Do not import directly from akkudoktoreos.core.coreabc
-# EnergyManagementSystemMixin - Creates circular dependency with ems.py
-# StartMixin                  - Creates circular dependency with ems.py
 
 
 class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
@@ -121,14 +105,7 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
         return self
 
 
-class GeneticOptimizationParameters(
-    ConfigMixin,
-    MeasurementMixin,
-    PredictionMixin,
-    # EnergyManagementSystemMixin, # Creates circular dependency with ems.py
-    # StartMixin,                  # Creates circular dependency with ems.py
-    GeneticParametersBaseModel,
-):
+class GeneticOptimizationParameters(GeneticParametersBaseModel):
     """Main parameter class for running the genetic energy optimization.
 
     Collects all model and configuration parameters necessary to run the
@@ -287,32 +264,3 @@ class GeneticOptimizationParameters(
         if start_solution is not None and len(start_solution) < 2:
             raise ValueError("Requires at least two values.")
         return start_solution
-
-    @classmethod
-    async def prepare(
-        cls, warm_start: "Optional[GeneticSolution]" = None
-    ) -> "Optional[GeneticOptimizationParameters]":
-        """Resolve configured devices and fresh forecasts for automatic optimization.
-
-        Missing inputs cancel the run without changing providers or inventing devices.
-        The same resolver serves the configuration-owned HTTP request.
-
-        Args:
-            warm_start: Result of the previous GENETIC run of this server, if any.
-
-        Returns:
-            The parameters, or ``None`` when inputs are missing.
-        """
-        from akkudoktoreos.optimization.genetic.geneticrequest import (
-            GeneticRequest,
-        )
-
-        try:
-            return await GeneticRequest().resolve(warm_start=warm_start)
-        except Exception as exc:
-            logger.error(
-                "Cannot prepare GENETIC parameters; canceling optimization with provider {}: {}",
-                cls.config.feedintariff.provider,
-                exc,
-            )
-            return None

@@ -5,10 +5,12 @@ price horizon moves on during the night) may update the configuration while a
 run is in progress. Genomes and device arrays are sized when the run starts, so
 a mid-run change of horizon, tail or prediction hours must not reach the final
 evaluation - before the snapshot it failed with
-``IndexError: index 84 is out of bounds for axis 0 with size 84``.
+``IndexError: index 84 is out of bounds for axis 0 with size 84``. The run reads
+its settings from the optimization parameters, prepared before it starts.
 """
 
 import pytest
+from conftest import genetic_optimization
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
@@ -81,7 +83,7 @@ def test_horizon_change_during_run_does_not_reach_the_run(
     config_eos: ConfigEOS, start_horizon: int, changed_horizon: int
 ):
     parameters = _setup(config_eos, start_horizon)
-    optimization = GeneticOptimization(fixed_seed=42)
+    optimization = genetic_optimization(seed=42)
 
     original_optimize = optimization.optimize
 
@@ -101,12 +103,12 @@ def test_horizon_change_during_run_does_not_reach_the_run(
     assert len(solution.battery_grid_export_factor) == start_horizon
     # ... and the new value is live for the next run.
     assert config_eos.optimization.genetic.horizon_hours == changed_horizon
-    assert optimization._run_genetic_cfg is None
+    assert optimization.settings.horizon_hours == start_horizon
 
 
-def test_snapshot_is_released_when_the_run_fails(config_eos: ConfigEOS):
+def test_run_state_is_released_when_the_run_fails(config_eos: ConfigEOS):
     parameters = _setup(config_eos, 24)
-    optimization = GeneticOptimization(fixed_seed=42)
+    optimization = genetic_optimization(seed=42)
 
     def failing_optimize(*args, **kwargs):
         raise RuntimeError("boom")
@@ -114,5 +116,4 @@ def test_snapshot_is_released_when_the_run_fails(config_eos: ConfigEOS):
     optimization.optimize = failing_optimize  # type: ignore[method-assign]
     with pytest.raises(RuntimeError):
         optimization.optimize_ems(parameters=parameters, start_hour=0, ngen=1)
-    assert optimization._run_genetic_cfg is None
-    assert optimization._run_prediction_hours is None
+    assert optimization._run_control_end_slot is None

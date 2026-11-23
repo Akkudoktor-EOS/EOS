@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization
 
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.optimization.genetic.geneticalgorithm import (
@@ -62,9 +63,9 @@ async def test_native_result_retains_dst_grid_and_owned_inputs(config_eos, times
             "ev": None,
         }
     )
-    optimizer = GeneticOptimization(fixed_seed=42)
+    optimizer = genetic_optimization(seed=42)
     native = optimizer.optimize_ems(parameters, ngen=1, individuals=6)
-    repeat = GeneticOptimization(fixed_seed=42).optimize_ems(parameters, ngen=1, individuals=6)
+    repeat = genetic_optimization(seed=42).optimize_ems(parameters, ngen=1, individuals=6)
     assert native.start_solution == repeat.start_solution
     assert native.interval_seconds == 900
     assert native.start_solution_datetime == start
@@ -121,7 +122,7 @@ def test_native_quarter_hour_temperatures_average_when_coarsened(config_eos):
             "inverter": None,
         }
     )
-    normalized = GeneticOptimization()._parameters_for_slot_grid(parameters)
+    normalized = genetic_optimization()._parameters_for_slot_grid(parameters)
     assert normalized.temperature_forecast == [13.0]
     assert normalized.ems.pv_forecast_wh == [100.0]
     assert normalized.ems.total_load == [200.0]
@@ -220,7 +221,7 @@ def _partial_first_slot_run(config_eos, timestamp: str, initial_soc_percentage: 
             "ev": None,
         }
     )
-    optimizer = GeneticOptimization(fixed_seed=42)
+    optimizer = genetic_optimization(seed=42)
 
     def full_ac_charge_in_first_slot(*args, **kwargs):
         genome = optimizer.create_individual()

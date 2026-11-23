@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization
 from deap import creator
 from pydantic import ValidationError
 
@@ -50,7 +51,7 @@ def test_fitness_cache_max_entries_setting_defaults_to_unbounded():
 @pytest.mark.parametrize("max_entries", [1, 2, 3, 10])
 def test_bounded_fitness_cache_evicts_oldest_keys(config_eos: ConfigEOS, max_entries: int):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     parameters = SimpleNamespace(ems=SimpleNamespace(price_per_wh_battery=0.0), ev=None)
@@ -82,7 +83,7 @@ def test_bounded_fitness_cache_evicts_oldest_keys(config_eos: ConfigEOS, max_ent
 
 
 def test_evict_fitness_cache_also_bounds_a_plain_dict(config_eos: ConfigEOS):
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt._fitness_cache = {(bytes([value]),): None for value in range(10)}  # type: ignore[misc]
     opt._evict_fitness_cache(3)
     assert list(opt._fitness_cache) == [(bytes([value]),) for value in (7, 8, 9)]
@@ -123,7 +124,7 @@ def _run_optimization(
     )
     CacheEnergyManagementStore().clear()
 
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     max_cache_size = 0
     uncached = opt._evaluate_uncached
 

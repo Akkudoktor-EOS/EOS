@@ -3,6 +3,7 @@ from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
+from conftest import genetic_optimization
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
@@ -41,7 +42,7 @@ def test_direct_marketing_preserves_constant_supplied_feed_in_tariff(config_eos:
         )
     )
 
-    adjusted = GeneticOptimization()._parameters_for_config(parameters)
+    adjusted = genetic_optimization()._parameters_for_config(parameters)
 
     assert adjusted.ems.einspeiseverguetung_euro_pro_wh == [0.00007, 0.00007]
     assert parameters.ems.einspeiseverguetung_euro_pro_wh == [0.00007, 0.00007]
@@ -64,7 +65,7 @@ def test_direct_marketing_keeps_variable_feed_in_tariff(config_eos: ConfigEOS):
         )
     )
 
-    adjusted = GeneticOptimization()._parameters_for_config(parameters)
+    adjusted = genetic_optimization()._parameters_for_config(parameters)
 
     assert adjusted.ems.einspeiseverguetung_euro_pro_wh == [0.0001, -0.00005]
 
@@ -122,7 +123,7 @@ def test_grid_export_rates_reach_the_solution(config_eos: ConfigEOS):
         )
     )
 
-    optimization = GeneticOptimization(fixed_seed=42)
+    optimization = genetic_optimization(seed=42)
     solution = optimization.optimize_ems(parameters=parameters, start_hour=0, ngen=3)
 
     # Full power first, so the full-power state keeps the lowest export index.
@@ -175,8 +176,8 @@ def test_ev_deadline_slot_resolution(config_eos: ConfigEOS):
         }
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0, second=0, microsecond=0))
-    optimization = GeneticOptimization(fixed_seed=1)
-    optimization._slot0_datetime = optimization.ems.start_datetime
+    optimization = genetic_optimization(seed=1)
+    optimization._slot0_datetime = optimization.settings.start_datetime
     slot0 = optimization._slot0_datetime
 
     # Duration only: 6 h after the start hour 10.
@@ -216,7 +217,7 @@ def test_ev_soc_penalty_reads_the_deadline_slot(config_eos: ConfigEOS):
         }
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0, second=0, microsecond=0))
-    optimization = GeneticOptimization(fixed_seed=1)
+    optimization = genetic_optimization(seed=1)
     simulation_result = {"EAuto_SoC_pro_Stunde": [20.0, 35.0, 50.0, 80.0]}
 
     optimization.simulation.ev = MagicMock(spec=Battery)
@@ -256,7 +257,7 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
     CacheEnergyManagementStore().clear()
 
     parameters = _ev_deadline_parameters(hours, min_soc_max_duration_h=6)
-    solution = GeneticOptimization(fixed_seed=42).optimize_ems(
+    solution = genetic_optimization(seed=42).optimize_ems(
         parameters=parameters, start_hour=0, ngen=40
     )
 
@@ -326,7 +327,7 @@ def _terminal_value_run(
             ev=None,
         )
     )
-    return GeneticOptimization(fixed_seed=7).optimize_ems(
+    return genetic_optimization(seed=7).optimize_ems(
         parameters=parameters, start_hour=0, ngen=20
     )
 

@@ -5,12 +5,14 @@ parameter override yet: these regressions cover its existing preparation/simulat
 contract and refuse unavailable imported revenue instead of creating a demo tariff.
 """
 
+from typing import Optional
 from unittest.mock import AsyncMock, Mock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
     Inverter,
     InverterParameters,
@@ -18,7 +20,6 @@ from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsimulation import (
     GeneticSimulation,
 )
@@ -69,16 +70,14 @@ def prepare_tariffs(config_eos):
         prediction = Mock(
             update_data=AsyncMock(), key_to_raw_series=AsyncMock(side_effect=read_series)
         )
-        ems = Mock(
-            start_datetime=to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC"),
-            observation_datetime=to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC"),
-        )
-        ems.genetic_solution.return_value = None
-        with (
-            patch("akkudoktoreos.optimization.genetic.geneticrequest.get_ems", return_value=ems),
-            patch.object(GeneticRequest, "prediction", prediction),
-        ):
-            parameters = await GeneticOptimizationParameters.prepare()
+        start = to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC")
+        parameters: Optional[GeneticOptimizationParameters] = None
+        with patch.object(geneticprepare, "get_prediction", return_value=prediction):
+            try:
+                parameters = (await geneticprepare.prepare(start, start, None)).request
+            except RuntimeError:
+                # The run is canceled (until migration step 3b).
+                pass
         return parameters, prices, prediction
 
     return prepare

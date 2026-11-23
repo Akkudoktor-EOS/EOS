@@ -3,7 +3,7 @@
 from asyncio import Lock
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
 
@@ -16,9 +16,7 @@ from akkudoktoreos.optimization.genetic0 import genetic0convert, genetic0prepare
 from akkudoktoreos.optimization.genetic0.genetic0request import (
     Genetic0Request,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
-)
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.optimization.optimizer import OptimizerRun
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -35,11 +33,15 @@ def _patch_optimizer(monkeypatch, prefix: str, constructor: Any) -> None:
 
 
 def _patch_prepare(monkeypatch, prefix: str, prepare: Any) -> None:
-    """Replace the legacy parameter preparation of GENETIC or GENETIC0."""
+    """Replace the forecast and device preparation of GENETIC or GENETIC0.
+
+    GENETIC resolves every request, the configured default one included, through
+    ``resolve_request()``; GENETIC0's legacy preparation serves runs without a request only.
+    """
     if prefix == "Genetic0":
         monkeypatch.setattr(genetic0prepare, "prepare_request", prepare)
     else:
-        monkeypatch.setattr(GeneticOptimizationParameters, "prepare", prepare)
+        monkeypatch.setattr(geneticprepare, "resolve_request", prepare)
 
 
 def _warm_start_of(call: Any) -> Any:
@@ -49,12 +51,14 @@ def _warm_start_of(call: Any) -> Any:
 
 
 def _assert_prepared_without_request(prefix: str, prepare: Any) -> None:
-    """Both pass the warm start (none here) into their legacy preparation."""
+    """Both pass the warm start (none here) into their preparation; GENETIC a default request."""
+    prepare.assert_awaited_once()
     if prefix == "Genetic0":
-        prepare.assert_awaited_once()
         assert _warm_start_of(prepare.await_args) is None
     else:
-        prepare.assert_awaited_once_with(warm_start=None)
+        request, start, observation, warm_start = prepare.await_args.args
+        assert request.model_dump() == GeneticRequest().model_dump()
+        assert warm_start is None
 
 
 def _conversion_arguments(prefix: str) -> dict[str, Any]:
@@ -74,14 +78,8 @@ def _set_native_solution(monkeypatch, prefix: str, solution: Any) -> None:
 
 
 def _stand_in_request() -> SimpleNamespace:
-    """A request both preparations accept.
-
-    GENETIC0's preparation looks at its home appliance; GENETIC's resolves it into the legacy
-    parameters, here the request itself.
-    """
-    request = SimpleNamespace(dishwasher=None)
-    request.resolve = AsyncMock(return_value=request)
-    return request
+    """A request both preparations accept; GENETIC0's preparation looks at its home appliance."""
+    return SimpleNamespace(dishwasher=None)
 
 
 def _supplied(parameters: Any, generations: int, seed: int) -> dict[str, Any]:
@@ -111,12 +109,26 @@ def offline_ems(monkeypatch):
             ems=SimpleNamespace(mode=EnergyManagementMode.OPTIMIZATION),
             optimization=SimpleNamespace(
                 algorithm=OptimizationAlgorithm.GENETIC,
-                genetic=SimpleNamespace(generations=3, seed=17, interval_sec=3600, individuals=31),
+                genetic=SimpleNamespace(
+                    generations=3,
+                    seed=17,
+                    interval_sec=3600,
+                    individuals=31,
+                    horizon_hours=24,
+                    tail_horizon_hours=0,
+                    penalties={},
+                    workers=None,
+                    pin_workers=True,
+                    fitness_cache_max_entries=None,
+                    terminal_value_mode="AUTO",
+                    terminal_value_window_hours=24,
+                ),
                 genetic0=SimpleNamespace(
                     generations=5, seed=29, horizon_hours=24, individuals=13, penalties={}
                 ),
             ),
             prediction=SimpleNamespace(hours=48),
+            feedintariff=SimpleNamespace(provider=None, direct_marketing_enabled=False),
             devices=SimpleNamespace(
                 batteries=None, electric_vehicles=None, max_home_appliances=0
             ),
@@ -128,6 +140,10 @@ def offline_ems(monkeypatch):
     )
     # The parameter preparations read the settings (and GENETIC0's the predictions) themselves.
     monkeypatch.setattr(geneticprepare, "get_config", lambda: ems.config)
+    # Stand-in requests are already resolved.
+    monkeypatch.setattr(
+        geneticprepare, "resolve_request", AsyncMock(side_effect=lambda request, *args: request)
+    )
     monkeypatch.setattr(genetic0prepare, "get_config", lambda: ems.config)
     monkeypatch.setattr(
         genetic0prepare, "get_prediction", lambda: SimpleNamespace(record_keys=[])
@@ -243,19 +259,16 @@ async def test_optimization_routes_only_selected_algorithm(
         "start_hour": expected_hour,
         "parameters": sentinel_parameters,
     }
+    # Both get their algorithm settings from the parameters (step 3).
+    (settings,) = selected.call_args.args
+    assert (settings.seed, settings.generations, settings.verbose) == (
+        expected_seed,
+        expected_generations,
+        False,
+    )
     if algorithm == OptimizationAlgorithm.GENETIC:
-        selected.assert_called_once_with(verbose=False, fixed_seed=expected_seed)
         expected_arguments["ngen"] = expected_generations
-    else:
-        # GENETIC0 gets its algorithm settings from the parameters (step 3).
-        (settings,) = selected.call_args.args
-        assert (settings.seed, settings.generations, settings.verbose) == (
-            expected_seed,
-            expected_generations,
-            False,
-        )
-    if algorithm == OptimizationAlgorithm.GENETIC:
-        expected_arguments["individuals"] = 11 if supplied else None
+        expected_arguments["individuals"] = 11 if supplied else expected_config.individuals
         selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
     else:
         # GENETIC0 runs from its parameters, which carry the request and the start hour.
@@ -264,7 +277,12 @@ async def test_optimization_routes_only_selected_algorithm(
         assert parameters.start_hour == expected_hour
     constructors[other_name].assert_not_called()
     preparers[other_name].assert_not_awaited()
-    if supplied:
+    if supplied and algorithm == OptimizationAlgorithm.GENETIC:
+        # GENETIC completes the supplied request.
+        preparers[selected_name].assert_awaited_once_with(
+            sentinel_parameters, ANY, ANY, None
+        )
+    elif supplied:
         preparers[selected_name].assert_not_awaited()
     else:
         _assert_prepared_without_request(selected_name, preparers[selected_name])
@@ -306,7 +324,8 @@ async def test_missing_preparation_does_not_dispatch_controls(monkeypatch, offli
     """GENETIC may still cancel; GENETIC0's preparation never does (TestGenetic0AlwaysValid)."""
     constructor = Mock()
     _patch_optimizer(monkeypatch, prefix, constructor)
-    prepare = AsyncMock(return_value=None)
+    # GENETIC's legacy preparation signalled missing inputs with None, now it raises.
+    prepare = AsyncMock(side_effect=ValueError("missing inputs"))
     _patch_prepare(monkeypatch, prefix, prepare)
     await ems_module.EnergyManagement.run(
         offline_ems, algorithm=OptimizationAlgorithm(prefix.upper())

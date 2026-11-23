@@ -1,7 +1,7 @@
 """GENETIC behind the optimizer interface (ADR 0006).
 
-Transitional (migration step 1): runs and converts with today's ``GeneticOptimization`` and
-``GeneticSolution``; later steps replace them without changing results (ADR 0008).
+Transitional: converts with today's ``GeneticSolution``; later steps replace it without
+changing results (ADR 0008).
 """
 
 from collections.abc import Mapping
@@ -34,7 +34,9 @@ class GeneticOptimizer:
         overrides: Optional[Mapping[str, Any]] = None,
     ) -> GeneticParameters:
         """See ``Optimizer.prepare()``."""
-        return await geneticprepare.prepare(start_datetime, warm_start, overrides)
+        return await geneticprepare.prepare(
+            start_datetime, observation_datetime, warm_start, overrides
+        )
 
     async def prepare_from_request(
         self,
@@ -46,7 +48,7 @@ class GeneticOptimizer:
     ) -> GeneticParameters:
         """See ``Optimizer.prepare_from_request()``."""
         return await geneticprepare.prepare_from_request(
-            request, start_datetime, warm_start, overrides
+            request, start_datetime, observation_datetime, warm_start, overrides
         )
 
     def run(self, parameters: GeneticParameters) -> GeneticSolution:
@@ -56,15 +58,12 @@ class GeneticOptimizer:
             GeneticOptimization,
         )
 
-        optimization = GeneticOptimization(
-            verbose=parameters.verbose,
-            fixed_seed=parameters.seed,
-        )
+        optimization = GeneticOptimization(parameters.settings)
         return optimization.optimize_ems(
             start_hour=parameters.start_hour,
             parameters=parameters.request,
-            ngen=parameters.generations,
-            individuals=parameters.individuals,
+            ngen=parameters.settings.generations,
+            individuals=parameters.settings.individuals,
         )
 
     def api(self) -> Optional[OptimizerApi]:

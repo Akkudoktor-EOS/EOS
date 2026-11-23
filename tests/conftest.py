@@ -16,6 +16,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generator,
     Iterator,
@@ -42,6 +43,8 @@ from akkudoktoreos.server.server import get_default_host
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser
+
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import GeneticOptimization
 
 # -----------------------------------------------
 # Adapt pytest logging handling to Loguru logging
@@ -926,3 +929,26 @@ def set_other_timezone():
     # Restore the original timezone
     cast(Callable[[pendulum.Timezone | pendulum.FixedTimezone], None], pendulum.set_local_timezone)(original_timezone)
     assert pendulum.local_timezone() == original_timezone
+
+
+def genetic_optimization(seed: Optional[int] = None) -> "GeneticOptimization":
+    """GENETIC algorithm with the run settings of the configuration and EMS run start.
+
+    Before migration step 3 the algorithm read the configuration and the run start of the
+    energy management itself; tests that build it directly get the same settings here.
+
+    Args:
+        seed: Random seed of the run; ``None`` gives a random seed.
+
+    Returns:
+        A ``GeneticOptimization`` for the current configuration and run start.
+    """
+    from dataclasses import replace
+
+    from akkudoktoreos.core.coreabc import get_ems
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import GeneticOptimization
+    from akkudoktoreos.optimization.genetic.geneticprepare import run_settings
+
+    ems = get_ems()
+    settings = run_settings(ems.start_datetime, ems.observation_datetime)
+    return GeneticOptimization(replace(settings, seed=seed, verbose=False))

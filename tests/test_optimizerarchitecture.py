@@ -502,58 +502,8 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "world-access",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-            "akkudoktoreos.core.coreabc:MeasurementMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-            "akkudoktoreos.core.coreabc:PredictionMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-            "akkudoktoreos.core.coreabc:get_ems",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-            "akkudoktoreos.devices.settings.batteryresolution",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-            "akkudoktoreos.devices.settings.batterysettings",
-        ),
-        Violation(
-            "world-access",
             "akkudoktoreos.optimization.genetic.geneticalgorithm",
             "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticalgorithm",
-            "akkudoktoreos.optimization.optimizationabc:OptimizationBase",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-            "akkudoktoreos.core.coreabc:MeasurementMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-            "akkudoktoreos.core.coreabc:PredictionMixin",
         ),
         Violation(
             "world-access",
