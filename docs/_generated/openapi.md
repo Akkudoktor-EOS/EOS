@@ -750,6 +750,28 @@ Get the latest solution of the optimization.
 
 ---
 
+## GET /v1/energy-management/optimization/solution/GENETIC
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_genetic_get_v1_energy-management_optimization_solution_genetic_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_genetic_get_v1_energy-management_optimization_solution_genetic_get)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Optimization Solution Genetic Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get the latest GENETIC specific solution of the optimization.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
 ## GET /v1/energy-management/optimization/solution/GENETIC/pdf
 
 <!-- pyml disable line-length -->
@@ -795,39 +817,6 @@ Get the latest GENETIC0 specific solution of the optimization.
 **Responses**:
 
 - **200**: Successful Response
-
----
-
-## GET /v1/energy-management/optimization/solution/{algorithm}
-
-<!-- pyml disable line-length -->
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get)
-<!-- pyml enable line-length -->
-
-Fastapi Energy Management Optimization Solution Algorithm Get
-
-<!-- pyml disable line-length -->
-```python
-"""
-Get the latest algorithm specific solution of the optimization.
-
-Optimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).
-
-Args:
-    algorithm: Optimization algorithm
-"""
-```
-<!-- pyml enable line-length -->
-
-**Parameters**:
-
-- `algorithm` (path, required): No description provided.
-
-**Responses**:
-
-- **200**: Successful Response
-
-- **422**: Validation Error
 
 ---
 

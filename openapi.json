@@ -817,6 +817,87 @@
         }
       }
     },
+    "/v1/energy-management/optimization/solution/GENETIC": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Optimization Solution Genetic Get",
+        "description": "Get the latest GENETIC specific solution of the optimization.",
+        "operationId": "fastapi_energy_management_optimization_solution_genetic_get_v1_energy_management_optimization_solution_GENETIC_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneticSolution"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/energy-management/optimization/solution/GENETIC/pdf": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Optimization Solution Genetic Pdf Get",
+        "description": "Render the retained GENETIC result without rerunning optimization.\n\nRendering runs outside the event loop. Copy the result before offloading;\nits recorded timestamp, interval and inputs own the report's time grid.\nThe legacy /visualization_results.pdf route continues to serve GENETIC0.",
+        "operationId": "fastapi_energy_management_optimization_solution_genetic_pdf_get_v1_energy_management_optimization_solution_GENETIC_pdf_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/pdf": {}
+            }
+          }
+        }
+      }
+    },
+    "/v1/optimize": {
+      "post": {
+        "tags": [
+          "optimize"
+        ],
+        "summary": "Fastapi Optimize Config",
+        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers. Explicit SoC values take precedence over\nfresh measured states of charge; missing usable measurements default to an assumed\ninitial SoC of 0% without blocking a plan.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
+        "operationId": "fastapi_optimize_config_v1_optimize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneticRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneticSolution"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/optimize": {
       "post": {
         "tags": [
@@ -3407,66 +3488,6 @@
         }
       }
     },
-    "/v1/energy-management/optimization/solution/{algorithm}": {
-      "get": {
-        "tags": [
-          "energy-management"
-        ],
-        "summary": "Fastapi Energy Management Optimization Solution Algorithm Get",
-        "description": "Get the latest algorithm specific solution of the optimization.\n\nOptimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).\n\nArgs:\n    algorithm: Optimization algorithm",
-        "operationId": "fastapi_energy_management_optimization_solution_algorithm_get_v1_energy_management_optimization_solution__algorithm__get",
-        "parameters": [
-          {
-            "name": "algorithm",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/OptimizationAlgorithm"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GeneticSolution"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/energy-management/optimization/solution/GENETIC/pdf": {
-      "get": {
-        "tags": [
-          "energy-management"
-        ],
-        "summary": "Fastapi Energy Management Optimization Solution Genetic Pdf Get",
-        "description": "Render the retained GENETIC result without rerunning optimization.\n\nRendering runs outside the event loop. Copy the result before offloading;\nits recorded timestamp, interval and inputs own the report's time grid.\nThe legacy /visualization_results.pdf route continues to serve GENETIC0.",
-        "operationId": "fastapi_energy_management_optimization_solution_genetic_pdf_get_v1_energy_management_optimization_solution_GENETIC_pdf_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/pdf": {}
-            }
-          }
-        }
-      }
-    },
     "/v1/energy-management/plan": {
       "get": {
         "tags": [
@@ -3626,47 +3647,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ForecastResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/optimize": {
-      "post": {
-        "tags": [
-          "optimize"
-        ],
-        "summary": "Fastapi Optimize Config",
-        "description": "Optimize GENETIC using configured devices and optional fresh runtime inputs.\n\nStatic settings belong in configuration; query overrides are rejected.\nForecast arrays start at local\nmidnight and contain Wh per configured GENETIC slot; prices are currency/Wh.\nAn empty body uses configured providers. Explicit SoC values take precedence over\nfresh measured states of charge; missing usable measurements default to an assumed\ninitial SoC of 0% without blocking a plan.\nThe deprecated /optimize endpoint continues to run hourly GENETIC0.",
-        "operationId": "fastapi_optimize_config_v1_optimize_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GeneticRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GeneticSolution"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }

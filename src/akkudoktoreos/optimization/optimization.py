@@ -9,11 +9,11 @@ from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
 )
-from akkudoktoreos.optimization.genetic0 import Genetic0Settings
-from akkudoktoreos.optimization.genetic.geneticsettings import (
+from akkudoktoreos.optimization.genetic import (
     GeneticSettings,
     normalize_genetic_settings,
 )
+from akkudoktoreos.optimization.genetic0 import Genetic0Settings
 from akkudoktoreos.utils.datetimeutil import DateTime
 from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 

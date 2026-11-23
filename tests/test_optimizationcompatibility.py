@@ -47,15 +47,12 @@ def test_energy_parameter_aliases_preserve_wh_prices(model, tariff):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("algorithm", list(OptimizationAlgorithm))
 async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypatch, algorithm):
-    """GENETIC is served by the generic route, GENETIC0 by its own router (ADR 0005)."""
+    """Each optimizer serves its own solution from its router (ADR 0005, 0011)."""
     from httpx import ASGITransport, AsyncClient
 
     from akkudoktoreos.server import eos
 
-    fake = SimpleNamespace(
-        optimizer_result=Mock(return_value=None),
-        optimizer_run=Mock(return_value=None),
-    )
+    fake = SimpleNamespace(optimizer_run=Mock(return_value=None))
     monkeypatch.setattr(eos, "get_ems", lambda: fake)
     monkeypatch.setattr(
         eos,
@@ -68,12 +65,7 @@ async def test_algorithm_result_endpoint_keeps_solution_types_separate(monkeypat
         response = await client.get(f"/v1/energy-management/optimization/solution/{algorithm}")
     assert response.status_code == 404
     assert response.json()["title"] == "Algorithm specific optimization solution retrieval failed"
-    if algorithm == OptimizationAlgorithm.GENETIC:
-        fake.optimizer_result.assert_called_once_with("GENETIC")
-        fake.optimizer_run.assert_not_called()
-    else:
-        fake.optimizer_run.assert_called_once_with("GENETIC0")
-        fake.optimizer_result.assert_not_called()
+    fake.optimizer_run.assert_called_once_with(str(algorithm))
 
 
 @pytest.mark.parametrize("algorithm", ["genetic", "genetic0"])

@@ -16,8 +16,8 @@ state today. None of them gets an exception from
   imports the server either. It reports errors as the generic `OptimizerProblem`, which the server
   renders like its own problem responses, and it holds the public response models, built from the
   optimization parameters and result. The server includes the optimizers' routers before its own
-  routes, so an optimizer's specific path (`.../solution/GENETIC0`) wins over a generic one
-  (`.../solution/{algorithm}`).
+  routes, so an optimizer's specific path (e.g. `.../solution/GENETIC0`) wins over any generic
+  one; each optimizer serves its own solution path.
 - Wizard steps are not code. They are metadata on the fields of `<name>settings.py` (which fields
   the wizard asks for, and in which order), which EOSdash reads; an optimizer contains no EOSdash
   code.

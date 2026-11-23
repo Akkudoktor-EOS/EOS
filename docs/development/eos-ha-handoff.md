@@ -46,8 +46,8 @@ the earlier `integration/eos-consolidation-20260916` is a historical checkpoint.
 - Automatic GENETIC runs use the site's timezone derived from its coordinates;
   explicit run starts and warmstart timestamps retain their timezone/instant.
   Configure device IDs and schedules against this timezone, including DST.
-- GET `/v1/energy-management/optimization/solution/{algorithm}` returns the stored
-  algorithm-specific result. Native/generic results and execution plans publish
+- GET `/v1/energy-management/optimization/solution/GENETIC` (and `.../GENETIC0`) returns
+  the stored algorithm-specific result. Native/generic results and execution plans publish
   atomically for the successful run. Failed Optimize calls return errors rather
   than a previous successful result.
 - GET `/v1/energy-management/optimization/solution/GENETIC/pdf` renders the stored

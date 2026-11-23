@@ -10,7 +10,7 @@ from conftest import genetic_run_parameters
 from fastapi.testclient import TestClient
 from pypdf import PdfReader
 
-from akkudoktoreos.optimization.genetic import geneticvisualize
+from akkudoktoreos.optimization.genetic import geneticapi, geneticvisualize
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimizer import OptimizerRun
 from akkudoktoreos.server import eos
@@ -68,7 +68,9 @@ async def test_render_is_offloaded_and_uses_an_owned_copy(config_eos, monkeypatc
 
     # The PDF stack is imported on first use, so patch it at its source.
     monkeypatch.setattr(geneticvisualize, "genetic_prepare_visualize", render)
-    response = await eos.fastapi_energy_management_optimization_solution_genetic_pdf_get()
+    response = await geneticapi.fastapi_energy_management_optimization_solution_genetic_pdf_get(
+        latest=run
+    )
     assert response.body == b"%PDF-isolated-render"
     assert captured[0][0] != caller_thread
     assert captured[0][1] is not solution

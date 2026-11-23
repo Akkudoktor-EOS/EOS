@@ -125,6 +125,9 @@ time, charging power and supported charge rates.
 The new report endpoint is
 `GET /v1/energy-management/optimization/solution/GENETIC/pdf`. It renders the stored
 GENETIC result and returns 404 if none exists. The legacy PDF endpoint remains separate.
+The stored GENETIC result itself is `GET /v1/energy-management/optimization/solution/GENETIC`
+(GENETIC0: `.../solution/GENETIC0`). The generic route `.../solution/{algorithm}` is gone; use
+the algorithm's own path.
 
 ### 5. Costs and schedules may change even with the same forecasts
 

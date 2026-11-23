@@ -364,31 +364,6 @@ def collect_violations() -> frozenset[Violation]:
 BASELINE: frozenset[Violation] = frozenset(
     {
         Violation(
-            "internals",
-            "akkudoktoreos.config.configmigrate",
-            "akkudoktoreos.optimization.genetic.geneticsettings",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.optimization.optimization",
-            "akkudoktoreos.optimization.genetic.geneticsettings",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic.geneticrequest",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic.geneticvisualize",
-        ),
-        Violation(
             "pydantic",
             "akkudoktoreos.optimization.genetic.geneticabc",
             "akkudoktoreos.core.pydantic",

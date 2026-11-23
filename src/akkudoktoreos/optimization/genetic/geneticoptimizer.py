@@ -66,9 +66,12 @@ class GeneticOptimizer:
             individuals=parameters.settings.individuals,
         )
 
-    def api(self) -> Optional[OptimizerApi]:
-        """See ``Optimizer.api()``: none yet, the server serves GENETIC until step 6."""
-        return None
+    def api(self) -> OptimizerApi:
+        """See ``Optimizer.api()``."""
+        # Imported on first use: the router is only needed by the server.
+        from akkudoktoreos.optimization.genetic import geneticapi
+
+        return geneticapi.api()
 
     async def convert(
         self, parameters: GeneticParameters, result: GeneticSolution

@@ -202,6 +202,9 @@ test procedure. These changes are not yet a tagged release.
   `GeneticForecastsRequest`, its device and forecast models are `Genetic<Thing>Request` (e.g.
   `SolarPanelBatteryParameters` is `GeneticBatteryRequest`) and `GeneticCommonSettings` is
   `GeneticSettings`. Clients generated from `openapi.json` must follow the new names.
+- Each optimizer serves its stored result on its own path,
+  `GET /v1/energy-management/optimization/solution/GENETIC` and `.../solution/GENETIC0`,
+  with unchanged responses. The generic `.../solution/{algorithm}` route is removed.
 
 ### Fixed
 

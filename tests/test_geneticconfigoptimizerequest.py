@@ -435,7 +435,9 @@ def test_http_configuration_request_rejects_query_overrides(monkeypatch, query):
     monkeypatch.setattr(eos, "get_ems", lambda: SimpleNamespace(run=run))
     response = TestClient(eos.app).post(f"/v1/optimize?{query}", json={})
     assert response.status_code == 422
-    assert "query overrides are not supported" in response.text
+    assert response.headers["content-type"] == "application/problem+json"
+    assert response.json()["title"] == "HTTP Error"
+    assert "query overrides are not supported" in response.json()["detail"]
     run.assert_not_awaited()
 
 
