@@ -1,18 +1,15 @@
-"""Regression test suite for the repaired HomeAppliance module.
-
-TODO: fix this import to match wherever GeneticHomeApplianceRequest / HomeAppliance
-actually live in the repo.
-"""
+"""Regression test suite for the repaired GENETIC home appliance simulation."""
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pendulum
 import pytest
 
 from akkudoktoreos.config.configabc import CycleTimeWindowSequence, ValueTimeWindow
+from akkudoktoreos.optimization.genetic.devices import genetichomeappliance
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
-    HomeAppliance,
+    GeneticHomeAppliance,
 )
 from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticHomeApplianceRequest,
@@ -40,10 +37,20 @@ def make_appliance(
     prediction_hours: int = 24,
     optimization_hours: int = 24,
     **param_overrides,
-) -> HomeAppliance:
+) -> GeneticHomeAppliance:
+    """Build the simulated appliance from a request.
+
+    ``time_windows`` may be a ``mock_cycle_windows()`` mock: it then stands in for
+    ``cycles_to_matrix()`` while the appliance is built, and the request has no windows.
+    """
+    windows = param_overrides.get("time_windows")
+    if isinstance(windows, Mock):
+        param_overrides["time_windows"] = None
+        with patch.object(genetichomeappliance, "cycles_to_matrix", windows):
+            return make_appliance(prediction_hours, optimization_hours, **param_overrides)
     params = make_params(**param_overrides)
-    return HomeAppliance(
-        parameters=params,
+    return GeneticHomeAppliance(
+        parameters=params.to_parameters(),
         optimization_hours=optimization_hours,
         prediction_hours=prediction_hours,
     )
@@ -63,19 +70,14 @@ def cycle_window(cycle: int, start: str, duration: str) -> CycleTimeWindowSequen
 
 
 def mock_cycle_windows(cycle_matrix: dict[int, np.ndarray]) -> Mock:
-    """Build a Mock standing in for CycleTimeWindowSequence.
+    """Build a Mock standing in for ``cycles_to_matrix()`` (see ``make_appliance``).
 
-    ``Mock(spec=CycleTimeWindowSequence)`` satisfies both the pydantic
-    field-type check on ``GeneticHomeApplianceRequest.time_windows`` and any
-    isinstance check in the module, without needing real windows/pendulum
-    datetimes -- useful for isolating _build_duration_feasibility and the
-    scheduling/repair logic from the real cycles_to_matrix() implementation.
+    Isolates _build_duration_feasibility and the scheduling/repair logic from the
+    real window evaluation, without needing real windows/pendulum datetimes.
     """
     cycle_indices = list(cycle_matrix.keys())
     matrix = np.array([cycle_matrix[c] for c in cycle_indices])
-    mock = Mock(spec=CycleTimeWindowSequence)
-    mock.cycles_to_matrix = Mock(return_value=(cycle_indices, matrix))
-    return mock
+    return Mock(return_value=(cycle_indices, matrix))
 
 
 # ---------------------------------------------------------------------------
@@ -83,26 +85,37 @@ def mock_cycle_windows(cycle_matrix: dict[int, np.ndarray]) -> Mock:
 # ---------------------------------------------------------------------------
 
 class TestSetup:
+    """The placeholder window the result echoes (``echo_default_time_windows``)."""
+
     def test_default_time_windows_created_when_none_given(self):
-        appliance = make_appliance(time_windows=None, num_cycles=1)
-        assert appliance.parameters.time_windows is not None
-        assert isinstance(appliance.parameters.time_windows, CycleTimeWindowSequence)
+        params = make_params(time_windows=None, num_cycles=1)
+        params.echo_default_time_windows(24)
+        assert isinstance(params.time_windows, CycleTimeWindowSequence)
 
     def test_default_time_window_value_left_unset(self):
         # A None-valued window is invisible to cycles_to_matrix() and so
         # never masquerades as a real per-cycle window; every remaining
         # cycle instead falls through to the "unconstrained" fallback.
-        appliance = make_appliance(time_windows=None, num_cycles=3)
-        assert appliance.parameters.time_windows is not None
-        windows = appliance.parameters.time_windows.windows
+        params = make_params(time_windows=None, num_cycles=3)
+        params.echo_default_time_windows(24)
+        assert params.time_windows is not None
+        windows = params.time_windows.windows
         assert len(windows) == 1
         assert windows[0].value is None
+        appliance = GeneticHomeAppliance(params.to_parameters(), 24, 24)
+        assert appliance.start_allowed[2].any()
 
     def test_default_time_window_serializes_without_a_cycle_value(self):
-        appliance = make_appliance(time_windows=None, num_cycles=1)
-        assert appliance.parameters.time_windows is not None
-        dumped = appliance.parameters.time_windows.model_dump()
+        params = make_params(time_windows=None, num_cycles=1)
+        params.echo_default_time_windows(24)
+        assert params.time_windows is not None
+        dumped = params.time_windows.model_dump()
         assert dumped["windows"][0]["value"] is None
+
+    def test_simulation_leaves_the_request_unchanged(self):
+        params = make_params(time_windows=None, num_cycles=1)
+        GeneticHomeAppliance(params.to_parameters(), 24, 24)
+        assert params.time_windows is None
 
     def test_num_remaining_cycles_initial(self):
         appliance = make_appliance(num_cycles=3)
@@ -192,7 +205,7 @@ class TestDSTAllowedStartSlots:
     def _appliance(window_field, windows, run_minutes=15):
         if window_field == "time_windows":
             windows = [{**window, "value": 0} for window in windows]
-        return HomeAppliance(
+        return GeneticHomeAppliance(
             parameters=GeneticHomeApplianceRequest.model_validate(
                 {
                     "device_id": "dishwasher",
@@ -200,7 +213,7 @@ class TestDSTAllowedStartSlots:
                     "load_profile_interval_seconds": run_minutes * 60,
                     window_field: {"windows": windows},
                 }
-            ),
+            ).to_parameters(),
             optimization_hours=25,
             prediction_hours=100,
             slot_duration_h=0.25,
@@ -461,7 +474,7 @@ class TestRunInProgress:
 
     SLOT0 = "2026-11-14T01:00:00+01:00"
 
-    def pinned(self, started: str, now: str, slot0: str = SLOT0, **overrides) -> HomeAppliance:
+    def pinned(self, started: str, now: str, slot0: str = SLOT0, **overrides) -> GeneticHomeAppliance:
         appliance = make_appliance(
             prediction_hours=overrides.pop("prediction_hours", 6),
             run_started_datetime=started,
@@ -490,8 +503,8 @@ class TestRunInProgress:
             load_profile_interval_seconds=900,
             run_started_datetime="2026-11-14T00:00:00+01:00",
         )
-        appliance = HomeAppliance(
-            parameters=params, optimization_hours=4, prediction_hours=16, slot_duration_h=0.25
+        appliance = GeneticHomeAppliance(
+            parameters=params.to_parameters(), optimization_hours=4, prediction_hours=16, slot_duration_h=0.25
         )
         appliance.pin_run_in_progress(
             to_datetime("2026-11-14T00:15:00+01:00"), to_datetime("2026-11-14T00:20:00+01:00")

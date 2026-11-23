@@ -3,14 +3,14 @@
 This module models household devices such as dishwashers or washing
 machines that must run for a fixed duration, possibly multiple times
 (cycles), within one or more allowed time windows. Given a set of
-requested start times, `HomeAppliance` repairs them into a
+requested start times, `GeneticHomeAppliance` repairs them into a
 feasible, chronologically ordered schedule and produces the resulting
 per-slot energy curve.
 
-Time windows are always expressed as a `CycleTimeWindowSequence`
-(see ``akkudoktoreos.config.configabc``): each contained window's
-``value`` encodes the 0-based cycle index it applies to, so different
-cycles of the same appliance can be constrained to different windows.
+Time windows are always expressed as cycle windows (``GeneticTimeWindow``,
+see ``genetictimewindow``): each window's ``value`` encodes the 0-based
+cycle index it applies to, so different cycles of the same appliance can
+be constrained to different windows.
 When no windows are configured, every cycle defaults to a single
 window spanning the full prediction horizon (i.e. unconstrained).
 
@@ -31,30 +31,76 @@ Cycle start times are repaired according to the following rules:
 
 import math
 from collections.abc import Sequence
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Optional
 
 import numpy as np
 from loguru import logger
 
-from akkudoktoreos.config.configabc import (
-    CycleTimeWindowSequence,
-    TimeWindow,
-    ValueTimeWindow,
-)
-from akkudoktoreos.devices.devicesabc import (
-    ConsumerDeadlinePolicy,
-    ConsumerScheduleMode,
-)
-from akkudoktoreos.optimization.genetic.geneticrequest import (
-    GeneticHomeApplianceRequest,
+from akkudoktoreos.optimization.genetic.devices.genetictimewindow import (
+    GeneticTimeWindow,
+    cycles_to_matrix,
 )
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
     to_datetime,
     to_duration,
-    to_time,
 )
+
+
+class GeneticScheduleMode(StrEnum):
+    """How often an appliance's load profile is scheduled within the horizon."""
+
+    ONCE = "ONCE"
+    DAILY = "DAILY"
+
+
+class GeneticDeadlinePolicy(StrEnum):
+    """Whether a deadline that cannot be kept may be dropped."""
+
+    BEST_EFFORT = "BEST_EFFORT"
+    STRICT = "STRICT"
+
+
+@dataclass(frozen=True, slots=True)
+class GeneticHomeApplianceParameters:
+    """A home appliance of the simulation, derived from its request.
+
+    Attributes:
+        device_id: ID of the appliance.
+        consumption_wh: Energy of one run of the flat load [Wh]; with ``duration_h``.
+        duration_h: Duration of one run of the flat load [h]; with ``consumption_wh``.
+        num_cycles: Runs per schedule period.
+        completed_cycles: Runs already completed.
+        run_started_datetime: Start of a run in progress, if any.
+        min_cycle_gap_h: Minimum idle time between two runs [h].
+        time_windows: Cycle windows (``value`` is the cycle index); ``None`` unconstrained.
+        shared_time_windows: Windows every run must lie within; ``None`` unconstrained.
+        load_profile_power_w: Explicit power per profile step [W], instead of the flat load.
+        load_profile_interval_seconds: Duration of one profile step [s].
+        schedule_mode: How often the profile is scheduled.
+        earliest_start_datetime: No run starts before this moment.
+        deadline_datetime: Every run ends by this moment.
+        deadline_policy: Whether a deadline that cannot be kept may be dropped.
+    """
+
+    device_id: str
+    consumption_wh: Optional[int]
+    duration_h: Optional[int]
+    num_cycles: int
+    completed_cycles: int
+    run_started_datetime: Optional[DateTime]
+    min_cycle_gap_h: int
+    time_windows: Optional[tuple[GeneticTimeWindow, ...]]
+    shared_time_windows: Optional[tuple[GeneticTimeWindow, ...]]
+    load_profile_power_w: Optional[tuple[float, ...]]
+    load_profile_interval_seconds: Optional[int]
+    schedule_mode: GeneticScheduleMode
+    earliest_start_datetime: Optional[DateTime]
+    deadline_datetime: Optional[DateTime]
+    deadline_policy: GeneticDeadlinePolicy
 
 
 def resample_power_to_slot_energy(
@@ -113,7 +159,7 @@ def resample_power_to_slot_energy(
     return out
 
 
-class HomeAppliance:
+class GeneticHomeAppliance:
     """Non-vectorized simulation of a multi-cycle home appliance.
 
     A home appliance may execute multiple fixed-duration cycles during
@@ -127,7 +173,7 @@ class HomeAppliance:
 
     def __init__(
         self,
-        parameters: GeneticHomeApplianceRequest,
+        parameters: GeneticHomeApplianceParameters,
         optimization_hours: int,
         prediction_hours: int,
         slot_duration_h: float = 1.0,
@@ -154,6 +200,8 @@ class HomeAppliance:
         self.device_id = parameters.device_id
         self.schedule_mode = parameters.schedule_mode
         self.time_windows = parameters.shared_time_windows
+        # Cycle windows; _setup() puts in a window that belongs to no cycle when none are given.
+        self.cycle_windows: tuple[GeneticTimeWindow, ...] = parameters.time_windows or ()
         self.earliest_start_datetime = parameters.earliest_start_datetime
         self.deadline_datetime = parameters.deadline_datetime
         self.deadline_policy = parameters.deadline_policy
@@ -323,7 +371,7 @@ class HomeAppliance:
         """
         pinned = 0
         if self.run_in_progress and (
-            self.schedule_mode == ConsumerScheduleMode.ONCE or self.pinned_run_date == first_date
+            self.schedule_mode == GeneticScheduleMode.ONCE or self.pinned_run_date == first_date
         ):
             pinned = 1
         return min(self.num_cycles, self.completed_cycles + pinned)
@@ -399,7 +447,7 @@ class HomeAppliance:
         if (
             allowed
             or self.deadline_datetime is None
-            or self.deadline_policy == ConsumerDeadlinePolicy.STRICT
+            or self.deadline_policy == GeneticDeadlinePolicy.STRICT
         ):
             return allowed
 
@@ -474,9 +522,7 @@ class HomeAppliance:
             raise ValueError("Cycle index is outside the configured cycle range.")
         cycle_windows = [
             window
-            for window in (
-                self.parameters.time_windows.windows if self.parameters.time_windows else []
-            )
+            for window in self.cycle_windows
             if window.value is not None and int(window.value) == cycle_index
         ]
 
@@ -486,7 +532,7 @@ class HomeAppliance:
             start_dt = slot0_datetime.add(seconds=slot * self.slot_interval_seconds)
             if (
                 self.time_windows is None
-                or self._windows_allow_run(self.time_windows.windows, start_dt, run_duration)
+                or self._windows_allow_run(self.time_windows, start_dt, run_duration)
             ) and (
                 not cycle_windows
                 or self._windows_allow_run(cycle_windows, start_dt, run_duration, merge=True)
@@ -496,7 +542,11 @@ class HomeAppliance:
 
     @staticmethod
     def _windows_allow_run(
-        windows: Sequence[TimeWindow], start: DateTime, duration: Duration, *, merge: bool = False
+        windows: Sequence[GeneticTimeWindow],
+        start: DateTime,
+        duration: Duration,
+        *,
+        merge: bool = False,
     ) -> bool:
         """Check full coverage including windows anchored on previous local dates.
 
@@ -520,7 +570,7 @@ class HomeAppliance:
                     continue
                 if window.month is not None and anchor.month != window.month:
                     continue
-                opening, closing = window._window_start_end(anchor)
+                opening, closing = window.start_end(anchor)
                 opening_offset = (opening - start).total_seconds()
                 closing_offset = (closing - start).total_seconds()
                 if opening_offset <= 0 and run_seconds <= closing_offset:
@@ -596,29 +646,12 @@ class HomeAppliance:
     # ------------------------------------------------------------------
 
     def _setup(self) -> None:
-        """Sets up appliance parameters and default time windows.
+        """Builds the allowed-start masks.
 
-        When no ``time_windows`` are configured, builds a single
-        placeholder window spanning the full prediction horizon with
-        ``value`` left unset. ``CycleTimeWindowSequence.cycles_to_matrix``
-        ignores windows whose ``value`` is ``None``, so this window never
-        matches any cycle; every remaining cycle then falls through to
-        the "no window for this cycle" branch in
+        A cycle without a window of its own (also when no ``time_windows`` are
+        configured) falls through to the "no window for this cycle" branch in
         ``_build_cycle_start_allowed``, which treats it as unconstrained.
-        The net effect is the same as having no windows at all, without
-        assigning cycles an explicit (and misleadingly meaningful)
-        ``value``.
         """
-        if self.parameters.time_windows is None:
-            self.parameters.time_windows = CycleTimeWindowSequence(
-                windows=[
-                    ValueTimeWindow(
-                        start_time=to_time("00:00"),
-                        duration=to_duration(f"{self.prediction_hours} hours"),
-                    ),
-                ]
-            )
-
         self._build_start_allowed()
 
     @property
@@ -652,8 +685,6 @@ class HomeAppliance:
 
     def _build_start_allowed(self) -> None:
         """Builds allowed start positions for all remaining cycles."""
-        if self.parameters.time_windows is None:
-            raise ValueError("Expected time windows in parameters, got {self.parameters}.")
         self.start_allowed = []
         self.start_earliest = []
         self.start_latest = []
@@ -680,7 +711,7 @@ class HomeAppliance:
         interval = to_duration(self.slot_interval_seconds)
 
         self._build_cycle_start_allowed(
-            self.parameters.time_windows,
+            self.cycle_windows,
             start_datetime,
             end_datetime,
             interval,
@@ -688,7 +719,7 @@ class HomeAppliance:
 
     def _build_cycle_start_allowed(
         self,
-        time_windows: CycleTimeWindowSequence,
+        time_windows: Sequence[GeneticTimeWindow],
         start_datetime: DateTime,
         end_datetime: DateTime,
         interval: Duration,
@@ -701,7 +732,8 @@ class HomeAppliance:
             end_datetime: End of the simulation horizon.
             interval: Step size used to sample the cycle windows.
         """
-        cycle_indices, matrix = time_windows.cycles_to_matrix(
+        cycle_indices, matrix = cycles_to_matrix(
+            time_windows,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
             interval=interval,

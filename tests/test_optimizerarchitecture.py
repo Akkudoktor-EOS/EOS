@@ -144,7 +144,7 @@ CONTRACT_NAMES: dict[str, frozenset[str]] = {
         }
     ),
     "akkudoktoreos.config.configabc": frozenset(
-        {"TimeWindow", "TimeWindowSequence", "CycleTimeWindowSequence"}
+        {"TimeWindow", "TimeWindowSequence", "ValueTimeWindow", "CycleTimeWindowSequence"}
     ),
 }
 # The roles that build the output or define the public schema, the only ones
@@ -437,21 +437,6 @@ BASELINE: frozenset[Violation] = frozenset(
             "shared-config",
             "akkudoktoreos.devices.settings.invertersettings",
             "akkudoktoreos.optimization.genetic.geneticrequest",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.devices.genetichomeappliance",
-            "akkudoktoreos.config.configabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.devices.genetichomeappliance",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticalgorithm",
-            "akkudoktoreos.devices.devicesabc",
         ),
         Violation(
             "world-access",

@@ -23,6 +23,7 @@ from typing_extensions import Self
 from akkudoktoreos.config.configabc import (
     CycleTimeWindowSequence,
     TimeWindowSequence,
+    ValueTimeWindow,
 )
 from akkudoktoreos.devices.devicesabc import (
     ConsumerDeadlinePolicy,
@@ -32,8 +33,16 @@ from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     SOC_TABLE_POINTS,
     GeneticBatteryParameters,
 )
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+    GeneticDeadlinePolicy,
+    GeneticHomeApplianceParameters,
+    GeneticScheduleMode,
+)
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
     GeneticInverterParameters,
+)
+from akkudoktoreos.optimization.genetic.devices.genetictimewindow import (
+    GeneticTimeWindow,
 )
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticefficiency import (
@@ -46,6 +55,8 @@ from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     compare_datetimes,
     to_datetime,
+    to_duration,
+    to_time,
 )
 
 
@@ -763,6 +774,51 @@ class GeneticHomeApplianceRequest(GeneticDeviceRequest):
                 )
         return self
 
+    def to_parameters(self) -> GeneticHomeApplianceParameters:
+        """The home appliance of the simulation.
+
+        Returns:
+            The frozen home appliance parameters.
+        """
+        return GeneticHomeApplianceParameters(
+            device_id=self.device_id,
+            consumption_wh=self.consumption_wh,
+            duration_h=self.duration_h,
+            num_cycles=self.num_cycles,
+            completed_cycles=self.completed_cycles,
+            run_started_datetime=self.run_started_datetime,
+            min_cycle_gap_h=self.min_cycle_gap_h,
+            time_windows=_windows_or_none(self.time_windows),
+            shared_time_windows=_windows_or_none(self.shared_time_windows),
+            load_profile_power_w=_tuple_or_none(self.load_profile_power_w),
+            load_profile_interval_seconds=self.load_profile_interval_seconds,
+            schedule_mode=GeneticScheduleMode(str(self.schedule_mode)),
+            earliest_start_datetime=self.earliest_start_datetime,
+            deadline_datetime=self.deadline_datetime,
+            deadline_policy=GeneticDeadlinePolicy(str(self.deadline_policy)),
+        )
+
+    def echo_default_time_windows(self, prediction_slots: int) -> None:
+        """Put the placeholder cycle window into the request if it has no windows.
+
+        Known behaviour, reproduced (migration "move, then fix"): the simulation used to write
+        this placeholder into the request, so the result echoes it. The window belongs to no
+        cycle and spans ``prediction_slots`` hours (slots, used as hours); it constrains
+        nothing.
+
+        Args:
+            prediction_slots: Number of slots of the simulation.
+        """
+        if self.time_windows is None:
+            self.time_windows = CycleTimeWindowSequence(
+                windows=[
+                    ValueTimeWindow(
+                        start_time=to_time("00:00"),
+                        duration=to_duration(f"{prediction_slots} hours"),
+                    ),
+                ]
+            )
+
 
 class GeneticEnergyManagementRequest(GeneticParametersBaseModel):
     """Encapsulates energy-related forecasts and costs used in GENETIC optimization."""
@@ -1126,3 +1182,24 @@ def validate_home_appliance_load_definition(
             )
         if value < 0:
             raise ValueError("load_profile_power_w must not contain negative values.")
+
+
+def _windows_or_none(
+    sequence: Optional[TimeWindowSequence],
+) -> Optional[tuple[GeneticTimeWindow, ...]]:
+    """The windows of a request as simulation windows; ``None`` stays unconstrained."""
+    if sequence is None:
+        return None
+    return tuple(
+        GeneticTimeWindow(
+            start_time=window.start_time,
+            duration=window.duration,
+            end_time=window.end_time,
+            # The request validates a weekday name into its number.
+            day_of_week=None if window.day_of_week is None else int(window.day_of_week),
+            date=window.date,
+            month=window.month,
+            value=getattr(window, "value", None),
+        )
+        for window in sequence.windows
+    )

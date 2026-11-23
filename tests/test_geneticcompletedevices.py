@@ -19,7 +19,8 @@ from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
-    HomeAppliance,
+    GeneticDeadlinePolicy,
+    GeneticHomeAppliance,
     resample_power_to_slot_energy,
 )
 from akkudoktoreos.optimization.genetic.geneticrequest import (
@@ -29,8 +30,8 @@ from akkudoktoreos.optimization.genetic.geneticrequest import (
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
-def appliance(*, slots: int = 192, slot_h: float = 0.25, **kwargs: Any) -> HomeAppliance:
-    return HomeAppliance(
+def appliance(*, slots: int = 192, slot_h: float = 0.25, **kwargs: Any) -> GeneticHomeAppliance:
+    return GeneticHomeAppliance(
         GeneticHomeApplianceRequest.model_validate(
             {
                 "device_id": "washer",
@@ -38,7 +39,7 @@ def appliance(*, slots: int = 192, slot_h: float = 0.25, **kwargs: Any) -> HomeA
                 "load_profile_interval_seconds": 600,
                 **kwargs,
             }
-        ),
+        ).to_parameters(),
         optimization_hours=48,
         prediction_hours=slots,
         slot_duration_h=slot_h,
@@ -119,7 +120,7 @@ def test_cycle_and_shared_windows_intersect_after_completed_cycle() -> None:
             "time_windows": {"windows": [{"start_time": "18:30", "duration": "1 hour"}]},
         }
     )
-    device = HomeAppliance(settings.to_genetic_param(), 48, 192, 0.25)
+    device = GeneticHomeAppliance(settings.to_genetic_param().to_parameters(), 48, 192, 0.25)
     device.set_completed_cycles(1)
     zero = to_datetime("2026-09-16T00:00:00+02:00", in_timezone="Europe/Berlin")
     assert device.remaining_cycle_indices == [1]
@@ -185,7 +186,7 @@ def test_best_effort_relaxes_only_deadline_not_window_or_earliest() -> None:
         slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96
     ) == [36]
     assert device.deadline_relaxed and device.deadline_missed([36], zero)
-    device.deadline_policy = ConsumerDeadlinePolicy.STRICT
+    device.deadline_policy = GeneticDeadlinePolicy.STRICT
     assert (
         device.allowed_start_slots(slot0_datetime=zero, earliest_slot=0, horizon_end_slot=96) == []
     )

@@ -31,7 +31,7 @@ from akkudoktoreos.config.configabc import (
     ValueTimeWindowSequence,
 )
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
-    HomeAppliance,
+    GeneticHomeAppliance,
 )
 from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticHomeApplianceRequest,
@@ -2414,14 +2414,14 @@ class TestTimeWindowBoundaries:
         )
         # Exercise the serialized settings used by the dashboard/API as well.
         sequence = CycleTimeWindowSequence.model_validate_json(sequence.model_dump_json())
-        appliance = HomeAppliance(
+        appliance = GeneticHomeAppliance(
             parameters=GeneticHomeApplianceRequest(
                 device_id="dishwasher",
                 duration_h=2,
                 consumption_wh=2000,
                 num_cycles=1,
                 time_windows=sequence,
-            ),
+            ).to_parameters(),
             prediction_hours=24,
             optimization_hours=24,
         )
@@ -2431,7 +2431,7 @@ class TestTimeWindowBoundaries:
         appliance.start_latest = []
 
         appliance._build_cycle_start_allowed(
-            sequence, start, start.add(days=1), pendulum.duration(hours=1)
+            appliance.cycle_windows, start, start.add(days=1), to_duration("1 hour")
         )
 
         np.testing.assert_array_equal(np.flatnonzero(appliance.start_allowed[0]), [8, 9, 10])

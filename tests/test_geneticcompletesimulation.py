@@ -7,7 +7,7 @@ from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     GeneticBattery,
 )
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
-    HomeAppliance,
+    GeneticHomeAppliance,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
     GeneticInverter,
@@ -60,13 +60,13 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     )
 
     # Flexible consumer (fixed start at slot 2 for this deterministic test)
-    home_appliance = HomeAppliance(
+    home_appliance = GeneticHomeAppliance(
         GeneticHomeApplianceRequest(
             device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
             time_windows=None,
-        ),
+        ).to_parameters(),
         optimization_hours=config_eos.optimization.genetic.horizon_hours,
         prediction_hours=config_eos.prediction.hours,
     )

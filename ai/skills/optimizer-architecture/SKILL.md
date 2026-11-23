@@ -35,8 +35,8 @@ and flag any conflict.
   `OptimizationSolution` may be imported. The other contract names of
   `CONTRACT_NAMES` (`PydanticDateTimeDataFrame` of the solution, the plan's
   `BatteryOperationMode` and `ApplianceOperationMode`, the request schema's
-  time windows (`TimeWindow`, `TimeWindowSequence`, `CycleTimeWindowSequence`)
-  and consumer enums (`ConsumerScheduleMode`,
+  time windows (`TimeWindow`, `TimeWindowSequence`, `ValueTimeWindow`,
+  `CycleTimeWindowSequence`) and consumer enums (`ConsumerScheduleMode`,
   `ConsumerDeadlinePolicy`)) are allowed only in the request,
   conversion, visualization and API modules (`CONTRACT_ROLES`), never in the
   parameters or the simulation.

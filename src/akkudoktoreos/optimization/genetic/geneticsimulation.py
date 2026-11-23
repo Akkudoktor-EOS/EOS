@@ -7,7 +7,7 @@ from loguru import logger
 
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
-    HomeAppliance,
+    GeneticHomeAppliance,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import GeneticInverter
 from akkudoktoreos.optimization.genetic.geneticenergymanagement import (
@@ -51,7 +51,7 @@ class GeneticSimulation:
         self.battery: Optional[GeneticBattery] = None
         self.ev: Optional[GeneticBattery] = None
         # Flexible consumers scheduled by the optimizer.
-        self.home_appliances: list[HomeAppliance] = []
+        self.home_appliances: list[GeneticHomeAppliance] = []
         self.inverter: Optional[GeneticInverter] = None
         # Per-slot actions of the candidate plan.
         self.ac_charge_hours: Optional[np.ndarray] = None
@@ -64,12 +64,12 @@ class GeneticSimulation:
         self.home_appliance_start_hour: Optional[int] = None
 
     @property
-    def home_appliance(self) -> Optional[HomeAppliance]:
+    def home_appliance(self) -> Optional[GeneticHomeAppliance]:
         """Deprecated singular device accessor."""
         return self.home_appliances[0] if self.home_appliances else None
 
     @home_appliance.setter
-    def home_appliance(self, appliance: Optional[HomeAppliance]) -> None:
+    def home_appliance(self, appliance: Optional[GeneticHomeAppliance]) -> None:
         self.home_appliances = [appliance] if appliance is not None else []
 
     def prepare(
@@ -78,10 +78,10 @@ class GeneticSimulation:
         optimization_hours: int,
         prediction_hours: int,
         ev: Optional[GeneticBattery] = None,
-        home_appliance: Optional[HomeAppliance] = None,
+        home_appliance: Optional[GeneticHomeAppliance] = None,
         inverter: Optional[GeneticInverter] = None,
         direct_marketing_enabled: bool = False,
-        home_appliances: Optional[list[HomeAppliance]] = None,
+        home_appliances: Optional[list[GeneticHomeAppliance]] = None,
     ) -> None:
         """Prepare simulation runs.
 
@@ -344,7 +344,7 @@ class GeneticSimulation:
             for appliance in home_appliances_fast:
                 curve = getattr(appliance, "load_curve", None)
                 if (
-                    type(appliance).get_load_for_hour is not HomeAppliance.get_load_for_hour
+                    type(appliance).get_load_for_hour is not GeneticHomeAppliance.get_load_for_hour
                     or not isinstance(curve, np.ndarray)
                     or curve.dtype != np.float64
                     or curve.ndim != 1

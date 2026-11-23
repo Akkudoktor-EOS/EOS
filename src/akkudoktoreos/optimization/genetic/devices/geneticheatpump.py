@@ -3,7 +3,7 @@ from typing import List, Sequence
 from loguru import logger
 
 
-class Heatpump:
+class GeneticHeatpump:
     MAX_HEAT_OUTPUT = 5000
     """Maximum heating power in watts"""
 
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     initial_indoor_temperature = 15  # Initial indoor temperature
     insulation_efficiency = 0.8  # Insulation efficiency
     desired_indoor_temperature = 20  # Desired indoor temperature
-    hp = Heatpump(max_heating_power, 24)  # Initialize heat pump with prediction hours
+    hp = GeneticHeatpump(max_heating_power, 24)  # Initialize heat pump with prediction hours
 
     # Print COP for various outside temperatures
     print(hp.calculate_cop(-10), " ", hp.calculate_cop(0), " ", hp.calculate_cop(10))

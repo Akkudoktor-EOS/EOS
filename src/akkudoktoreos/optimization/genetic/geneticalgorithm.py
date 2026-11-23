@@ -13,7 +13,7 @@ import sys
 import time
 from array import array
 from collections import OrderedDict, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from typing import Any, Optional, cast
 
@@ -21,10 +21,10 @@ import numpy as np
 from deap import base, creator, tools
 from loguru import logger
 
-from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
 from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
 from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
-    HomeAppliance,
+    GeneticHomeAppliance,
+    GeneticScheduleMode,
 )
 from akkudoktoreos.optimization.genetic.devices.geneticinverter import GeneticInverter
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticRunSettings
@@ -741,7 +741,7 @@ class GeneticOptimization:
         slot_seconds = self.slot_duration_h * 3600
         first_date = slot0.date()
         for appliance in self.simulation.home_appliances or []:
-            if appliance.schedule_mode != ConsumerScheduleMode.DAILY:
+            if appliance.schedule_mode != GeneticScheduleMode.DAILY:
                 continue
             # A run in progress counts as done for its day, as in the layout.
             completed_cycles = appliance.completed_cycles_on(first_date)
@@ -750,8 +750,8 @@ class GeneticOptimization:
             # the estimated range instead; it shares the same parameters, so the
             # time windows and the earliest start still apply. A deadline only
             # limits the run it was set for and must not cap the following days.
-            probe = HomeAppliance(
-                parameters=appliance.parameters.model_copy(update={"deadline_datetime": None}),
+            probe = GeneticHomeAppliance(
+                parameters=replace(appliance.parameters, deadline_datetime=None),
                 optimization_hours=self.settings.horizon_hours,
                 prediction_hours=end_slot,
                 slot_duration_h=self.slot_duration_h,
@@ -1032,7 +1032,7 @@ class GeneticOptimization:
         )
 
     def _build_appliance_layout(
-        self, appliances: list[HomeAppliance], slot0_datetime: Any
+        self, appliances: list[GeneticHomeAppliance], slot0_datetime: Any
     ) -> ApplianceGeneLayout:
         """Keep each cycle's windows, completed cycles and local-day identity."""
         self._appliance_devices = appliances
@@ -1057,7 +1057,7 @@ class GeneticOptimization:
                     cycle_index=cycle,
                 )
                 relaxed_by_cycle[cycle] = appliance.deadline_relaxed
-            if appliance.schedule_mode == ConsumerScheduleMode.ONCE:
+            if appliance.schedule_mode == GeneticScheduleMode.ONCE:
                 groups = [
                     (None, cycle, allowed_by_cycle[cycle])
                     for cycle in cycles
@@ -3779,9 +3779,11 @@ class GeneticOptimization:
         # layout. slot0_datetime (the run start) turns decoded start
         # slots into absolute local timestamps and drives DAILY day grouping.
         self._slot0_datetime = self.settings.start_datetime
+        for appliance_params in home_appliance_params:
+            appliance_params.echo_default_time_windows(self.control_end_slot)
         home_appliances = [
-            HomeAppliance(
-                parameters=appliance_params,
+            GeneticHomeAppliance(
+                parameters=appliance_params.to_parameters(),
                 optimization_hours=self.settings.horizon_hours,
                 prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,

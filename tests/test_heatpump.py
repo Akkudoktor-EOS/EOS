@@ -1,16 +1,16 @@
 import pytest
 
-from akkudoktoreos.optimization.genetic.devices.geneticheatpump import Heatpump
+from akkudoktoreos.optimization.genetic.devices.geneticheatpump import GeneticHeatpump
 
 
 @pytest.fixture(scope="function")
-def hp_5kw_24h() -> Heatpump:
+def hp_5kw_24h() -> GeneticHeatpump:
     """Heatpump with 5 kW heating power and 24 h prediction."""
-    return Heatpump(5000, 24)
+    return GeneticHeatpump(5000, 24)
 
 
 class TestHeatpump:
-    def test_cop(self, hp_5kw_24h: Heatpump):
+    def test_cop(self, hp_5kw_24h: GeneticHeatpump):
         """Testing calculate COP for various outside temperatures."""
         assert hp_5kw_24h.calculate_cop(-10) == 2.0
         assert hp_5kw_24h.calculate_cop(0) == 3.0
@@ -23,13 +23,13 @@ class TestHeatpump:
         with pytest.raises(ValueError, match=f"'{out_temp_max}' not in range"):
             hp_5kw_24h.calculate_cop(out_temp_max)
 
-    def test_heating_output(self, hp_5kw_24h: Heatpump):
+    def test_heating_output(self, hp_5kw_24h: GeneticHeatpump):
         """Testing calculation of heating output."""
         assert hp_5kw_24h.calculate_heating_output(-10.0) == 5000
         assert hp_5kw_24h.calculate_heating_output(0.0) == 5000
         assert hp_5kw_24h.calculate_heating_output(10.0) == pytest.approx(4939.583)
 
-    def test_heating_power(self, hp_5kw_24h: Heatpump):
+    def test_heating_power(self, hp_5kw_24h: GeneticHeatpump):
         """Testing calculation of heating power."""
         assert hp_5kw_24h.calculate_heat_power(-10.0) == 2104
         assert hp_5kw_24h.calculate_heat_power(0.0) == 1164
