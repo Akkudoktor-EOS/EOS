@@ -1,17 +1,19 @@
 # ruff: noqa: S101
 
 import numpy as np
+from conftest import genetic_optimization
 
 from akkudoktoreos.devices.devicesabc import BatteryOperationMode
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic import geneticconvert
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
 
 
 def test_battery_discharge_allowed_remains_local_load_mode(config_eos):
     config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
-    solution = GeneticSolution
 
-    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+    operation_mode, operation_mode_factor = geneticconvert._battery_operation_from_solution(
         ac_charge=0.0,
         dc_charge=0.0,
         discharge_allowed=True,
@@ -23,9 +25,8 @@ def test_battery_discharge_allowed_remains_local_load_mode(config_eos):
 
 def test_battery_grid_export_signal_maps_to_grid_support_export(config_eos):
     config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
-    solution = GeneticSolution
 
-    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+    operation_mode, operation_mode_factor = geneticconvert._battery_operation_from_solution(
         ac_charge=0.0,
         dc_charge=0.0,
         discharge_allowed=False,
@@ -37,7 +38,7 @@ def test_battery_grid_export_signal_maps_to_grid_support_export(config_eos):
 
 
 def test_decode_charge_discharge_has_separate_battery_grid_export_state():
-    optimization = GeneticOptimization()
+    optimization = genetic_optimization()
     optimization.bat_possible_charge_values = [1.0]
     optimization.optimize_dc_charge = True
     optimization.optimize_battery_grid_export = True
@@ -53,7 +54,7 @@ def test_decode_charge_discharge_has_separate_battery_grid_export_state():
 
 
 def test_decode_charge_discharge_has_self_consumption_state_after_legacy_export():
-    optimization = GeneticOptimization()
+    optimization = genetic_optimization()
     optimization.bat_possible_charge_values = [1.0]
     optimization.optimize_dc_charge = True
     optimization.optimize_battery_grid_export = True
@@ -74,7 +75,7 @@ def test_decode_charge_discharge_has_self_consumption_state_after_legacy_export(
 
 def test_graded_grid_export_states_decode_to_rates():
     """Each configured export rate gets its own state; state 5 stays full power."""
-    optimization = GeneticOptimization()
+    optimization = genetic_optimization()
     optimization.bat_possible_charge_values = [1.0]
     optimization.bat_possible_grid_export_values = [1.0, 0.5, 0.25]
     optimization.optimize_dc_charge = True
@@ -94,7 +95,7 @@ def test_graded_grid_export_states_decode_to_rates():
 
 def test_single_export_rate_keeps_all_or_nothing_layout():
     """Without configured rates the state space is the one from before grading."""
-    optimization = GeneticOptimization()
+    optimization = genetic_optimization()
     optimization.bat_possible_charge_values = [1.0]
     optimization.optimize_dc_charge = True
     optimization.optimize_battery_grid_export = True
@@ -108,9 +109,8 @@ def test_single_export_rate_keeps_all_or_nothing_layout():
 def test_battery_grid_export_factor_becomes_operation_factor(config_eos):
     """A partial export level is reported as the GRID_SUPPORT_EXPORT factor."""
     config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
-    solution = GeneticSolution
 
-    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+    operation_mode, operation_mode_factor = geneticconvert._battery_operation_from_solution(
         ac_charge=0.0,
         dc_charge=0.0,
         discharge_allowed=False,
@@ -124,7 +124,7 @@ def test_battery_grid_export_factor_becomes_operation_factor(config_eos):
 
 def test_disjoint_cycle_masks_keep_feasible_non_deadline_order(config_eos):
     from akkudoktoreos.core.coreabc import get_ems
-    from akkudoktoreos.optimization.genetic.geneticparams import (
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
         GeneticOptimizationParameters,
     )
     from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -174,7 +174,7 @@ def test_disjoint_cycle_masks_keep_feasible_non_deadline_order(config_eos):
             ],
         }
     )
-    optimizer = GeneticOptimization(fixed_seed=42)
+    optimizer = genetic_optimization(seed=42)
     solution = optimizer.optimize_ems(params, ngen=1, individuals=6)
     assert [(item.hour, item.minute) for item in solution.appliance_starts["washer"]] == [
         (0, 0),

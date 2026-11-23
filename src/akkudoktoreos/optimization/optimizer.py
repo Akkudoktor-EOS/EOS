@@ -20,6 +20,21 @@ RequestT_contra = TypeVar("RequestT_contra", contravariant=True)
 ResultT = TypeVar("ResultT")
 
 
+@dataclass(frozen=True, slots=True)
+class RunClock:
+    """The clock an optimizer's runs follow (ADR 0006).
+
+    Attributes:
+        slot_seconds: Length of the optimizer's slots; the run start is rounded down to a slot
+            boundary. 900 or 3600.
+        timezone: Time zone a run without an explicit start starts in, e.g. the site's time zone
+            for slots that follow the local day; ``None`` uses the server's local time.
+    """
+
+    slot_seconds: int
+    timezone: Optional[str] = None
+
+
 class Optimizer(Protocol[ParametersT, RequestT_contra, ResultT]):
     """An optimizer, driven by the energy management.
 
@@ -28,6 +43,17 @@ class Optimizer(Protocol[ParametersT, RequestT_contra, ResultT]):
     """
 
     name: str
+
+    def run_clock(self) -> RunClock:
+        """The slot length and time zone the energy management starts the next run in.
+
+        Read from the optimizer's settings by its parameter preparation, before the run start is
+        fixed; never fails.
+
+        Returns:
+            The clock of the next run.
+        """
+        ...
 
     async def prepare(
         self,

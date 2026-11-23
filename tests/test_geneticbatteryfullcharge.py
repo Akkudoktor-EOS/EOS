@@ -8,12 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization
 from pydantic import ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
 from akkudoktoreos.devices.profile.batteryprofile import BatteryProfileSettings
 from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
 from akkudoktoreos.devices.profile.profilestore import get_profile_store
@@ -26,18 +26,34 @@ from akkudoktoreos.devices.settings.batterysettings import (
     BatteriesCommonSettings,
     BatteryProfileAdjustment,
 )
-from akkudoktoreos.optimization.genetic import configrequest
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.fullcharge import (
+from akkudoktoreos.optimization.genetic import geneticprepare
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    GeneticBattery,
+)
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
+from akkudoktoreos.optimization.genetic.geneticfullcharge import (
     FULL_CHARGE_MIN_LEAD_HOURS,
     enforced_full_charge_deadline,
     full_charge_deadline,
 )
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
     GeneticOptimizationParameters,
+    GeneticRequest,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+
+# Run start and observation time of the run the tests prepare; the fixture sets them.
+RUN = SimpleNamespace(ems=None)
+
+
+async def resolve(request: GeneticRequest, warm_start: Any = None) -> GeneticOptimizationParameters:
+    """Prepare ``request`` at the run start and observation time of ``RUN.ems``."""
+    return await geneticprepare.resolve_request(
+        request, RUN.ems.start_datetime, RUN.ems.observation_datetime, warm_start
+    )
 
 ems_eos = get_ems(init=True)  # init once
 
@@ -206,7 +222,7 @@ def test_resolve_full_charge_caps_target_and_threshold(config_eos):
 
 def test_parameters_reject_target_above_max_soc():
     with pytest.raises(ValidationError):
-        SolarPanelBatteryParameters(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=10000,
             max_soc_percentage=90,
@@ -215,7 +231,7 @@ def test_parameters_reject_target_above_max_soc():
 
 
 def test_parameters_parse_naive_deadline_as_local_time():
-    parameters = SolarPanelBatteryParameters.model_validate(
+    parameters = GeneticBatteryRequest.model_validate(
         {
             "device_id": "battery1",
             "capacity_wh": 10000,
@@ -224,6 +240,26 @@ def test_parameters_parse_naive_deadline_as_local_time():
         }
     )
     assert parameters.full_charge_deadline_datetime == to_datetime("2026-11-21T07:00:00")
+
+
+@pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin", "America/New_York"])
+@pytest.mark.parametrize("deadline_timezone", ["UTC", "Asia/Tokyo"])
+def test_parameters_hold_the_deadline_in_utc(
+    set_other_timezone, host_timezone, deadline_timezone
+):
+    set_other_timezone(host_timezone)
+    deadline = to_datetime("2026-11-21T07:00:00", in_timezone=deadline_timezone)
+    parameters = GeneticBatteryRequest(
+        device_id="battery1",
+        capacity_wh=10000,
+        full_charge_soc_percentage=100,
+        full_charge_deadline_datetime=deadline,
+    )
+    assert parameters.full_charge_deadline_datetime == deadline
+    assert parameters.full_charge_deadline_datetime.timezone_name == "UTC"
+    # The serialized deadline reads back the same.
+    dumped = parameters.model_dump(mode="json")
+    assert GeneticBatteryRequest.model_validate(dumped).model_dump(mode="json") == dumped
 
 
 # ---------------------------------------------------------------------------
@@ -272,12 +308,10 @@ def full_charge_request(config_eos, monkeypatch):
         }
     )
     start = to_datetime("2026-09-12T10:15:00Z", in_timezone="UTC")
-    ems = SimpleNamespace(
-        start_datetime=start, observation_datetime=start, genetic_solution=lambda: None
-    )
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    ems = SimpleNamespace(start_datetime=start, observation_datetime=start)
+    monkeypatch.setattr(RUN, "ems", ems)
     measurement = Mock(key_to_lists=AsyncMock(return_value=([], [])))
-    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", measurement)
+    monkeypatch.setattr(geneticprepare, "get_measurement", Mock(return_value=measurement))
     data = {
         "soc": {"storage": 40},
         "forecasts": {
@@ -302,7 +336,7 @@ async def test_cold_battery_does_not_cancel_the_request(full_charge_request, mon
 
     monkeypatch.setattr(BatteriesCommonSettings, "measure_operating_point", cold)
 
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
 
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_charge_power_w == 0.0
@@ -324,7 +358,7 @@ async def test_hot_inverter_does_not_cancel_the_request(full_charge_request, mon
 
     monkeypatch.setattr(InverterCommonSettings, "measure_operating_point", hot)
 
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
 
     assert parameters.inverter is not None
     assert parameters.inverter.max_power_wh > 0.0
@@ -343,7 +377,7 @@ def _history(start: DateTime, full_days_ago: Optional[float]) -> tuple[list[Date
 async def test_feature_disabled_reads_no_history(full_charge_request):
     config, _, measurement, data = full_charge_request
     config.devices.batteries["storage"].profile_adjustment.full_charge_interval_days = None
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 90
     assert parameters.pv_battery.full_charge_soc_percentage is None
@@ -354,7 +388,7 @@ async def test_feature_disabled_reads_no_history(full_charge_request):
 async def test_not_due_within_horizon_leaves_battery_unchanged(full_charge_request):
     _, start, measurement, data = full_charge_request
     measurement.key_to_lists.return_value = _history(start, full_days_ago=5)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 90
     assert parameters.pv_battery.full_charge_soc_percentage is None
@@ -369,7 +403,7 @@ async def test_not_due_within_horizon_leaves_battery_unchanged(full_charge_reque
 async def test_due_without_grid_only_raises_the_maximum(full_charge_request):
     _, start, measurement, data = full_charge_request
     measurement.key_to_lists.return_value = _history(start, full_days_ago=20.5)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 100
     assert parameters.pv_battery.full_charge_soc_percentage is None
@@ -381,7 +415,7 @@ async def test_due_with_grid_enforces_target_and_deadline(full_charge_request):
     config, start, measurement, data = full_charge_request
     config.devices.batteries["storage"].full_charge_allow_grid = True
     measurement.key_to_lists.return_value = _history(start, full_days_ago=None)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 100
     assert parameters.pv_battery.full_charge_soc_percentage == 100
@@ -400,7 +434,7 @@ async def test_overdue_full_charge_is_due_with_a_horizon_shorter_than_the_lead_t
     config.merge_settings_from_dict({"optimization": {"genetic": {"horizon_hours": 12}}})
     config.devices.batteries["storage"].full_charge_allow_grid = True
     measurement.key_to_lists.return_value = _history(start, full_days_ago=None)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 100
     assert parameters.pv_battery.full_charge_soc_percentage == 100
@@ -414,7 +448,7 @@ async def test_missing_history_does_not_schedule_a_full_charge(full_charge_reque
     config, _, measurement, data = full_charge_request
     config.devices.batteries["storage"].full_charge_allow_grid = True
     measurement.key_to_lists.side_effect = KeyError("storage-soc-factor")
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 90
     assert parameters.pv_battery.full_charge_soc_percentage is None
@@ -430,7 +464,7 @@ async def test_profile_interval_schedules_the_full_charge(full_charge_request, m
     profile = _profile(full_charge_interval_days=21.0)
     monkeypatch.setattr(BatteriesCommonSettings, "get_battery_profile", lambda self: profile)
     measurement.key_to_lists.return_value = _history(start, full_days_ago=None)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 100
     assert parameters.pv_battery.full_charge_soc_percentage == 100
@@ -443,7 +477,7 @@ async def test_full_charge_target_stays_within_technical_bounds(full_charge_requ
     profile = _profile(technical_max_soc_percent=95.0)
     monkeypatch.setattr(BatteriesCommonSettings, "get_battery_profile", lambda self: profile)
     measurement.key_to_lists.return_value = _history(start, full_days_ago=None)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await resolve(GeneticRequest.model_validate(data))
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.max_soc_percentage == 95
     assert parameters.pv_battery.full_charge_soc_percentage == 95
@@ -511,8 +545,8 @@ def _full_charge_parameters(hours: int, **battery_extra) -> GeneticOptimizationP
 def test_full_charge_slot_resolution(config_eos: ConfigEOS):
     _optimizer_config(config_eos, 24)
     ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
-    optimization = GeneticOptimization(fixed_seed=1)
-    optimization._slot0_datetime = optimization.ems.start_datetime
+    optimization = genetic_optimization(seed=1)
+    optimization._slot0_datetime = optimization.settings.start_datetime
     slot0 = optimization._slot0_datetime
 
     assert optimization._full_charge_slot(_full_charge_parameters(24)) is None
@@ -531,8 +565,8 @@ def test_full_charge_slot_resolution(config_eos: ConfigEOS):
 def test_maximum_soc_before_deadline_counts(config_eos: ConfigEOS):
     _optimizer_config(config_eos, 24)
     ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
-    optimization = GeneticOptimization(fixed_seed=1)
-    optimization.simulation.battery = MagicMock(spec=Battery)
+    optimization = genetic_optimization(seed=1)
+    optimization.simulation.battery = MagicMock(spec=GeneticBattery)
     optimization.simulation.battery.current_soc_percentage.return_value = 40.0
     result = {"akku_soc_pro_stunde": [30.0, 100.0, 60.0, 50.0]}
 
@@ -557,7 +591,7 @@ def _run(config_eos: ConfigEOS, **battery_extra) -> list[float]:
     _optimizer_config(config_eos, hours)
     ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0, second=0, microsecond=0))
     CacheEnergyManagementStore().clear()
-    solution = GeneticOptimization(fixed_seed=42).optimize_ems(
+    solution = genetic_optimization(seed=42).optimize_ems(
         parameters=_full_charge_parameters(hours, **battery_extra), start_hour=0, ngen=40
     )
     return list(solution.result.battery_soc_per_hour)

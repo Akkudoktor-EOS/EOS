@@ -11,14 +11,21 @@ from typing import Any, Optional
 from akkudoktoreos.optimization.optimizer import Optimizer
 
 
+def _genetic() -> Optimizer[Any, Any, Any]:
+    from akkudoktoreos.optimization.genetic import GeneticOptimizer
+
+    return GeneticOptimizer()
+
+
 def _genetic0() -> Optimizer[Any, Any, Any]:
     from akkudoktoreos.optimization.genetic0 import Genetic0Optimizer
 
     return Genetic0Optimizer()
 
 
-# Optimizer name -> factory. GENETIC joins when it is migrated.
+# Optimizer name -> factory.
 _FACTORIES: dict[str, Callable[[], Optimizer[Any, Any, Any]]] = {
+    "GENETIC": _genetic,
     "GENETIC0": _genetic0,
 }
 
@@ -48,6 +55,6 @@ def optimizer_names() -> list[str]:
     """Names of all registered optimizers.
 
     Returns:
-        The names, e.g. ``["GENETIC0"]``.
+        The names, e.g. ``["GENETIC", "GENETIC0"]``.
     """
     return list(_FACTORIES)

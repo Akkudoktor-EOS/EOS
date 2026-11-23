@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import textwrap
 from collections.abc import Sequence
@@ -11,8 +12,8 @@ import numpy as np
 import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.core.coreabc import ConfigMixin, get_ems
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
+from akkudoktoreos.optimization.genetic.geneticresult import GeneticResult
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 matplotlib.use(
@@ -23,15 +24,26 @@ matplotlib.use(
 debug_visualize: bool = False
 
 
-class GeneticVisualizationReport(ConfigMixin):
+class GeneticVisualizationReport:
+    """PDF report of a GENETIC run: groups of charts, rendered page by page."""
+
     def __init__(
         self,
         version: str = "0.0.1",
         interval_seconds: int = 3600,
+        timezone: Optional[str] = None,
     ) -> None:
+        """Create an empty report.
+
+        Args:
+            version: Version shown in the report.
+            interval_seconds: Length of one slot of the charts.
+            timezone: Time zone of the charts' hours; ``None`` is the local time zone.
+        """
         if interval_seconds <= 0:
             raise ValueError("Report interval must be positive")
         self.interval_seconds = interval_seconds
+        self.timezone = timezone
         # Initialize the report with empty groups
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
         self.current_group: list[
@@ -43,9 +55,7 @@ class GeneticVisualizationReport(ConfigMixin):
         self.pdf_pages: PdfPages | None = None
 
         self.version = version  # overwrite version as test for constant output of pdf for test
-        self.current_time = to_datetime(
-            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.general.timezone
-        )
+        self.current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.timezone)
 
     def add_chart_to_group(self, chart_func: Callable[[], None], title: str | None) -> None:
         """Add a chart function to the current group and save it as a PNG and SVG."""
@@ -184,7 +194,7 @@ class GeneticVisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = pendulum.now(self.config.general.timezone)
+            current_time = to_datetime(in_timezone=self.timezone)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(mdates.date2num(current_time), color="r", linestyle="--", label="Now")
                 plt.text(
@@ -457,13 +467,26 @@ class GeneticVisualizationReport(ConfigMixin):
 
 
 def genetic_prepare_visualize(
-    solution: GeneticSolution,
+    parameters: GeneticParameters,
+    result: GeneticResult,
 ) -> bytes:
+    """Render the PDF report of a run.
+
+    Args:
+        parameters: The optimization parameters of the run (run start, time zone).
+        result: The result of the run.
+
+    Returns:
+        The PDF document.
+    """
     global debug_visualize
 
-    report = GeneticVisualizationReport(interval_seconds=solution.interval_seconds)
-    # New solutions own their timeline. The fallback supports historical hourly solutions.
-    start_datetime = solution.start_solution_datetime or get_ems().start_datetime
+    solution = result
+    report = GeneticVisualizationReport(
+        interval_seconds=solution.interval_seconds, timezone=parameters.settings.timezone
+    )
+    # New solutions own their timeline; the run start is the fallback.
+    start_datetime = solution.start_solution_datetime or parameters.settings.start_datetime
     start_offset = 0 if solution.controls_start_at_now else solution.start_hour
     control_slots = len(solution.result.load_wh_per_hour)
     end_offset = start_offset + control_slots
@@ -472,7 +495,7 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            solution.parameters.ems.total_load[start_offset:end_offset],
+            solution.request.ems.total_load[start_offset:end_offset],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -482,7 +505,7 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            solution.parameters.ems.pv_forecast_wh[start_offset:end_offset],
+            solution.request.ems.pv_forecast_wh[start_offset:end_offset],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -492,20 +515,20 @@ def genetic_prepare_visualize(
     report.create_line_chart_date(
         start_datetime,
         [
-            np.asarray(solution.parameters.ems.feed_in_tariff_per_wh[start_offset:end_offset])
-            if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
-            else np.full(control_slots, solution.parameters.ems.feed_in_tariff_per_wh)
+            np.asarray(solution.request.ems.feed_in_tariff_per_wh[start_offset:end_offset])
+            if isinstance(solution.request.ems.feed_in_tariff_per_wh, list)
+            else np.full(control_slots, solution.request.ems.feed_in_tariff_per_wh)
         ],
         title="Remuneration",
         # xlabel="Hours", # not enough space
         ylabel="amount/Wh",
         x2label=None,  # not enough space
     )
-    if solution.parameters.temperature_forecast:
+    if solution.request.temperature_forecast:
         report.create_line_chart_date(
             start_datetime,
             [
-                solution.parameters.temperature_forecast[start_offset:end_offset],
+                solution.request.temperature_forecast[start_offset:end_offset],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -554,7 +577,7 @@ def genetic_prepare_visualize(
     )
     report.create_line_chart_date(
         start_date=start_datetime,  # start_date
-        y_list=[solution.parameters.ems.electricity_price_per_wh[start_offset:end_offset]],
+        y_list=[solution.request.ems.electricity_price_per_wh[start_offset:end_offset]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (amount/Wh)",
@@ -706,7 +729,7 @@ def genetic_prepare_visualize(
 
 
 def _add_solution_diagnostics(
-    report: GeneticVisualizationReport, solution: GeneticSolution, start: DateTime
+    report: GeneticVisualizationReport, solution: GeneticResult, start: DateTime
 ) -> None:
     """Render the retained run diagnostics; tail actions are never executable controls."""
     report.add_text_page(
@@ -761,7 +784,9 @@ def _add_solution_diagnostics(
     report.finalize_group()
     if terminal.tail_diagnostics is not None:
         report.add_json_page(
-            terminal.tail_diagnostics.model_dump(), title="Tail Forecast Summary", fontsize=10
+            dataclasses.asdict(terminal.tail_diagnostics),
+            title="Tail Forecast Summary",
+            fontsize=10,
         )
         report.finalize_group()
     curve = terminal.curve

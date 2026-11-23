@@ -391,8 +391,9 @@ class SettingsEOSDefaults(SettingsEOS):
         prediction = self.prediction.hours
         if prediction is None or prediction < control:
             logger.warning(
-                "Prediction horizon {} h is shorter than the {} h control horizon. Optimization "
-                "runs will fail until prediction.hours covers the control horizon.",
+                "Prediction horizon {} h is shorter than the {} h control horizon. GENETIC "
+                "plans the control horizon with fallback forecasts until prediction.hours covers "
+                "it.",
                 prediction,
                 control,
             )

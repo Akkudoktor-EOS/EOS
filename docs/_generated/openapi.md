@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2611151515912129`
+**Version**: `v0.3.0.dev2611261279306014`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -750,6 +750,28 @@ Get the latest solution of the optimization.
 
 ---
 
+## GET /v1/energy-management/optimization/solution/GENETIC
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_genetic_get_v1_energy-management_optimization_solution_genetic_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_genetic_get_v1_energy-management_optimization_solution_genetic_get)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Optimization Solution Genetic Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get the latest GENETIC specific solution of the optimization.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
 ## GET /v1/energy-management/optimization/solution/GENETIC/pdf
 
 <!-- pyml disable line-length -->
@@ -795,39 +817,6 @@ Get the latest GENETIC0 specific solution of the optimization.
 **Responses**:
 
 - **200**: Successful Response
-
----
-
-## GET /v1/energy-management/optimization/solution/{algorithm}
-
-<!-- pyml disable line-length -->
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get)
-<!-- pyml enable line-length -->
-
-Fastapi Energy Management Optimization Solution Algorithm Get
-
-<!-- pyml disable line-length -->
-```python
-"""
-Get the latest algorithm specific solution of the optimization.
-
-Optimizers of the registry serve their own solution path (e.g. ``.../solution/GENETIC0``).
-
-Args:
-    algorithm: Optimization algorithm
-"""
-```
-<!-- pyml enable line-length -->
-
-**Parameters**:
-
-- `algorithm` (path, required): No description provided.
-
-**Responses**:
-
-- **200**: Successful Response
-
-- **422**: Validation Error
 
 ---
 
@@ -1420,7 +1409,7 @@ The deprecated /optimize endpoint continues to run hourly GENETIC0.
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/ConfigOptimizationRequest"
+  "$ref": "#/components/schemas/GeneticRequest"
 }
 
 **Responses**:

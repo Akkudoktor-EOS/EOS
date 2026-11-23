@@ -1,52 +1,65 @@
 """Economic tail scenarios and hard control/forecast boundaries."""
 
+from dataclasses import replace
 from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 import pytest
+from conftest import genetic_optimization, genetic_run_parameters
 from loguru import logger
 
 from akkudoktoreos.config.config import SettingsEOSDefaults
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
-from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic import geneticconvert
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    GeneticBattery,
+)
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    GeneticInverter,
+)
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
+from akkudoktoreos.optimization.genetic.geneticforecast import bounded_forecast_array
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticHomeApplianceRequest,
+    GeneticInverterRequest,
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.tailvalue import build_tail_value_curve
-from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueCurve
+from akkudoktoreos.optimization.genetic.genetictailvalue import build_tail_value_curve
+from akkudoktoreos.optimization.genetic.geneticterminalvalue import TerminalValueCurve
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
-def devices(power=1000, efficiency=1.0, lcos=0, ac_limit=None, export_power=5000):
-    bat = Battery(
-        SolarPanelBatteryParameters(
-            device_id="battery1",
-            capacity_wh=1000,
-            max_charge_power_w=power,
-            charging_efficiency=efficiency,
-            discharging_efficiency=efficiency,
-            initial_soc_percentage=50,
-            levelized_cost_of_storage_kwh=lcos,
-            charge_rates=[0, 0.5, 1],
-        ),
-        prediction_hours=1,
+def device_requests(power=1000, efficiency=1.0, lcos=0, ac_limit=None, export_power=5000):
+    """The battery and inverter requests of the tail tests."""
+    battery = GeneticBatteryRequest(
+        device_id="battery1",
+        capacity_wh=1000,
+        max_charge_power_w=power,
+        charging_efficiency=efficiency,
+        discharging_efficiency=efficiency,
+        initial_soc_percentage=50,
+        levelized_cost_of_storage_kwh=lcos,
+        charge_rates=[0, 0.5, 1],
     )
-    inv = Inverter(
-        InverterParameters(
-            device_id="inverter1",
-            battery_id="battery1",
-            max_power_wh=export_power,
-            dc_to_ac_efficiency=1,
-            ac_to_dc_efficiency=1,
-            max_ac_charge_power_w=ac_limit,
-        ),
-        battery=bat,
+    inverter = GeneticInverterRequest(
+        device_id="inverter1",
+        battery_id="battery1",
+        max_power_wh=export_power,
+        dc_to_ac_efficiency=1,
+        ac_to_dc_efficiency=1,
+        max_ac_charge_power_w=ac_limit,
     )
+    return battery, inverter
+
+
+def devices(**kwargs):
+    battery, inverter = device_requests(**kwargs)
+    bat = GeneticBattery(battery.to_parameters(), prediction_hours=1)
+    inv = GeneticInverter(inverter.to_parameters(), battery=bat)
     return bat, inv
 
 
@@ -184,7 +197,7 @@ def setup_run(config, interval=3600, start_hour=0, hours=72, prediction_hours=72
     )
     ems = get_ems(init=True)
     ems.set_start_datetime(to_datetime("2026-09-05T00:00:00").set(hour=start_hour))
-    bat, inv = devices()
+    bat, inv = device_requests()
     params = GeneticOptimizationParameters.model_validate(
         dict(
             ems={
@@ -194,12 +207,12 @@ def setup_run(config, interval=3600, start_hour=0, hours=72, prediction_hours=72
                 "einspeiseverguetung_euro_pro_wh": [0.0001] * hours,
                 "preis_euro_pro_wh_akku": 0,
             },
-            pv_battery=bat.parameters,
-            inverter=inv.parameters,
+            pv_battery=bat,
+            inverter=inv,
             ev=None,
         )
     )
-    return GeneticOptimization(fixed_seed=42), params
+    return genetic_optimization(seed=42), params
 
 
 @pytest.mark.parametrize("interval", [3600, 900])
@@ -219,7 +232,7 @@ async def test_genome_output_and_final_control_state(config_eos, interval, start
     with (
         patch.object(opt, "optimize", side_effect=choose),
         patch(
-            "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+            "akkudoktoreos.optimization.genetic.geneticalgorithm.build_tail_value_curve",
             wraps=build_tail_value_curve,
         ) as builder,
     ):
@@ -229,7 +242,7 @@ async def test_genome_output_and_final_control_state(config_eos, interval, start
     assert len(result.dc_charge) == opt.control_slots
     assert len(result.discharge_allowed) == opt.control_slots
     assert len(result.battery_grid_export_factor) == opt.control_slots
-    assert len(result.result.Kosten_Euro_pro_Stunde) == opt.control_slots
+    assert len(result.result.costs_per_hour) == opt.control_slots
     assert result.terminal_value.mode == "TAIL"
     assert result.terminal_value.battery_energy_wh == pytest.approx(
         max(500 - 1000 * opt.slot_duration_h, 0)
@@ -246,7 +259,7 @@ async def test_genome_output_and_final_control_state(config_eos, interval, start
     assert result.terminal_value.tail_plan[0].hour_from_start == 24
     assert len(result.terminal_value.curve.operating_value_euro) == 101
     assert len(result.terminal_value.curve.continuation_value_euro) == 101
-    assert len((await result.optimization_solution()).solution.to_dataframe()) == opt.control_slots
+    assert len((await geneticconvert.optimization_solution(genetic_run_parameters(result.request), result)).solution.to_dataframe()) == opt.control_slots
 
 
 def test_short_tail_is_reported(config_eos, caplog):
@@ -289,13 +302,16 @@ async def test_provider_values_are_not_extrapolated():
 def test_future_opportunity_changes_optimal_control_soc(config_eos):
     final_energy = []
     for negative_price in (0.5, -1.0):
-        opt, params = setup_run(config_eos, hours=3)
+        _, params = setup_run(config_eos, hours=3)
         config_eos.merge_settings_from_dict(
             {"optimization": {"genetic": {"horizon_hours": 1, "tail_horizon_hours": 2}}}
         )
+        # The run settings are taken when the algorithm is created.
+        opt = genetic_optimization(seed=42)
         params.ems.electricity_price_per_wh = [0.0005, negative_price / 1000, 0.0003]
         params.ems.feed_in_tariff_per_wh = [0.00002, 0, 0.0003]
         result = opt.optimize_ems(params, ngen=3, individuals=20)
+        assert result.terminal_value is not None
         final_energy.append(result.terminal_value.battery_energy_wh)
     assert final_energy[0] > final_energy[1]
 
@@ -334,10 +350,12 @@ def test_missing_price_inside_tail_stops_at_first_gap(config_eos):
 
 
 def test_ev_genome_and_output_are_control_only(config_eos):
-    from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
+        GeneticElectricVehicleRequest,
+    )
 
     opt, params = setup_run(config_eos, interval=900, start_hour=10, hours=82)
-    params.ev = ElectricVehicleParameters(
+    params.ev = GeneticElectricVehicleRequest(
         device_id="ev1",
         capacity_wh=5000,
         initial_soc_percentage=0,
@@ -367,7 +385,7 @@ def test_rejected_config_update_is_atomic(config_eos):
 
 def test_disabled_ac_conversion_cannot_earn_negative_price_revenue():
     bat, inv = devices()
-    inv.parameters.ac_to_dc_efficiency = 0
+    inv = GeneticInverter(replace(inv.parameters, ac_to_dc_efficiency=0), battery=bat)
     c = build_tail_value_curve(
         battery=bat,
         inverter=inv,
@@ -455,7 +473,7 @@ def test_daily_appliance_load_values_stored_energy_in_tail(config_eos):
         params.ems.feed_in_tariff_per_wh = [0.0] * 72
         if with_appliance:
             params.home_appliances = [
-                HomeApplianceParameters.model_validate(
+                GeneticHomeApplianceRequest.model_validate(
                     dict(
                         device_id="water_heater",
                         consumption_wh=6000,
@@ -519,7 +537,7 @@ def test_daily_appliance_day_planned_in_control_is_not_counted_again_in_tail(
     """
     opt, params = setup_run(config_eos, start_hour=start_hour, hours=72 + start_hour)
     params.home_appliances = [
-        HomeApplianceParameters.model_validate(
+        GeneticHomeApplianceRequest.model_validate(
             dict(
                 device_id="water_heater",
                 consumption_wh=3000,
@@ -543,7 +561,7 @@ def test_daily_appliance_day_planned_in_control_is_not_counted_again_in_tail(
     with (
         patch.object(opt, "optimize", side_effect=choose),
         patch(
-            "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+            "akkudoktoreos.optimization.genetic.geneticalgorithm.build_tail_value_curve",
             wraps=build_tail_value_curve,
         ) as builder,
     ):
@@ -582,7 +600,7 @@ def test_daily_appliance_run_in_progress_counts_for_its_day_in_estimate(config_e
     )
     if running:
         appliance["run_started_datetime"] = to_datetime("2026-09-05T01:30:00")
-    params.home_appliances = [HomeApplianceParameters.model_validate(appliance)]
+    params.home_appliances = [GeneticHomeApplianceRequest.model_validate(appliance)]
 
     def choose(*args, **kwargs):
         genome = opt.create_individual()
@@ -610,7 +628,7 @@ def test_daily_appliance_deadline_does_not_cap_tail(config_eos, policy):
     """
     opt, params = setup_run(config_eos, start_hour=22, hours=72 + 22)
     params.home_appliances = [
-        HomeApplianceParameters.model_validate(
+        GeneticHomeApplianceRequest.model_validate(
             dict(
                 device_id="water_heater",
                 consumption_wh=3000,
@@ -637,7 +655,7 @@ def test_daily_appliance_deadline_does_not_cap_tail(config_eos, policy):
         with (
             patch.object(opt, "optimize", side_effect=choose),
             patch(
-                "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+                "akkudoktoreos.optimization.genetic.geneticalgorithm.build_tail_value_curve",
                 wraps=build_tail_value_curve,
             ) as builder,
         ):

@@ -23,6 +23,7 @@ from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
 )
+from akkudoktoreos.optimization.genetic import geneticprepare
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
 
 
@@ -141,7 +142,7 @@ class TestResolution:
         curve = settings.resolve_operating_parameters().dc_to_ac_efficiency_curve
         assert [x for x, _ in curve] == [0.0, 1.0]
         assert [y for _, y in curve] == pytest.approx([0.88, 0.88])
-        settings.to_genetic_param()
+        geneticprepare.inverter_request(settings)
 
     def test_no_power_at_the_operating_point(self, generic):
         settings = make_settings(nominal_power_w=10000)
@@ -166,7 +167,7 @@ class TestResolution:
         parameters = settings.resolve_operating_parameters()
         assert parameters.max_ac_charge_power_w == 0
         assert math.isfinite(parameters.ac_to_dc_efficiency)
-        assert settings.to_genetic_param().max_ac_charge_power_w == 0
+        assert geneticprepare.inverter_request(settings).max_ac_charge_power_w == 0
 
     def test_model_ac_charge_limit_is_derated(self, generic, use_profile):
         use_profile(dataclasses.replace(generic, nominal_power_w=10000, max_ac_charge_power_w=5000))
@@ -232,7 +233,7 @@ class TestConversion:
     def test_genetic_parameters(self, generic):
         settings = make_settings(nominal_power_w=10000, max_ac_charge_power_w=4000)
         parameters = settings.resolve_operating_parameters(InverterOperatingPoint(60.0))
-        genetic = settings.to_genetic_param(parameters)
+        genetic = geneticprepare.inverter_request(settings, parameters)
         assert genetic.device_id == "inverter1"
         assert genetic.battery_id == "battery1"
         assert genetic.max_power_wh == pytest.approx(6000)
@@ -279,7 +280,7 @@ class TestOptimizationDefaults:
         assert len(logged_errors) == 1
         assert "allows no power at 70.0 degC" in logged_errors[0]
         # The conversion gets valid parameters.
-        assert settings.to_genetic_param(parameters).max_power_wh == pytest.approx(10000)
+        assert geneticprepare.inverter_request(settings, parameters).max_power_wh == pytest.approx(10000)
 
     def test_missing_nominal_power_gives_the_fallback(self, generic, logged_errors):
         parameters = make_settings().resolve_operating_parameters_or_defaults()

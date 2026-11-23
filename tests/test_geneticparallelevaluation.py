@@ -10,16 +10,17 @@ from types import SimpleNamespace
 
 import pytest
 import uvicorn
+from conftest import genetic_optimization
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic import genetic as genetic_module
-from akkudoktoreos.optimization.genetic.genetic import (
+from akkudoktoreos.optimization.genetic import geneticalgorithm as genetic_module
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
     auto_evaluation_workers,
 )
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -104,7 +105,7 @@ def _parameters(
 
 def _run(config_eos: ConfigEOS, workers: int, cache_entries):
     parameters = _parameters(config_eos, workers, cache_entries)
-    optimization = GeneticOptimization(fixed_seed=7)
+    optimization = genetic_optimization(seed=7)
     used: list[int] = []
     original_start = optimization._start_evaluation_pool
 
@@ -438,7 +439,9 @@ def test_unsupported_fork_falls_back_to_serial(config_eos: ConfigEOS, monkeypatc
 
 
 def test_cgroup_cpu_limit_reads_own_and_parent_cgroups(tmp_path, monkeypatch):
-    from akkudoktoreos.optimization.genetic.genetic import _cgroup_cpu_limit
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+        _cgroup_cpu_limit,
+    )
 
     service = tmp_path / "system.slice" / "eos.service"
     service.mkdir(parents=True)
@@ -475,7 +478,9 @@ def test_cgroup_cpu_limit_reads_own_and_parent_cgroups(tmp_path, monkeypatch):
     ],
 )
 def test_worker_cpu_set(workers, allowed, expected):
-    from akkudoktoreos.optimization.genetic.genetic import worker_cpu_set
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+        worker_cpu_set,
+    )
 
     assert worker_cpu_set(workers, allowed) == expected
 

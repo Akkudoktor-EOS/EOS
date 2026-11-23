@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
+from akkudoktoreos.optimization.genetic.geneticforecast import bounded_forecast_array
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 

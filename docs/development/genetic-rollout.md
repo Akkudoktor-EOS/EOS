@@ -33,7 +33,8 @@ Use `interval_sec: 3600` for hourly operation. AUTO evaluates available forecast
 continuation; FIXED uses `terminal_value_euro_per_kwh`. Battery wear/LCOS remains a
 separate cost. The tail affects scoring, never the emitted control horizon.
 `prediction.hours` must cover the control horizon; shorter available tails are
-clipped with diagnostics. Missing control forecasts cancel the run.
+clipped with diagnostics. Missing control forecasts do not cancel the run: each
+gets a fallback for the run, logged as an error naming the forecast.
 
 Old feature settings such as `optimization.interval` and flat terminal-value fields
 migrate into `optimization.genetic`; explicit nested settings win. Check the saved

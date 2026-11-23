@@ -4,10 +4,15 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization, genetic_run_parameters
 
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.core.emplan import FRBCInstruction
+from akkudoktoreos.optimization.genetic import geneticconvert
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -60,24 +65,22 @@ async def test_native_result_retains_dst_grid_and_owned_inputs(config_eos, times
             "ev": None,
         }
     )
-    optimizer = GeneticOptimization(fixed_seed=42)
+    optimizer = genetic_optimization(seed=42)
     native = optimizer.optimize_ems(parameters, ngen=1, individuals=6)
-    repeat = GeneticOptimization(fixed_seed=42).optimize_ems(parameters, ngen=1, individuals=6)
+    repeat = genetic_optimization(seed=42).optimize_ems(parameters, ngen=1, individuals=6)
     assert native.start_solution == repeat.start_solution
     assert native.interval_seconds == 900
     assert native.start_solution_datetime == start
     assert native.controls_start_at_now
     assert len(native.result.load_wh_per_hour) == 4
-    assert native.parameters.ems.total_load == [25.0] * 4
+    assert native.request.ems.total_load == [25.0] * 4
     parameters.ems.total_load[elapsed_slots] = 999.0
     get_ems().set_start_datetime(start.add(days=1))
     config_eos.optimization.genetic.interval_sec = 3600
-    with patch(
-        "akkudoktoreos.optimization.genetic.geneticsolution.get_prediction",
-        side_effect=AssertionError("Native serialization must not reread providers"),
-    ):
-        generic = await native.optimization_solution()
-        plan = native.energy_management_plan()
+    # The conversion reads no prediction store: it converts from parameters and result only.
+    run_parameters = genetic_run_parameters(native.request, optimizer)
+    generic = await geneticconvert.optimization_solution(run_parameters, native)
+    plan = geneticconvert.energy_management_plan(run_parameters, native)
     assert generic.valid_from == start
     assert generic.valid_until == start.add(hours=1)
     assert plan.valid_from == start
@@ -119,7 +122,7 @@ def test_native_quarter_hour_temperatures_average_when_coarsened(config_eos):
             "inverter": None,
         }
     )
-    normalized = GeneticOptimization()._parameters_for_slot_grid(parameters)
+    normalized = genetic_optimization()._parameters_for_slot_grid(parameters)
     assert normalized.temperature_forecast == [13.0]
     assert normalized.ems.pv_forecast_wh == [100.0]
     assert normalized.ems.total_load == [200.0]
@@ -134,10 +137,10 @@ def test_snapshot_and_warm_start_preserve_aware_instants(
     import json
     from pathlib import Path
 
-    from akkudoktoreos.optimization.genetic.configrequest import (
-        ConfigOptimizationRequest,
+    from akkudoktoreos.optimization.genetic.geneticapi import GeneticSolution
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
+        GeneticRequest,
     )
-    from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 
     set_other_timezone(host_timezone)
     expected = to_datetime(f"2026-10-25T02:30:00{offset}", in_timezone="Europe/Berlin")
@@ -150,7 +153,7 @@ def test_snapshot_and_warm_start_preserve_aware_instants(
     parameters = GeneticOptimizationParameters.model_validate(
         native.parameters.model_dump() | {"start_solution_datetime": supplied}
     )
-    request = ConfigOptimizationRequest.model_validate({"start_solution_datetime": supplied})
+    request = GeneticRequest.model_validate({"start_solution_datetime": supplied})
     for model in (native, parameters, request):
         value = model.start_solution_datetime
         assert value is not None
@@ -218,7 +221,7 @@ def _partial_first_slot_run(config_eos, timestamp: str, initial_soc_percentage: 
             "ev": None,
         }
     )
-    optimizer = GeneticOptimization(fixed_seed=42)
+    optimizer = genetic_optimization(seed=42)
 
     def full_ac_charge_in_first_slot(*args, **kwargs):
         genome = optimizer.create_individual()
@@ -274,8 +277,10 @@ def test_running_slot_ac_charge_factor_is_not_cut_for_a_full_slot(config_eos):
         config_eos, "2026-09-16T10:45:00+02:00", initial_soc_percentage=90
     )
     assert solution.result.battery_soc_per_hour[:2] == pytest.approx([90.0, 95.0])
-    plan = solution.energy_management_plan()
+    plan = geneticconvert.energy_management_plan(genetic_run_parameters(solution.request), solution)
     battery_instructions = [
-        instruction for instruction in plan.instructions if instruction.resource_id == "battery1"
+        instruction
+        for instruction in plan.instructions
+        if isinstance(instruction, FRBCInstruction) and instruction.resource_id == "battery1"
     ]
     assert battery_instructions[0].operation_mode_factor == pytest.approx(1.0)

@@ -2,7 +2,8 @@
 
 Adapted from PRs #1224 (Christin) and #1304 (Normann). Main has no direct-marketing
 parameter override yet: these regressions cover its existing preparation/simulation
-contract and refuse unavailable imported revenue instead of creating a demo tariff.
+contract. Unavailable imported revenue falls back to the last known revenue (0 without
+any) instead of creating a demo tariff.
 """
 
 from unittest.mock import AsyncMock, Mock, patch
@@ -11,11 +12,15 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
+from akkudoktoreos.optimization.genetic import geneticprepare
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    GeneticInverter,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticInverterRequest,
+)
+from akkudoktoreos.optimization.genetic.geneticsimulation import (
+    GeneticSimulation,
 )
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffDataRecord
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -64,16 +69,9 @@ def prepare_tariffs(config_eos):
         prediction = Mock(
             update_data=AsyncMock(), key_to_raw_series=AsyncMock(side_effect=read_series)
         )
-        ems = Mock(
-            start_datetime=to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC"),
-            observation_datetime=to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC"),
-        )
-        ems.genetic_solution.return_value = None
-        with (
-            patch("akkudoktoreos.optimization.genetic.configrequest.get_ems", return_value=ems),
-            patch.object(ConfigOptimizationRequest, "prediction", prediction),
-        ):
-            parameters = await GeneticOptimizationParameters.prepare()
+        start = to_datetime("2026-08-01T00:00:00+00:00", in_timezone="UTC")
+        with patch.object(geneticprepare, "get_prediction", return_value=prediction):
+            parameters = (await geneticprepare.prepare(start, start, None)).request
         return parameters, prices, prediction
 
     return prepare
@@ -107,12 +105,12 @@ async def test_provider_revenues_survive_preparation_and_simulation(
 
     # A 1 kWh export at 0.00007 amount/Wh earns 0.07, not 70 or 0.00007.
     # No battery or household load is needed to expose tariff substitution/unit bugs.
-    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=10000))
+    inverter = GeneticInverter(GeneticInverterRequest(device_id="inverter1", max_power_wh=10000).to_parameters())
     inverter.self_consumption_predictor = Mock()
     inverter.self_consumption_predictor.calculate_expected_direct_consumption.return_value = 0.0
     simulation = GeneticSimulation()
     simulation.prepare(
-        parameters.ems, optimization_hours=24, prediction_hours=24, inverter=inverter
+        parameters.ems.to_parameters(), optimization_hours=24, prediction_hours=24, inverter=inverter
     )
     result = simulation.simulate(start_hour=0)
     assert result["Netzeinspeisung_Wh_pro_Stunde"] == pytest.approx([1000.0] * 24)
@@ -138,15 +136,18 @@ async def test_provider_revenues_survive_preparation_and_simulation(
         [[0.00007]] * 24,
     ],
 )
-async def test_invalid_import_cancels_without_replacing_provider(
+async def test_invalid_import_falls_back_without_replacing_provider(
     prepare_tariffs, revenues, config_eos, caplog
 ):
+    """Missing revenues are carried forward or 0, logged; the provider stays configured."""
     parameters, _, prediction = await prepare_tariffs("FeedInTariffImport", revenues)
-    assert parameters is None
+    tariffs = parameters.ems.feed_in_tariff_per_wh
+    assert isinstance(tariffs, list) and len(tariffs) == 24
+    assert all(np.isfinite(tariffs))
+    assert set(tariffs) <= {0.00007, 0.0}
     assert config_eos.feedintariff.provider == "FeedInTariffImport"
     prediction.update_data.assert_awaited_once()
-    assert "canceling optimization" in caplog.text
-    assert "FeedInTariffImport" in caplog.text
+    assert "feed-in tariff missing or invalid" in caplog.text
     assert "defaulting to demo" not in caplog.text
 
 
@@ -170,7 +171,8 @@ async def test_timestamped_import_records_are_read_in_order(prepare_tariffs, val
             "FeedInTariffImport", [], tariff_reader=provider.key_to_raw_series
         )
         if values[0] is None:
-            assert parameters is None
+            # No revenue known at all: no feed-in revenue.
+            assert parameters.ems.feed_in_tariff_per_wh == [0.0] * 24
         else:
             assert parameters is not None
             assert parameters.ems.feed_in_tariff_per_wh == pytest.approx(values)

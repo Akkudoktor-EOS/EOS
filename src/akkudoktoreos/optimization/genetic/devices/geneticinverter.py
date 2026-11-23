@@ -1,0 +1,484 @@
+"""Inverter of the GENETIC simulation."""
+
+from bisect import bisect_left
+from dataclasses import dataclass
+from typing import Optional
+
+from loguru import logger
+
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import GeneticBattery
+from akkudoktoreos.optimization.genetic.geneticefficiency import (
+    interpolate_efficiency_curve,
+    solve_ac_for_charge_dc_energy,
+    solve_ac_for_dc_energy,
+)
+from akkudoktoreos.optimization.genetic.geneticloadinterpolator import (
+    get_genetic_load_interpolator,
+)
+from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
+
+
+@dataclass(frozen=True, slots=True)
+class GeneticInverterParameters:
+    """An inverter of the simulation, derived from its request.
+
+    Attributes:
+        device_id: ID of the inverter.
+        max_power_wh: Maximum power [W], the energy per hour it can convert.
+        battery_id: ID of the battery behind the inverter, if any.
+        ac_to_dc_efficiency: Efficiency of AC to DC conversion (grid charging).
+        dc_to_ac_efficiency: Efficiency of DC to AC conversion.
+        dc_to_ac_efficiency_curve: DC to AC efficiency by load fraction.
+        dc_to_ac_efficiency_reference_load_fraction: Load fraction at which stored energy is
+            valued with the DC to AC curve.
+        ac_to_dc_efficiency_curve: AC to DC efficiency by load fraction.
+        max_ac_charge_power_w: Maximum AC charging power [W]; ``None`` is no extra limit.
+        ac_charge_limits_total_charge: The AC charge setpoint caps the total charge power.
+    """
+
+    device_id: str
+    max_power_wh: float
+    battery_id: Optional[str]
+    ac_to_dc_efficiency: float
+    dc_to_ac_efficiency: float
+    dc_to_ac_efficiency_curve: Optional[tuple[tuple[float, float], ...]]
+    dc_to_ac_efficiency_reference_load_fraction: float
+    ac_to_dc_efficiency_curve: Optional[tuple[tuple[float, float], ...]]
+    max_ac_charge_power_w: Optional[float]
+    ac_charge_limits_total_charge: bool
+
+
+class GeneticInverter:
+    """Inverter of the simulation: converts PV, battery and grid energy within its power."""
+
+    def __init__(
+        self,
+        parameters: GeneticInverterParameters,
+        battery: Optional[GeneticBattery] = None,
+        slot_duration_h: float = 1.0,
+        first_slot_fraction: float = 1.0,
+        self_consumption_backend: GridInterpolatorBackend = GridInterpolatorBackend.SCIPY,
+    ):
+        # `first_slot_fraction` is the part of slot 0 still ahead when the
+        # optimization runs within that slot; slot 0 then moves only that part
+        # of the slot energy (see Battery).
+        if not 0.0 < first_slot_fraction <= 1.0:
+            raise ValueError(f"first_slot_fraction must be in (0, 1], got {first_slot_fraction}.")
+        self.parameters: GeneticInverterParameters = parameters
+        self.battery: Optional[GeneticBattery] = battery
+        self.self_consumption_backend = self_consumption_backend
+        self.slot_duration_h: float = slot_duration_h
+        self.first_slot_fraction: float = first_slot_fraction
+        self._setup()
+
+    def slot_scale(self, hour: int) -> float:
+        """Return the part of the slot duration that is simulated for slot ``hour``.
+
+        ``first_slot_fraction`` for slot 0, 1.0 for every later slot.
+        """
+        return self.first_slot_fraction if hour == 0 else 1.0
+
+    def _setup(self) -> None:
+        if self.battery and self.parameters.battery_id != self.battery.parameters.device_id:
+            error_msg = f"Battery ID mismatch - {self.parameters.battery_id} is configured; got {self.battery.parameters.device_id}."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        self.self_consumption_predictor = get_genetic_load_interpolator(
+            self.self_consumption_backend
+        )
+        # max_power_wh is supplied as power [W] but used as the maximum energy
+        # the inverter can move during one optimization slot.
+        self.max_power_wh = self.parameters.max_power_wh * self.slot_duration_h
+        self.dc_to_ac_efficiency = self.parameters.dc_to_ac_efficiency
+        self.ac_to_dc_efficiency = self.parameters.ac_to_dc_efficiency
+        self.dc_to_ac_efficiency_curve = self.parameters.dc_to_ac_efficiency_curve
+        self.ac_to_dc_efficiency_curve = self.parameters.ac_to_dc_efficiency_curve
+        # DC-to-AC efficiency used to value stored battery energy where no single
+        # conversion is known (end-of-horizon value, AC charge break-even). With
+        # a curve it is the efficiency at the configured reference load.
+        self.reference_dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(
+            self.parameters.dc_to_ac_efficiency_reference_load_fraction * self.max_power_wh
+        )
+        # This value remains a power [W]. GeneticSimulation converts it into a
+        # slot-independent charge-factor limit.
+        self.max_ac_charge_power_w = self.parameters.max_ac_charge_power_w
+        self.ac_charge_limits_total_charge = self.parameters.ac_charge_limits_total_charge
+
+    def dc_to_ac_efficiency_at(self, ac_wh: float, scale: float = 1.0) -> float:
+        """Return the DC-to-AC efficiency of a conversion delivering ``ac_wh`` in one slot.
+
+        Without ``dc_to_ac_efficiency_curve`` this is the constant
+        ``dc_to_ac_efficiency``. With a curve, the efficiency is interpolated at
+        the load fraction ``ac_wh / (max_power_wh * scale)`` of this slot.
+        ``max_power_wh`` is already scaled to the slot duration, so the fraction
+        equals the mean AC power relative to the rated power.
+
+        Args:
+            ac_wh: AC energy of the conversion in this slot [Wh].
+            scale: Simulated part of the slot duration (see ``slot_scale``).
+        """
+        if self.dc_to_ac_efficiency_curve is None:
+            return self.dc_to_ac_efficiency
+        curve: tuple[tuple[float, float], ...] = self.dc_to_ac_efficiency_curve
+        slot_max_power_wh = self.max_power_wh * scale
+        load_fraction = ac_wh / slot_max_power_wh if slot_max_power_wh > 0 else 0.0
+        # This runs for every battery discharge of every candidate plan. Find
+        # the curve segment by bisection on the load fractions, split off once
+        # per curve, instead of walking the points. The segment and the
+        # interpolation are those of interpolate_efficiency_curve().
+        if curve is not getattr(self, "_curve_source", None):
+            self._curve_fractions = [point[0] for point in curve]
+            self._curve_efficiencies = [point[1] for point in curve]
+            self._curve_source = curve
+        fractions = self._curve_fractions
+        if load_fraction != load_fraction or len(fractions) != len(curve):
+            # NaN, or a curve changed in place: the plain walk.
+            return interpolate_efficiency_curve(curve, load_fraction)
+        efficiencies = self._curve_efficiencies
+        index = bisect_left(fractions, load_fraction)
+        if index == 0:
+            return efficiencies[0]
+        if index == len(fractions):
+            return efficiencies[-1]
+        lower_fraction = fractions[index - 1]
+        lower_efficiency = efficiencies[index - 1]
+        return lower_efficiency + (load_fraction - lower_fraction) / (
+            fractions[index] - lower_fraction
+        ) * (efficiencies[index] - lower_efficiency)
+
+    def ac_charge_factor(self, factor: float) -> float:
+        """Return the AC charge factor the inverter can actually execute.
+
+        The factor is a fraction of the battery's ``max_charge_power_w``. It is
+        capped so that the AC input stays within ``max_ac_charge_power_w`` and
+        is 0.0 when AC charging is impossible.
+        """
+        if factor <= 0.0 or not self.battery or self.ac_to_dc_efficiency <= 0.0:
+            return 0.0
+        if self.max_ac_charge_power_w is not None and self.battery.max_charge_power_w > 0:
+            # DC power = max_charge_power_w * factor
+            # AC power = DC power / ac_to_dc_eff <= max_ac_charge_power_w
+            factor = min(
+                factor,
+                self.max_ac_charge_power_w
+                * self.ac_to_dc_efficiency
+                / self.battery.max_charge_power_w,
+            )
+        return max(factor, 0.0)
+
+    def begin_ac_charge_slot(self, hour: int, factor: float) -> None:
+        """Apply the AC charge setpoint of a slot before its PV is processed.
+
+        On inverters whose grid charge setpoint caps the total charge power, the
+        battery takes at most ``factor`` of its rated charge power in this slot,
+        PV included. Call ``process_energy`` afterwards so PV surplus above the
+        cap is exported, as the inverter does.
+        """
+        if self.ac_charge_limits_total_charge and self.battery and factor > 0.0:
+            self.battery.limit_slot_charge(
+                hour,
+                self.battery.max_charge_power_w
+                * self.slot_duration_h
+                * self.slot_scale(hour)
+                * factor,
+            )
+
+    def charge_battery_from_grid(self, hour: int, factor: float) -> tuple[float, float]:
+        """Charge the battery from the grid after PV was processed in this slot.
+
+        Default model: the grid adds ``factor`` of the rated charge power on top
+        of the PV charge. With ``ac_charge_limits_total_charge`` the grid only
+        fills what PV left of the slot cap set by ``begin_ac_charge_slot``.
+
+        Returns:
+            tuple[float, float]: AC energy drawn from the grid [Wh] and the
+            battery plus AC-to-DC conversion losses [Wh].
+        """
+        if not self.battery or factor <= 0.0:
+            return 0.0, 0.0
+        scale = self.slot_scale(hour)
+        if self.ac_charge_limits_total_charge:
+            stored, battery_losses = self.battery.charge_energy(
+                self.battery.max_charge_power_w * self.slot_duration_h * scale * factor, hour
+            )
+        else:
+            stored, battery_losses = self.battery.charge_energy(None, hour, charge_factor=factor)
+        # DC energy entering the battery (before battery internal efficiency)
+        dc_energy = stored + battery_losses
+        # AC energy consumed from grid (accounts for AC->DC conversion loss). With a
+        # curve the efficiency is the one at the AC load actually drawn.
+        curve = self.ac_to_dc_efficiency_curve
+        if curve is not None:
+            ac_energy = solve_ac_for_charge_dc_energy(curve, dc_energy, self.max_power_wh * scale)
+        else:
+            ac_energy = dc_energy / self.ac_to_dc_efficiency
+        return ac_energy, battery_losses + (ac_energy - dc_energy)
+
+    def _delivered_ac_wh(
+        self,
+        battery_discharge_dc: float,
+        dc_request: float,
+        requested_ac_wh: float,
+        dc_to_ac_efficiency: float,
+        scale: float = 1.0,
+    ) -> float:
+        """Return the AC energy of a discharge that delivered ``battery_discharge_dc``.
+
+        If the battery delivered less than requested (low state of charge or its
+        power limit), the conversion runs at a lower AC load than requested. With
+        an efficiency curve the efficiency must then be the one at the AC energy
+        that is actually delivered, not at the request. ``scale`` is the
+        simulated part of the slot duration (see ``slot_scale``).
+        """
+        curve = self.dc_to_ac_efficiency_curve
+        if curve is not None and battery_discharge_dc < dc_request * (1.0 - 1e-12):
+            return solve_ac_for_dc_energy(
+                curve, battery_discharge_dc, self.max_power_wh * scale, requested_ac_wh
+            )
+        return battery_discharge_dc * dc_to_ac_efficiency
+
+    def _discharge_battery_to_ac(self, requested_ac_wh: float, hour: int) -> tuple[float, float]:
+        """Discharge battery energy and convert it to AC energy."""
+        battery = self.battery
+        if not battery or requested_ac_wh <= 0.0:
+            return 0.0, 0.0
+        scale = self.first_slot_fraction if hour == 0 else 1.0
+        if type(battery) is not GeneticBattery:
+            # Another battery implementation: ask it, step by step.
+            if not battery.discharge_released(hour):
+                return 0.0, 0.0
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh, scale)
+            dc_request = requested_ac_wh / dc_to_ac_efficiency
+            battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
+            battery_discharge_ac = self._delivered_ac_wh(
+                battery_discharge_dc, dc_request, requested_ac_wh, dc_to_ac_efficiency, scale
+            )
+            inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
+            return battery_discharge_ac, discharge_losses + inverter_discharge_losses
+
+        # This runs for every slot of every candidate plan in which the battery
+        # could serve load or export. For the Battery the release check and the
+        # efficiency are computed in one go, without the nested calls. Without
+        # battery profile data, Battery.discharge_energy() is inlined as well;
+        # keep both in step.
+        if battery.discharge_array[hour] == 0:
+            # Not released in this slot: the battery delivers nothing.
+            return 0.0, 0.0
+        # With an efficiency curve, the efficiency is taken at the requested AC
+        # energy of this conversion.
+        if self.dc_to_ac_efficiency_curve is None:
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency
+        else:
+            dc_to_ac_efficiency = self.dc_to_ac_efficiency_at(requested_ac_wh, scale)
+        dc_request = requested_ac_wh / dc_to_ac_efficiency
+
+        if battery._curves is not None:
+            # SoC / power dependent limits and efficiencies: one call.
+            battery_discharge_dc, discharge_losses = battery.discharge_energy(dc_request, hour)
+        else:
+            soc_wh = battery.soc_wh
+            min_soc_wh = battery.min_soc_wh
+            discharged_raw_wh = battery._discharged_raw_wh_per_slot
+            discharging_efficiency = battery.discharging_efficiency
+            raw_available_wh = max(soc_wh - min_soc_wh, 0.0)
+            if raw_available_wh == 0.0:
+                # Match Battery.discharge_energy(): preserve a SoC below the reserve.
+                return 0.0, 0.0
+            max_raw_wh = max(
+                battery.max_discharge_power_w
+                * battery.slot_duration_h
+                * (battery.first_slot_fraction if hour == 0 else 1.0)
+                - discharged_raw_wh[hour],
+                0.0,
+            )
+            max_deliverable_wh = min(raw_available_wh, max_raw_wh) * discharging_efficiency
+            battery_discharge_dc = min(dc_request, max_deliverable_wh)
+            raw_used_wh = battery_discharge_dc / discharging_efficiency
+            soc_wh -= raw_used_wh
+            battery.soc_wh = max(soc_wh, min_soc_wh)
+            discharged_raw_wh[hour] += raw_used_wh
+            discharge_losses = raw_used_wh - battery_discharge_dc
+
+        # Same rule as _delivered_ac_wh(), without the call: a limited discharge
+        # is converted with the efficiency at the AC energy actually delivered.
+        if self.dc_to_ac_efficiency_curve is not None and battery_discharge_dc < dc_request * (
+            1.0 - 1e-12
+        ):
+            battery_discharge_ac = solve_ac_for_dc_energy(
+                self.dc_to_ac_efficiency_curve,
+                battery_discharge_dc,
+                self.max_power_wh * scale,
+                requested_ac_wh,
+            )
+        else:
+            battery_discharge_ac = battery_discharge_dc * dc_to_ac_efficiency
+        inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
+        return battery_discharge_ac, discharge_losses + inverter_discharge_losses
+
+    def process_energy(
+        self,
+        generation: float,
+        consumption: float,
+        hour: int,
+        allow_battery_grid_export: bool = False,
+        battery_grid_export_factor: float = 1.0,
+    ) -> tuple[float, float, float, float]:
+        """Process one slot using probabilistic direct PV-to-load overlap.
+
+        ``generation`` and ``consumption`` are interval energies. The load
+        probability table is evaluated in watts and yields the expected direct
+        PV-to-load power. The remaining load and PV surplus are then handled
+        independently, because both can occur during different sub-intervals of
+        the same hourly or 15-minute slot.
+
+        Args:
+            generation: PV energy of the slot [Wh].
+            consumption: Load energy of the slot [Wh].
+            hour: Slot index.
+            allow_battery_grid_export: Whether the battery may discharge into the
+                grid in this slot (direct marketing).
+            battery_grid_export_factor: Export level as a factor of the battery's
+                rated discharge power [0.0 ... 1.0]. 1.0 exports as much as the
+                battery and the inverter allow, which is the behaviour when no
+                export rates are configured.
+        """
+        # This method runs once per slot of every candidate plan. The bounds
+        # below are written as conditional expressions instead of min()/max()
+        # calls: "0.0 if x < 0.0 else x" is exactly max(x, 0.0) and
+        # "b if b < a else a" is exactly min(a, b), NaN and signed zero included.
+        losses = 0.0
+        grid_export = 0.0
+        generation = float(generation)
+        if generation < 0.0:
+            generation = 0.0
+        consumption = float(consumption)
+        if consumption < 0.0:
+            consumption = 0.0
+        battery = self.battery
+        # Slot 0 only has its remaining part when the run starts within it:
+        # the inverter moves that part of the slot energy, and the slot's
+        # energies are converted to power over that part of the slot.
+        scale = self.first_slot_fraction if hour == 0 else 1.0
+        max_power_wh = self.max_power_wh * scale
+
+        # Convert interval energy [Wh] to mean power [W] for the probability
+        # lookup, then convert its expected direct power back to slot energy.
+        if generation > 0.0 and consumption > 0.0:
+            slot_duration_h = self.slot_duration_h * scale
+            expected_direct_power_w = (
+                self.self_consumption_predictor.calculate_expected_direct_consumption(
+                    consumption / slot_duration_h,
+                    generation / slot_duration_h,
+                )
+            )
+            direct_pv_energy = expected_direct_power_w * slot_duration_h
+        else:
+            direct_pv_energy = 0.0
+
+        # Direct PV is bounded by both input energies and by the AC energy the
+        # inverter can move during this slot.
+        if direct_pv_energy < 0.0:
+            direct_pv_energy = 0.0
+        if generation < direct_pv_energy:
+            direct_pv_energy = generation
+        if consumption < direct_pv_energy:
+            direct_pv_energy = consumption
+        if max_power_wh < direct_pv_energy:
+            direct_pv_energy = max_power_wh
+        remaining_load = consumption - direct_pv_energy
+        if remaining_load < 0.0:
+            remaining_load = 0.0
+        pv_surplus = generation - direct_pv_energy
+        if pv_surplus < 0.0:
+            pv_surplus = 0.0
+        remaining_inverter_ac_capacity = max_power_wh - direct_pv_energy
+        if remaining_inverter_ac_capacity < 0.0:
+            remaining_inverter_ac_capacity = 0.0
+
+        # Load gaps and PV surplus may both occur within the same coarse slot.
+        # Cover the load gap first; this preserves the existing chronological
+        # approximation and can create headroom for later PV charging.
+        battery_discharge_ac = 0.0
+        if remaining_load > 0.0 and battery and remaining_inverter_ac_capacity > 0.0:
+            requested_ac_wh = (
+                remaining_inverter_ac_capacity
+                if remaining_inverter_ac_capacity < remaining_load
+                else remaining_load
+            )
+            battery_discharge_ac, battery_discharge_losses = self._discharge_battery_to_ac(
+                requested_ac_wh, hour
+            )
+            remaining_load = remaining_load - battery_discharge_ac
+            if remaining_load < 0.0:
+                remaining_load = 0.0
+            remaining_inverter_ac_capacity = remaining_inverter_ac_capacity - battery_discharge_ac
+            if remaining_inverter_ac_capacity < 0.0:
+                remaining_inverter_ac_capacity = 0.0
+            losses += battery_discharge_losses
+
+        grid_import = remaining_load
+
+        # Without PV surplus (night slots, or all PV consumed directly) there is
+        # nothing to charge, export or curtail. (!= instead of >: a NaN forecast
+        # keeps propagating into the result as before.)
+        if pv_surplus != 0.0:
+            # Charge from the probabilistic PV surplus on the DC path. Stored
+            # energy plus charge losses equals the PV energy accepted by the
+            # battery.
+            remaining_surplus = pv_surplus
+            if remaining_surplus > 0.0 and battery:
+                charged_energy, charge_losses = battery.charge_energy(remaining_surplus, hour)
+                remaining_surplus = remaining_surplus - charged_energy - charge_losses
+                if remaining_surplus < 0.0:
+                    remaining_surplus = 0.0
+                losses += charge_losses
+
+            pv_grid_export = (
+                remaining_inverter_ac_capacity
+                if remaining_inverter_ac_capacity < remaining_surplus
+                else remaining_surplus
+            )
+            grid_export += pv_grid_export
+            remaining_inverter_ac_capacity = remaining_inverter_ac_capacity - pv_grid_export
+            if remaining_inverter_ac_capacity < 0.0:
+                remaining_inverter_ac_capacity = 0.0
+            # PV which can neither charge the battery nor pass through the
+            # inverter is curtailed and reported as a loss.
+            curtailed = remaining_surplus - pv_grid_export
+            if curtailed < 0.0:
+                curtailed = 0.0
+            losses += curtailed
+
+        if allow_battery_grid_export and battery and remaining_inverter_ac_capacity > 0.0:
+            export_factor = float(battery_grid_export_factor)
+            if export_factor < 0.0:
+                export_factor = 0.0
+            if 1.0 < export_factor:
+                export_factor = 1.0
+            # Upper bounds of the export. With an efficiency curve, the
+            # efficiency is estimated at the DC energy of each bound; the
+            # conversion itself in _discharge_battery_to_ac() is exact and is
+            # limited by the energy the battery can actually deliver.
+            remaining_battery_dc = battery.remaining_discharge_energy_wh(hour)
+            remaining_battery_ac = remaining_battery_dc * self.dc_to_ac_efficiency_at(
+                remaining_battery_dc, scale
+            )
+            # The rate caps the export against the battery's *rated* discharge
+            # power, so it stays a plain power setpoint ("export at 50 %") that
+            # does not silently grow when self-consumption used less of the slot.
+            # At factor 1.0 this bound never binds; behaviour is unchanged.
+            rated_export_dc = battery.rated_discharge_energy_wh(hour) * export_factor
+            rated_export_ac = rated_export_dc * self.dc_to_ac_efficiency_at(rated_export_dc, scale)
+            export_capacity = remaining_inverter_ac_capacity
+            if remaining_battery_ac < export_capacity:
+                export_capacity = remaining_battery_ac
+            if rated_export_ac < export_capacity:
+                export_capacity = rated_export_ac
+            battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
+                export_capacity, hour
+            )
+            grid_export += battery_export_ac
+            losses += battery_export_losses
+
+        self_consumption = direct_pv_energy + battery_discharge_ac
+        return grid_export, grid_import, losses, self_consumption

@@ -149,14 +149,22 @@ WORLD_NAMES: dict[str, frozenset[str]] = {
 # Modules that mix the output contract or the public request schema with
 # configuration or Pydantic: from them an optimizer imports only the listed
 # names (ADR 0004, 0007): the solution, its DataFrame type, the operation-mode
-# enums of the plan's instructions and the time windows of a request.
+# enums of the plan's instructions, and the time windows and consumer schedule
+# enums of a request.
 CONTRACT_NAMES: dict[str, frozenset[str]] = {
     "akkudoktoreos.optimization.optimization": frozenset({"OptimizationSolution"}),
     "akkudoktoreos.core.pydantic": frozenset({"PydanticDateTimeDataFrame"}),
     "akkudoktoreos.devices.devicesabc": frozenset(
-        {"ApplianceOperationMode", "BatteryOperationMode"}
+        {
+            "ApplianceOperationMode",
+            "BatteryOperationMode",
+            "ConsumerDeadlinePolicy",
+            "ConsumerScheduleMode",
+        }
     ),
-    "akkudoktoreos.config.configabc": frozenset({"TimeWindow", "TimeWindowSequence"}),
+    "akkudoktoreos.config.configabc": frozenset(
+        {"TimeWindow", "TimeWindowSequence", "ValueTimeWindow", "CycleTimeWindowSequence"}
+    ),
 }
 # The roles that build the output or define the public schema, the only ones
 # that may import the contract names of these modules; the parameters and the
@@ -374,261 +382,6 @@ def collect_violations() -> frozenset[Violation]:
 # the existing uses revealed by a new list entry (ADR 0007).
 BASELINE: frozenset[Violation] = frozenset(
     {
-        Violation(
-            "internals",
-            "akkudoktoreos.config.configmigrate",
-            "akkudoktoreos.optimization.genetic.geneticsettings",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.configrequest",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.genetic",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.core.ems",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.optimization.optimization",
-            "akkudoktoreos.optimization.genetic.geneticsettings",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic.configrequest",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-        ),
-        Violation(
-            "internals",
-            "akkudoktoreos.server.eos",
-            "akkudoktoreos.optimization.genetic.geneticvisualize",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.devices.genetic.battery",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.devices.genetic.homeappliance",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.devices.genetic.inverter",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.configrequest",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.genetic",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.genetic",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticabc",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticabc",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticdevices",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.tailvalue",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.terminalvalue",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic.terminalvalue",
-            "pydantic",
-        ),
-        Violation(
-            "shared-config",
-            "akkudoktoreos.devices.settings.batterysettings",
-            "akkudoktoreos.devices.genetic.battery",
-        ),
-        Violation(
-            "shared-config",
-            "akkudoktoreos.devices.settings.homeappliancesettings",
-            "akkudoktoreos.devices.genetic.homeappliance",
-        ),
-        Violation(
-            "shared-config",
-            "akkudoktoreos.devices.settings.invertersettings",
-            "akkudoktoreos.devices.genetic.inverter",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.devices.genetic.battery",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.devices.genetic.battery",
-            "akkudoktoreos.devices.settings.batteryresolution",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.devices.genetic.battery",
-            "akkudoktoreos.devices.settings.batterysettings",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.devices.genetic.homeappliance",
-            "akkudoktoreos.config.configabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.devices.genetic.homeappliance",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.devices.genetic.inverter",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.devices.genetic.inverter",
-            "akkudoktoreos.prediction.interpolator",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.configrequest",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.configrequest",
-            "akkudoktoreos.core.coreabc:MeasurementMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.configrequest",
-            "akkudoktoreos.core.coreabc:PredictionMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.configrequest",
-            "akkudoktoreos.core.coreabc:get_ems",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.configrequest",
-            "akkudoktoreos.devices.settings.batteryresolution",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.configrequest",
-            "akkudoktoreos.devices.settings.batterysettings",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.genetic",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.genetic",
-            "akkudoktoreos.optimization.optimizationabc:OptimizationBase",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-            "akkudoktoreos.core.coreabc:MeasurementMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticparams",
-            "akkudoktoreos.core.coreabc:PredictionMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.coreabc:get_ems",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.core.coreabc:get_prediction",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticsolution",
-            "akkudoktoreos.devices.devicesabc",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticvisualize",
-            "akkudoktoreos.core.coreabc:ConfigMixin",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic.geneticvisualize",
-            "akkudoktoreos.core.coreabc:get_ems",
-        ),
     }
 )
 
@@ -1030,7 +783,7 @@ class TestOptimizerArchitecture:
             ),
             (
                 "from akkudoktoreos.devices.devicesabc import BatteryOperationMode, "
-                "ConsumerScheduleMode\n",
+                "validate_efficiency_curve\n",
                 Violation(
                     "world-access",
                     "akkudoktoreos.optimization.alpha.alphaconvert",

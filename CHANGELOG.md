@@ -144,12 +144,17 @@ test procedure. These changes are not yet a tagged release.
   `dc_to_ac_efficiency_curve`), `ac_charge_limits_total_charge` and `cell_chemistry` are dropped
   with an error log: the profile values apply. A generic profile without own power limits is
   limited to the former default of 5000 W. Home Assistant configuration paths follow.
-- GENETIC rejects incomplete control forecasts instead of inventing usable inputs. Unsupported
-  device counts and inconsistent battery links also fail explicitly. A missing, future, invalid
-  or stale state of charge no longer cancels the run: an explicit SoC in the request takes
-  precedence, otherwise the latest fresh measurement is used, otherwise 0 % is assumed for that
-  battery or EV and logged. The measurement age limit (`measurement_max_age_seconds`) defaults to
-  five minutes.
+- GENETIC never cancels a run because of its inputs; each fallback is logged as an error naming the
+  input. A forecast value that is missing, NaN or infinite within the control horizon gets a
+  fallback: PV 0, an even load of 3000 kWh per year, a price or feed-in tariff carried forward
+  (else the next known value, else 0); a negative PV or load value becomes 0. Surplus devices and a
+  battery not linked to the inverter are left out; without a usable inverter the run buys the whole
+  load from the grid, without PV and battery; without any known electricity price the run does not
+  charge the battery from the grid. An infinite forecast value after the control horizon shortens
+  the tail like a gap. A missing, future, invalid or stale state of charge no longer cancels the
+  run: an explicit SoC in the request takes precedence, otherwise the latest fresh measurement is
+  used, otherwise 0 % is assumed for that battery or EV and logged. The measurement age limit
+  (`measurement_max_age_seconds`) defaults to five minutes.
 - Imported sale prices, including zero and negative prices, are preserved. Corrected
   battery/inverter limits, losses and wear costs can change the chosen plan and its costs.
 - The electricity-fee framework replaces old `elecprice.charges_kwh` / `vat_rate` fields.
@@ -198,8 +203,15 @@ test procedure. These changes are not yet a tagged release.
   for a feeder that only sends a reading when the meter value changes.
 - The OpenAPI schema names of the optimizers follow one scheme; fields and paths are unchanged:
   GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request`, its device and forecast
-  models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`.
-  Clients generated from `openapi.json` must follow the new names.
+  models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`;
+  GENETIC's `ConfigOptimizationRequest` is `GeneticRequest`, `RuntimeForecasts` is
+  `GeneticForecastsRequest`, its device and forecast models are `Genetic<Thing>Request` (e.g.
+  `SolarPanelBatteryParameters` is `GeneticBatteryRequest`) and `GeneticCommonSettings` is
+  `GeneticSettings`. Clients generated from `openapi.json` must follow the new names.
+- Each optimizer serves its stored result on its own path,
+  `GET /v1/energy-management/optimization/solution/GENETIC` and `.../solution/GENETIC0`,
+  with unchanged responses. The generic `.../solution/{algorithm}` route is removed; any other
+  algorithm name gets a 404 problem response instead of a 422.
 
 ### Fixed
 
@@ -211,6 +223,10 @@ test procedure. These changes are not yet a tagged release.
   no cost.
 - The GENETIC0 PDF report (`/visualization_results.pdf`) renders runs of any length, not only
   runs with `prediction.hours` 48.
+- The GENETIC result echoes the request as sent: a home appliance without time windows no longer
+  shows an invented placeholder window in `parameters`, and a `start_solution` sent without
+  `start_solution_datetime` is echoed without it, also when the run aligns it with the previous
+  solution.
 - Restored JSON measurements retain their timestamps and values.
 - Configuration updates made at runtime, e.g. by `PUT /v1/config`, are no longer discarded when the
   same configuration key is set in the EOS configuration file or in the environment
@@ -226,6 +242,11 @@ test procedure. These changes are not yet a tagged release.
   not exist ([#913](https://github.com/Akkudoktor-EOS/EOS/issues/913)).
 - Configuration migration keeps map entries with `/` in their keys; prediction providers are
   validated before the prediction exists.
+- A GENETIC home appliance that cannot be scheduled (a STRICT deadline already missed, a time
+  window shorter than one run, more cycles than fit) no longer fails the optimization: the run
+  plans as many cycles as fit or leaves the appliance out, logged as an error. A DAILY appliance
+  whose open windows leave no room for a run is left out with that error too, instead of
+  silently.
 - Planning: the AC setpoint caps the total charge where the inverter does; EVs can finish
   charging within the final slot; full SoC targets are accepted; energy below the minimum state
   of charge is preserved; GENETIC battery discharge is limited by the discharge power.
@@ -259,6 +280,9 @@ test procedure. These changes are not yet a tagged release.
   follow their `tz`, or UTC without one, instead of the timezone of the EOS host. A series takes
   the timezone of its data. The keys name the same instants as before; only their UTC offsets
   can differ ([#1592](https://github.com/Akkudoktor-EOS/EOS/issues/1592)).
+- The date-times of a GENETIC request (battery full-charge deadline, EV minimum-SoC deadline,
+  home appliance start window and run start) are held in UTC instead of the timezone of the EOS
+  host. Echoed requests and replay files show them with `Z`; they name the same instants.
 
 ### Security
 

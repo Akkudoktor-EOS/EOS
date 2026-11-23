@@ -1015,7 +1015,9 @@ class TestDataSequence:
         assert pd.isna(values_keep[1])
 
     async def test_raw_none_record_keeps_forecast_gap_and_true_interval_length(self, sequence):
-        from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
+        from akkudoktoreos.optimization.genetic.geneticforecast import (
+            bounded_forecast_array,
+        )
 
         start = to_datetime("2026-09-16T10:00:00Z", in_timezone="UTC")
         for minute, value in [(0, 100.0), (15, None), (30, 100.0)]:

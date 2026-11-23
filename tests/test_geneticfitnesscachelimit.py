@@ -9,17 +9,21 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from conftest import genetic_optimization
 from deap import creator
 from pydantic import ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticparams import (
+from akkudoktoreos.optimization.genetic import geneticapi
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsettings import GeneticCommonSettings
+from akkudoktoreos.optimization.genetic.geneticsettings import GeneticSettings
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_TESTDATA = Path(__file__).parent / "testdata" / "genetic"
@@ -38,17 +42,17 @@ def _configure_hourly_grid(config_eos: ConfigEOS) -> None:
 
 
 def test_fitness_cache_max_entries_setting_defaults_to_unbounded():
-    assert GeneticCommonSettings().fitness_cache_max_entries is None
-    assert GeneticCommonSettings(fitness_cache_max_entries=0).fitness_cache_max_entries == 0
-    assert GeneticCommonSettings(fitness_cache_max_entries=5000).fitness_cache_max_entries == 5000
+    assert GeneticSettings().fitness_cache_max_entries is None
+    assert GeneticSettings(fitness_cache_max_entries=0).fitness_cache_max_entries == 0
+    assert GeneticSettings(fitness_cache_max_entries=5000).fitness_cache_max_entries == 5000
     with pytest.raises(ValidationError):
-        GeneticCommonSettings(fitness_cache_max_entries=-1)
+        GeneticSettings(fitness_cache_max_entries=-1)
 
 
 @pytest.mark.parametrize("max_entries", [1, 2, 3, 10])
 def test_bounded_fitness_cache_evicts_oldest_keys(config_eos: ConfigEOS, max_entries: int):
     _configure_hourly_grid(config_eos)
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     parameters = SimpleNamespace(ems=SimpleNamespace(price_per_wh_battery=0.0), ev=None)
@@ -80,7 +84,7 @@ def test_bounded_fitness_cache_evicts_oldest_keys(config_eos: ConfigEOS, max_ent
 
 
 def test_evict_fitness_cache_also_bounds_a_plain_dict(config_eos: ConfigEOS):
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     opt._fitness_cache = {(bytes([value]),): None for value in range(10)}  # type: ignore[misc]
     opt._evict_fitness_cache(3)
     assert list(opt._fitness_cache) == [(bytes([value]),) for value in (7, 8, 9)]
@@ -121,7 +125,7 @@ def _run_optimization(
     )
     CacheEnergyManagementStore().clear()
 
-    opt = GeneticOptimization(fixed_seed=42)
+    opt = genetic_optimization(seed=42)
     max_cache_size = 0
     uncached = opt._evaluate_uncached
 
@@ -133,7 +137,7 @@ def _run_optimization(
     with patch.object(opt, "_evaluate_uncached", side_effect=spy):
         solution = opt.optimize_ems(parameters=parameters, start_hour=10, ngen=12)
 
-    dump = solution.model_dump(mode="json")
+    dump = geneticapi.solution_response(solution).model_dump(mode="json")
     history = dump.pop("fitness_history")
     cache_stats = history.pop("fitness_cache")
     max_cache_size = max(max_cache_size, cache_stats["keys"])

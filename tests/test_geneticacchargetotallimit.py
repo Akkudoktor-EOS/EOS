@@ -13,21 +13,30 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.devices.profile.inverterprofile import InverterProfileSettings
 from akkudoktoreos.devices.profile.profilestore import get_profile_store
 from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
 )
+from akkudoktoreos.optimization.genetic import geneticprepare
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    GeneticBattery,
+)
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    GeneticInverter,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import (
+    GeneticBatteryRequest,
+    GeneticInverterRequest,
+)
 
 MAX_CHARGE_W = 5000
 
 
-def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[Inverter, Battery]:
-    battery = Battery(
-        SolarPanelBatteryParameters(
+def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[GeneticInverter, GeneticBattery]:
+    battery = GeneticBattery(
+        GeneticBatteryRequest(
             device_id="battery1",
             capacity_wh=20000,
             initial_soc_percentage=20,
@@ -36,7 +45,7 @@ def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[Inverter, Ba
             min_soc_percentage=0,
             max_soc_percentage=100,
             max_charge_power_w=MAX_CHARGE_W,
-        ),
+        ).to_parameters(),
         prediction_hours=4,
     )
     battery.reset()
@@ -45,24 +54,24 @@ def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[Inverter, Ba
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_genetic_load_interpolator",
         return_value=predictor,
     ):
-        inverter = Inverter(
-            InverterParameters(
+        inverter = GeneticInverter(
+            GeneticInverterRequest(
                 device_id="inverter1",
                 max_power_wh=10000,
                 battery_id="battery1",
                 ac_to_dc_efficiency=1.0,
                 max_ac_charge_power_w=max_ac_charge_power_w,
                 ac_charge_limits_total_charge=limits_total,
-            ),
+            ).to_parameters(),
             battery=battery,
         )
     return inverter, battery
 
 
-def _run_ac_slot(inverter: Inverter, battery: Battery, pv_wh: float, factor: float):
+def _run_ac_slot(inverter: GeneticInverter, battery: GeneticBattery, pv_wh: float, factor: float):
     """Run one AC slot the way GeneticSimulation.simulate() does."""
     battery.charge_array[0] = factor
     battery.discharge_array[0] = 0
@@ -150,9 +159,11 @@ class TestGeneticSimulation:
 
     @pytest.fixture
     def simulate(self, config_eos):
-        from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
-        from akkudoktoreos.optimization.genetic.geneticparams import (
-            GeneticEnergyManagementParameters,
+        from akkudoktoreos.optimization.genetic.geneticrequest import (
+            GeneticEnergyManagementRequest,
+        )
+        from akkudoktoreos.optimization.genetic.geneticsimulation import (
+            GeneticSimulation,
         )
 
         config_eos.merge_settings_from_dict(
@@ -161,8 +172,8 @@ class TestGeneticSimulation:
         hours = config_eos.prediction.hours
 
         def _simulate(limits_total: bool, ac_factor: float, dc_factor: float):
-            battery = Battery(
-                SolarPanelBatteryParameters(
+            battery = GeneticBattery(
+                GeneticBatteryRequest(
                     device_id="battery1",
                     capacity_wh=30000,
                     initial_soc_percentage=20,
@@ -171,22 +182,22 @@ class TestGeneticSimulation:
                     min_soc_percentage=0,
                     max_soc_percentage=100,
                     max_charge_power_w=MAX_CHARGE_W,
-                ),
+                ).to_parameters(),
                 prediction_hours=hours,
             )
             battery.reset()
-            inverter = Inverter(
-                InverterParameters(
+            inverter = GeneticInverter(
+                GeneticInverterRequest(
                     device_id="inverter1",
                     max_power_wh=10000,
                     battery_id="battery1",
                     ac_charge_limits_total_charge=limits_total,
-                ),
+                ).to_parameters(),
                 battery=battery,
             )
             sim = GeneticSimulation()
             sim.prepare(
-                GeneticEnergyManagementParameters.model_validate(
+                GeneticEnergyManagementRequest.model_validate(
                     dict(
                         pv_prognose_wh=[8000.0] * hours,
                         strompreis_euro_pro_wh=[0.0003] * hours,
@@ -194,7 +205,7 @@ class TestGeneticSimulation:
                         preis_euro_pro_wh_akku=0.0001,
                         gesamtlast=[0.0] * hours,
                     )
-                ),
+                ).to_parameters(),
                 optimization_hours=config_eos.optimization.genetic.horizon_hours,
                 prediction_hours=hours,
                 inverter=inverter,
@@ -244,11 +255,11 @@ class TestConfigOption:
             battery_id="battery1",
             profile_adjustment=InverterProfileAdjustment(nominal_power_w=10000),
         )
-        assert settings.to_genetic_param().ac_charge_limits_total_charge is enabled
+        assert geneticprepare.inverter_request(settings).ac_charge_limits_total_charge is enabled
 
     def test_default_profile_keeps_the_existing_model(self, config_eos):
         settings = InverterCommonSettings(
             device_id="inverter",
             profile_adjustment=InverterProfileAdjustment(nominal_power_w=10000),
         )
-        assert settings.to_genetic_param().ac_charge_limits_total_charge is False
+        assert geneticprepare.inverter_request(settings).ac_charge_limits_total_charge is False

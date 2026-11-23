@@ -6,7 +6,7 @@ import pendulum
 import pytest
 import requests
 
-from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
+from akkudoktoreos.optimization.genetic.geneticforecast import bounded_forecast_array
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 

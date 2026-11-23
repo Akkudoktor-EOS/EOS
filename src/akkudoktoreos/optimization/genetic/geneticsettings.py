@@ -61,7 +61,7 @@ class TerminalValueMode(StrEnum):
     FIXED = "FIXED"
 
 
-class GeneticCommonSettings(SettingsBaseModel):
+class GeneticSettings(SettingsBaseModel):
     """GENETIC Optimization Algorithm Configuration."""
 
     interval_sec: Literal[900, 3600] = Field(

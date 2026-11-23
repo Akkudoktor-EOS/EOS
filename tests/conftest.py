@@ -16,6 +16,7 @@ from http import HTTPStatus
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generator,
     Iterator,
@@ -42,6 +43,8 @@ from akkudoktoreos.server.server import get_default_host
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser
+
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import GeneticOptimization
 
 # -----------------------------------------------
 # Adapt pytest logging handling to Loguru logging
@@ -926,3 +929,123 @@ def set_other_timezone():
     # Restore the original timezone
     cast(Callable[[pendulum.Timezone | pendulum.FixedTimezone], None], pendulum.set_local_timezone)(original_timezone)
     assert pendulum.local_timezone() == original_timezone
+
+
+def genetic_optimization(seed: Optional[int] = None) -> "GeneticOptimization":
+    """GENETIC algorithm with the run settings of the configuration and EMS run start.
+
+    Before migration step 3 the algorithm read the configuration and the run start of the
+    energy management itself; tests that build it directly get the same settings here.
+
+    Args:
+        seed: Random seed of the run; ``None`` gives a random seed.
+
+    Returns:
+        A ``GeneticOptimization`` for the current configuration and run start.
+    """
+    from dataclasses import replace
+
+    from akkudoktoreos.core.coreabc import get_ems
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import GeneticOptimization
+    from akkudoktoreos.optimization.genetic.geneticprepare import run_settings
+
+    ems = get_ems()
+    settings = run_settings(ems.start_datetime, ems.observation_datetime)
+    return GeneticOptimization(replace(settings, seed=seed, verbose=False))
+
+
+def genetic_run_parameters(request: Any, optimization: Any = None) -> Any:
+    """GENETIC optimization parameters for the conversion and visualization tests.
+
+    Args:
+        request: The forecast and device parameters (``GeneticOptimizationParameters``), e.g. the
+            ones a result echoes.
+        optimization: The ``GeneticOptimization`` of the run, whose settings are used; without it,
+            the settings of the configuration and EMS run start.
+
+    Returns:
+        A ``GeneticParameters``.
+    """
+    from akkudoktoreos.core.coreabc import get_ems
+    from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
+    from akkudoktoreos.optimization.genetic.geneticprepare import run_settings
+
+    if optimization is not None:
+        settings = optimization.settings
+    else:
+        ems = get_ems()
+        settings = run_settings(ems.start_datetime, ems.observation_datetime)
+    return GeneticParameters(
+        request=request, start_hour=settings.start_datetime.hour, settings=settings
+    )
+
+
+def genetic_result_of(solution: Any) -> Any:
+    """The GENETIC result a public solution was built from.
+
+    Tests keep stored solutions (``GeneticSolution`` JSON); the conversion and the visualization
+    take the result of a run (``GeneticResult``).
+
+    Args:
+        solution: A ``GeneticSolution`` response.
+
+    Returns:
+        A ``GeneticResult`` with the solution's values; its request is the echoed ``parameters``.
+    """
+    import dataclasses
+
+    from akkudoktoreos.optimization.genetic import geneticterminalvalue
+    from akkudoktoreos.optimization.genetic.geneticresult import (
+        GeneticElectricVehicleState,
+        GeneticResult,
+        GeneticSimulationOutput,
+    )
+
+    def curve(value: Any) -> Any:
+        if value is None:
+            return None
+        return geneticterminalvalue.TerminalValueCurve(**value.model_dump())
+
+    terminal_value = None
+    if solution.terminal_value is not None:
+        tv = solution.terminal_value
+        terminal_value = geneticterminalvalue.TerminalValueResult(
+            **{
+                name: getattr(tv, name)
+                for name in type(tv).model_fields
+                if name not in ("curve", "continuation_curve", "tail_diagnostics", "tail_plan")
+            },
+            curve=curve(tv.curve),
+            continuation_curve=curve(tv.continuation_curve),
+            tail_diagnostics=None
+            if tv.tail_diagnostics is None
+            else geneticterminalvalue.TailDiagnostics(**tv.tail_diagnostics.model_dump()),
+            tail_plan=[
+                geneticterminalvalue.TailPlanSlot(**slot.model_dump()) for slot in tv.tail_plan
+            ],
+        )
+    simulation = GeneticSimulationOutput(
+        **{
+            field.name: getattr(solution.result, field.name)
+            for field in dataclasses.fields(GeneticSimulationOutput)
+        }
+    )
+    ev = None
+    if solution.ev_obj is not None:
+        ev = GeneticElectricVehicleState(
+            **{
+                field.name: getattr(solution.ev_obj, field.name)
+                for field in dataclasses.fields(GeneticElectricVehicleState)
+            }
+        )
+    return GeneticResult(
+        **{
+            field.name: getattr(solution, field.name)
+            for field in dataclasses.fields(GeneticResult)
+            if field.name not in ("request", "result", "ev_obj", "terminal_value")
+        },
+        request=solution.parameters,
+        result=simulation,
+        ev_obj=ev,
+        terminal_value=terminal_value,
+    )
