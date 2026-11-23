@@ -4,10 +4,7 @@ from typing import Any, Optional
 
 import numpy as np
 from loguru import logger
-from numpydantic import NDArray, Shape
-from pydantic import ConfigDict, Field
 
-from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
 from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
     Genetic0HomeAppliance,
@@ -15,93 +12,33 @@ from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
 from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
 )
-from akkudoktoreos.optimization.genetic0.genetic0request import (
+from akkudoktoreos.optimization.genetic0.genetic0energymanagement import (
     Genetic0EnergyManagementParameters,
 )
 
 
-class Genetic0Simulation(PydanticBaseModel):
+class Genetic0Simulation:
     """Device simulation for GENETIC optimization algorithm."""
 
-    # Disable validation on assignment to speed up simulation runs.
-    model_config = ConfigDict(
-        validate_assignment=False,
-    )
-
-    start_hour: int = Field(
-        default=0,
-        ge=0,
-        le=23,
-        json_schema_extra={"description": "Starting hour on day for optimizations."},
-    )
-
-    optimization_hours: Optional[int] = Field(
-        default=24,
-        ge=0,
-        json_schema_extra={"description": "Number of hours into the future for optimizations."},
-    )
-
-    prediction_hours: Optional[int] = Field(
-        default=48,
-        ge=0,
-        json_schema_extra={"description": "Number of hours into the future for predictions"},
-    )
-
-    load_energy_array: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
-        },
-    )
-    pv_prediction_wh: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
-        },
-    )
-    elect_price_hourly: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
-        },
-    )
-    elect_revenue_per_hour_arr: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "An array of floats representing the feed-in compensation per watt-hour."
-        },
-    )
-
-    battery: Optional[Genetic0Battery] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
-    )
-    ev: Optional[Genetic0Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    home_appliance: Optional[Genetic0HomeAppliance] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
-    )
-    inverter: Optional[Genetic0Inverter] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
-    )
-
-    ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    dc_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    bat_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, json_schema_extra={"description": "TBD"}
-    )
-    home_appliance_start_hour: Optional[int] = Field(
-        default=None,
-        json_schema_extra={"description": "Home appliance start hour - None denotes no start."},
-    )
+    def __init__(self) -> None:
+        """Create an empty simulation; ``prepare()`` sets it up for a run."""
+        self.start_hour: int = 0
+        self.optimization_hours: Optional[int] = 24
+        self.prediction_hours: Optional[int] = 48
+        self.load_energy_array: Optional[np.ndarray] = None
+        self.pv_prediction_wh: Optional[np.ndarray] = None
+        self.elect_price_hourly: Optional[np.ndarray] = None
+        self.elect_revenue_per_hour_arr: Optional[np.ndarray] = None
+        self.battery: Optional[Genetic0Battery] = None
+        self.ev: Optional[Genetic0Battery] = None
+        self.home_appliance: Optional[Genetic0HomeAppliance] = None
+        self.inverter: Optional[Genetic0Inverter] = None
+        self.ac_charge_hours: Optional[np.ndarray] = None
+        self.dc_charge_hours: Optional[np.ndarray] = None
+        self.bat_discharge_hours: Optional[np.ndarray] = None
+        self.ev_charge_hours: Optional[np.ndarray] = None
+        self.ev_discharge_hours: Optional[np.ndarray] = None
+        self.home_appliance_start_hour: Optional[int] = None
 
     def prepare(
         self,
@@ -125,7 +62,7 @@ class Genetic0Simulation(PydanticBaseModel):
         self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
         self.elect_revenue_per_hour_arr = (
             np.asarray(parameters.feed_in_tariff_per_wh, dtype=float)
-            if isinstance(parameters.feed_in_tariff_per_wh, list)
+            if isinstance(parameters.feed_in_tariff_per_wh, tuple)
             else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
         )
 

@@ -8000,7 +8000,7 @@
         "title": "GeneralSettings",
         "description": "General settings."
       },
-      "Genetic0ElectricVehicleParameters": {
+      "Genetic0ElectricVehicleRequest": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8144,7 +8144,7 @@
           "device_id",
           "capacity_wh"
         ],
-        "title": "Genetic0ElectricVehicleParameters",
+        "title": "Genetic0ElectricVehicleRequest",
         "description": "Battery Electric Vehicle Device Simulation Configuration."
       },
       "Genetic0ElectricVehicleResult": {
@@ -8230,7 +8230,7 @@
         "title": "Genetic0ElectricVehicleResult",
         "description": "Result class containing information related to the electric vehicle's charging and discharging behavior."
       },
-      "Genetic0EnergyManagementParameters-Input": {
+      "Genetic0EnergyManagementRequest-Input": {
         "properties": {
           "pv_forecast_wh": {
             "items": {
@@ -8285,10 +8285,10 @@
           "price_per_wh_battery",
           "total_load"
         ],
-        "title": "Genetic0EnergyManagementParameters",
+        "title": "Genetic0EnergyManagementRequest",
         "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
       },
-      "Genetic0EnergyManagementParameters-Output": {
+      "Genetic0EnergyManagementRequest-Output": {
         "properties": {
           "pv_forecast_wh": {
             "items": {
@@ -8402,10 +8402,10 @@
           "preis_euro_pro_wh_akku",
           "gesamtlast"
         ],
-        "title": "Genetic0EnergyManagementParameters",
+        "title": "Genetic0EnergyManagementRequest",
         "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
       },
-      "Genetic0HomeApplianceParameters-Input": {
+      "Genetic0HomeApplianceRequest-Input": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8476,10 +8476,10 @@
           "consumption_wh",
           "duration_h"
         ],
-        "title": "Genetic0HomeApplianceParameters",
+        "title": "Genetic0HomeApplianceRequest",
         "description": "Home Appliance Device Simulation Configuration."
       },
-      "Genetic0HomeApplianceParameters-Output": {
+      "Genetic0HomeApplianceRequest-Output": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8550,10 +8550,10 @@
           "consumption_wh",
           "duration_h"
         ],
-        "title": "Genetic0HomeApplianceParameters",
+        "title": "Genetic0HomeApplianceRequest",
         "description": "Home Appliance Device Simulation Configuration."
       },
-      "Genetic0InverterParameters": {
+      "Genetic0InverterRequest": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -8653,18 +8653,18 @@
           "device_id",
           "max_power_wh"
         ],
-        "title": "Genetic0InverterParameters",
+        "title": "Genetic0InverterRequest",
         "description": "Inverter Device Simulation Configuration."
       },
       "Genetic0Request-Input": {
         "properties": {
           "ems": {
-            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters-Input"
+            "$ref": "#/components/schemas/Genetic0EnergyManagementRequest-Input"
           },
           "pv_battery": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryRequest"
               },
               {
                 "type": "null"
@@ -8675,7 +8675,7 @@
           "inverter": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0InverterParameters"
+                "$ref": "#/components/schemas/Genetic0InverterRequest"
               },
               {
                 "type": "null"
@@ -8685,7 +8685,7 @@
           "ev": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -8696,7 +8696,7 @@
           "dishwasher": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters-Input"
+                "$ref": "#/components/schemas/Genetic0HomeApplianceRequest-Input"
               },
               {
                 "type": "null"
@@ -8754,12 +8754,12 @@
       "Genetic0Request-Output": {
         "properties": {
           "ems": {
-            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters-Output"
+            "$ref": "#/components/schemas/Genetic0EnergyManagementRequest-Output"
           },
           "pv_battery": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryRequest"
               },
               {
                 "type": "null"
@@ -8770,7 +8770,7 @@
           "inverter": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0InverterParameters"
+                "$ref": "#/components/schemas/Genetic0InverterRequest"
               },
               {
                 "type": "null"
@@ -8780,7 +8780,7 @@
           "ev": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -8791,7 +8791,7 @@
           "dishwasher": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters-Output"
+                "$ref": "#/components/schemas/Genetic0HomeApplianceRequest-Output"
               },
               {
                 "type": "null"
@@ -8838,7 +8838,7 @@
           "pv_akku": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryRequest"
               },
               {
                 "type": "null"
@@ -8851,7 +8851,7 @@
           "eauto": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleRequest"
               },
               {
                 "type": "null"
@@ -9351,7 +9351,7 @@
         "title": "Genetic0SimulationResult",
         "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
       },
-      "Genetic0SolarPanelBatteryParameters": {
+      "Genetic0SolarPanelBatteryRequest": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -9495,7 +9495,7 @@
           "device_id",
           "capacity_wh"
         ],
-        "title": "Genetic0SolarPanelBatteryParameters",
+        "title": "Genetic0SolarPanelBatteryRequest",
         "description": "PV battery device simulation configuration."
       },
       "Genetic0Solution": {

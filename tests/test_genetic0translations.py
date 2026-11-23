@@ -4,7 +4,7 @@
 import json
 
 from akkudoktoreos.optimization.genetic0.genetic0request import (
-    Genetic0EnergyManagementParameters,
+    Genetic0EnergyManagementRequest,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import (
     Genetic0SimulationResult,
@@ -20,7 +20,7 @@ def test_genetic0_params_german_input():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = Genetic0EnergyManagementParameters.model_validate(data_de)
+    params = Genetic0EnergyManagementRequest.model_validate(data_de)
     assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ German input accepted")
 
@@ -33,7 +33,7 @@ def test_genetic0_params_english_input():
         "price_per_wh_battery": 0.0001,
         "total_load": [500.0, 600.0],
     }
-    params = Genetic0EnergyManagementParameters.model_validate(data_en)
+    params = Genetic0EnergyManagementRequest.model_validate(data_en)
     assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ English input accepted")
 
@@ -46,7 +46,7 @@ def test_genetic0_params_english_output():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = Genetic0EnergyManagementParameters.model_validate(data_de)
+    params = Genetic0EnergyManagementRequest.model_validate(data_de)
     json_output = json.loads(params.model_dump_json(by_alias=True))
 
     # English names should be in output

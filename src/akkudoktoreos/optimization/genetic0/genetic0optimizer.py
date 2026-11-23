@@ -56,10 +56,7 @@ class Genetic0Optimizer:
         )
 
         optimization = Genetic0Optimization(parameters.settings)
-        return optimization.optimize_ems(
-            parameters=parameters.request,
-            start_hour=parameters.start_hour,
-        )
+        return optimization.optimize_ems(parameters)
 
     async def convert(
         self, parameters: Genetic0Parameters, result: Genetic0Solution

@@ -22,9 +22,6 @@ from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_dat
 
 if TYPE_CHECKING:
     from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
-    from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
-        Genetic0HomeApplianceParameters,
-    )
 
 
 class HomeApplianceCommonSettings(DevicesBaseSettings):
@@ -393,27 +390,6 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
             earliest_start_datetime=self.earliest_start_datetime,
             deadline_datetime=self.deadline_datetime,
             deadline_policy=self.deadline_policy,
-        )
-
-    # ------------------------------------------------------------------
-    # GENETIC0 domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic0_param(self) -> "Genetic0HomeApplianceParameters":
-        """Return Genetic0HomeApplianceParameters for the GENETIC0 optimizer."""
-        from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
-            Genetic0HomeApplianceParameters,
-        )
-
-        if self.load_profile_power_w is not None:
-            raise ValueError("Explicit appliance load profiles require the GENETIC optimizer.")
-        if self.consumption_wh is None or self.duration_h is None:
-            raise ValueError("GENETIC0 requires a flat appliance load definition.")
-        return Genetic0HomeApplianceParameters(
-            device_id=self.device_id,
-            consumption_wh=self.consumption_wh,
-            duration_h=self.duration_h,
-            time_windows=self.cycle_time_windows,
         )
 
     @computed_field  # type: ignore[prop-decorator]

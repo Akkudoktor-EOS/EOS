@@ -135,6 +135,12 @@ def offline_ems(monkeypatch):
         "configured_grid_interpolator_backend",
         lambda: GridInterpolatorBackend.SCIPY,
     )
+    # Stand-in requests have no forecasts to derive the simulation's dataclasses from.
+    monkeypatch.setattr(
+        genetic0prepare.Genetic0Parameters,
+        "from_request",
+        classmethod(lambda cls, **fields: SimpleNamespace(**fields)),
+    )
     return ems
 
 
@@ -239,7 +245,12 @@ async def test_optimization_routes_only_selected_algorithm(
         )
     if algorithm == OptimizationAlgorithm.GENETIC:
         expected_arguments["individuals"] = 11 if supplied else None
-    selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
+        selected.return_value.optimize_ems.assert_called_once_with(**expected_arguments)
+    else:
+        # GENETIC0 runs from its parameters, which carry the request and the start hour.
+        (parameters,) = selected.return_value.optimize_ems.call_args.args
+        assert parameters.request is sentinel_parameters
+        assert parameters.start_hour == expected_hour
     constructors[other_name].assert_not_called()
     preparers[other_name].assert_not_awaited()
     if supplied:

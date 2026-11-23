@@ -2,21 +2,19 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
-from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
-    Genetic0Battery,
-    Genetic0ElectricVehicleParameters,
-    Genetic0SolarPanelBatteryParameters,
-)
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
 from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
     Genetic0HomeAppliance,
-    Genetic0HomeApplianceParameters,
 )
 from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
-    Genetic0InverterParameters,
 )
 from akkudoktoreos.optimization.genetic0.genetic0request import (
-    Genetic0EnergyManagementParameters,
+    Genetic0ElectricVehicleRequest,
+    Genetic0EnergyManagementRequest,
+    Genetic0HomeApplianceRequest,
+    Genetic0InverterRequest,
+    Genetic0SolarPanelBatteryRequest,
 )
 from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
 from akkudoktoreos.optimization.genetic0.genetic0solution import (
@@ -47,38 +45,38 @@ def genetic0_simulation(config_eos) -> Genetic0Simulation:
 
     # Initialize the battery and the inverter
     akku = Genetic0Battery(
-        Genetic0SolarPanelBatteryParameters(
+        Genetic0SolarPanelBatteryRequest(
             device_id="battery1",
             capacity_wh=5000,
             initial_soc_percentage=80,
             min_soc_percentage=10,
-        ),
+        ).to_parameters(),
         prediction_hours = config_eos.prediction.hours,
     )
     akku.reset()
 
     inverter = Genetic0Inverter(
-        Genetic0InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id),
+        Genetic0InverterRequest(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id).to_parameters(),
         battery = akku,
     )
 
     # Household device (currently not used, set to None)
     home_appliance = Genetic0HomeAppliance(
-        Genetic0HomeApplianceParameters(
+        Genetic0HomeApplianceRequest(
             device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
             time_windows=None,
-        ),
+        ).to_parameters(48),
         optimization_hours = config_eos.optimization.genetic0.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
     )
 
     # Example initialization of electric car battery
     eauto = Genetic0Battery(
-        Genetic0ElectricVehicleParameters(
+        Genetic0ElectricVehicleRequest(
             device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
-        ),
+        ).to_parameters(),
         prediction_hours = config_eos.prediction.hours,
     )
     eauto.set_charge_per_hour(np.full(config_eos.prediction.hours, 1))
@@ -243,13 +241,13 @@ def genetic0_simulation(config_eos) -> Genetic0Simulation:
     # Initialize the energy management system with the respective parameters
     genetic0_simulation = Genetic0Simulation()
     genetic0_simulation.prepare(
-        Genetic0EnergyManagementParameters.model_validate(dict(
+        Genetic0EnergyManagementRequest.model_validate(dict(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
-        )),
+        )).to_parameters(),
         optimization_hours = config_eos.optimization.genetic0.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,
@@ -289,38 +287,38 @@ def genetic0_simulation_2(config_eos) -> Genetic0Simulation:
 
     # Initialize the battery and the inverter
     akku = Genetic0Battery(
-        Genetic0SolarPanelBatteryParameters(
+        Genetic0SolarPanelBatteryRequest(
             device_id="battery1",
             capacity_wh=5000,
             initial_soc_percentage=80,
             min_soc_percentage=10,
-        ),
+        ).to_parameters(),
         prediction_hours = config_eos.prediction.hours,
     )
     akku.reset()
 
     inverter = Genetic0Inverter(
-        Genetic0InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id),
+        Genetic0InverterRequest(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id).to_parameters(),
         battery = akku,
     )
 
     # Household device (currently not used, set to None)
     home_appliance = Genetic0HomeAppliance(
-        Genetic0HomeApplianceParameters(
+        Genetic0HomeApplianceRequest(
             device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
             time_windows=None,
-        ),
+        ).to_parameters(48),
         optimization_hours = config_eos.optimization.genetic0.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
     )
 
     # Example initialization of electric car battery
     eauto = Genetic0Battery(
-        Genetic0ElectricVehicleParameters(
+        Genetic0ElectricVehicleRequest(
             device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
-        ),
+        ).to_parameters(),
         prediction_hours = config_eos.prediction.hours,
     )
 
@@ -391,13 +389,13 @@ def genetic0_simulation_2(config_eos) -> Genetic0Simulation:
     # Initialize the energy management system with the respective parameters
     simulation = Genetic0Simulation()
     simulation.prepare(
-        Genetic0EnergyManagementParameters.model_validate(dict(
+        Genetic0EnergyManagementRequest.model_validate(dict(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
-        )),
+        )).to_parameters(),
         optimization_hours = config_eos.optimization.genetic0.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,

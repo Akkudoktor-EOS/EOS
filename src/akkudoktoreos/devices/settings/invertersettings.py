@@ -45,9 +45,6 @@ from akkudoktoreos.utils.datetimeutil import DateTime
 if TYPE_CHECKING:
     from akkudoktoreos.devices.genetic.inverter import InverterParameters
     from akkudoktoreos.devices.profile.inverterprofile import InverterProfile
-    from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
-        Genetic0InverterParameters,
-    )
 
 
 # Name of the inverter profile used when the user selects none.
@@ -711,35 +708,6 @@ class InverterCommonSettings(DevicesBaseSettings):
             ),
             max_ac_charge_power_w=p.max_ac_charge_power_w,
             ac_charge_limits_total_charge=p.ac_charge_limits_total_charge,
-        )
-
-    # ------------------------------------------------------------------
-    # GENETIC0 domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic0_param(
-        self, operating_parameters: Optional[InverterOperatingParameters] = None
-    ) -> "Genetic0InverterParameters":
-        """Return Genetic0InverterParameters for the GENETIC0 optimizer.
-
-        GENETIC0 uses constant efficiencies: the DC→AC efficiency at the
-        reference load fraction and the AC→DC efficiency at the AC charge limit.
-
-        Raises:
-            InverterResolutionError: See ``to_genetic_param``.
-        """
-        from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
-            Genetic0InverterParameters,
-        )
-
-        p = operating_parameters or self.resolve_operating_parameters()
-        return Genetic0InverterParameters(
-            device_id=self.device_id,
-            max_power_wh=p.max_power_w,
-            battery_id=self.battery_id,
-            ac_to_dc_efficiency=p.ac_to_dc_efficiency,
-            dc_to_ac_efficiency=p.dc_to_ac_efficiency,
-            max_ac_charge_power_w=p.max_ac_charge_power_w,
         )
 
     @computed_field  # type: ignore[prop-decorator]

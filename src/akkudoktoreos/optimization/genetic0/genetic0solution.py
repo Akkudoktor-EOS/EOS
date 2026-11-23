@@ -26,13 +26,9 @@ from akkudoktoreos.devices.devicesabc import (
     BatteryOperationMode,
 )
 from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
-from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
-    Genetic0InverterParameters,
-)
-from akkudoktoreos.optimization.genetic0.genetic0devices import (
-    Genetic0ParametersBaseModel,
-)
+from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0InverterRequest,
     Genetic0Request,
 )
 from akkudoktoreos.optimization.optimization import OptimizationSolution
@@ -512,23 +508,9 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
 
     def _inverter_parameters(
         self, parameters: Optional[Genetic0Request]
-    ) -> Optional[Genetic0InverterParameters]:
-        """Return the inverter parameters the solution was computed with.
-
-        Without stored parameters, the first configured inverter is resolved from
-        its inverter profile. An inverter that cannot be resolved is treated as
-        no inverter; the configuration check already reported it.
-        """
-        if parameters is not None:
-            return parameters.inverter
-        inverters = self.config.devices.inverters or {}
-        if not inverters:
-            return None
-        try:
-            return list(inverters.values())[0].to_genetic0_param()
-        except ValueError as exc:
-            logger.debug(f"Inverter not resolvable for the solution: {exc}")
-            return None
+    ) -> Optional[Genetic0InverterRequest]:
+        """Return the inverter parameters the solution was computed with."""
+        return None if parameters is None else parameters.inverter
 
     def _soc_clamped_operation_factors(
         self,
@@ -558,17 +540,7 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
         battery profile), not the raw battery settings.
         """
         parameters = getattr(self, "parameters", None)
-        if parameters is not None:
-            bat = parameters.pv_battery
-        else:
-            bat_dict = self.config.devices.batteries or {}
-            bat = None
-            if bat_dict:
-                # A configuration error gives the defaults of the parameter
-                # preparation; the configuration check already reported it.
-                settings = list(bat_dict.values())[0]
-                snapshot, _ = settings.resolve_operating_parameters_or_defaults(report=False)
-                bat = settings.to_genetic0_pv_bat_param(snapshot)
+        bat = None if parameters is None else parameters.pv_battery
         if bat is None:
             return ac_charge, dc_charge, discharge_allowed
 

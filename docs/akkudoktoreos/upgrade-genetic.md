@@ -109,8 +109,9 @@ time, charging power and supported charge rates.
   Recheck custom parsers of GENETIC results; its native result and report are not the
   legacy GENETIC0 response format.
 - The OpenAPI schema names of the optimizers follow one scheme; fields and paths are unchanged:
-  GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request` and `Genetic0CommonSettings`
-  is `Genetic0Settings`. Clients generated from `openapi.json` must follow the new names.
+  GENETIC0's `Genetic0OptimizationParameters` is `Genetic0Request`, its device and forecast
+  models are `Genetic0<Thing>Request` and `Genetic0CommonSettings` is `Genetic0Settings`.
+  Clients generated from `openapi.json` must follow the new names.
 
 The new report endpoint is
 `GET /v1/energy-management/optimization/solution/GENETIC/pdf`. It renders the stored

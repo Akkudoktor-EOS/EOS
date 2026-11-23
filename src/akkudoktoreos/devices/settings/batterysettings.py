@@ -125,10 +125,6 @@ if TYPE_CHECKING:
         SolarPanelBatteryParameters,
     )
     from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
-    from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
-        Genetic0ElectricVehicleParameters,
-        Genetic0SolarPanelBatteryParameters,
-    )
 
 
 # Default charge rates for battery
@@ -1083,77 +1079,6 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             min_soc_deadline_datetime=self.min_soc_deadline_datetime,
             min_soc_max_duration_h=self.min_soc_max_duration_h,
             **self._genetic_power_parameters(p, profile),
-        )
-
-    # ------------------------------------------------------------------
-    # GENETIC0 domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic0_pv_bat_param(
-        self, operating_parameters: Optional[BatteryOperatingParameters] = None
-    ) -> "Genetic0SolarPanelBatteryParameters":
-        """Return Genetic0SolarPanelBatteryParameters for the GENETIC0 optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-
-        Raises:
-            BatteryResolutionError: See ``resolve_operating_parameters``.
-        """
-        from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
-            Genetic0SolarPanelBatteryParameters,
-        )
-
-        p = (
-            operating_parameters
-            if operating_parameters is not None
-            else self.resolve_operating_parameters()
-        )
-        return Genetic0SolarPanelBatteryParameters(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            max_charge_power_w=p.max_charge_power_w,
-            max_discharge_power_w=p.max_discharge_power_w,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
-        )
-
-    def to_genetic0_ev_bat_param(
-        self, operating_parameters: Optional[BatteryOperatingParameters] = None
-    ) -> "Genetic0ElectricVehicleParameters":
-        """Return Genetic0ElectricVehicleParameters for the GENETIC0 optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-
-        Raises:
-            BatteryResolutionError: See ``resolve_operating_parameters``.
-        """
-        from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
-            Genetic0ElectricVehicleParameters,
-        )
-
-        p = (
-            operating_parameters
-            if operating_parameters is not None
-            else self.resolve_operating_parameters()
-        )
-        return Genetic0ElectricVehicleParameters(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            charge_rates=self.charge_rates,
-            max_charge_power_w=p.max_charge_power_w,
-            max_discharge_power_w=p.max_discharge_power_w,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
         )
 
     @field_validator("charge_rates", mode="before")

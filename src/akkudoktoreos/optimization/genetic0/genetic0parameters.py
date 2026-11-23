@@ -4,8 +4,9 @@ A run reads nothing but these parameters: the algorithm settings, the forecast a
 parameters, and the data the solution conversion presents (time zone, device IDs, prediction
 series). They are prepared once before the run by ``genetic0prepare``.
 
-Transitional (migration step 3): the forecast and device parameters are still the Pydantic
-``Genetic0Request``; step 4 replaces them with the optimizer's own dataclasses.
+The simulation reads the forecast and device dataclasses, which are derived from the request
+(``Genetic0Request``). The request itself is kept because the result echoes it (until step 5); a
+replay file stores the request and the dataclasses are derived again when it is read.
 """
 
 import math
@@ -13,6 +14,18 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
+    Genetic0BatteryParameters,
+)
+from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
+    Genetic0HomeApplianceParameters,
+)
+from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
+    Genetic0InverterParameters,
+)
+from akkudoktoreos.optimization.genetic0.genetic0energymanagement import (
+    Genetic0EnergyManagementParameters,
+)
 from akkudoktoreos.optimization.genetic0.genetic0request import Genetic0Request
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
@@ -78,16 +91,66 @@ class Genetic0Parameters:
     """Everything a GENETIC0 run and its solution conversion need.
 
     Attributes:
-        request: Forecast and device parameters of the run.
-        start_hour: Hour of the day the run starts at; indexes the hourly arrays of ``request``.
+        request: Forecast and device parameters of the run, as requested; echoed in the result.
+        start_hour: Hour of the day the run starts at; indexes the hourly arrays.
         settings: Algorithm settings of the run.
         presentation: Data the solution conversion presents.
+        ems: Hourly forecasts and prices of the simulation.
+        pv_battery: The stationary battery, if any.
+        ev: The electric vehicle, if any.
+        inverter: The inverter, if any.
+        dishwasher: The home appliance, if any.
+        start_solution: Start solution of the previous run (warm start), if any.
     """
 
     request: Genetic0Request
     start_hour: int
     settings: Genetic0RunSettings
     presentation: Genetic0Presentation
+    ems: Genetic0EnergyManagementParameters
+    pv_battery: Optional[Genetic0BatteryParameters]
+    ev: Optional[Genetic0BatteryParameters]
+    inverter: Optional[Genetic0InverterParameters]
+    dishwasher: Optional[Genetic0HomeApplianceParameters]
+    start_solution: Optional[tuple[float, ...]]
+
+    @classmethod
+    def from_request(
+        cls,
+        request: Genetic0Request,
+        start_hour: int,
+        settings: Genetic0RunSettings,
+        presentation: Genetic0Presentation,
+    ) -> "Genetic0Parameters":
+        """Derive the simulation's dataclasses from the request.
+
+        Args:
+            request: Forecast and device parameters of the run.
+            start_hour: Hour of the day the run starts at.
+            settings: Algorithm settings of the run.
+            presentation: Data the solution conversion presents.
+
+        Returns:
+            The parameters of the run.
+        """
+        return cls(
+            request=request,
+            start_hour=start_hour,
+            settings=settings,
+            presentation=presentation,
+            ems=request.ems.to_parameters(),
+            pv_battery=None if request.pv_battery is None else request.pv_battery.to_parameters(),
+            ev=None if request.ev is None else request.ev.to_parameters(),
+            inverter=None if request.inverter is None else request.inverter.to_parameters(),
+            dishwasher=(
+                None
+                if request.dishwasher is None
+                else request.dishwasher.to_parameters(settings.prediction_hours)
+            ),
+            start_solution=(
+                None if request.start_solution is None else tuple(request.start_solution)
+            ),
+        )
 
 
 def parameters_to_dict(parameters: Genetic0Parameters) -> dict[str, Any]:
@@ -144,7 +207,7 @@ def parameters_from_dict(data: Mapping[str, Any]) -> Genetic0Parameters:
     """
     settings = data["settings"]
     presentation = data["presentation"]
-    return Genetic0Parameters(
+    return Genetic0Parameters.from_request(
         request=Genetic0Request.model_validate(data["request"]),
         start_hour=data["start_hour"],
         settings=Genetic0RunSettings(

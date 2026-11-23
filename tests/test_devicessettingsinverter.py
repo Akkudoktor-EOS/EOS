@@ -23,6 +23,7 @@ from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
 )
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
 
 
 def make_settings(**adjustment: Any) -> InverterCommonSettings:
@@ -245,7 +246,7 @@ class TestConversion:
 
     def test_genetic0_parameters(self, generic):
         settings = make_settings(nominal_power_w=10000)
-        genetic0 = settings.to_genetic0_param()
+        genetic0 = genetic0prepare.inverter_request(settings)
         assert genetic0.max_power_wh == pytest.approx(10000)
         assert genetic0.dc_to_ac_efficiency == pytest.approx(settings.effective_dc_to_ac_efficiency)
         assert genetic0.ac_to_dc_efficiency == pytest.approx(settings.effective_ac_to_dc_efficiency)

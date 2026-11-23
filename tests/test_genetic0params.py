@@ -418,20 +418,19 @@ class TestGenetic0DemoData:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
-        "settings_class, method, field, device_id",
+        "device, method, field, device_id",
         [
-            ("BatteriesCommonSettings", "to_genetic0_pv_bat_param", "pv_battery", "storage"),
-            ("BatteriesCommonSettings", "to_genetic0_ev_bat_param", "ev", "car"),
-            ("InverterCommonSettings", "to_genetic0_param", "inverter", "hybrid"),
+            ("battery", "battery_request", "pv_battery", "storage"),
+            ("electric vehicle", "electric_vehicle_request", "ev", "car"),
+            ("inverter", "inverter_request", "inverter", "hybrid"),
         ],
     )
     async def test_device_that_cannot_be_prepared_is_left_out(
-        self, config_eos, monkeypatch, settings_class, method, field, device_id
+        self, config_eos, monkeypatch, device, method, field, device_id
     ):
         """No demo device replaces a configured device that cannot be prepared."""
         from loguru import logger
 
-        from akkudoktoreos.devices.settings import batterysettings, invertersettings
 
         config_eos.merge_settings_from_dict(
             {
@@ -459,12 +458,11 @@ class TestGenetic0DemoData:
             }
         )
         configured = config_eos.devices.model_dump(exclude_computed_fields=True)
-        module = batterysettings if settings_class == "BatteriesCommonSettings" else invertersettings
-
-        def broken(self, *args, **kwargs):
+        def broken(*args, **kwargs):
             raise RuntimeError("conversion failed")
 
-        monkeypatch.setattr(getattr(module, settings_class), method, broken)
+        # The conversion of the settings belongs to GENETIC0's preparation (ADR 0004).
+        monkeypatch.setattr(genetic0prepare, method, broken)
         get_ems().set_start_datetime(to_datetime("2026-08-01T14:00:00+00:00"))
         tariff = pd.Series(
             0.00008, index=pd.date_range("2026-08-01T00:00:00Z", periods=72 * 4, freq="15min")
@@ -588,6 +586,11 @@ class TestGenetic0PrepareWarmStart:
         request = Mock()
         legacy_prepare = AsyncMock(return_value=request)
         monkeypatch.setattr(genetic0prepare, "prepare_request", legacy_prepare)
+        monkeypatch.setattr(
+            genetic0prepare.Genetic0Parameters,
+            "from_request",
+            classmethod(lambda cls, **fields: SimpleNamespace(**fields)),
+        )
         start = to_datetime("2026-01-14T10:00:00", in_timezone="Europe/Berlin")
         observation = start.add(minutes=7)
         parameters = await genetic0prepare.prepare(start, observation, warm_start)
@@ -648,7 +651,7 @@ class TestGenetic0Presentation:
                 "inverter": None,
             }
         )
-        parameters = Genetic0Parameters(
+        parameters = Genetic0Parameters.from_request(
             request=request, start_hour=start.hour, settings=settings, presentation=presentation
         )
         data = json.loads(json.dumps(parameters_to_dict(parameters)))
@@ -816,8 +819,8 @@ class TestGenetic0Fallbacks:
             levelized_cost_of_storage_amt_kwh=None,
             measurement_key_soc_factor="soc",
             resolve_current_operating_parameters_or_defaults=AsyncMock(return_value=({}, None)),
-            to_genetic0_pv_bat_param=Mock(return_value=battery_params),
         )
+        monkeypatch.setattr(genetic0prepare, "battery_request", Mock(return_value=battery_params))
         config = Mock()
         config.devices.max_batteries = 1
         config.devices.batteries = {"battery1": battery}
@@ -897,7 +900,7 @@ class TestGenetic0Fallbacks:
             ),
         )
         monkeypatch.setattr(genetic0prepare, "get_prediction", lambda: prediction)
-        real = genetic0prepare.Genetic0EnergyManagementParameters
+        real = genetic0prepare.Genetic0EnergyManagementRequest
         calls = {"count": 0}
 
         def build(**kwargs):
@@ -906,7 +909,7 @@ class TestGenetic0Fallbacks:
                 raise ValueError("synthetic invalid parameters")
             return real(**kwargs)
 
-        monkeypatch.setattr(genetic0prepare, "Genetic0EnergyManagementParameters", build)
+        monkeypatch.setattr(genetic0prepare, "Genetic0EnergyManagementRequest", build)
         parameters = await genetic0prepare.prepare_request(
             get_ems().start_datetime, get_ems().observation_datetime, start_solution=[1.0, 2.0]
         )
@@ -938,6 +941,12 @@ class TestGenetic0HomeApplianceShown:
         config_eos.devices.max_home_appliances = max_home_appliances
         request = SimpleNamespace(dishwasher=dishwasher)
         monkeypatch.setattr(genetic0prepare, "prepare_request", AsyncMock(return_value=request))
+        # The stand-in request has no forecasts to derive the simulation's dataclasses from.
+        monkeypatch.setattr(
+            genetic0prepare.Genetic0Parameters,
+            "from_request",
+            classmethod(lambda cls, **fields: SimpleNamespace(**fields)),
+        )
         monkeypatch.setattr(
             genetic0prepare, "get_prediction", lambda: SimpleNamespace(record_keys=[])
         )

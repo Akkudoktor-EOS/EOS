@@ -17,16 +17,14 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
-    Genetic0Battery,
-    Genetic0SolarPanelBatteryParameters,
-)
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
 from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
-    Genetic0InverterParameters,
 )
 from akkudoktoreos.optimization.genetic0.genetic0request import (
-    Genetic0EnergyManagementParameters,
+    Genetic0EnergyManagementRequest,
+    Genetic0InverterRequest,
+    Genetic0SolarPanelBatteryRequest,
 )
 from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
 
@@ -46,7 +44,7 @@ def _make_inverter(
     mock_self_consumption_predictor = Mock()
     mock_self_consumption_predictor.calculate_self_consumption.return_value = 1.0
 
-    params = Genetic0InverterParameters(
+    params = Genetic0InverterRequest(
         device_id="inv1",
         max_power_wh=max_power_wh,
         battery_id=mock_battery.parameters.device_id if mock_battery else None,
@@ -58,7 +56,7 @@ def _make_inverter(
         "akkudoktoreos.optimization.genetic0.devices.genetic0inverter.get_genetic0_load_interpolator",
         return_value=mock_self_consumption_predictor,
     ):
-        return Genetic0Inverter(params, battery=mock_battery)
+        return Genetic0Inverter(params.to_parameters(), battery=mock_battery)
 
 
 @pytest.fixture
@@ -79,13 +77,13 @@ class TestInverterParametersDefaults:
     """Verify backward-compatible defaults for new parameters."""
 
     def test_defaults(self):
-        params = Genetic0InverterParameters(device_id="inv1", max_power_wh=5000)
+        params = Genetic0InverterRequest(device_id="inv1", max_power_wh=5000)
         assert params.dc_to_ac_efficiency == 1.0
         assert params.ac_to_dc_efficiency == 1.0
         assert params.max_ac_charge_power_w is None
 
     def test_custom_values(self):
-        params = Genetic0InverterParameters(
+        params = Genetic0InverterRequest(
             device_id="inv1",
             max_power_wh=5000,
             dc_to_ac_efficiency=0.95,
@@ -97,17 +95,17 @@ class TestInverterParametersDefaults:
         assert params.max_ac_charge_power_w == 3000
 
     def test_ac_to_dc_zero_disables_ac_charging(self):
-        params = Genetic0InverterParameters(
+        params = Genetic0InverterRequest(
             device_id="inv1", max_power_wh=5000, ac_to_dc_efficiency=0.0
         )
         assert params.ac_to_dc_efficiency == 0.0
 
     def test_dc_to_ac_must_be_positive(self):
         with pytest.raises(Exception):
-            Genetic0InverterParameters(device_id="inv1", max_power_wh=5000, dc_to_ac_efficiency=0.0)
+            Genetic0InverterRequest(device_id="inv1", max_power_wh=5000, dc_to_ac_efficiency=0.0)
 
     def test_max_ac_charge_power_zero(self):
-        params = Genetic0InverterParameters(
+        params = Genetic0InverterRequest(
             device_id="inv1", max_power_wh=5000, max_ac_charge_power_w=0
         )
         assert params.max_ac_charge_power_w == 0
@@ -216,7 +214,7 @@ class TestAcChargingInSimulation:
     def simulation_setup(self, config_eos):
         """Set up a minimal GeneticSimulation with battery and inverter."""
         from akkudoktoreos.optimization.genetic0.genetic0request import (
-            Genetic0EnergyManagementParameters,
+            Genetic0EnergyManagementRequest,
         )
         from akkudoktoreos.optimization.genetic0.genetic0simulation import (
             Genetic0Simulation,
@@ -239,7 +237,7 @@ class TestAcChargingInSimulation:
             battery_max_charge_power_w: int = 5000,
         ):
             akku = Genetic0Battery(
-                Genetic0SolarPanelBatteryParameters(
+                Genetic0SolarPanelBatteryRequest(
                     device_id="battery1",
                     capacity_wh=battery_capacity_wh,
                     initial_soc_percentage=battery_initial_soc_pct,
@@ -248,32 +246,32 @@ class TestAcChargingInSimulation:
                     min_soc_percentage=0,
                     max_soc_percentage=100,
                     max_charge_power_w=battery_max_charge_power_w,
-                ),
+                ).to_parameters(),
                 prediction_hours=prediction_hours,
             )
             akku.reset()
 
             inverter = Genetic0Inverter(
-                Genetic0InverterParameters(
+                Genetic0InverterRequest(
                     device_id="inverter1",
                     max_power_wh=10000,
                     battery_id="battery1",
                     ac_to_dc_efficiency=ac_to_dc_efficiency,
                     dc_to_ac_efficiency=dc_to_ac_efficiency,
                     max_ac_charge_power_w=max_ac_charge_power_w,
-                ),
+                ).to_parameters(),
                 battery=akku,
             )
 
             simulation = Genetic0Simulation()
             simulation.prepare(
-                Genetic0EnergyManagementParameters.model_validate(dict(
+                Genetic0EnergyManagementRequest.model_validate(dict(
                     pv_prognose_wh=[0.0] * prediction_hours,  # No PV
                     strompreis_euro_pro_wh=[0.0003] * prediction_hours,  # ~30ct/kWh
                     einspeiseverguetung_euro_pro_wh=0.00008,
                     preis_euro_pro_wh_akku=0.0001,
                     gesamtlast=[1000.0] * prediction_hours,  # 1 kW constant load
-                )),
+                )).to_parameters(),
                 optimization_hours=config_eos.optimization.genetic0.horizon_hours,
                 prediction_hours=prediction_hours,
                 inverter=inverter,
@@ -468,13 +466,13 @@ class TestResidualBatteryValue:
     def test_current_energy_content_unaffected(self):
         """Battery.current_energy_content() is DC-only; inverter eff applied in optimizer."""
         akku = Genetic0Battery(
-            Genetic0SolarPanelBatteryParameters(
+            Genetic0SolarPanelBatteryRequest(
                 device_id="bat1",
                 capacity_wh=10000,
                 initial_soc_percentage=50,
                 discharging_efficiency=0.90,
                 min_soc_percentage=0,
-            ),
+            ).to_parameters(),
             prediction_hours=24,
         )
         akku.reset()

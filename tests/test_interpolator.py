@@ -89,13 +89,15 @@ def test_genetic_interpolator_boundaries_are_finite_and_physical(load, pv):
 def test_genetic0_inverter_keeps_its_independent_interpolator():
     from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
         Genetic0Inverter,
-        Genetic0InverterParameters,
     )
     from akkudoktoreos.optimization.genetic0.genetic0loadinterpolator import (
         get_genetic0_load_interpolator,
     )
+    from akkudoktoreos.optimization.genetic0.genetic0request import (
+        Genetic0InverterRequest,
+    )
 
-    inverter = Genetic0Inverter(Genetic0InverterParameters(device_id="legacy", max_power_wh=10000))
+    inverter = Genetic0Inverter(Genetic0InverterRequest(device_id="legacy", max_power_wh=10000).to_parameters())
     assert inverter.self_consumption_predictor is get_genetic0_load_interpolator()
     assert inverter.self_consumption_predictor is not get_eos_load_interpolator()
 

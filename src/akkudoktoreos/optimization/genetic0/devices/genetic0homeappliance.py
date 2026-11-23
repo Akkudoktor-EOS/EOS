@@ -1,44 +1,29 @@
-from typing import Optional
+"""GENETIC0 home appliance simulation device."""
+
+from dataclasses import dataclass
 
 import numpy as np
-from pydantic import Field
-
-from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
-from akkudoktoreos.optimization.genetic0.genetic0devices import Genetic0DeviceParameters
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
 
 
-class Genetic0HomeApplianceParameters(Genetic0DeviceParameters):
-    """Home Appliance Device Simulation Configuration."""
+@dataclass(frozen=True, slots=True)
+class Genetic0HomeApplianceParameters:
+    """Parameters of a simulated home appliance.
 
-    device_id: str = Field(
-        json_schema_extra={"description": "ID of home appliance", "examples": ["dishwasher"]}
-    )
-    consumption_wh: int = Field(
-        gt=0,
-        json_schema_extra={
-            "description": "An integer representing the energy consumption of a household device in watt-hours.",
-            "examples": [2000],
-        },
-    )
-    duration_h: int = Field(
-        gt=0,
-        json_schema_extra={
-            "description": "An integer representing the usage duration of a household device in hours.",
-            "examples": [3],
-        },
-    )
-    time_windows: Optional[TimeWindowSequence] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "List of allowed time windows. Defaults to optimization general time window.",
-            "examples": [
-                [
-                    {"start_time": "10:00", "duration": "3 hours"},
-                ],
-            ],
-        },
-    )
+    Attributes:
+        device_id: ID of the appliance.
+        consumption_wh: Energy of one run in watt-hours.
+        duration_h: Duration of one run in hours.
+        start_allowed: Per hour of the arrays, whether a run may start then.
+        start_earliest: Earliest hour of the day a run may start.
+        start_latest: Latest hour of the day a run may start.
+    """
+
+    device_id: str
+    consumption_wh: int
+    duration_h: int
+    start_allowed: tuple[bool, ...]
+    start_earliest: int
+    start_latest: int
 
 
 class Genetic0HomeAppliance:
@@ -47,7 +32,14 @@ class Genetic0HomeAppliance:
         parameters: Genetic0HomeApplianceParameters,
         optimization_hours: int,
         prediction_hours: int,
-    ):
+    ) -> None:
+        """Set up the home appliance.
+
+        Args:
+            parameters: Home appliance parameters.
+            optimization_hours: Optimization horizon in hours (unused).
+            prediction_hours: Length of the simulated arrays.
+        """
         self.parameters: Genetic0HomeApplianceParameters = parameters
         self.prediction_hours = prediction_hours
         self._setup()
@@ -57,35 +49,10 @@ class Genetic0HomeAppliance:
         self.load_curve = np.zeros(self.prediction_hours)  # Initialize the load curve with zeros
         self.duration_h = self.parameters.duration_h
         self.consumption_wh = self.parameters.consumption_wh
-        # setup possible start times
-        if self.parameters.time_windows is None:
-            self.parameters.time_windows = TimeWindowSequence(
-                windows=[
-                    TimeWindow(
-                        start_time=to_time("00:00"),
-                        duration=to_duration(f"{self.prediction_hours} hours"),
-                    ),
-                ]
-            )
-        start_datetime = to_datetime().set(hour=0, minute=0, second=0)
-        duration = to_duration(f"{self.duration_h} hours")
-        self.start_allowed: list[bool] = []
-        for hour in range(0, self.prediction_hours):
-            self.start_allowed.append(
-                self.parameters.time_windows.contains(
-                    start_datetime.add(hours=hour), duration=duration
-                )
-            )
-        start_earliest = self.parameters.time_windows.earliest_start_time(duration, start_datetime)
-        if start_earliest:
-            self.start_earliest = start_earliest.hour
-        else:
-            self.start_earliest = 0
-        start_latest = self.parameters.time_windows.latest_start_time(duration, start_datetime)
-        if start_latest:
-            self.start_latest = start_latest.hour
-        else:
-            self.start_latest = 23
+        # Possible start times, evaluated from the time windows by the parameter preparation.
+        self.start_allowed: list[bool] = list(self.parameters.start_allowed)
+        self.start_earliest = self.parameters.start_earliest
+        self.start_latest = self.parameters.start_latest
 
     def set_starting_time(self, start_hour: int, global_start_hour: int = 0) -> int:
         """Sets the start time of the device and generates the corresponding load curve.

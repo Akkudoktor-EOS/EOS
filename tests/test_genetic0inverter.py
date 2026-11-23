@@ -4,8 +4,8 @@ import pytest
 
 from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
-    Genetic0InverterParameters,
 )
+from akkudoktoreos.optimization.genetic0.genetic0request import Genetic0InverterRequest
 
 
 @pytest.fixture
@@ -26,9 +26,9 @@ def inverter(mock_battery) -> Genetic0Inverter:
         return_value=mock_self_consumption_predictor,
     ):
         iv = Genetic0Inverter(
-            Genetic0InverterParameters(
+            Genetic0InverterRequest(
                 device_id="iv1", max_power_wh=500.0, battery_id=mock_battery.parameters.device_id
-            ),
+            ).to_parameters(),
             battery = mock_battery
         )
         return iv

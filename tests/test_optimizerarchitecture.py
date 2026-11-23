@@ -459,42 +459,12 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "pydantic",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0battery",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0inverter",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
             "akkudoktoreos.optimization.genetic0.genetic0abc",
             "akkudoktoreos.core.pydantic",
         ),
         Violation(
             "pydantic",
             "akkudoktoreos.optimization.genetic0.genetic0abc",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0devices",
-            "pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0simulation",
-            "akkudoktoreos.core.pydantic",
-        ),
-        Violation(
-            "pydantic",
-            "akkudoktoreos.optimization.genetic0.genetic0simulation",
             "pydantic",
         ),
         Violation(
@@ -514,28 +484,13 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "shared-config",
-            "akkudoktoreos.devices.settings.batterysettings",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0battery",
-        ),
-        Violation(
-            "shared-config",
             "akkudoktoreos.devices.settings.homeappliancesettings",
             "akkudoktoreos.devices.genetic.homeappliance",
         ),
         Violation(
             "shared-config",
-            "akkudoktoreos.devices.settings.homeappliancesettings",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance",
-        ),
-        Violation(
-            "shared-config",
             "akkudoktoreos.devices.settings.invertersettings",
             "akkudoktoreos.devices.genetic.inverter",
-        ),
-        Violation(
-            "shared-config",
-            "akkudoktoreos.devices.settings.invertersettings",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0inverter",
         ),
         Violation(
             "world-access",
@@ -659,12 +614,7 @@ BASELINE: frozenset[Violation] = frozenset(
         ),
         Violation(
             "world-access",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0battery",
-            "akkudoktoreos.devices.settings.batterysettings",
-        ),
-        Violation(
-            "world-access",
-            "akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance",
+            "akkudoktoreos.optimization.genetic0.genetic0request",
             "akkudoktoreos.config.configabc",
         ),
         Violation(

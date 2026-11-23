@@ -11,6 +11,7 @@ from akkudoktoreos.devices.genetic.battery import (
     SolarPanelBatteryParameters,
 )
 from akkudoktoreos.devices.settings.batterysettings import BatteryProfileAdjustment
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
 
 
 @pytest.fixture
@@ -439,7 +440,7 @@ def test_equal_soc_limits_are_valid(target):
                                       max_soc_percentage=target,
                                       profile_adjustment=BatteryProfileAdjustment(nominal_capacity_wh=8000))
     assert settings.to_genetic_ev_bat_param().min_soc_percentage == target
-    assert settings.to_genetic0_ev_bat_param().min_soc_percentage == target
+    assert genetic0prepare.electric_vehicle_request(settings).min_soc_percentage == target
 
 
 @pytest.mark.parametrize("minimum,maximum", [(100, 99), (81, 80), (101, 100), (-1, 100)])

@@ -492,12 +492,17 @@ class TestGenetic0SolutionWithProfileInverter:
         )
         assert ac == pytest.approx(expected)
 
-    def test_without_stored_parameters_the_configured_inverter_is_resolved(self, solution):
-        inverter = solution._inverter_parameters(None)
-        assert inverter is not None
+    def test_the_preparation_resolves_the_configured_inverter(self, solution, config_eos):
+        """The inverter profile is resolved by the parameter preparation, not by the solution."""
+        from akkudoktoreos.optimization.genetic0 import genetic0prepare
+
+        settings = list(config_eos.devices.inverters.values())[0]
+        inverter = genetic0prepare.inverter_request(settings)
         assert inverter.max_power_wh == pytest.approx(10000)
         assert inverter.max_ac_charge_power_w == pytest.approx(2000)
         assert 0.0 < inverter.ac_to_dc_efficiency < 1.0
+        # Without stored parameters the solution reads no configuration (ADR 0003).
+        assert solution._inverter_parameters(None) is None
 
     def test_unresolvable_inverter_counts_as_no_inverter(self, solution, config_eos):
         config_eos.merge_settings_from_dict(

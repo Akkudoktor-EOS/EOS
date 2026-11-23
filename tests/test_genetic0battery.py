@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.optimization.genetic0.devices.genetic0battery import (
-    Genetic0Battery,
-    Genetic0SolarPanelBatteryParameters,
+from akkudoktoreos.optimization.genetic0.devices.genetic0battery import Genetic0Battery
+from akkudoktoreos.optimization.genetic0.genetic0request import (
+    Genetic0SolarPanelBatteryRequest,
 )
 
 
@@ -19,7 +19,7 @@ def setup_pv_battery():
     max_charge_power_w=8000
     hours=24
 
-    params = Genetic0SolarPanelBatteryParameters(
+    params = Genetic0SolarPanelBatteryRequest(
         device_id=device_id,
         capacity_wh=capacity_wh,
         initial_soc_percentage=initial_soc_percentage,
@@ -31,7 +31,7 @@ def setup_pv_battery():
         hours=hours,
     )
     battery = Genetic0Battery(
-        params,
+        params.to_parameters(),
         prediction_hours=48,
     )
     battery.reset()
@@ -261,10 +261,10 @@ def test_charge_energy_with_charge_factor(setup_pv_battery, wh, charge_factor, e
 @pytest.fixture
 def setup_car_battery():
     from akkudoktoreos.optimization.genetic0.genetic0request import (
-        Genetic0ElectricVehicleParameters,
+        Genetic0ElectricVehicleRequest,
     )
 
-    params = Genetic0ElectricVehicleParameters(
+    params = Genetic0ElectricVehicleRequest(
         device_id="ev1",
         capacity_wh=40000,
         initial_soc_percentage=60,
@@ -274,7 +274,7 @@ def setup_car_battery():
         hours=24,
     )
     battery = Genetic0Battery(
-        params,
+        params.to_parameters(),
         prediction_hours=48,
     )
     battery.reset()
@@ -314,7 +314,7 @@ def test_car_and_pv_battery_discharge_and_max_charge_power(setup_pv_battery, set
 
 
 def _battery_with_limits(max_charge_power_w, max_discharge_power_w=None) -> Genetic0Battery:
-    params = Genetic0SolarPanelBatteryParameters(
+    params = Genetic0SolarPanelBatteryRequest(
         device_id="battery1",
         capacity_wh=10000,
         initial_soc_percentage=50,
@@ -323,7 +323,7 @@ def _battery_with_limits(max_charge_power_w, max_discharge_power_w=None) -> Gene
         max_charge_power_w=max_charge_power_w,
         max_discharge_power_w=max_discharge_power_w,
     )
-    battery = Genetic0Battery(params, prediction_hours=24)
+    battery = Genetic0Battery(params.to_parameters(), prediction_hours=24)
     battery.reset()
     battery.discharge_array = np.full(battery.prediction_hours, 1)
     battery.charge_array = np.full(battery.prediction_hours, 1)

@@ -22,14 +22,27 @@ from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config, get_measurement, get_prediction
 from akkudoktoreos.core.types import FillMethod
+from akkudoktoreos.devices.settings.batteryresolution import BatteryOperatingParameters
+from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
+from akkudoktoreos.devices.settings.homeappliancesettings import (
+    HomeApplianceCommonSettings,
+)
+from akkudoktoreos.devices.settings.inverterresolution import (
+    InverterOperatingParameters,
+)
+from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
 from akkudoktoreos.optimization.genetic0.genetic0parameters import (
     Genetic0Parameters,
     Genetic0Presentation,
     Genetic0RunSettings,
 )
 from akkudoktoreos.optimization.genetic0.genetic0request import (
-    Genetic0EnergyManagementParameters,
+    Genetic0ElectricVehicleRequest,
+    Genetic0EnergyManagementRequest,
+    Genetic0HomeApplianceRequest,
+    Genetic0InverterRequest,
     Genetic0Request,
+    Genetic0SolarPanelBatteryRequest,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.utils.datetimeutil import (
@@ -138,7 +151,7 @@ async def _complete(
     home_appliance_enabled: bool,
 ) -> Genetic0Parameters:
     settings = _run_settings(overrides)
-    return Genetic0Parameters(
+    return Genetic0Parameters.from_request(
         request=request,
         start_hour=start_datetime.hour,
         settings=settings,
@@ -461,7 +474,7 @@ async def prepare_request(
     }
     try:
         return Genetic0Request(
-            ems=Genetic0EnergyManagementParameters(
+            ems=Genetic0EnergyManagementRequest(
                 **ems, price_per_wh_battery=battery_lcos_kwh / 1000
             ),
             temperature_forecast=weather_temp_air,
@@ -479,7 +492,7 @@ async def prepare_request(
         )
     try:
         return Genetic0Request(
-            ems=Genetic0EnergyManagementParameters(**ems, price_per_wh_battery=0.0),
+            ems=Genetic0EnergyManagementRequest(**ems, price_per_wh_battery=0.0),
             temperature_forecast=None,
             pv_battery=None,
             ev=None,
@@ -494,7 +507,7 @@ async def prepare_request(
         )
     zeros = [0.0] * slots
     return Genetic0Request(
-        ems=Genetic0EnergyManagementParameters(
+        ems=Genetic0EnergyManagementRequest(
             pv_forecast_wh=zeros,
             electricity_price_per_wh=zeros,
             feed_in_tariff_per_wh=zeros,
@@ -560,7 +573,7 @@ async def _battery(observation_datetime: DateTime) -> tuple[Optional[Any], float
             battery_parameters,
             _,
         ) = await battery_config.resolve_current_operating_parameters_or_defaults()
-        battery_params = battery_config.to_genetic0_pv_bat_param(battery_parameters)
+        battery_params = battery_request(battery_config, battery_parameters)
     except Exception as error:
         logger.error(
             "Battery '{}' cannot be prepared for the optimization: {} "
@@ -597,7 +610,7 @@ async def _electric_vehicle(observation_datetime: DateTime) -> Optional[Any]:
             ev_parameters,
             _,
         ) = await electric_vehicle_config.resolve_current_operating_parameters_or_defaults()
-        electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param(ev_parameters)
+        electric_vehicle_params = electric_vehicle_request(electric_vehicle_config, ev_parameters)
     except Exception as error:
         logger.error(
             "Electric vehicle '{}' cannot be prepared for the optimization: {} "
@@ -622,8 +635,9 @@ async def _inverter() -> Optional[Any]:
     inverter_config = list(inverters.values())[0]
     try:
         # A configuration error gives default values, reported as error.
-        return inverter_config.to_genetic0_param(
-            await inverter_config.resolve_current_operating_parameters_or_defaults()
+        return inverter_request(
+            inverter_config,
+            await inverter_config.resolve_current_operating_parameters_or_defaults(),
         )
     except Exception as error:
         logger.error(
@@ -644,7 +658,7 @@ def _home_appliance() -> Optional[Any]:
         return None
     home_appliance_config = list(home_appliances.values())[0]
     try:
-        return home_appliance_config.to_genetic0_param()
+        return home_appliance_request(home_appliance_config)
     except Exception as error:
         logger.error(
             "Home appliance '{}' cannot be prepared for the optimization: {} "
@@ -674,3 +688,129 @@ async def _initial_soc_percentage(kind: str, key: str, observation_datetime: Dat
         return 0
     # genetic parameter is 0..100 as int
     return int(initial_soc_factor * 100)
+
+
+def battery_request(
+    settings: BatteriesCommonSettings,
+    operating_parameters: Optional[BatteryOperatingParameters] = None,
+) -> Genetic0SolarPanelBatteryRequest:
+    """GENETIC0 parameters of a stationary battery from its settings.
+
+    Args:
+        settings: The battery settings.
+        operating_parameters: Resolved snapshot to convert, e.g. from
+            ``resolve_current_operating_parameters``. None resolves at the reference operating
+            point.
+
+    Returns:
+        The battery parameters of the request.
+
+    Raises:
+        BatteryResolutionError: See ``resolve_operating_parameters``.
+    """
+    p = (
+        operating_parameters
+        if operating_parameters is not None
+        else settings.resolve_operating_parameters()
+    )
+    return Genetic0SolarPanelBatteryRequest(
+        device_id=settings.device_id,
+        capacity_wh=p.capacity_wh,
+        charging_efficiency=p.charging_efficiency,
+        discharging_efficiency=p.discharging_efficiency,
+        max_charge_power_w=p.max_charge_power_w,
+        max_discharge_power_w=p.max_discharge_power_w,
+        min_soc_percentage=p.min_soc_percentage,
+        max_soc_percentage=p.max_soc_percentage,
+    )
+
+
+def electric_vehicle_request(
+    settings: BatteriesCommonSettings,
+    operating_parameters: Optional[BatteryOperatingParameters] = None,
+) -> Genetic0ElectricVehicleRequest:
+    """GENETIC0 parameters of an electric vehicle from its settings.
+
+    Args:
+        settings: The electric vehicle's battery settings.
+        operating_parameters: Resolved snapshot to convert, e.g. from
+            ``resolve_current_operating_parameters``. None resolves at the reference operating
+            point.
+
+    Returns:
+        The electric vehicle parameters of the request.
+
+    Raises:
+        BatteryResolutionError: See ``resolve_operating_parameters``.
+    """
+    p = (
+        operating_parameters
+        if operating_parameters is not None
+        else settings.resolve_operating_parameters()
+    )
+    return Genetic0ElectricVehicleRequest(
+        device_id=settings.device_id,
+        capacity_wh=p.capacity_wh,
+        charging_efficiency=p.charging_efficiency,
+        discharging_efficiency=p.discharging_efficiency,
+        charge_rates=settings.charge_rates,
+        max_charge_power_w=p.max_charge_power_w,
+        max_discharge_power_w=p.max_discharge_power_w,
+        min_soc_percentage=p.min_soc_percentage,
+        max_soc_percentage=p.max_soc_percentage,
+    )
+
+
+def inverter_request(
+    settings: InverterCommonSettings,
+    operating_parameters: Optional[InverterOperatingParameters] = None,
+) -> Genetic0InverterRequest:
+    """GENETIC0 parameters of an inverter from its settings.
+
+    GENETIC0 uses constant efficiencies: the DC->AC efficiency at the reference load fraction and
+    the AC->DC efficiency at the AC charge limit.
+
+    Args:
+        settings: The inverter settings.
+        operating_parameters: Resolved operating parameters; None resolves them.
+
+    Returns:
+        The inverter parameters of the request.
+
+    Raises:
+        InverterResolutionError: See ``InverterCommonSettings.to_genetic_param``.
+    """
+    p = operating_parameters or settings.resolve_operating_parameters()
+    return Genetic0InverterRequest(
+        device_id=settings.device_id,
+        max_power_wh=p.max_power_w,
+        battery_id=settings.battery_id,
+        ac_to_dc_efficiency=p.ac_to_dc_efficiency,
+        dc_to_ac_efficiency=p.dc_to_ac_efficiency,
+        max_ac_charge_power_w=p.max_ac_charge_power_w,
+    )
+
+
+def home_appliance_request(settings: HomeApplianceCommonSettings) -> Genetic0HomeApplianceRequest:
+    """GENETIC0 parameters of a home appliance from its settings.
+
+    Args:
+        settings: The home appliance settings.
+
+    Returns:
+        The home appliance parameters of the request.
+
+    Raises:
+        ValueError: The appliance needs the GENETIC optimizer (explicit load profile) or has no
+            flat load definition.
+    """
+    if settings.load_profile_power_w is not None:
+        raise ValueError("Explicit appliance load profiles require the GENETIC optimizer.")
+    if settings.consumption_wh is None or settings.duration_h is None:
+        raise ValueError("GENETIC0 requires a flat appliance load definition.")
+    return Genetic0HomeApplianceRequest(
+        device_id=settings.device_id,
+        consumption_wh=settings.consumption_wh,
+        duration_h=settings.duration_h,
+        time_windows=settings.cycle_time_windows,
+    )

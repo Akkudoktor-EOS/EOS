@@ -15,9 +15,9 @@ from akkudoktoreos.optimization.genetic0.devices.genetic0homeappliance import (
 from akkudoktoreos.optimization.genetic0.devices.genetic0inverter import (
     Genetic0Inverter,
 )
-from akkudoktoreos.optimization.genetic0.genetic0parameters import Genetic0RunSettings
-from akkudoktoreos.optimization.genetic0.genetic0request import (
-    Genetic0Request,
+from akkudoktoreos.optimization.genetic0.genetic0parameters import (
+    Genetic0Parameters,
+    Genetic0RunSettings,
 )
 from akkudoktoreos.optimization.genetic0.genetic0simulation import Genetic0Simulation
 from akkudoktoreos.optimization.genetic0.genetic0solution import (
@@ -342,7 +342,7 @@ class Genetic0Optimization:
     def evaluate(
         self,
         individual: list[int],
-        parameters: Genetic0Request,
+        parameters: Genetic0Parameters,
         start_hour: int,
         worst_case: bool,
     ) -> tuple[float]:
@@ -355,9 +355,9 @@ class Genetic0Optimization:
         Args:
             individual (list[int]):
                 The genome representing one candidate solution.
-            parameters (Genetic0EnergyManagementParameters):
-                Optimization parameters that influence simulation behavior,
-                constraints, and scoring logic.
+            parameters (Genetic0Parameters):
+                Optimization parameters of the run: forecasts, devices and settings that
+                influence simulation behavior, constraints, and scoring logic.
             start_hour (int):
                 The simulation start hour (0–23 or domain-specific).
                 Used to initialize time-based scheduling or constraints.
@@ -657,20 +657,19 @@ class Genetic0Optimization:
 
     def optimize_ems(
         self,
-        parameters: Genetic0Request,
-        start_hour: int,
+        parameters: Genetic0Parameters,
         worst_case: bool = False,
     ) -> Genetic0Solution:
         """Perform EMS (Energy Management System) optimization.
 
         Args:
-            parameters: Forecast and device parameters of the run.
-            start_hour: Hour of the day the run starts at.
+            parameters: The optimization parameters of the run.
             worst_case: Evaluate the worst case.
 
         Returns:
             The solution of the run.
         """
+        start_hour = parameters.start_hour
         self.start_hour = start_hour
 
         # Set the number of generations
@@ -699,7 +698,7 @@ class Genetic0Optimization:
             )
             # electrical vehicle charge rates
             if parameters.ev.charge_rates is not None:
-                self.ev_possible_charge_values = parameters.ev.charge_rates
+                self.ev_possible_charge_values = list(parameters.ev.charge_rates)
             elif self.settings.ev_charge_rates is not None:
                 self.ev_possible_charge_values = list(self.settings.ev_charge_rates)
             else:
@@ -776,7 +775,7 @@ class Genetic0Optimization:
         start_time = time.time()
         # None (not configured) is passed on as before.
         start_solution, extra_data = self.optimize(
-            parameters.start_solution,
+            None if parameters.start_solution is None else list(parameters.start_solution),
             ngen=generations,  # type: ignore[arg-type]
         )
         elapsed_time = time.time() - start_time
@@ -818,7 +817,7 @@ class Genetic0Optimization:
 
         return Genetic0Solution(
             **{
-                "parameters": parameters,
+                "parameters": parameters.request,
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
