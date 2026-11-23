@@ -1420,7 +1420,7 @@ The deprecated /optimize endpoint continues to run hourly GENETIC0.
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/ConfigOptimizationRequest"
+  "$ref": "#/components/schemas/GeneticRequest"
 }
 
 **Responses**:

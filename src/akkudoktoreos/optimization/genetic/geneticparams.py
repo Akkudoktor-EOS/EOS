@@ -27,12 +27,16 @@ from akkudoktoreos.core.coreabc import (
     MeasurementMixin,
     PredictionMixin,
 )
-from akkudoktoreos.devices.genetic.battery import (
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
-from akkudoktoreos.devices.genetic.inverter import InverterParameters
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+    HomeApplianceParameters,
+)
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    InverterParameters,
+)
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
@@ -299,12 +303,12 @@ class GeneticOptimizationParameters(
         Returns:
             The parameters, or ``None`` when inputs are missing.
         """
-        from akkudoktoreos.optimization.genetic.configrequest import (
-            ConfigOptimizationRequest,
+        from akkudoktoreos.optimization.genetic.geneticrequest import (
+            GeneticRequest,
         )
 
         try:
-            return await ConfigOptimizationRequest().resolve(warm_start=warm_start)
+            return await GeneticRequest().resolve(warm_start=warm_start)
         except Exception as exc:
             logger.error(
                 "Cannot prepare GENETIC parameters; canceling optimization with provider {}: {}",

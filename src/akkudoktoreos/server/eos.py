@@ -57,7 +57,7 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
@@ -2250,7 +2250,7 @@ async def fastapi_pvforecast() -> ForecastResponse:
 @app.post("/v1/optimize", tags=["optimize"])
 async def fastapi_optimize_config(
     request: Request,
-    parameters: ConfigOptimizationRequest = Body(default_factory=ConfigOptimizationRequest),
+    parameters: GeneticRequest = Body(default_factory=GeneticRequest),
 ) -> GeneticSolution:
     """Optimize GENETIC using configured devices and optional fresh runtime inputs.
 

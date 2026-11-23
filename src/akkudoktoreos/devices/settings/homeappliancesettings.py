@@ -21,7 +21,9 @@ from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSetting
 from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
 
 if TYPE_CHECKING:
-    from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
+    from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+        HomeApplianceParameters,
+    )
 
 
 class HomeApplianceCommonSettings(DevicesBaseSettings):
@@ -374,7 +376,9 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
 
     def to_genetic_param(self) -> "HomeApplianceParameters":
         """Return HomeApplianceParameters for the GENETIC optimizer."""
-        from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
+        from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+            HomeApplianceParameters,
+        )
 
         return HomeApplianceParameters(
             device_id=self.device_id,

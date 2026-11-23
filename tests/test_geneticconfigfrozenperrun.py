@@ -13,7 +13,9 @@ import pytest
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )

@@ -11,7 +11,7 @@ import pendulum
 import pytest
 
 from akkudoktoreos.config.configabc import CycleTimeWindowSequence, ValueTimeWindow
-from akkudoktoreos.devices.genetic.homeappliance import (
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
     HomeApplianceParameters,
 )

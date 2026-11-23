@@ -13,13 +13,19 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.devices.profile.inverterprofile import InverterProfileSettings
 from akkudoktoreos.devices.profile.profilestore import get_profile_store
 from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
+)
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    Battery,
+    SolarPanelBatteryParameters,
+)
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    Inverter,
+    InverterParameters,
 )
 
 MAX_CHARGE_W = 5000
@@ -45,7 +51,7 @@ def _build(limits_total: bool, max_ac_charge_power_w=None) -> tuple[Inverter, Ba
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
         return_value=predictor,
     ):
         inverter = Inverter(
@@ -150,9 +156,11 @@ class TestGeneticSimulation:
 
     @pytest.fixture
     def simulate(self, config_eos):
-        from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
         from akkudoktoreos.optimization.genetic.geneticparams import (
             GeneticEnergyManagementParameters,
+        )
+        from akkudoktoreos.optimization.genetic.geneticsimulation import (
+            GeneticSimulation,
         )
 
         config_eos.merge_settings_from_dict(

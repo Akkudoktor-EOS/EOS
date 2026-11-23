@@ -10,7 +10,7 @@ from akkudoktoreos.devices.devicesabc import (
     solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
-from akkudoktoreos.devices.genetic.battery import Battery
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
 from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
 from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
 

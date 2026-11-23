@@ -30,7 +30,7 @@ from akkudoktoreos.config.configabc import (
     ValueTimeWindow,
     ValueTimeWindowSequence,
 )
-from akkudoktoreos.devices.genetic.homeappliance import (
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
     HomeApplianceParameters,
 )

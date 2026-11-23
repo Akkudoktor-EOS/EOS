@@ -43,8 +43,10 @@ from akkudoktoreos.devices.settings.inverterresolution import (
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 if TYPE_CHECKING:
-    from akkudoktoreos.devices.genetic.inverter import InverterParameters
     from akkudoktoreos.devices.profile.inverterprofile import InverterProfile
+    from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+        InverterParameters,
+    )
 
 
 # Name of the inverter profile used when the user selects none.
@@ -692,7 +694,9 @@ class InverterCommonSettings(DevicesBaseSettings):
             InverterResolutionError: If the snapshot is resolved here and the
                 inverter cannot be resolved.
         """
-        from akkudoktoreos.devices.genetic.inverter import InverterParameters
+        from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+            InverterParameters,
+        )
 
         p = operating_parameters or self.resolve_operating_parameters()
         return InverterParameters(

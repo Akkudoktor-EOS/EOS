@@ -11,11 +11,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    Inverter,
+    InverterParameters,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
+from akkudoktoreos.optimization.genetic.geneticsimulation import (
+    GeneticSimulation,
 )
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffDataRecord
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -70,8 +75,8 @@ def prepare_tariffs(config_eos):
         )
         ems.genetic_solution.return_value = None
         with (
-            patch("akkudoktoreos.optimization.genetic.configrequest.get_ems", return_value=ems),
-            patch.object(ConfigOptimizationRequest, "prediction", prediction),
+            patch("akkudoktoreos.optimization.genetic.geneticrequest.get_ems", return_value=ems),
+            patch.object(GeneticRequest, "prediction", prediction),
         ):
             parameters = await GeneticOptimizationParameters.prepare()
         return parameters, prices, prediction

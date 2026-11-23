@@ -6,7 +6,9 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
@@ -134,8 +136,8 @@ def test_snapshot_and_warm_start_preserve_aware_instants(
     import json
     from pathlib import Path
 
-    from akkudoktoreos.optimization.genetic.configrequest import (
-        ConfigOptimizationRequest,
+    from akkudoktoreos.optimization.genetic.geneticrequest import (
+        GeneticRequest,
     )
     from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 
@@ -150,7 +152,7 @@ def test_snapshot_and_warm_start_preserve_aware_instants(
     parameters = GeneticOptimizationParameters.model_validate(
         native.parameters.model_dump() | {"start_solution_datetime": supplied}
     )
-    request = ConfigOptimizationRequest.model_validate({"start_solution_datetime": supplied})
+    request = GeneticRequest.model_validate({"start_solution_datetime": supplied})
     for model in (native, parameters, request):
         value = model.start_solution_datetime
         assert value is not None

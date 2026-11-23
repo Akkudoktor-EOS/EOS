@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from akkudoktoreos.optimization.genetic.terminalvalue import (
+from akkudoktoreos.optimization.genetic.geneticterminalvalue import (
     build_terminal_value_curve,
     trailing_window,
 )

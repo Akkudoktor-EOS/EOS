@@ -15,12 +15,12 @@ from akkudoktoreos.core.coreabc import (
 )
 from akkudoktoreos.devices.settings.batteryresolution import BatteryFullCharge
 from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
-from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
-from akkudoktoreos.optimization.genetic.fullcharge import (
+from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
+from akkudoktoreos.optimization.genetic.geneticforecast import bounded_forecast_array
+from akkudoktoreos.optimization.genetic.geneticfullcharge import (
     enforced_full_charge_deadline,
     full_charge_deadline,
 )
-from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 RUN_STARTED_LOOKBACK_HOURS = 48
 
 
-class RuntimeForecasts(GeneticParametersBaseModel):
+class GeneticForecastsRequest(GeneticParametersBaseModel):
     """External series from local midnight, in slot Wh and currency per Wh.
 
     The interval is configured in optimization.genetic.interval_sec. Omitted
@@ -58,9 +58,7 @@ class RuntimeForecasts(GeneticParametersBaseModel):
     temperature_forecast: Optional[list[Optional[float]]] = None
 
 
-class ConfigOptimizationRequest(
-    ConfigMixin, MeasurementMixin, PredictionMixin, GeneticParametersBaseModel
-):
+class GeneticRequest(ConfigMixin, MeasurementMixin, PredictionMixin, GeneticParametersBaseModel):
     """Supply observations while hardware, tariffs and scheduling remain in config.
 
     Explicit SoC values take precedence over fresh measurements. Without a usable
@@ -68,7 +66,7 @@ class ConfigOptimizationRequest(
     """
 
     soc: dict[str, Annotated[int, Field(ge=0, le=100)]] = Field(default_factory=dict)
-    forecasts: RuntimeForecasts = Field(default_factory=RuntimeForecasts)
+    forecasts: GeneticForecastsRequest = Field(default_factory=GeneticForecastsRequest)
     start_solution: Optional[list[float]] = None
     start_solution_datetime: Optional[DateTime] = None
 

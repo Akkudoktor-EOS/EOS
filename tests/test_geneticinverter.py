@@ -3,13 +3,16 @@ from unittest.mock import Mock, call, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic.battery import (
+from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     Battery,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
-from akkudoktoreos.optimization.genetic0 import genetic0prepare
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    Inverter,
+    InverterParameters,
+)
 
 
 @pytest.fixture
@@ -29,7 +32,7 @@ def inverter(mock_battery) -> Inverter:
     mock_self_consumption_predictor = Mock()
     mock_self_consumption_predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
         return_value=mock_self_consumption_predictor,
     ):
         iv = Inverter(
@@ -133,7 +136,7 @@ def test_probabilistic_bypass_conserves_energy_without_battery():
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.return_value = 150.0
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
         return_value=predictor,
     ):
         inverter_without_battery = Inverter(
@@ -159,7 +162,7 @@ def test_probabilistic_bypass_conserves_energy_on_quarter_hour_grid():
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.return_value = 600.0
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
         return_value=predictor,
     ):
         inverter_without_battery = Inverter(
@@ -557,7 +560,7 @@ class TestFirstSlotFraction:
         predictor = Mock()
         predictor.calculate_expected_direct_consumption.side_effect = min
         with patch(
-            "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+            "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
             return_value=predictor,
         ):
             inverter = Inverter(

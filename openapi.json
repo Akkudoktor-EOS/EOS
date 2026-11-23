@@ -3645,7 +3645,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ConfigOptimizationRequest"
+                "$ref": "#/components/schemas/GeneticRequest"
               }
             }
           }
@@ -4872,52 +4872,6 @@
         "type": "object",
         "title": "ConfigEOS",
         "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    .. code-block:: python\n\n        config_eos = ConfigEOS()  # Always returns the same instance\n            print(config_eos.prediction.hours)  # Access a setting from the loaded configuration"
-      },
-      "ConfigOptimizationRequest": {
-        "properties": {
-          "soc": {
-            "additionalProperties": {
-              "type": "integer",
-              "maximum": 100.0,
-              "minimum": 0.0
-            },
-            "type": "object",
-            "title": "Soc"
-          },
-          "forecasts": {
-            "$ref": "#/components/schemas/RuntimeForecasts"
-          },
-          "start_solution": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Solution"
-          },
-          "start_solution_datetime": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Solution Datetime"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "ConfigOptimizationRequest",
-        "description": "Supply observations while hardware, tariffs and scheduling remain in config.\n\nExplicit SoC values take precedence over fresh measurements. Without a usable\nmeasurement, assume 0% initial SoC for the affected device and continue."
       },
       "ConfigSaveMode": {
         "type": "string",
@@ -9846,7 +9800,422 @@
         "title": "Genetic0SolutionLegacy",
         "description": "GENETIC0 solution legacy dataset."
       },
-      "GeneticCommonSettings-Input": {
+      "GeneticEnergyManagementParameters": {
+        "properties": {
+          "pv_forecast_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Forecast Wh",
+            "description": "An array of floats representing the forecasted photovoltaic energy in watt-hours per slot for different time intervals."
+          },
+          "electricity_price_per_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price Per Wh",
+            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
+          },
+          "feed_in_tariff_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Feed In Tariff Per Wh",
+            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
+          },
+          "price_per_wh_battery": {
+            "type": "number",
+            "title": "Price Per Wh Battery",
+            "description": "A float representing the cost of battery energy per watt-hour."
+          },
+          "total_load": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Total Load",
+            "description": "An array of floats representing the total load (consumption) in watt-hours per slot for different time intervals."
+          },
+          "pv_prognose_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Prognose Wh",
+            "description": "Deprecated: Use pv_forecast_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "strompreis_euro_pro_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Strompreis Euro Pro Wh",
+            "description": "Deprecated: Use electricity_price_per_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "einspeiseverguetung_euro_pro_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Einspeiseverguetung Euro Pro Wh",
+            "description": "Deprecated: Use feed_in_tariff_per_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "preis_euro_pro_wh_akku": {
+            "type": "number",
+            "title": "Preis Euro Pro Wh Akku",
+            "description": "Deprecated: Use price_per_wh_battery instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "gesamtlast": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Gesamtlast",
+            "description": "Deprecated: Use total_load instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "pv_forecast_wh",
+          "electricity_price_per_wh",
+          "feed_in_tariff_per_wh",
+          "price_per_wh_battery",
+          "total_load",
+          "pv_prognose_wh",
+          "strompreis_euro_pro_wh",
+          "einspeiseverguetung_euro_pro_wh",
+          "preis_euro_pro_wh_akku",
+          "gesamtlast"
+        ],
+        "title": "GeneticEnergyManagementParameters",
+        "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
+      },
+      "GeneticForecastsRequest": {
+        "properties": {
+          "pv_forecast_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Forecast Wh"
+          },
+          "total_load": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Load"
+          },
+          "electricity_price_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electricity Price Per Wh"
+          },
+          "feed_in_tariff_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed In Tariff Per Wh"
+          },
+          "temperature_forecast": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Forecast"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "GeneticForecastsRequest",
+        "description": "External series from local midnight, in slot Wh and currency per Wh.\n\nThe interval is configured in optimization.genetic.interval_sec. Omitted\nseries are read from the configured providers, preserving their raw coverage."
+      },
+      "GeneticOptimizationParameters": {
+        "properties": {
+          "ems": {
+            "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
+          },
+          "pv_battery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PV battery parameters."
+          },
+          "inverter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InverterParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ev": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElectricVehicleParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Electric vehicle parameters."
+          },
+          "dishwasher": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeApplianceParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temperature_forecast": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Forecast",
+            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution",
+            "description": "Can be `null` or contain a previous solution (if available)."
+          },
+          "forecast_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Interval Seconds",
+            "description": "Input interval: 3600 for hourly, or optimization interval for native slots."
+          },
+          "home_appliances": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HomeApplianceParameters"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Appliances",
+            "description": "List of flexible consumers (home appliances) to schedule."
+          },
+          "start_solution_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution Datetime",
+            "description": "Start of the slot that gene 0 of 'start_solution' controls, as returned with the previous solution. The warm start is shifted by the slots that have elapsed until this run. Without it, a 'start_solution' identical to the last solution of this server uses that solution's start; any other one is used unshifted.",
+            "examples": [
+              null,
+              "2026-09-14T07:45:00+02:00"
+            ]
+          },
+          "pv_akku": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use pv_battery instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "eauto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElectricVehicleParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use ev instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "ems",
+          "pv_battery",
+          "inverter",
+          "ev",
+          "pv_akku",
+          "eauto"
+        ],
+        "title": "GeneticOptimizationParameters",
+        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
+      },
+      "GeneticRequest": {
+        "properties": {
+          "soc": {
+            "additionalProperties": {
+              "type": "integer",
+              "maximum": 100.0,
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Soc"
+          },
+          "forecasts": {
+            "$ref": "#/components/schemas/GeneticForecastsRequest"
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution"
+          },
+          "start_solution_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution Datetime"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "GeneticRequest",
+        "description": "Supply observations while hardware, tariffs and scheduling remain in config.\n\nExplicit SoC values take precedence over fresh measurements. Without a usable\nmeasurement, assume 0% initial SoC for the affected device and continue."
+      },
+      "GeneticSettings-Input": {
         "properties": {
           "interval_sec": {
             "type": "integer",
@@ -10037,10 +10406,10 @@
           }
         },
         "type": "object",
-        "title": "GeneticCommonSettings",
+        "title": "GeneticSettings",
         "description": "GENETIC Optimization Algorithm Configuration."
       },
-      "GeneticCommonSettings-Output": {
+      "GeneticSettings-Output": {
         "properties": {
           "interval_sec": {
             "type": "integer",
@@ -10240,292 +10609,8 @@
         "required": [
           "horizon"
         ],
-        "title": "GeneticCommonSettings",
+        "title": "GeneticSettings",
         "description": "GENETIC Optimization Algorithm Configuration."
-      },
-      "GeneticEnergyManagementParameters": {
-        "properties": {
-          "pv_forecast_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Pv Forecast Wh",
-            "description": "An array of floats representing the forecasted photovoltaic energy in watt-hours per slot for different time intervals."
-          },
-          "electricity_price_per_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Electricity Price Per Wh",
-            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
-          },
-          "feed_in_tariff_per_wh": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "title": "Feed In Tariff Per Wh",
-            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
-          },
-          "price_per_wh_battery": {
-            "type": "number",
-            "title": "Price Per Wh Battery",
-            "description": "A float representing the cost of battery energy per watt-hour."
-          },
-          "total_load": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Total Load",
-            "description": "An array of floats representing the total load (consumption) in watt-hours per slot for different time intervals."
-          },
-          "pv_prognose_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Pv Prognose Wh",
-            "description": "Deprecated: Use pv_forecast_wh instead.",
-            "deprecated": true,
-            "readOnly": true
-          },
-          "strompreis_euro_pro_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Strompreis Euro Pro Wh",
-            "description": "Deprecated: Use electricity_price_per_wh instead.",
-            "deprecated": true,
-            "readOnly": true
-          },
-          "einspeiseverguetung_euro_pro_wh": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "number"
-              }
-            ],
-            "title": "Einspeiseverguetung Euro Pro Wh",
-            "description": "Deprecated: Use feed_in_tariff_per_wh instead.",
-            "deprecated": true,
-            "readOnly": true
-          },
-          "preis_euro_pro_wh_akku": {
-            "type": "number",
-            "title": "Preis Euro Pro Wh Akku",
-            "description": "Deprecated: Use price_per_wh_battery instead.",
-            "deprecated": true,
-            "readOnly": true
-          },
-          "gesamtlast": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Gesamtlast",
-            "description": "Deprecated: Use total_load instead.",
-            "deprecated": true,
-            "readOnly": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "pv_forecast_wh",
-          "electricity_price_per_wh",
-          "feed_in_tariff_per_wh",
-          "price_per_wh_battery",
-          "total_load",
-          "pv_prognose_wh",
-          "strompreis_euro_pro_wh",
-          "einspeiseverguetung_euro_pro_wh",
-          "preis_euro_pro_wh_akku",
-          "gesamtlast"
-        ],
-        "title": "GeneticEnergyManagementParameters",
-        "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
-      },
-      "GeneticOptimizationParameters": {
-        "properties": {
-          "ems": {
-            "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
-          },
-          "pv_battery": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "PV battery parameters."
-          },
-          "inverter": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/InverterParameters"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "ev": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ElectricVehicleParameters"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Electric vehicle parameters."
-          },
-          "dishwasher": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/HomeApplianceParameters"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "temperature_forecast": {
-            "anyOf": [
-              {
-                "items": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Temperature Forecast",
-            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
-          },
-          "start_solution": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Solution",
-            "description": "Can be `null` or contain a previous solution (if available)."
-          },
-          "forecast_interval_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Forecast Interval Seconds",
-            "description": "Input interval: 3600 for hourly, or optimization interval for native slots."
-          },
-          "home_appliances": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/HomeApplianceParameters"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Home Appliances",
-            "description": "List of flexible consumers (home appliances) to schedule."
-          },
-          "start_solution_datetime": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Solution Datetime",
-            "description": "Start of the slot that gene 0 of 'start_solution' controls, as returned with the previous solution. The warm start is shifted by the slots that have elapsed until this run. Without it, a 'start_solution' identical to the last solution of this server uses that solution's start; any other one is used unshifted.",
-            "examples": [
-              null,
-              "2026-09-14T07:45:00+02:00"
-            ]
-          },
-          "pv_akku": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Deprecated: Use pv_battery instead.",
-            "deprecated": true,
-            "readOnly": true
-          },
-          "eauto": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ElectricVehicleParameters"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Deprecated: Use ev instead.",
-            "deprecated": true,
-            "readOnly": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "ems",
-          "pv_battery",
-          "inverter",
-          "ev",
-          "pv_akku",
-          "eauto"
-        ],
-        "title": "GeneticOptimizationParameters",
-        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
       },
       "GeneticSimulationResult": {
         "properties": {
@@ -14499,7 +14584,7 @@
             ]
           },
           "genetic": {
-            "$ref": "#/components/schemas/GeneticCommonSettings-Input",
+            "$ref": "#/components/schemas/GeneticSettings-Input",
             "description": "GENETIC optimization algorithm configuration.",
             "examples": [
               {
@@ -14547,7 +14632,7 @@
             ]
           },
           "genetic": {
-            "$ref": "#/components/schemas/GeneticCommonSettings-Output",
+            "$ref": "#/components/schemas/GeneticSettings-Output",
             "description": "GENETIC optimization algorithm configuration.",
             "examples": [
               {
@@ -17227,91 +17312,6 @@
         ],
         "title": "PydanticDateTimeSeries",
         "description": "Pydantic model for validating pandas Series with datetime index in JSON format.\n\nThis model handles Series data serialized with orient='index', where the keys are\ndatetime strings and values are the series values. Provides validation and\nconversion between JSON and pandas Series with datetime index.\n\nAttributes:\n    data (Dict[str, Any]): Dictionary mapping datetime strings to values.\n    dtype (str): The data type of the series values.\n    tz (str | None): Timezone name if the datetime index is timezone-aware."
-      },
-      "RuntimeForecasts": {
-        "properties": {
-          "pv_forecast_wh": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pv Forecast Wh"
-          },
-          "total_load": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Total Load"
-          },
-          "electricity_price_per_wh": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Electricity Price Per Wh"
-          },
-          "feed_in_tariff_per_wh": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Feed In Tariff Per Wh"
-          },
-          "temperature_forecast": {
-            "anyOf": [
-              {
-                "items": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Temperature Forecast"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "title": "RuntimeForecasts",
-        "description": "External series from local midnight, in slot Wh and currency per Wh.\n\nThe interval is configured in optimization.genetic.interval_sec. Omitted\nseries are read from the configured providers, preserving their raw coverage."
       },
       "SampleQuality": {
         "properties": {

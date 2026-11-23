@@ -9,16 +9,26 @@ from loguru import logger
 
 from akkudoktoreos.config.config import SettingsEOSDefaults
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
-from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    Battery,
+    SolarPanelBatteryParameters,
+)
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+    HomeApplianceParameters,
+)
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    Inverter,
+    InverterParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
+from akkudoktoreos.optimization.genetic.geneticforecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.tailvalue import build_tail_value_curve
-from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueCurve
+from akkudoktoreos.optimization.genetic.genetictailvalue import build_tail_value_curve
+from akkudoktoreos.optimization.genetic.geneticterminalvalue import TerminalValueCurve
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
@@ -219,7 +229,7 @@ async def test_genome_output_and_final_control_state(config_eos, interval, start
     with (
         patch.object(opt, "optimize", side_effect=choose),
         patch(
-            "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+            "akkudoktoreos.optimization.genetic.geneticalgorithm.build_tail_value_curve",
             wraps=build_tail_value_curve,
         ) as builder,
     ):
@@ -334,7 +344,9 @@ def test_missing_price_inside_tail_stops_at_first_gap(config_eos):
 
 
 def test_ev_genome_and_output_are_control_only(config_eos):
-    from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
+    from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+        ElectricVehicleParameters,
+    )
 
     opt, params = setup_run(config_eos, interval=900, start_hour=10, hours=82)
     params.ev = ElectricVehicleParameters(
@@ -543,7 +555,7 @@ def test_daily_appliance_day_planned_in_control_is_not_counted_again_in_tail(
     with (
         patch.object(opt, "optimize", side_effect=choose),
         patch(
-            "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+            "akkudoktoreos.optimization.genetic.geneticalgorithm.build_tail_value_curve",
             wraps=build_tail_value_curve,
         ) as builder,
     ):
@@ -637,7 +649,7 @@ def test_daily_appliance_deadline_does_not_cap_tail(config_eos, policy):
         with (
             patch.object(opt, "optimize", side_effect=choose),
             patch(
-                "akkudoktoreos.optimization.genetic.genetic.build_tail_value_curve",
+                "akkudoktoreos.optimization.genetic.geneticalgorithm.build_tail_value_curve",
                 wraps=build_tail_value_curve,
             ) as builder,
         ):

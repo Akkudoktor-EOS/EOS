@@ -30,7 +30,7 @@ result (the warm start) to `prepare()` as arguments, so no part of an optimizer 
 the warm start and its start datetime travel into `run()` inside the optimization parameters.
 
 Optimization requests from clients (the parameters accepted by `POST /optimize` and the GENETIC0
-legacy endpoint, and `ConfigOptimizationRequest`) never go straight into `run()`. They keep their
+legacy endpoint, and `GeneticRequest`) never go straight into `run()`. They keep their
 public schema (`Q`) and go through the optimizer's parameter preparation,
 `prepare_from_request()`, which fills everything the
 request does not carry (time zone, device IDs, algorithm settings) from the configuration and

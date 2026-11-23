@@ -4,7 +4,7 @@ The part of GENETIC that reads the configuration. It completes the optimization 
 before each run; the energy management passes the warm start and run-time overrides as arguments.
 
 Transitional (migration step 1): the forecast and device parameters still come from the legacy
-``GeneticOptimizationParameters.prepare()`` and ``ConfigOptimizationRequest.resolve()``, which
+``GeneticOptimizationParameters.prepare()`` and ``GeneticRequest.resolve()``, which
 read the run start from the energy management and may fail; step 3 replaces them and step 3b
 makes the preparation always valid.
 """
@@ -15,11 +15,11 @@ from typing import Any, Optional
 from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimizer import RunClock
 from akkudoktoreos.utils.datetimeutil import DateTime
@@ -66,7 +66,7 @@ async def prepare(
 
 
 async def prepare_from_request(
-    request: ConfigOptimizationRequest,
+    request: GeneticRequest,
     start_datetime: DateTime,
     warm_start: Optional[GeneticSolution],
     overrides: Optional[Mapping[str, Any]] = None,

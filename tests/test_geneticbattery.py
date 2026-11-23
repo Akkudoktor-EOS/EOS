@@ -5,13 +5,13 @@ import pytest
 from pydantic import ValidationError
 
 from akkudoktoreos.devices.devices import BatteriesCommonSettings
-from akkudoktoreos.devices.genetic.battery import (
+from akkudoktoreos.devices.settings.batterysettings import BatteryProfileAdjustment
+from akkudoktoreos.optimization.genetic0 import genetic0prepare
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     Battery,
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.settings.batterysettings import BatteryProfileAdjustment
-from akkudoktoreos.optimization.genetic0 import genetic0prepare
 
 
 @pytest.fixture

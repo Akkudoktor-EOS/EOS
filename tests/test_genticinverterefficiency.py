@@ -17,11 +17,14 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic.battery import (
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     Battery,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    Inverter,
+    InverterParameters,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers / Fixtures
@@ -48,7 +51,7 @@ def _make_inverter(
         max_ac_charge_power_w=max_ac_charge_power_w,
     )
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
         return_value=mock_self_consumption_predictor,
     ):
         return Inverter(params, battery=mock_battery)
@@ -215,9 +218,11 @@ class TestAcChargingInSimulation:
     @pytest.fixture
     def simulation_setup(self, config_eos):
         """Set up a minimal GeneticSimulation with battery and inverter."""
-        from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
         from akkudoktoreos.optimization.genetic.geneticparams import (
             GeneticEnergyManagementParameters,
+        )
+        from akkudoktoreos.optimization.genetic.geneticsimulation import (
+            GeneticSimulation,
         )
 
         config_eos.merge_settings_from_dict(
@@ -551,7 +556,9 @@ def _run_evaluate_with_mocked_sim(
     - self.simulation is replaced by mock_sim
     Then call evaluate() and return the fitness tuple.
     """
-    from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+    from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+        GeneticOptimization,
+    )
 
     config_eos.merge_settings_from_dict(
         {

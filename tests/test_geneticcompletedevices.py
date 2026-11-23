@@ -10,17 +10,20 @@ from akkudoktoreos.devices.devicesabc import (
     ConsumerDeadlinePolicy,
     ConsumerScheduleMode,
 )
-from akkudoktoreos.devices.genetic.battery import Battery, ElectricVehicleParameters
-from akkudoktoreos.devices.genetic.homeappliance import (
-    HomeAppliance,
-    HomeApplianceParameters,
-    resample_power_to_slot_energy,
-)
 from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
 from akkudoktoreos.devices.settings.homeappliancesettings import (
     HomeApplianceCommonSettings,
 )
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    Battery,
+    ElectricVehicleParameters,
+)
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
+    HomeAppliance,
+    HomeApplianceParameters,
+    resample_power_to_slot_energy,
+)
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 

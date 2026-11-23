@@ -104,7 +104,10 @@ def test_genetic0_inverter_keeps_its_independent_interpolator():
 
 @pytest.mark.parametrize("load,pv", [(4000.0, 5000.0), (10000.0, 20000.0)])
 def test_genetic_inverter_boundary_flows_remain_nonnegative(load, pv):
-    from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+    from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+        Inverter,
+        InverterParameters,
+    )
 
     inverter = Inverter(InverterParameters(device_id="boundary", max_power_wh=25000))
     flows = inverter.process_energy(generation=pv, consumption=load, hour=0)

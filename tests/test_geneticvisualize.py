@@ -12,14 +12,14 @@ from pypdf import PdfReader
 
 from akkudoktoreos.optimization.genetic import geneticvisualize as visualize
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.genetic.geneticvisualize import (
-    genetic_generate_example_report,
-)
-from akkudoktoreos.optimization.genetic.terminalvalue import (
+from akkudoktoreos.optimization.genetic.geneticterminalvalue import (
     TailDiagnostics,
     TailPlanSlot,
     TerminalValueCurve,
     TerminalValueResult,
+)
+from akkudoktoreos.optimization.genetic.geneticvisualize import (
+    genetic_generate_example_report,
 )
 
 filename = "example_report.pdf"

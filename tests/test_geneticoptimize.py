@@ -19,11 +19,13 @@ from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.core.ems import EnergyManagement
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic import geneticsolution
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.genetic.geneticvisualize import (
     GeneticVisualizationReport,
@@ -651,7 +653,7 @@ async def test_golden_output_from_configuration(
         ),
     )
     monkeypatch.setattr(EnergyManagement, "prediction", prediction)
-    monkeypatch.setattr(ConfigOptimizationRequest, "prediction", prediction)
+    monkeypatch.setattr(GeneticRequest, "prediction", prediction)
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     monkeypatch.setattr(geneticsolution, "get_prediction", no_prediction)
@@ -659,7 +661,7 @@ async def test_golden_output_from_configuration(
         # The previous run, an hour earlier, is the warm start of the pinned one.
         previous = observation.subtract(hours=1)
         monkeypatch.setattr(
-            ConfigOptimizationRequest, "measurement", FakeConfigMeasurement(previous, rich=True)
+            GeneticRequest, "measurement", FakeConfigMeasurement(previous, rich=True)
         )
         CacheEnergyManagementStore().clear()
         warm_start = await ems_eos.run(
@@ -669,19 +671,19 @@ async def test_golden_output_from_configuration(
         )
         assert warm_start is not None
     monkeypatch.setattr(
-        ConfigOptimizationRequest, "measurement", FakeConfigMeasurement(observation, case.rich)
+        GeneticRequest, "measurement", FakeConfigMeasurement(observation, case.rich)
     )
     prepared: list[GeneticOptimizationParameters] = []
-    resolve = ConfigOptimizationRequest.resolve
+    resolve = GeneticRequest.resolve
 
     async def record_resolve(
-        self: ConfigOptimizationRequest, warm_start: Optional[GeneticSolution] = None
+        self: GeneticRequest, warm_start: Optional[GeneticSolution] = None
     ) -> GeneticOptimizationParameters:
         parameters = await resolve(self, warm_start=warm_start)
         prepared.append(parameters)
         return parameters
 
-    monkeypatch.setattr(ConfigOptimizationRequest, "resolve", record_resolve)
+    monkeypatch.setattr(GeneticRequest, "resolve", record_resolve)
     CacheEnergyManagementStore().clear()
 
     solution = await ems_eos.run(

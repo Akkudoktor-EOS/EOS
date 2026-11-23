@@ -3,7 +3,9 @@
 import numpy as np
 
 from akkudoktoreos.devices.devicesabc import BatteryOperationMode
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 
 

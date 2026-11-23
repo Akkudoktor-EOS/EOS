@@ -1,6 +1,6 @@
 import pytest
 
-from akkudoktoreos.devices.genetic.heatpump import Heatpump
+from akkudoktoreos.optimization.genetic.devices.geneticheatpump import Heatpump
 
 
 @pytest.fixture(scope="function")

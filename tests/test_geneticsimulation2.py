@@ -2,22 +2,26 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
-from akkudoktoreos.devices.genetic.battery import (
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     Battery,
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.genetic.homeappliance import (
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
     HomeApplianceParameters,
 )
-from akkudoktoreos.devices.genetic.inverter import (
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
     Inverter,
     InverterParameters,
 )
-from akkudoktoreos.optimization.genetic.genetic import (
+from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticsimulation import (
     GeneticSimulation,
+)
+from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
 )
 from akkudoktoreos.utils.datetimeutil import to_duration, to_time

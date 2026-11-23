@@ -11,7 +11,7 @@ from akkudoktoreos.core.pydantic import (
 )
 from akkudoktoreos.optimization.genetic0 import Genetic0Settings
 from akkudoktoreos.optimization.genetic.geneticsettings import (
-    GeneticCommonSettings,
+    GeneticSettings,
     normalize_genetic_settings,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime
@@ -51,8 +51,8 @@ class OptimizationCommonSettings(SettingsBaseModel):
         },
     )
 
-    genetic: GeneticCommonSettings = Field(
-        default_factory=GeneticCommonSettings,
+    genetic: GeneticSettings = Field(
+        default_factory=GeneticSettings,
         json_schema_extra={
             "description": "GENETIC optimization algorithm configuration.",
             "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],

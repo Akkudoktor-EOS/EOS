@@ -8,9 +8,9 @@ be returned separately as diagnostics so users can inspect the lookahead.
 import numpy as np
 from pydantic import PrivateAttr
 
-from akkudoktoreos.devices.genetic.battery import Battery
-from akkudoktoreos.devices.genetic.inverter import Inverter
-from akkudoktoreos.optimization.genetic.terminalvalue import (
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import Inverter
+from akkudoktoreos.optimization.genetic.geneticterminalvalue import (
     TailPlanSlot,
     TerminalValueCurve,
 )

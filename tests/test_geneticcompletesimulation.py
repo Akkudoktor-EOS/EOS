@@ -3,19 +3,24 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.genetic.battery import (
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
     Battery,
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.genetic.homeappliance import (
+from akkudoktoreos.optimization.genetic.devices.genetichomeappliance import (
     HomeAppliance,
     HomeApplianceParameters,
 )
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    Inverter,
+    InverterParameters,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticsimulation import (
+    GeneticSimulation,
 )
 
 start_hour = 1

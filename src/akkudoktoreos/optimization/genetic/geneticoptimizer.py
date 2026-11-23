@@ -9,8 +9,8 @@ from typing import Any, Optional
 
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.optimization.genetic import geneticprepare
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
 from akkudoktoreos.optimization.genetic.geneticparameters import GeneticParameters
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.optimization.optimizer import OptimizerApi, RunClock
@@ -38,7 +38,7 @@ class GeneticOptimizer:
 
     async def prepare_from_request(
         self,
-        request: ConfigOptimizationRequest,
+        request: GeneticRequest,
         start_datetime: DateTime,
         observation_datetime: DateTime,
         warm_start: Optional[GeneticSolution],
@@ -52,7 +52,9 @@ class GeneticOptimizer:
     def run(self, parameters: GeneticParameters) -> GeneticSolution:
         """See ``Optimizer.run()``."""
         # Imported on first use: the simulation is only needed for a run.
-        from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+        from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+            GeneticOptimization,
+        )
 
         optimization = GeneticOptimization(
             verbose=parameters.verbose,

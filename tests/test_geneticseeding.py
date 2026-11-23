@@ -8,7 +8,7 @@ from deap import creator, tools
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import (
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
     GeneticOptimization,
     _pack_genes,
     _release_freed_memory,

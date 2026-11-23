@@ -20,19 +20,27 @@ from akkudoktoreos.devices.devicesabc import (
     solve_ac_for_dc_energy,
     validate_efficiency_curve,
 )
-from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
-from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
 from akkudoktoreos.devices.settings.invertersettings import (
     InverterCommonSettings,
     InverterProfileAdjustment,
 )
 from akkudoktoreos.optimization.genetic0 import genetic0prepare
-from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import (
+    Battery,
+    SolarPanelBatteryParameters,
+)
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    Inverter,
+    InverterParameters,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
 )
-from akkudoktoreos.optimization.genetic.tailvalue import build_tail_value_curve
-from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueCurve
+from akkudoktoreos.optimization.genetic.geneticsimulation import (
+    GeneticSimulation,
+)
+from akkudoktoreos.optimization.genetic.genetictailvalue import build_tail_value_curve
+from akkudoktoreos.optimization.genetic.geneticterminalvalue import TerminalValueCurve
 
 CURVE = [(0.05, 0.80), (0.20, 0.90), (0.50, 0.95), (1.0, 0.93)]
 
@@ -47,7 +55,7 @@ def _make_inverter(
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
         return_value=predictor,
     ):
         return Inverter(
@@ -166,7 +174,7 @@ class TestInterpolation:
         """max_power_wh is scaled to the slot, so 250 Wh in 15 min is 1 kW."""
         predictor = Mock()
         with patch(
-            "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+            "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
             return_value=predictor,
         ):
             inverter = Inverter(
@@ -487,7 +495,7 @@ def _real_inverter(battery: Battery, curve=None, slot_duration_h: float = 1.0, *
     predictor = Mock()
     predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
-        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        "akkudoktoreos.optimization.genetic.devices.geneticinverter.get_eos_load_interpolator",
         return_value=predictor,
     ):
         return Inverter(

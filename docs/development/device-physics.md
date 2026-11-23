@@ -2,7 +2,7 @@
 
 This package depends on the device-map and algorithm-converter configuration work
 from PR #1256 and the runtime settings foundation from PR #1305. Parameter classes
-remain in `devices/genetic`; settings remain in `devices/settings`.
+remain in `optimization/genetic/devices`; settings remain in `devices/settings`.
 
 Battery and inverter models accept a slot duration, apply power limits as energy
 per slot, and preserve the total battery charge/discharge budget across multiple

@@ -15,11 +15,13 @@ from pydantic import ValidationError
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsettings import GeneticCommonSettings
+from akkudoktoreos.optimization.genetic.geneticsettings import GeneticSettings
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_TESTDATA = Path(__file__).parent / "testdata" / "genetic"
@@ -38,11 +40,11 @@ def _configure_hourly_grid(config_eos: ConfigEOS) -> None:
 
 
 def test_fitness_cache_max_entries_setting_defaults_to_unbounded():
-    assert GeneticCommonSettings().fitness_cache_max_entries is None
-    assert GeneticCommonSettings(fitness_cache_max_entries=0).fitness_cache_max_entries == 0
-    assert GeneticCommonSettings(fitness_cache_max_entries=5000).fitness_cache_max_entries == 5000
+    assert GeneticSettings().fitness_cache_max_entries is None
+    assert GeneticSettings(fitness_cache_max_entries=0).fitness_cache_max_entries == 0
+    assert GeneticSettings(fitness_cache_max_entries=5000).fitness_cache_max_entries == 5000
     with pytest.raises(ValidationError):
-        GeneticCommonSettings(fitness_cache_max_entries=-1)
+        GeneticSettings(fitness_cache_max_entries=-1)
 
 
 @pytest.mark.parametrize("max_entries", [1, 2, 3, 10])

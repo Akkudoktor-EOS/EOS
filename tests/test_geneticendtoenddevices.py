@@ -11,11 +11,13 @@ from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_ems, get_measurement
 from akkudoktoreos.core.emplan import DDBCInstruction
 from akkudoktoreos.measurement.measurement import Measurement
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticalgorithm import (
+    GeneticOptimization,
+)
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
@@ -346,7 +348,7 @@ async def test_real_measurement_completed_cycles_reach_request_and_optimizer(
         key=key, start_datetime=zero, end_datetime=zero.add(seconds=1)
     )
     assert len(dates) == 1 and counts == [1.0]
-    prepared = await ConfigOptimizationRequest.model_validate(
+    prepared = await GeneticRequest.model_validate(
         {
             "forecasts": {
                 "pv_forecast_wh": [0.0] * 16,
@@ -454,7 +456,7 @@ async def test_meter_only_record_does_not_hide_completed_cycles(
     # Cycle count through the measurement API, then the adapter's meter reading.
     await measurement.update_value(run_time.subtract(seconds=30), "washer.cycles_completed", 1.0)
     await measurement.update_value(run_time, "load_meter", 1234.5)
-    prepared = await ConfigOptimizationRequest.model_validate(
+    prepared = await GeneticRequest.model_validate(
         {
             "forecasts": {
                 "pv_forecast_wh": [0.0] * 20,
@@ -628,7 +630,7 @@ def configure_heater_device(config: ConfigEOS, **kwargs: Any) -> None:
 
 
 async def resolve_heater() -> GeneticOptimizationParameters:
-    prepared = await ConfigOptimizationRequest.model_validate(
+    prepared = await GeneticRequest.model_validate(
         {
             "forecasts": {
                 "pv_forecast_wh": [0.0] * 24,

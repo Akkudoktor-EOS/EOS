@@ -16,8 +16,8 @@ from akkudoktoreos.config.configmigrate import migrate_config_data
 from akkudoktoreos.core.coreabc import get_measurement
 from akkudoktoreos.core.ems import EnergyManagement, EnergyManagementStage
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic import configrequest
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
+from akkudoktoreos.optimization.genetic import geneticrequest
+from akkudoktoreos.optimization.genetic.geneticrequest import GeneticRequest
 from akkudoktoreos.optimization.optimization import (
     OptimizationAlgorithm,
     OptimizationCommonSettings,
@@ -80,9 +80,9 @@ def configured_request(config_eos, monkeypatch):
     )
     start = to_datetime("2026-09-12T10:15:00Z", in_timezone="UTC")
     ems = SimpleNamespace(start_datetime=start, observation_datetime=start)
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     measurement = Mock(key_to_lists=AsyncMock(return_value=([], [])))
-    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", measurement)
+    monkeypatch.setattr(GeneticRequest, "measurement", measurement)
     data = {
         "soc": {"storage": 42},
         "forecasts": {
@@ -153,14 +153,14 @@ async def test_forecastsolar_resolves_without_runtime_override(
         await pv._update_data(force_update=True)
 
     prediction = SimpleNamespace(update_data=AsyncMock(side_effect=update), key_to_raw_series=read)
-    monkeypatch.setattr(ConfigOptimizationRequest, "prediction", prediction)
+    monkeypatch.setattr(GeneticRequest, "prediction", prediction)
     response = Mock()
     response.json.return_value = {
         "result": {"watts": watts},
         "message": {"info": {"timezone": "Europe/Berlin"}},
     }
     with patch("requests.get", return_value=response):
-        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+        parameters = await GeneticRequest.model_validate(data).resolve()
     prediction.update_data.assert_awaited_once()
     energy = parameters.ems.pv_forecast_wh
     assert energy[10 * 3600 // interval] == pytest.approx(1000 * interval / 3600)
@@ -178,7 +178,7 @@ async def test_echoed_warm_start_gets_the_start_of_the_last_solution(configured_
     explicit_start = ems.start_datetime.subtract(minutes=30)
 
     async def resolved_start(**fields: Any) -> Any:
-        request = ConfigOptimizationRequest.model_validate({**data, **fields})
+        request = GeneticRequest.model_validate({**data, **fields})
         parameters = await request.resolve(warm_start=warm_start)  # type: ignore[arg-type]
         return parameters.start_solution_datetime
 
@@ -195,7 +195,7 @@ async def test_echoed_warm_start_gets_the_start_of_the_last_solution(configured_
 async def test_hardware_costs_and_state_are_resolved_without_config_changes(configured_request):
     config, _, _, data = configured_request
     before = config.model_dump_json()
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.device_id == "storage"
     assert parameters.pv_battery.capacity_wh == 2000
@@ -209,7 +209,7 @@ async def test_hardware_costs_and_state_are_resolved_without_config_changes(conf
 @pytest.mark.parametrize("field", ["devices", "optimization", "pv_battery", "inverter", "ems"])
 def test_static_http_overrides_are_rejected(field):
     with pytest.raises(ValidationError):
-        ConfigOptimizationRequest.model_validate({field: {}})
+        GeneticRequest.model_validate({field: {}})
 
 
 @pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
@@ -218,11 +218,11 @@ def test_warmstart_timestamp_retains_explicit_zone_and_json_instant(
 ):
     set_other_timezone(host_timezone)
     previous = to_datetime("2026-10-25T02:30:00+01:00", in_timezone="Europe/Berlin")
-    request = ConfigOptimizationRequest(start_solution_datetime=previous)
+    request = GeneticRequest(start_solution_datetime=previous)
     assert request.start_solution_datetime is not None
     assert request.start_solution_datetime.timezone_name == "Europe/Berlin"
     assert request.start_solution_datetime.timestamp() == previous.timestamp()
-    restored = ConfigOptimizationRequest.model_validate_json(request.model_dump_json())
+    restored = GeneticRequest.model_validate_json(request.model_dump_json())
     assert restored.start_solution_datetime is not None
     assert restored.start_solution_datetime.timestamp() == previous.timestamp()
     assert restored.start_solution_datetime.utcoffset() == previous.utcoffset()
@@ -242,7 +242,7 @@ async def test_stale_future_or_invalid_soc_defaults_to_zero(
         [ems.observation_datetime.subtract(seconds=age)],
         [value],
     )
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 0
 
@@ -256,7 +256,7 @@ async def test_soc_freshness_uses_actual_run_time_inside_quarter_hour(configured
         [ems.observation_datetime.subtract(seconds=30)],
         [0.456],
     )
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 45
     assert measurement.key_to_lists.call_args.kwargs[
@@ -273,7 +273,7 @@ async def test_future_soc_in_repeated_hour_defaults_to_zero(configured_request):
         [to_datetime("2026-10-25T02:15:00+01:00", in_timezone="Europe/Berlin")],
         [0.8],
     )
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 0
 
@@ -281,14 +281,14 @@ async def test_future_soc_in_repeated_hour_defaults_to_zero(configured_request):
 @pytest.mark.asyncio
 async def test_unknown_soc_and_mismatched_device_link_are_rejected(configured_request):
     config, _, _, data = configured_request
-    request = ConfigOptimizationRequest.model_validate(data)
+    request = GeneticRequest.model_validate(data)
     request.soc["unknown"] = 20
     with pytest.raises(ValueError, match="unconfigured"):
         await request.resolve()
     assert config.devices.inverters is not None
     config.devices.inverters["inverter"].battery_id = "missing"
     with pytest.raises(ValueError, match="battery_id"):
-        await ConfigOptimizationRequest.model_validate(data).resolve()
+        await GeneticRequest.model_validate(data).resolve()
 
 
 @pytest.mark.asyncio
@@ -298,7 +298,7 @@ async def test_direct_marketing_keeps_explicit_imported_sale_prices(configured_r
     config.feedintariff.direct_marketing_enabled = True
     config.feedintariff.provider = "FeedInTariffImport"
     data["forecasts"]["feed_in_tariff_per_wh"] = [tariff] * 96
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.ems.feed_in_tariff_per_wh == [tariff] * 96
 
 
@@ -306,11 +306,11 @@ async def test_direct_marketing_keeps_explicit_imported_sale_prices(configured_r
 async def test_control_gaps_fail_but_shorter_tail_is_accepted(configured_request):
     _, _, _, data = configured_request
     data["forecasts"]["electricity_price_per_wh"] = [0.0003] * 50
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert len(parameters.ems.total_load) == 50
     data["forecasts"]["electricity_price_per_wh"][42] = np.nan
     with pytest.raises(ValueError, match="control horizon") as error:
-        await ConfigOptimizationRequest.model_validate(data).resolve()
+        await GeneticRequest.model_validate(data).resolve()
     assert "2026-09-12T10:30:00+00:00, 2026-09-12T10:45:00+00:00" in str(error.value)
     assert "1 invalid interval(s)" in str(error.value)
 
@@ -334,8 +334,8 @@ async def test_provider_power_is_integrated_once_and_update_is_awaited(
         )
 
     prediction = Mock(update_data=AsyncMock(), key_to_raw_series=AsyncMock(side_effect=read))
-    monkeypatch.setattr(ConfigOptimizationRequest, "prediction", prediction)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    monkeypatch.setattr(GeneticRequest, "prediction", prediction)
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.ems.pv_forecast_wh == [250.0] * len(parameters.ems.pv_forecast_wh)
     assert parameters.ems.total_load == [500.0] * len(parameters.ems.total_load)
     assert parameters.ems.feed_in_tariff_per_wh == [-0.00005] * len(parameters.ems.total_load)
@@ -396,7 +396,7 @@ def test_http_empty_body_is_configuration_request_and_failure_cannot_return_cach
     client = TestClient(eos.app)
     response = client.post("/v1/optimize")
     assert response.status_code == 503
-    assert isinstance(run.call_args.kwargs["request"], ConfigOptimizationRequest)
+    assert isinstance(run.call_args.kwargs["request"], GeneticRequest)
     assert run.call_args.kwargs["algorithm"] == OptimizationAlgorithm.GENETIC
     response = client.post("/v1/optimize", json={"devices": {}})
     assert response.status_code == 422
@@ -422,17 +422,17 @@ async def test_real_ems_returns_coherent_quarter_hour_solution_and_plan(
 ):
     _, fake, _, data = configured_request
     ems = EnergyManagement()
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     monkeypatch.setattr(EnergyManagement, "prediction", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
-    request = ConfigOptimizationRequest.model_validate(data)
+    request = GeneticRequest.model_validate(data)
     if automatic:
-        original = ConfigOptimizationRequest.resolve
+        original = GeneticRequest.resolve
 
         async def resolve_default(self, warm_start=None):
             return await original(request, warm_start=warm_start)
 
-        monkeypatch.setattr(ConfigOptimizationRequest, "resolve", resolve_default)
+        monkeypatch.setattr(GeneticRequest, "resolve", resolve_default)
     solution = await ems.run(
         start_datetime=fake.start_datetime.add(minutes=2),
         mode=EnergyManagementMode.OPTIMIZATION,
@@ -455,7 +455,7 @@ async def test_automatic_run_reads_real_resolver_provider_units_and_measured_soc
 ):
     _, fake, measurement, _ = configured_request
     ems = EnergyManagement()
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     measurement.key_to_lists.return_value = ([fake.start_datetime], [0.42])
     values = {
@@ -472,7 +472,7 @@ async def test_automatic_run_reads_real_resolver_provider_units_and_measured_soc
 
     prediction = Mock(update_data=AsyncMock(), key_to_raw_series=AsyncMock(side_effect=read))
     monkeypatch.setattr(EnergyManagement, "prediction", prediction)
-    monkeypatch.setattr(ConfigOptimizationRequest, "prediction", prediction)
+    monkeypatch.setattr(GeneticRequest, "prediction", prediction)
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
     solution = await ems.run(
         start_datetime=fake.start_datetime,
@@ -500,7 +500,7 @@ async def test_http_real_genetic_result_serializes_native_quarter_hour_contract(
     if missing_soc:
         data["soc"] = {}
     ems = EnergyManagement()
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     monkeypatch.setattr(EnergyManagement, "prediction", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
@@ -534,7 +534,7 @@ async def test_missing_soc_defaults_to_zero_without_mutating_inputs(
     before = config.model_dump_json()
     if missing_key:
         measurement.key_to_lists.side_effect = KeyError("SoC channel unavailable")
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 0
     assert config.model_dump_json() == before
@@ -548,7 +548,7 @@ async def test_missing_soc_defaults_to_zero_without_mutating_inputs(
 async def test_explicit_soc_overrides_measurements(configured_request, soc):
     _, _, measurement, data = configured_request
     data["soc"] = {"storage": soc}
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == soc
     measurement.key_to_lists.assert_not_awaited()
@@ -561,7 +561,7 @@ async def test_missing_ev_soc_does_not_replace_explicit_battery_soc(configured_r
         {"devices": {"max_electric_vehicles": 1,
                      "electric_vehicles": {"car": {"profile_adjustment": {"nominal_capacity_wh": 60000}}}}}
     )
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.ev is not None
     assert parameters.pv_battery.initial_soc_percentage == 42
@@ -581,7 +581,7 @@ async def test_http_config_and_real_optimizer_allow_full_ev_target(configured_re
             "max_soc_percentage": 100}}}})
     data["soc"]["ev"] = soc
     ems = EnergyManagement()
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     monkeypatch.setattr(EnergyManagement, "_optimizer_runs", {})
     monkeypatch.setattr(EnergyManagement, "prediction", Mock(update_data=AsyncMock()))
     monkeypatch.setattr(EnergyManagement, "adapter", Mock(update_data=AsyncMock()))
@@ -622,7 +622,7 @@ async def test_explicit_ev_soc_has_no_measurement_age_limit(configured_request, 
     measurement.key_to_lists.return_value = ([old_sample], [0.35])
     data["soc"]["car"] = 70
     config_before = config.model_dump_json()
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.ev is not None
     assert parameters.ev.initial_soc_percentage == 70
     assert parameters.ev.min_soc_percentage == 100
@@ -653,18 +653,18 @@ async def test_home_assistant_soc_read_mid_slot_is_fresh_for_resolver(
     monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
     monkeypatch.setattr(EnergyManagement, "_stage", EnergyManagementStage.DATA_ACQUISITION)
     ems = EnergyManagement()
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     # Run 11 minutes into the 10:15 slot: older than measurement_max_age_seconds (300 s)
     # if the reading were stamped with the slot start.
     run_time = to_datetime("2026-09-12T10:26:00Z", in_timezone="UTC")
     ems.set_start_datetime(run_time, interval_seconds=900)
     assert ems.start_datetime == run_time.subtract(minutes=11)
-    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", isolated_measurement)
+    monkeypatch.setattr(GeneticRequest, "measurement", isolated_measurement)
     monkeypatch.setattr(HomeAssistantAdapter, "get_entity_state", lambda self, entity_id: "0.42")
 
     await HomeAssistantAdapter()._update_data()
 
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 42
 
@@ -685,20 +685,20 @@ async def test_meter_only_adapter_reading_does_not_mask_api_soc(
     monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
     monkeypatch.setattr(EnergyManagement, "_stage", EnergyManagementStage.DATA_ACQUISITION)
     ems = EnergyManagement()
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     # Run one minute into the 10:15 slot: the adapter's meter reading (slot start)
     # is newer than the SoC supplied four minutes earlier, still within 300 s.
     run_time = to_datetime("2026-09-12T10:16:00Z", in_timezone="UTC")
     ems.set_start_datetime(run_time, interval_seconds=900)
     measurement = isolated_measurement
-    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", measurement)
+    monkeypatch.setattr(GeneticRequest, "measurement", measurement)
     # SoC arrives through the measurement API, the meter through Home Assistant.
     await measurement.update_value(run_time.subtract(minutes=4), "storage-soc-factor", 0.42)
     monkeypatch.setattr(HomeAssistantAdapter, "get_entity_state", lambda self, entity_id: "1234.5")
 
     await HomeAssistantAdapter()._update_data()
 
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 42
 
@@ -745,14 +745,14 @@ async def test_missing_newest_soc_value_falls_back_to_older_fresh_sample(
     monkeypatch.setattr(EnergyManagement, "_start_datetime", None)
     monkeypatch.setattr(EnergyManagement, "_observation_datetime", None)
     ems = EnergyManagement()
-    monkeypatch.setattr(configrequest, "get_ems", lambda: ems)
+    monkeypatch.setattr(geneticrequest, "get_ems", lambda: ems)
     run_time = to_datetime("2026-09-12T10:26:00Z", in_timezone="UTC")
     ems.set_start_datetime(run_time, interval_seconds=900)
-    monkeypatch.setattr(ConfigOptimizationRequest, "measurement", isolated_measurement)
+    monkeypatch.setattr(GeneticRequest, "measurement", isolated_measurement)
     await isolated_measurement.update_value(run_time.subtract(minutes=2), "storage-soc-factor", 0.42)
     await isolated_measurement.update_value(run_time.subtract(minutes=1), "storage-soc-factor", pd.NA)
 
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.pv_battery is not None
     assert parameters.pv_battery.initial_soc_percentage == 42
 
@@ -769,7 +769,7 @@ async def test_battery_configuration_error_uses_defaults_and_logs_error(configur
     messages: list[str] = []
     sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
     try:
-        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+        parameters = await GeneticRequest.model_validate(data).resolve()
     finally:
         logger.remove(sink_id)
     assert parameters.pv_battery is not None
@@ -802,7 +802,7 @@ async def test_inverter_is_derated_at_measured_temperature(
         return temperature_degc if key == "inverter-temperature-degc" else None
 
     monkeypatch.setattr(invertermeasurement, "get_measured_value", measured)
-    parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+    parameters = await GeneticRequest.model_validate(data).resolve()
     assert parameters.inverter is not None
     assert parameters.inverter.max_power_wh == pytest.approx(expected_max_power_w)
     assert parameters.inverter.max_ac_charge_power_w == pytest.approx(expected_max_power_w)
@@ -821,7 +821,7 @@ async def test_unusable_inverter_profile_falls_back_to_generic(configured_reques
     messages: list[str] = []
     sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
     try:
-        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+        parameters = await GeneticRequest.model_validate(data).resolve()
     finally:
         logger.remove(sink_id)
     assert parameters.inverter is not None
@@ -848,7 +848,7 @@ async def test_inverter_without_nominal_power_uses_the_fallback_power(configured
     messages: list[str] = []
     sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
     try:
-        parameters = await ConfigOptimizationRequest.model_validate(data).resolve()
+        parameters = await GeneticRequest.model_validate(data).resolve()
     finally:
         logger.remove(sink_id)
     assert parameters.inverter is not None

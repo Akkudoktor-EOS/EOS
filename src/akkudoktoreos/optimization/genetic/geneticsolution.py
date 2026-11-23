@@ -25,13 +25,15 @@ from akkudoktoreos.devices.devicesabc import (
     ApplianceOperationMode,
     BatteryOperationMode,
 )
-from akkudoktoreos.devices.genetic.battery import Battery
-from akkudoktoreos.devices.genetic.inverter import InverterParameters
+from akkudoktoreos.optimization.genetic.devices.geneticbattery import Battery
+from akkudoktoreos.optimization.genetic.devices.geneticinverter import (
+    InverterParameters,
+)
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueResult
+from akkudoktoreos.optimization.genetic.geneticterminalvalue import TerminalValueResult
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 from akkudoktoreos.utils.utils import NumpyEncoder

@@ -265,7 +265,7 @@ class EnergyManagement(
 
                 Defaults to the algorithm defined in the current configuration.
             request (optional): An optimization request for the optimizer (e.g. a
-                `ConfigOptimizationRequest` for `GENETIC`), completed by its
+                `GeneticRequest` for `GENETIC`), completed by its
                 `prepare_from_request()`. If not provided, the optimizer prepares its
                 parameters from configuration and predictions.
             overrides (Mapping, optional): Run-time overrides of the optimizer's settings,
