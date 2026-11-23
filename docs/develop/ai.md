@@ -54,6 +54,7 @@ Agents get their project knowledge from two places in the repository:
 | `filename-conventions` | File name rules enforced by `scripts/lint_filenames.py` |
 | `application-configuration` | Configuration models, defaults and migration |
 | `energy-domain` | Optimization, adapters, units and sign conventions |
+| `optimizer-architecture` | Optimizer structure, boundaries and independence |
 | `rest-api` | REST endpoints and error responses |
 | `commit-messages` | Conventional Commits as checked by `commitizen` |
 

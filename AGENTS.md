@@ -51,6 +51,7 @@ Detailed rules live in `ai/skills/`. Load the relevant skill for the task:
 | `ai/skills/commit-messages/SKILL.md` | Creating/checking commit messages |
 | `ai/skills/energy-domain/SKILL.md` | Optimization, adapters, units/signs |
 | `ai/skills/filename-conventions/SKILL.md` | Creating/renaming files |
+| `ai/skills/optimizer-architecture/SKILL.md` | Optimizers, their parameter preparation, simulation, solution conversion |
 | `ai/skills/python-environment/SKILL.md` | Before running uv, make, pytest, mypy, ruff or any Python |
 | `ai/skills/python-quality/SKILL.md` | Writing/modifying Python |
 | `ai/skills/rest-api/SKILL.md` | Adding/changing REST endpoints, API error responses |
