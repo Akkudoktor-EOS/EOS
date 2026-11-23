@@ -44,6 +44,11 @@ _Avoid_: start solution, previous solution
 The complete, valid input set handed to one optimizer for one optimization run.
 _Avoid_: optimization input, request parameters
 
+**Presentation data**:
+The part of the optimization parameters that only the solution conversion and the visualization
+use, such as the time zone, device IDs, the run start and the prediction series the run used.
+_Avoid_: display data, conversion context
+
 **Simulation device**:
 An optimizer's own model of a device (battery, inverter, home appliance, ...) that its simulation
 steps through an optimization run, built only from the optimization parameters.

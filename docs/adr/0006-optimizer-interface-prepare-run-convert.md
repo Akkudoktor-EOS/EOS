@@ -1,13 +1,15 @@
 # Optimizers implement prepare, run and convert
 
-Every optimizer follows the same three-step interface, so the energy management can drive any of
+Every optimizer follows the same three-step interface (prepare, run, convert), so the energy management can drive any of
 them the same way and every run can be replayed from its optimization parameters. The interface is
 a `Protocol` generic in the optimizer's optimization parameters `P`, optimization request `Q` and
 optimization result `R`, with `prepare()` and `prepare_from_request()` (asynchronous, given the run
-start, the observation time, the warm start and run-time overrides), `run()` and `convert()`
-(asynchronous), the latter
-returning the optimization solution and the energy management plan. Its current signature is kept in one place, the
-`optimizer-architecture` skill (`ai/skills/optimizer-architecture/SKILL.md`).
+start, the observation time, the warm start and run-time overrides), `run()`, `convert()`
+(asynchronous), which returns the optimization solution and the energy management plan, and
+`api()`, which hands out the optimizer's REST router
+([0011](0011-optimizer-api-visualization-and-wizard-get-no-exception.md)). Its current signature
+is kept in one place, the `optimizer-architecture` skill
+(`ai/skills/optimizer-architecture/SKILL.md`).
 
 - `prepare()` is the parameter preparation. It never fails and never returns `None` (see the
   `energy-domain` skill); the energy management never cancels a run because of it.

@@ -20,7 +20,10 @@ fit a role use the `<name>` prefix as well, also inside subdirectories such as `
 
 - The public classes are renamed (e.g. `GeneticOptimizationParameters` → `GeneticRequest`,
   `GeneticCommonSettings` → `GeneticSettings`). Field names and payloads stay unchanged; the
-  schema names in OpenAPI and the configuration documentation change.
+  schema names in OpenAPI and the configuration documentation change. Nested request models are
+  renamed `<Name><Thing>Request` as well (e.g. `Genetic0InverterParameters` →
+  `Genetic0InverterRequest`); the name `<Name><Device>Parameters` belongs to the simulation's
+  device dataclasses.
 - `devices/genetic/` and `devices/genetic0/` move into the optimizer directories. For the frozen
   GENETIC0 ([0008](0008-optimizer-refactoring-preserves-results.md)) the moves and renames are
   structural changes, proven by its golden tests.
