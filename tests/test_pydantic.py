@@ -15,6 +15,13 @@ from akkudoktoreos.core.pydantic import (
 )
 from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
 
+# Host timezones the index rendering must not depend on (#1592).
+HOST_TIMEZONES = ["UTC", "Europe/Berlin", "America/New_York"]
+# 08:00 UTC: 10:00 in Berlin (summer time), 17:00 in Tokyo.
+UTC_START = "2026-09-16T08:00:00+00:00"
+# The same instant with a fixed offset, as pandas reads it from a string.
+OFFSET_START = "2026-09-16T05:00:00-03:00"
+
 
 class PydanticTestModel(PydanticBaseModel):
     """Minimal test model for exercising PydanticBaseModel helpers."""
@@ -584,6 +591,92 @@ class TestPydanticDateTimeDataFrame:
         assert "extra" not in model.data[key]
         assert "extra" not in model.dtypes
 
+    @pytest.mark.parametrize("host_timezone", HOST_TIMEZONES)
+    def test_index_follows_requested_tz(self, set_other_timezone, host_timezone):
+        """The index is rendered in the requested ``tz``, whatever the host timezone (#1592)."""
+        set_other_timezone(host_timezone)
+        df = pd.DataFrame({"value": [1.0, 2.0]}, index=pd.date_range(UTC_START, periods=2, freq="h"))
+
+        model = PydanticDateTimeDataFrame.from_dataframe(df, tz="Asia/Tokyo")
+
+        assert model.tz == "Asia/Tokyo"
+        assert list(model.data) == ["2026-09-16T17:00:00+09:00", "2026-09-16T18:00:00+09:00"]
+
+    @pytest.mark.parametrize("host_timezone", HOST_TIMEZONES)
+    def test_index_follows_data_tz(self, set_other_timezone, host_timezone):
+        """Without ``tz`` the index keeps the timezone of the data, not the host's (#1592)."""
+        set_other_timezone(host_timezone)
+        index = pd.date_range(UTC_START, periods=2, freq="h").tz_convert("Europe/Berlin")
+        df = pd.DataFrame({"value": [1.0, 2.0]}, index=index)
+
+        model = PydanticDateTimeDataFrame.from_dataframe(df)
+
+        assert model.tz == "Europe/Berlin"
+        assert list(model.data) == ["2026-09-16T10:00:00+02:00", "2026-09-16T11:00:00+02:00"]
+
+    @pytest.mark.parametrize(
+        "tz, expected_key",
+        [
+            ("Europe/Berlin", "2026-09-16T10:00:00+02:00"),
+            (None, "2026-09-16T08:00:00Z"),
+        ],
+    )
+    def test_validation_renders_index_in_tz(self, set_other_timezone, tz, expected_key):
+        """Validated input (e.g. a request body) is rendered in ``tz``, in UTC without one."""
+        set_other_timezone("America/New_York")
+
+        model = PydanticDateTimeDataFrame.model_validate(
+            {"data": {"2026-09-16T08:00:00+00:00": {"value": 1.0}}, "tz": tz}
+        )
+
+        assert list(model.data) == [expected_key]
+        assert PydanticDateTimeDataFrame.model_validate_json(model.model_dump_json()).model_dump() == model.model_dump()
+
+    def test_row_access_with_tz_other_than_host(self, set_other_timezone):
+        """Row methods find the rows of a frame whose ``tz`` differs from the host timezone."""
+        set_other_timezone("America/New_York")
+        df = pd.DataFrame({"value": [1.0, 2.0]}, index=pd.date_range(UTC_START, periods=2, freq="h"))
+        model = PydanticDateTimeDataFrame.from_dataframe(df, tz="Europe/Berlin")
+
+        model.update_row(to_datetime(UTC_START), {"value": 9.0})
+
+        assert model.get_value("2026-09-16T10:00:00+02:00", "value") == 9.0
+
+    def test_tz_change_and_round_trip(self, set_other_timezone):
+        """Assigning ``tz`` re-renders the index; ``to_dataframe`` keeps the instants."""
+        set_other_timezone("America/New_York")
+        df = pd.DataFrame({"value": [1.0, 2.0]}, index=pd.date_range(UTC_START, periods=2, freq="h"))
+        model = PydanticDateTimeDataFrame.from_dataframe(df, tz="Europe/Berlin")
+
+        model.tz = "Asia/Tokyo"
+
+        assert list(model.data) == ["2026-09-16T17:00:00+09:00", "2026-09-16T18:00:00+09:00"]
+        result = model.to_dataframe()
+        for result_dt, expected_dt in zip(result.index, df.index):
+            assert compare_datetimes(to_datetime(result_dt), to_datetime(expected_dt)).equal
+
+    def test_offset_index_gets_a_valid_tz(self, set_other_timezone):
+        """A fixed-offset index (pandas names it ``UTC-03:00``) gets its ``Etc/GMT`` zone."""
+        set_other_timezone("Europe/Berlin")
+        df = pd.DataFrame({"value": [1.0]}, index=pd.to_datetime([OFFSET_START]))
+
+        model = PydanticDateTimeDataFrame.from_dataframe(df)
+
+        assert model.tz == "Etc/GMT+3"
+        assert list(model.data) == [OFFSET_START]
+
+    def test_offset_column_gets_a_valid_tz(self, set_other_timezone):
+        """Without a timezone-aware index, a fixed-offset datetime column names the zone."""
+        set_other_timezone("Europe/Berlin")
+        df = pd.DataFrame(
+            {"value": [1.0], "date_time": pd.to_datetime([OFFSET_START])},
+            index=pd.to_datetime(["2026-09-16T08:00:00"]),
+        )
+
+        model = PydanticDateTimeDataFrame.from_dataframe(df)
+
+        assert model.tz == "Etc/GMT+3"
+
 
 class TestPydanticDateTimeSeries:
     def test_valid_series(self):
@@ -597,3 +690,87 @@ class TestPydanticDateTimeSeries:
             expected_dt = to_datetime(dt)
             result_dt = to_datetime(result.index[i])
             assert compare_datetimes(result_dt, expected_dt).equal
+
+    @pytest.mark.parametrize("host_timezone", HOST_TIMEZONES)
+    def test_index_follows_series_tz(self, set_other_timezone, host_timezone):
+        """A timezone-aware series keeps its timezone, not the host's (#1592)."""
+        set_other_timezone(host_timezone)
+        index = pd.date_range(UTC_START, periods=2, freq="h").tz_convert("Europe/Berlin")
+
+        model = PydanticDateTimeSeries.from_series(pd.Series([1.0, 2.0], index=index))
+
+        assert model.tz == "Europe/Berlin"
+        assert list(model.data) == ["2026-09-16T10:00:00+02:00", "2026-09-16T11:00:00+02:00"]
+
+    @pytest.mark.parametrize("host_timezone", HOST_TIMEZONES)
+    def test_index_follows_requested_tz(self, set_other_timezone, host_timezone):
+        """The index is rendered in the requested ``tz``, whatever the host timezone (#1592)."""
+        set_other_timezone(host_timezone)
+        series = pd.Series([1.0, 2.0], index=pd.date_range(UTC_START, periods=2, freq="h"))
+
+        model = PydanticDateTimeSeries.from_series(series, tz="Asia/Tokyo")
+
+        assert model.tz == "Asia/Tokyo"
+        assert list(model.data) == ["2026-09-16T17:00:00+09:00", "2026-09-16T18:00:00+09:00"]
+
+    @pytest.mark.parametrize(
+        "start, expected_tz, expected_key",
+        [
+            (OFFSET_START, "Etc/GMT+3", OFFSET_START),
+            # No Etc/GMT zone for half hours: UTC, same instant.
+            ("2026-09-16T13:30:00+05:30", "UTC", "2026-09-16T08:00:00Z"),
+        ],
+    )
+    def test_offset_index_gets_a_valid_tz(
+        self, set_other_timezone, start, expected_tz, expected_key
+    ):
+        """A fixed-offset index (pandas names it e.g. ``UTC-03:00``) gets a zone ``tz`` accepts."""
+        set_other_timezone("Europe/Berlin")
+
+        model = PydanticDateTimeSeries.from_series(pd.Series([1.0], index=pd.to_datetime([start])))
+
+        assert model.tz == expected_tz
+        assert list(model.data) == [expected_key]
+
+    def test_tz_change_and_round_trip(self, set_other_timezone):
+        """Assigning ``tz`` re-renders the index; ``to_series`` keeps the instants."""
+        set_other_timezone("America/New_York")
+        series = pd.Series([1.0, 2.0], index=pd.date_range(UTC_START, periods=2, freq="h"))
+        model = PydanticDateTimeSeries.from_series(series.copy(), tz="Europe/Berlin")
+
+        model.tz = "Asia/Tokyo"
+
+        assert list(model.data) == ["2026-09-16T17:00:00+09:00", "2026-09-16T18:00:00+09:00"]
+        result = model.to_series()
+        for result_dt, expected_dt in zip(result.index, series.index):
+            assert compare_datetimes(to_datetime(result_dt), to_datetime(expected_dt)).equal
+
+    def test_naive_series_uses_host_timezone(self, set_other_timezone):
+        """A naive index has no timezone of its own: ``tz`` and the keys use the host's."""
+        host_timezone = set_other_timezone("Asia/Singapore")
+        timestamp = pd.Timestamp("2026-09-16T16:00:00")
+
+        model = PydanticDateTimeSeries.from_series(pd.Series([1.0], index=[timestamp]))
+
+        assert model.tz == host_timezone
+        (key,) = model.data
+        assert key.endswith("+08:00")
+        assert compare_datetimes(to_datetime(key), to_datetime(timestamp)).equal
+
+    @pytest.mark.parametrize(
+        "tz, expected_key",
+        [
+            ("Europe/Berlin", "2026-09-16T10:00:00+02:00"),
+            (None, "2026-09-16T08:00:00Z"),
+        ],
+    )
+    def test_validation_renders_index_in_tz(self, set_other_timezone, tz, expected_key):
+        """Validated input (e.g. a request body) is rendered in ``tz``, in UTC without one."""
+        set_other_timezone("America/New_York")
+
+        model = PydanticDateTimeSeries.model_validate(
+            {"data": {"2026-09-16T08:00:00+00:00": 1.0}, "tz": tz}
+        )
+
+        assert list(model.data) == [expected_key]
+        assert PydanticDateTimeSeries.model_validate_json(model.model_dump_json()).model_dump() == model.model_dump()

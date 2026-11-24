@@ -11,6 +11,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import babel
+import pandas as pd
 import pendulum
 import pytest
 from pendulum.tz.timezone import Timezone
@@ -1556,26 +1557,73 @@ class TestToDuration:
 # -----------------------------
 
 
-def test_to_timezone_string():
-    """Test to_timezone function returns correct timezone as a string."""
-    location = (40.7128, -74.0060)  # New York City coordinates
-    result = to_timezone(location=location, as_string=True)
-    assert result == "America/New_York", "Expected timezone string 'America/New_York'"
+class TestToTimezone:
+    def test_to_timezone_string(self):
+        """Test to_timezone function returns correct timezone as a string."""
+        location = (40.7128, -74.0060)  # New York City coordinates
+        result = to_timezone(location=location, as_string=True)
+        assert result == "America/New_York", "Expected timezone string 'America/New_York'"
 
 
-def test_to_timezone_timezone():
-    """Test to_timezone function returns correct timezone as a Timezone object."""
-    location = (40.7128, -74.0060)  # New York City coordinates
-    result = to_timezone(location=location)
-    assert isinstance(result, Timezone), "Expected a Timezone object"
-    assert result.name == "America/New_York", "Expected Timezone name 'America/New_York'"
+    def test_to_timezone_timezone(self):
+        """Test to_timezone function returns correct timezone as a Timezone object."""
+        location = (40.7128, -74.0060)  # New York City coordinates
+        result = to_timezone(location=location)
+        assert isinstance(result, Timezone), "Expected a Timezone object"
+        assert result.name == "America/New_York", "Expected Timezone name 'America/New_York'"
 
 
-def test_to_timezone_invalid_coordinates():
-    """Test to_timezone function handles invalid coordinates gracefully."""
-    location = (100.0, 200.0)  # Invalid coordinates outside Earth range
-    with pytest.raises(ValueError, match="Invalid latitude/longitude"):
-        to_timezone(location=location, as_string=True)
+    def test_to_timezone_invalid_coordinates(self):
+        """Test to_timezone function handles invalid coordinates gracefully."""
+        location = (100.0, 200.0)  # Invalid coordinates outside Earth range
+        with pytest.raises(ValueError, match="Invalid latitude/longitude"):
+            to_timezone(location=location, as_string=True)
+
+
+    @pytest.mark.parametrize(
+        "utc_offset, expected",
+        [(0, "UTC"), (2, "Etc/GMT-2"), (-3, "Etc/GMT+3"), (14, "Etc/GMT-14"), (-12, "Etc/GMT+12")],
+    )
+    def test_to_timezone_utc_offset(self, utc_offset, expected):
+        """A whole-hour UTC offset gives its Etc/GMT zone (inverted sign), usable as a timezone."""
+        assert to_timezone(utc_offset=utc_offset, as_string=True) == expected
+        assert to_timezone(utc_offset=utc_offset, as_string=False).name == expected
+
+
+    @pytest.mark.parametrize("utc_offset", [5.5, -3.5, -13, 15])
+    def test_to_timezone_utc_offset_without_zone(self, utc_offset):
+        """An offset without an Etc/GMT zone raises instead of returning an invalid name."""
+        with pytest.raises(ValueError, match="No timezone for UTC offset"):
+            to_timezone(utc_offset=utc_offset, as_string=True)
+
+
+    @pytest.mark.parametrize(
+        "date_time, expected",
+        [
+            (pd.Timestamp("2026-09-16T10:00:00", tz="Europe/Berlin"), "Europe/Berlin"),
+            (to_datetime("2026-09-16T10:00:00", in_timezone="Asia/Tokyo"), "Asia/Tokyo"),
+            (pd.Timestamp("2026-09-16T08:00:00", tz="Etc/UTC"), "UTC"),
+            # pandas names a fixed offset "UTC-03:00": the Etc/GMT zone of the offset.
+            (pd.Timestamp("2026-09-16T05:00:00-03:00"), "Etc/GMT+3"),
+        ],
+    )
+    def test_to_timezone_date_time(self, date_time, expected):
+        """The timezone of a date-time is its named zone, else the Etc/GMT zone of its offset."""
+        assert to_timezone(date_time=date_time, as_string=True) == expected
+        assert to_timezone(date_time=date_time, as_string=False).name == expected
+
+
+    @pytest.mark.parametrize(
+        "date_time, match",
+        [
+            (pd.Timestamp("2026-09-16T08:00:00"), "without timezone"),
+            (pd.Timestamp("2026-09-16T13:30:00+05:30"), "No timezone for UTC offset"),
+        ],
+    )
+    def test_to_timezone_date_time_without_zone(self, date_time, match):
+        """A naive date-time or an offset without an Etc/GMT zone raises."""
+        with pytest.raises(ValueError, match=match):
+            to_timezone(date_time=date_time, as_string=True)
 
 
 # -----------------------------

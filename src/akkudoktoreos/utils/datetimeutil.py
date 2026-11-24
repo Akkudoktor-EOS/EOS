@@ -1388,11 +1388,23 @@ def _canonicalize_tz_name(name: str) -> str:
     return _UTC_ALIASES.get(name.lower(), name)
 
 
+def _is_timezone_name(name: Optional[str]) -> bool:
+    """Return whether *name* names a timezone Pendulum (and the IANA database) knows."""
+    if not isinstance(name, str) or not name:
+        return False
+    try:
+        pendulum.timezone(name)
+    except (ValueError, KeyError):
+        return False
+    return True
+
+
 @overload
 def to_timezone(
     utc_offset: Optional[float] = None,
     location: Optional[Tuple[float, float]] = None,
     as_string: Literal[True] = True,
+    date_time: Optional[datetime.datetime] = None,
 ) -> str: ...
 
 
@@ -1401,6 +1413,7 @@ def to_timezone(
     utc_offset: Optional[float] = None,
     location: Optional[Tuple[float, float]] = None,
     as_string: Literal[False] | None = None,
+    date_time: Optional[datetime.datetime] = None,
 ) -> Timezone: ...
 
 
@@ -1408,8 +1421,9 @@ def to_timezone(
     utc_offset: Optional[float] = None,
     location: Optional[Tuple[float, float]] = None,
     as_string: Optional[bool] = False,
+    date_time: Optional[datetime.datetime] = None,
 ) -> Union[Timezone, str]:
-    """Determines the timezone either by UTC offset, geographic location, or local system timezone.
+    """Determines the timezone by UTC offset, geographic location, a date-time, or the local system.
 
     Timezone names that are semantically equivalent to UTC (e.g. ``GMT``, ``Z``,
     ``Etc/GMT``) are canonicalized to ``"UTC"`` before returning.
@@ -1419,10 +1433,15 @@ def to_timezone(
 
     Args:
         utc_offset (Optional[float]): UTC offset in hours. Positive for UTC+, negative for UTC-.
+            Gives the ``Etc/GMT`` zone of the offset; these exist for whole hours from -12 to +14.
         location (Optional[Tuple[float,float]]): A tuple containing latitude and longitude as floats.
         as_string (Optional[bool]):
             - If `True`, returns the timezone as a string (e.g., "America/New_York").
             - If `False` or not provided, returns a `Timezone` object for the timezone.
+        date_time (Optional[datetime.datetime]): A timezone-aware date-time (also a pandas
+            ``Timestamp`` or a Pendulum ``DateTime``). Gives the named timezone of its ``tzinfo``
+            (zoneinfo, pytz, Pendulum, ``datetime.timezone.utc``), else the ``Etc/GMT`` zone of
+            its UTC offset (e.g. for ``UTC+02:00`` fixed offsets or dateutil timezones).
 
     Returns:
         Union[Timezone, str]:
@@ -1430,11 +1449,15 @@ def to_timezone(
             - A `Timezone` object if `as_string` is `False` or not provided.
 
     Raises:
-        ValueError: If invalid inputs are provided.
+        ValueError: If invalid inputs are provided, e.g. a UTC offset without an ``Etc/GMT``
+            zone (not a whole hour, or outside -12 to +14) or a naive ``date_time``.
 
     Example:
-        >>> to_timezone(utc_offset=5.5, as_string=True)
-        'UTC+05:30'
+        >>> to_timezone(utc_offset=5, as_string=True)
+        'Etc/GMT-5'
+
+        >>> to_timezone(date_time=to_datetime("2024-10-13T15:30:00", in_timezone="Europe/Berlin"), as_string=True)
+        'Europe/Berlin'
 
         >>> to_timezone(location=(40.7128, -74.0060))
         <Timezone [America/New_York]>
@@ -1458,11 +1481,13 @@ def to_timezone(
         # NOTE: Etc/GMT sign convention is *inverted* relative to the common
         # expectation: Etc/GMT+5 means UTC-5.  We therefore flip the sign.
         hours = int(utc_offset)
-        minutes = int((abs(utc_offset) - abs(hours)) * 60)
         sign = "-" if utc_offset >= 0 else "+"
         offset_str = f"Etc/GMT{sign}{abs(hours)}"
-        if minutes > 0:
-            offset_str += f":{minutes:02}"
+        if hours != utc_offset or not _is_timezone_name(offset_str):
+            raise ValueError(
+                f"No timezone for UTC offset {utc_offset} hours: Etc/GMT zones exist for whole "
+                "hours from -12 to +14 only."
+            )
 
         if as_string:
             return offset_str
@@ -1491,6 +1516,29 @@ def to_timezone(
         if as_string:
             return tz_name
         return pendulum.timezone(tz_name)
+
+    # Handle the timezone of a date-time
+    if date_time is not None:
+        tzinfo = getattr(date_time, "tzinfo", None)
+        if tzinfo is None:
+            raise ValueError(f"Date-time without timezone: {date_time}")
+        # zoneinfo names its zone `key`, pytz `zone`, Pendulum `name`; str() covers the rest.
+        for candidate in (
+            getattr(tzinfo, "key", None),
+            getattr(tzinfo, "zone", None),
+            getattr(tzinfo, "name", None),
+            str(tzinfo),
+        ):
+            if _is_timezone_name(candidate):
+                zone_name = _canonicalize_tz_name(cast(str, candidate))
+                if as_string:
+                    return zone_name
+                return pendulum.timezone(zone_name)
+        offset = date_time.utcoffset()
+        offset_hours = offset.total_seconds() / 3600 if offset is not None else 0.0
+        if as_string:
+            return to_timezone(utc_offset=offset_hours, as_string=True)
+        return to_timezone(utc_offset=offset_hours)
 
     # Fallback to local timezone
     local_tz = pendulum.local_timezone()
