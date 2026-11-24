@@ -42,6 +42,7 @@ dependencies = [
     "pydantic==2.14.3",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.15.0",
+    "scikit-learn==1.9.1",
     "pydantic-settings==2.16.1",
     "linkify-it-py==2.2.0",
     "loguru==0.8.0",

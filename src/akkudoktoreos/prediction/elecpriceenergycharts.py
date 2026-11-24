@@ -98,6 +98,10 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         """Return the unique identifier for the Energy-Charts provider."""
         return "ElecPriceEnergyCharts"
 
+    def exchange_price_zone(self) -> Optional[str]:
+        """Configured Energy-Charts bidding zone."""
+        return self._bidding_zone()
+
     def _coverage_resolution_seconds(self, source_series: pd.Series) -> int:
         """Infer interval coverage from original prices without changing forecast resolution.
 

@@ -7,7 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| direct_marketing_enabled | `EOS_FEEDINTARIFF__DIRECT_MARKETING_ENABLED` | `bool` | `rw` | `False` | Enable export-aware GENETIC optimization. Sale revenues remain those of the configured feed-in provider or explicit forecast; purchase prices never replace them. |
+| direct_marketing_enabled | `EOS_FEEDINTARIFF__DIRECT_MARKETING_ENABLED` | `bool` | `rw` | `False` | Enable export-aware GENETIC optimization. Sale revenues remain those of the configured feed-in provider or explicit forecast; purchase prices never replace them. The market price of 'FeedInTariffEnergyCharts' and 'FeedInTariffSMARD' can follow the electricity price provider (setting 'follow_elecprice' of the provider). |
 | dvhubonline | `EOS_FEEDINTARIFF__DVHUBONLINE` | `FeedInTariffDvhubOnlineCommonSettings` | `rw` | `required` | DvhubOnline feed in tariff provider settings. |
 | energycharts | `EOS_FEEDINTARIFF__ENERGYCHARTS` | `FeedInTariffEnergyChartsCommonSettings` | `rw` | `required` | EnergyCharts feed in tariff provider settings. |
 | feedintarifffixed | `EOS_FEEDINTARIFF__FEEDINTARIFFFIXED` | `FeedInTariffFixedCommonSettings` | `rw` | `required` | Fixed feed in tariff provider settings. |
@@ -42,9 +42,12 @@
                "zone": "DE-LU"
            },
            "energycharts": {
-               "bidding_zone": "DE-LU"
+               "bidding_zone": "DE-LU",
+               "follow_elecprice": false
            },
-           "smard": {}
+           "smard": {
+               "follow_elecprice": false
+           }
        }
    }
 ```
@@ -74,9 +77,12 @@
                "zone": "DE-LU"
            },
            "energycharts": {
-               "bidding_zone": "DE-LU"
+               "bidding_zone": "DE-LU",
+               "follow_elecprice": false
            },
-           "smard": {},
+           "smard": {
+               "follow_elecprice": false
+           },
            "providers": [
                "FeedInTariffAkkudoktor",
                "FeedInTariffDvhubOnline",
@@ -100,6 +106,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| follow_elecprice | `bool` | `rw` | `False` | Use the day-ahead market price series of the active electricity price provider as the feed-in market price instead of an own extrapolation (see 'feedintariff.energycharts.follow_elecprice'). |
 :::
 <!-- pyml enable line-length -->
 
@@ -111,7 +118,9 @@
 ```json
    {
        "feedintariff": {
-           "smard": {}
+           "smard": {
+               "follow_elecprice": true
+           }
        }
    }
 ```
@@ -210,6 +219,7 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | bidding_zone | `<enum 'EnergyChartsBiddingZones'>` | `rw` | `DE-LU` | Bidding Zone: 'AT', 'BE', 'CH', 'CZ', 'DE-LU', 'DE-AT-LU', 'DK1', 'DK2', 'FR', 'HU', 'IT-NORTH', 'NL', 'NO2', 'PL', 'SE4' or 'SI' |
+| follow_elecprice | `bool` | `rw` | `False` | Use the day-ahead market price series of the active electricity price provider as the feed-in market price instead of fetching and extrapolating an own series. Purchase and feed-in forecasts then stay consistent when the electricity price provider forecasts differently from the seasonal extrapolation (e.g. 'ElecPriceAkkudoktorML'). Only applied if that provider delivers an exchange price of the same bidding zone and covers the whole prediction horizon; otherwise the own series is used. |
 :::
 <!-- pyml enable line-length -->
 
@@ -222,7 +232,8 @@
    {
        "feedintariff": {
            "energycharts": {
-               "bidding_zone": "DE-LU"
+               "bidding_zone": "DE-LU",
+               "follow_elecprice": true
            }
        }
    }

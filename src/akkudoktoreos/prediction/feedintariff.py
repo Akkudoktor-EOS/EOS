@@ -31,7 +31,9 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
         default=False,
         description=(
             "Enable export-aware GENETIC optimization. Sale revenues remain those of the "
-            "configured feed-in provider or explicit forecast; purchase prices never replace them."
+            "configured feed-in provider or explicit forecast; purchase prices never replace them. "
+            "The market price of 'FeedInTariffEnergyCharts' and 'FeedInTariffSMARD' can follow the "
+            "electricity price provider (setting 'follow_elecprice' of the provider)."
         ),
     )
 

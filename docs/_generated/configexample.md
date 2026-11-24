@@ -169,6 +169,10 @@
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
            "akkudoktor": {},
+           "akkudoktorml": {
+               "price_source": "energycharts",
+               "write_uncertainty": true
+           },
            "elecpricefixed": {
                "elecprice_marketprice_amt_kwh": {
                    "windows": []
@@ -228,9 +232,12 @@
                "zone": "DE-LU"
            },
            "energycharts": {
-               "bidding_zone": "DE-LU"
+               "bidding_zone": "DE-LU",
+               "follow_elecprice": false
            },
-           "smard": {}
+           "smard": {
+               "follow_elecprice": false
+           }
        },
        "general": {
            "config_save_mode": "AUTOMATIC",

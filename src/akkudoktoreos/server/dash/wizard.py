@@ -572,7 +572,7 @@ EOS optimizes costs, so it needs to know what electricity from the grid costs an
 get for the energy you feed in. Three predictions work together:
 
 - `elecprice.provider` - the electricity price. The market price providers
-  (`ElecPriceAkkudoktor`, `ElecPriceEnergyCharts`, `ElecPriceSMARD`, `ElecPriceTibber`)
+  (`ElecPriceAkkudoktor`, `ElecPriceAkkudoktorML`, `ElecPriceEnergyCharts`, `ElecPriceSMARD`, `ElecPriceTibber`)
   deliver the raw market price **without** fees. `ElecPriceFixed` uses prices you set for
   time windows of the day.
 - `elecfee.provider` - what is added to the raw price. With `ElecFeeFixed` you set a fee per
@@ -600,6 +600,7 @@ time window of `0.0786`.
             WizardChoice(
                 "elecprice.provider",
                 {
+                    "ElecPriceAkkudoktorML": ("elecprice.akkudoktorml.price_source",),
                     "ElecPriceEnergyCharts": ("elecprice.energycharts.bidding_zone",),
                     "ElecPriceFixed": (
                         "elecprice.elecpricefixed.elecprice_marketprice_amt_kwh.windows",

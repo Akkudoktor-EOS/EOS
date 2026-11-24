@@ -74,6 +74,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         """Return the unique identifier for the Akkudoktor provider."""
         return "ElecPriceAkkudoktor"
 
+    def exchange_price_zone(self) -> Optional[str]:
+        """The Akkudoktor price service provides German (DE-LU) day-ahead prices."""
+        return "DE-LU"
+
     @classmethod
     def _validate_data(cls, json_str: Union[bytes, Any]) -> AkkudoktorElecPrice:
         """Validate Akkudoktor Electricity Price forecast data."""

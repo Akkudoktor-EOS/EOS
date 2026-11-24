@@ -232,6 +232,7 @@ Configuration options:
   - `provider`: Electricity price provider id of provider to be used.
 
     - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
+    - `ElecPriceAkkudoktorML`: Day-ahead prices extended by a weather-driven price model.
     - `ElecPriceEnergyCharts`: Retrieves from Energy-Charts.info.
     - `ElecPriceFixed`: Caluclates from configured time window prices.
     - `ElecPriceImport`: Imports from a file or JSON string or by endpoint data provision.
@@ -259,6 +260,110 @@ prices by extrapolating historical price data combined with the most recent actu
 from Akkudoktor.net.
 
 Fees are applied if given by the `ElecFee` prediction.
+
+### ElecPriceAkkudoktorML Provider
+
+The `ElecPriceAkkudoktorML` provider extends the published day-ahead prices of the German bidding
+zone DE-LU for the following days (day D+2 to D+5, where D+1 is the last published day) with a
+weather-driven market price model instead of a seasonal extrapolation. Published prices are never
+changed; only the slots after the last published price are replaced. It is **not** the same as
+`ElecPriceAkkudoktor`, which uses the Akkudoktor.net price service.
+
+How the model works:
+
+1. A gradient boosting model (scikit-learn) predicts load, onshore and offshore wind and PV
+   generation (SMARD data) from weather forecasts of 12 locations (Open-Meteo, ECMWF IFS).
+   The weather forecast with the matching lead time is used for every target day, exactly as it
+   was available at issue time (no look-ahead).
+2. The resulting residual load (load minus wind minus PV) is converted to a price with a monotonic
+   price curve that is re-fitted every week on the last eight weeks.
+3. A damped offset aligns the price level with the last published day.
+
+The seasonal ETS forecast is used until the model is ready and whenever the model cannot deliver
+(missing data, rate limit, an error). The provider never leaves EOS without prices. Fees are
+applied if given by the `ElecFee` prediction.
+
+Requirements and limits:
+
+- Valid for the bidding zone **DE-LU** only. The provider always uses DE-LU and ignores
+  `elecprice.energycharts.bidding_zone`.
+- Internet access to SMARD (<https://www.smard.de>) and Open-Meteo previous runs API
+  (<https://previous-runs-api.open-meteo.com>). The free Open-Meteo API is licensed for
+  non-commercial use only (CC BY 4.0, attribution "Open-Meteo.com"); SMARD data is provided by
+  Bundesnetzagentur (CC BY 4.0, attribution "Bundesnetzagentur | SMARD.de"); Energy-Charts data
+  by Fraunhofer ISE (CC BY 4.0).
+- The first start builds a local data cache and trains the first model in the background. This
+  takes roughly 15 to 20 minutes on a small computer (the weather download is paced to stay below
+  the Open-Meteo rate limit). Afterwards the data is refreshed incrementally.
+- The data folder `elecprice_akkudoktorml` in the EOS data directory holds the cache (about
+  40 MB) and the trained monthly models (about 16 MB each, the current and the two previous months
+  are kept). Models are bound to the installed scikit-learn version and are retrained after an
+  upgrade or if a file is damaged.
+- Training needs more memory than normal operation (a peak of roughly 600 MB was observed); the
+  provider runs it in a background thread with lowered priority. A training lasts a few minutes
+  (monthly) up to roughly 20 minutes (first start). If an optimization forks worker processes
+  (`GENETIC`) while a training is running, the workers inherit a copy of the process memory, and a
+  forked worker can hang if the training thread held a lock (for example inside the numerical
+  libraries) at the moment of the fork. Training in a separate process is a possible later
+  improvement.
+- Prices are not guaranteed. In a back-test on 2024-2026 data the mean hourly error for the days D+2
+  to D+5 was roughly 30 % below the seasonal forecast; individual days and especially price
+  peaks can deviate strongly. Exact numbers depend on the scikit-learn version.
+
+Settings:
+
+- `elecprice.provider`: `ElecPriceAkkudoktorML`
+- `elecprice.akkudoktorml.price_source`: `energycharts` (default) or `smard`. Source of the
+  published prices. If that source fails or does not yet contain the next day (published around
+  midday), the other source is asked too and the answer that reaches further is used. While the
+  next day is still missing after 14:00, a fresh request is made every five minutes instead of
+  reusing a cached answer for an hour. SMARD always provides load and generation data. The model
+  always uses the bidding zone DE-LU, independent of `elecprice.energycharts.bidding_zone`.
+- `elecprice.akkudoktorml.write_uncertainty`: write the file described below (default `true`).
+- `elecprice.smard.region` / `elecprice.smard.filter_id`: SMARD is only used as a price source
+  with its defaults (region `DE`, filter `4169`, the DE-LU day-ahead price); with other values the
+  SMARD source is skipped.
+- `feedintariff.energycharts.follow_elecprice` (for `FeedInTariffSMARD`:
+  `feedintariff.smard.follow_elecprice`): recommended together with this provider. The feed-in
+  market price then uses the same exchange price series in every slot instead of an own
+  extrapolation (default: off).
+
+The provider writes `uncertainty.json` to its data folder after each update. It is informational
+only and not used by the optimization:
+
+```json
+{
+  "provider": "ElecPriceAkkudoktorML",
+  "unit": "ct/kWh",
+  "issued_at": "2026-11-15T09:00:00+00:00",
+  "model_day": "2026-11-14",
+  "model_month": "2026-11",
+  "quantile_levels": [0.1, 0.25, 0.5, 0.75, 0.9],
+  "hours_utc": ["2026-11-15T23:00:00+00:00"],
+  "point": [7.02],
+  "quantiles": {
+    "0.1": [4.5], "0.25": [5.9], "0.5": [7.1], "0.75": [8.4], "0.9": [10.0]
+  },
+  "reason": null
+}
+```
+
+The quantiles are exchange prices without fees and VAT. They come from error profiles of earlier
+forecasts. `quantiles` is `null` and `reason` explains why while not enough history exists.
+
+Example configuration:
+
+```json
+{
+  "elecprice": {
+    "provider": "ElecPriceAkkudoktorML"
+  },
+  "feedintariff": {
+    "provider": "FeedInTariffEnergyCharts",
+    "energycharts": {"follow_elecprice": true}
+  }
+}
+```
 
 ### ElecPriceEnergyCharts Provider
 
@@ -451,6 +556,14 @@ The seasonal periods are adjusted to the source resolution. For example, quarter
 four values per hour. Values already supplied by Energy-Charts are kept unchanged; only missing
 future slots after the last published price are forecast. Consequently, a 15-minute optimization
 uses four forecast values per hour without converting them to hourly averages.
+
+With `feedintariff.energycharts.follow_elecprice` enabled (default: off; for `FeedInTariffSMARD`
+`feedintariff.smard.follow_elecprice`), the provider follows the
+raw price series of the active electricity price provider instead of fetching and extrapolating a
+second series, as long as that provider delivers a day-ahead exchange price of the same bidding
+zone and its series covers the prediction horizon. Purchase and feed-in prices then use the same
+exchange price in every slot, including forecast slots. Otherwise the behavior described above
+applies.
 
 Fees are applied if given by the `ElecFee` prediction.
 

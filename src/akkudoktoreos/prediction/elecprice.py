@@ -7,6 +7,9 @@ from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     ElecPriceAkkudoktorCommonSettings,
 )
+from akkudoktoreos.prediction.elecpriceakkudoktorml import (
+    ElecPriceAkkudoktorMLCommonSettings,
+)
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyChartsCommonSettings,
 )
@@ -39,6 +42,17 @@ class ElecPriceCommonSettings(SettingsBaseModel):
     akkudoktor: ElecPriceAkkudoktorCommonSettings = Field(
         default_factory=ElecPriceAkkudoktorCommonSettings,
         json_schema_extra={"description": "Akkudoktor electricity price provider settings."},
+    )
+
+    akkudoktorml: ElecPriceAkkudoktorMLCommonSettings = Field(
+        default_factory=ElecPriceAkkudoktorMLCommonSettings,
+        json_schema_extra={
+            "description": (
+                "Akkudoktor ML (weather-driven market price model) provider settings. The weather "
+                "data comes from the free Open-Meteo API (non-commercial use only, CC BY 4.0, "
+                "attribution 'Open-Meteo.com')."
+            )
+        },
     )
 
     elecpricefixed: ElecPriceFixedCommonSettings = Field(
