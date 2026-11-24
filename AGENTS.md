@@ -32,7 +32,7 @@ maintainable code, testability, and type safety.
   itself, and boundaries where a third-party API needs its own type (pandas,
   NumPy, the standard library), converted right at the boundary. Applies to new
   and changed code; migrate existing direct calls only where the change touches
-  them anyway.
+  them anyway. See the `timezones` skill for which zone to use.
 - **Optimization parameters are always valid**: their preparation never fails
   and never cancels an optimization run. See the `energy-domain` skill.
 - Commits written or co-written by an agent end with the trailer
@@ -55,6 +55,7 @@ Detailed rules live in `ai/skills/`. Load the relevant skill for the task:
 | `ai/skills/python-quality/SKILL.md` | Writing/modifying Python |
 | `ai/skills/rest-api/SKILL.md` | Adding/changing REST endpoints, API error responses |
 | `ai/skills/testing/SKILL.md` | Adding/updating tests, bug fixes |
+| `ai/skills/timezones/SKILL.md` | Date-times, time zones, host-independent results |
 
 ### Engineering skills
 

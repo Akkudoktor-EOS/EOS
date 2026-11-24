@@ -50,6 +50,7 @@ Agents get their project knowledge from two places in the repository:
 | `python-environment` | How the agent runs `uv`, `make`, pytest, mypy and ruff without breaking your `.venv` |
 | `python-quality` | Ruff, mypy, typing and docstring rules |
 | `testing` | Where and how to add tests |
+| `timezones` | Which time zone to use, rendering date-times, tests independent of the host's time zone |
 | `filename-conventions` | File name rules enforced by `scripts/lint_filenames.py` |
 | `application-configuration` | Configuration models, defaults and migration |
 | `energy-domain` | Optimization, adapters, units and sign conventions |
