@@ -11,8 +11,11 @@ description: Use when adding or updating pytest tests, fixing bugs, or changing 
 
 ## Rules
 
-- **Prefer adding tests to existing test classes in existing test modules.**
-  Extend the relevant class/module rather than creating new files.
+- **Group the tests of one unit in a test class** (`Test<Unit>`, e.g.
+  `TestToTimezone` for `to_timezone()`) in the existing test module of that
+  code: add a test to the unit's class, and create the class when a unit gets
+  its second test. Extend the relevant class/module rather than creating new
+  files.
 - Create a new test module only when:
   - functionality is a distinct aspect that does not fit any existing module, or
   - it targets a different component/test target.
