@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.15' and sys_platform == 'win32'",
@@ -93,7 +93,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = "==4.15.0" },
     { name = "bokeh", specifier = "==3.9.2" },
     { name = "cachebox", specifier = "==6.2.10" },
-    { name = "commitizen", marker = "extra == 'dev'", specifier = "==4.19.3" },
+    { name = "commitizen", marker = "extra == 'dev'", specifier = "==4.19.4" },
     { name = "contourpy", specifier = "==1.3.3" },
     { name = "coverage", marker = "extra == 'dev'", specifier = "==7.16.2" },
     { name = "deap", specifier = "==1.4.4" },
@@ -730,7 +730,7 @@ wheels = [
 
 [[package]]
 name = "commitizen"
-version = "4.19.3"
+version = "4.19.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "argcomplete" },
@@ -746,9 +746,9 @@ dependencies = [
     { name = "termcolor" },
     { name = "tomlkit" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/bc/294ceb7ba99f83dca2bf62942dd325ffca86e504aa41cc42c2982350bd2b/commitizen-4.19.3.tar.gz", hash = "sha256:db77b1d521b5b9a16231a4fd5093d09ca519c5f170938806a784309b81938419", size = 73784, upload-time = "2026-10-24T07:24:08.219Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/56/65f9692ccc74e8722e71fa0120010bb3cb5169d1e29252d52f2ffd13a967/commitizen-4.19.4.tar.gz", hash = "sha256:8fdab0943d708d64a7b827e773d6eb8829565be491adc8329c4476f5588dfbb5", size = 73789, upload-time = "2026-11-19T08:39:09.321Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/ae/4f63a84dd2db955a3b222b2df002ebff61387fc80efdf46f611f9f4dd308/commitizen-4.19.3-py3-none-any.whl", hash = "sha256:d625e038cce66d92da20d24c2c366d410caca43966eba8ec036debf48fda2a68", size = 92037, upload-time = "2026-10-24T07:24:06.801Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/da/80916cc0a39fae71e6f122a8159451d72f93bdf446e0304266c71602bcb7/commitizen-4.19.4-py3-none-any.whl", hash = "sha256:41204ab850519e65ccd13cdfb1e3484a4e17369ed34247e29ef33442dbaa6412", size = 92046, upload-time = "2026-11-19T08:39:08.022Z" },
 ]
 
 [[package]]
