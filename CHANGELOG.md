@@ -241,6 +241,11 @@ test procedure. These changes are not yet a tagged release.
   renders predictions without provider-specific load statistics, keeps the scroll position after
   actions and shows no horizontal scrollbar.
 - Dropping root privileges no longer fails on non-Unix systems.
+- The date-time keys of data frames and series in API responses and requests (e.g. the
+  `prediction` and `solution` of an optimization solution, the prediction and measurement series)
+  follow their `tz`, or UTC without one, instead of the timezone of the EOS host. A series takes
+  the timezone of its data. The keys name the same instants as before; only their UTC offsets
+  can differ ([#1592](https://github.com/Akkudoktor-EOS/EOS/issues/1592)).
 
 ### Security
 

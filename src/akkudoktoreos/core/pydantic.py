@@ -49,6 +49,7 @@ from pydantic import (
     ValidationError,
     ValidationInfo,
     field_validator,
+    model_validator,
 )
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 
@@ -1031,6 +1032,63 @@ class PydanticDateTimeData(RootModel):
         return cls(root=data)
 
 
+def _datetime_index_key(index: Any, tz: Optional[str]) -> str:
+    """Render a datetime index key of the datetime models.
+
+    The key names the same instant in every host timezone; its offset is the one of ``tz``, or
+    UTC without one, never the host's (#1592). A naive ``index`` is read as ``to_datetime``
+    reads it.
+
+    Args:
+        index: A datetime-like value.
+        tz: Timezone name of the model, or None.
+
+    Returns:
+        str: The ISO 8601 datetime string of ``index`` in ``tz``, in UTC without one.
+    """
+    return to_datetime(index, as_string=True, in_timezone=tz or "UTC")
+
+
+def _render_index_in_tz(data: Dict[str, Any], tz: Optional[str]) -> None:
+    """Render the keys of a datetime model's ``data`` in ``tz``, in place.
+
+    In place, as assigning ``data`` would validate the model again.
+
+    Args:
+        data: Mapping of datetime index keys to row or series values.
+        tz: Timezone name of the model, or None.
+    """
+    rendered = {_datetime_index_key(key, tz): value for key, value in data.items()}
+    data.clear()
+    data.update(rendered)
+
+
+def _pandas_timezone_name(sample: pd.Timestamp) -> str:
+    """Name the timezone of timezone-aware pandas data for ``tz`` of the datetime models.
+
+    `to_timezone` names the timezone, or the ``Etc/GMT`` zone of a fixed offset such as pandas'
+    ``UTC+02:00``. An offset without such a zone (e.g. +05:30) gets ``UTC``; the keys name the
+    same instants either way.
+
+    Args:
+        sample: A timezone-aware timestamp of the data.
+
+    Returns:
+        str: A timezone name accepted by ``tz``.
+    """
+    try:
+        return to_timezone(date_time=sample, as_string=True)
+    except ValueError:
+        return "UTC"
+
+
+def _index_timezone_name(index: pd.Index) -> Optional[str]:
+    """Name the timezone of a timezone-aware datetime index, None for any other index."""
+    if not isinstance(index, pd.DatetimeIndex) or index.tz is None or len(index) == 0:
+        return None
+    return _pandas_timezone_name(index[0])
+
+
 class PydanticDateTimeDataFrame(PydanticBaseModel):
     """Pydantic model for validating pandas DataFrame data with datetime index."""
 
@@ -1071,12 +1129,10 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         if not all(set(row.keys()) == columns for row in v.values()):
             raise ValueError("All rows must have the same columns")
 
-        # Convert index datetime strings
+        # Convert index datetime strings; `render_index_in_tz` renders them in `tz` afterwards,
+        # as `tz` is validated after `data`.
         try:
-            d = {
-                to_datetime(dt, as_string=True, in_timezone=info.data.get("tz")): value
-                for dt, value in v.items()
-            }
+            d = {_datetime_index_key(dt, None): value for dt, value in v.items()}
             v = d
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid datetime string in index: {e}")
@@ -1094,6 +1150,12 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
             raise ValueError(f"Invalid datetime value in column: {e}")
 
         return v
+
+    @model_validator(mode="after")
+    def render_index_in_tz(self) -> "PydanticDateTimeDataFrame":
+        """Render the index keys in ``tz``, once all fields are validated."""
+        _render_index_in_tz(self.data, self.tz)
+        return self
 
     @field_validator("dtypes")
     @classmethod
@@ -1159,15 +1221,16 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
     def _detect_data_tz(cls, df: pd.DataFrame) -> Optional[str]:
         """Detect timezone of pandas data."""
         # Index first (strongest signal)
-        if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
-            return str(df.index.tz)
+        index_tz = _index_timezone_name(df.index)
+        if index_tz is not None:
+            return index_tz
 
         # Then datetime columns
         for col in df.columns:
             if is_datetime64_any_dtype(df[col]):
-                tz = getattr(df[col].dt, "tz", None)
-                if tz is not None:
-                    return str(tz)
+                values = df[col].dropna()
+                if getattr(df[col].dt, "tz", None) is not None and len(values) > 0:
+                    return _pandas_timezone_name(values.iloc[0])
 
         return None
 
@@ -1226,7 +1289,7 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         Returns:
             str: Normalized datetime string based on model timezone.
         """
-        return to_datetime(index, as_string=True, in_timezone=self.tz)
+        return _datetime_index_key(index, self.tz)
 
     def add_row(self, index: str | DateTime, row: Dict[str, Any]) -> None:
         """Add a new row to the dataset.
@@ -1361,8 +1424,11 @@ class PydanticDateTimeSeries(PydanticBaseModel):
 
     @field_validator("data", mode="after")
     @classmethod
-    def validate_datetime_index(cls, v: Dict[str, Any], info: ValidationInfo) -> Dict[str, Any]:
+    def validate_datetime_index(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         """Validate that all keys can be parsed as datetime strings.
+
+        The keys are rendered in UTC here; `render_index_in_tz` renders them in ``tz``
+        afterwards, as ``tz`` is validated after ``data``.
 
         Args:
             v: Dictionary with datetime string keys and series values.
@@ -1373,18 +1439,8 @@ class PydanticDateTimeSeries(PydanticBaseModel):
         Raises:
             ValueError: If any key cannot be parsed as a datetime.
         """
-        tz = info.data.get("tz")
-        if tz is not None:
-            try:
-                ZoneInfo(tz)
-            except KeyError:
-                tz = None
         try:
-            # Attempt to parse each key as datetime
-            d = dict()
-            for dt_str, value in v.items():
-                d[to_datetime(dt_str, as_string=True, in_timezone=tz)] = value
-            return d
+            return {_datetime_index_key(dt_str, None): value for dt_str, value in v.items()}
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid datetime string in index: {e}")
 
@@ -1397,6 +1453,12 @@ class PydanticDateTimeSeries(PydanticBaseModel):
             except KeyError:
                 raise ValueError(f"Invalid timezone: {v}")
         return v
+
+    @model_validator(mode="after")
+    def render_index_in_tz(self) -> "PydanticDateTimeSeries":
+        """Render the index keys in ``tz``, once all fields are validated."""
+        _render_index_in_tz(self.data, self.tz)
+        return self
 
     def to_series(self) -> pd.Series:
         """Convert the validated model data to a pandas Series.
@@ -1415,6 +1477,8 @@ class PydanticDateTimeSeries(PydanticBaseModel):
 
         Args:
             series: The pandas Series with datetime index to convert.
+            tz: Timezone to render the index in. Defaults to the timezone of a timezone-aware
+                index, else (naive index) the host-local timezone.
 
         Returns:
             A new instance containing the Series data.
@@ -1430,11 +1494,11 @@ class PydanticDateTimeSeries(PydanticBaseModel):
             model = PydanticDateTimeSeries.from_series(s)
 
         """
-        index = pd.Index([to_datetime(dt, as_string=True, in_timezone=tz) for dt in series.index])
-        series.index = index
+        if tz is None and len(series.index) > 0:
+            tz = _index_timezone_name(series.index) or to_timezone(as_string=True)
 
-        if len(index) > 0:
-            tz = to_datetime(series.index[0]).timezone_name
+        index = pd.Index([_datetime_index_key(dt, tz) for dt in series.index])
+        series.index = index
 
         return cls(
             data=cast(dict[str, Any], series.to_dict()),
