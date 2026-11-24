@@ -26,18 +26,43 @@ ems_eos = get_ems(init=True) # init once
 DIR_TESTDATA = Path(__file__).parent / "testdata" / "genetic0"
 
 
-def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
-    assert set(actual) == set(expected)
-
-    for key, value in expected.items():
-        if isinstance(value, dict):
-            assert isinstance(actual[key], dict)
+def compare_dict(actual: Any, expected: Any) -> None:
+    """Compare nested solution values with approximate numeric leaves."""
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict)
+        assert set(actual) == set(expected)
+        for key, value in expected.items():
             compare_dict(actual[key], value)
-        elif isinstance(value, list):
-            assert isinstance(actual[key], list)
-            assert actual[key] == pytest.approx(value)
-        else:
-            assert actual[key] == pytest.approx(value)
+    elif isinstance(expected, list):
+        assert isinstance(actual, list)
+        assert len(actual) == len(expected)
+        for actual_item, expected_item in zip(actual, expected):
+            compare_dict(actual_item, expected_item)
+    else:
+        assert actual == pytest.approx(expected)
+
+
+class TestCompareDict:
+    """Nested solution comparisons retain structure and numeric tolerances."""
+
+    def test_nested_schedule_and_numeric_tolerance(self) -> None:
+        compare_dict(
+            {"schedule": [{"start_time": "00:00", "duration": None}], "power": [1.0000001]},
+            {"schedule": [{"start_time": "00:00", "duration": None}], "power": [1.0]},
+        )
+
+    @pytest.mark.parametrize(
+        "actual, expected",
+        [
+            ({"items": [{"time": "01:00"}]}, {"items": [{"time": "00:00"}]}),
+            ({"items": [{"extra": 1}]}, {"items": [{}]}),
+            ({"items": []}, {"items": [1]}),
+            ({"power": [2.0]}, {"power": [1.0]}),
+        ],
+    )
+    def test_rejects_changed_structure_or_values(self, actual: Any, expected: Any) -> None:
+        with pytest.raises(AssertionError):
+            compare_dict(actual, expected)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
