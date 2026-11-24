@@ -81,7 +81,7 @@ dev = [
     "sphinxcontrib-mermaid==2.1.1   ",
 
     # Pytest
-    "pytest==9.1.1",
+    "pytest==9.2.0",
     "pytest-asyncio==1.5.0",
     "pytest-cov==7.1.0",
     "pytest-xdist==3.8.0",
