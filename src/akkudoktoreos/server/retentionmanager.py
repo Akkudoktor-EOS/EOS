@@ -12,8 +12,6 @@ Responsibilities:
     - Expose that state for health-check / metrics endpoints.
 """
 
-from __future__ import annotations
-
 import asyncio
 import time
 from dataclasses import dataclass

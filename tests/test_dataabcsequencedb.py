@@ -3,8 +3,6 @@
 Tests the async DataSequence with database persistence.
 """
 
-from __future__ import annotations
-
 import asyncio
 import shutil
 import tempfile

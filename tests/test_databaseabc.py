@@ -10,8 +10,6 @@ The fake ``SampleDatabase`` exposes the same interface as the real
 in the mixin is defined as ``async def`` here.
 """
 
-from __future__ import annotations
-
 import pickle
 from typing import Any, AsyncIterator, Iterator, Literal, Optional, Type, cast
 

@@ -1,7 +1,5 @@
 """Abstract database interface."""
 
-from __future__ import annotations
-
 import bisect
 import gzip
 import pickle

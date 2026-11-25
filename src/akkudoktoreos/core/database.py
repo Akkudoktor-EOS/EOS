@@ -7,8 +7,6 @@ argument on methods. LMDB uses named DBIs for namespaces; SQLite emulates
 namespaces with a `namespace` column.
 """
 
-from __future__ import annotations
-
 import asyncio
 import shutil
 import sqlite3

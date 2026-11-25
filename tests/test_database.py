@@ -3,8 +3,6 @@
 Tests the async Database interface and concrete implementations (LMDB, SQLite).
 """
 
-from __future__ import annotations
-
 import asyncio
 import shutil
 import tempfile
