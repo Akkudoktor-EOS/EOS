@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611242263325175"
+    "version": "v0.3.0.dev2611241995088912"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -5644,9 +5644,21 @@
                 "battery1-soc-factor": "inverter1:bat_soc_factor"
               }
             ]
+          },
+          "shared_data_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shared Data Keys",
+            "description": "Read-only: shared data keys `<device_id>:<key>` the configured controllers provide in the device control shared data store, sorted.",
+            "readOnly": true
           }
         },
         "type": "object",
+        "required": [
+          "shared_data_keys"
+        ],
         "title": "ControlAdapterCommonSettings",
         "description": "Common settings for the device control adapter."
       },

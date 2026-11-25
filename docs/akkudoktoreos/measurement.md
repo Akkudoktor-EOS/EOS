@@ -74,6 +74,10 @@ The associated `measurement key`s can be configured by:
 }
 ```
 
+In the Config tab of EOSdash, a key is typed into the field of the list (here
+`measurement.load_emr_keys`) or picked from the measurement keys already defined. The same holds
+for the other energy meter reading lists below.
+
 The energy meter readings of device controllers are not entered here: they are picked in the
 lists of `adapter.control` (`load_emr_data_keys`, `grid_import_emr_data_keys`, ...), stored as
 `<device_id>_<key>` (e.g. `meter1_grid_import_kwh`) and count for their role in addition to the

@@ -8,7 +8,7 @@ from types import MappingProxyType
 from typing import Annotated, Any, ClassVar, Optional, Union, get_args
 
 from loguru import logger
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.adapter.adapterabc import AdapterProvider
 
@@ -66,6 +66,26 @@ class ControlAdapterCommonSettings(SettingsBaseModel):
             ],
         },
     )
+
+    @computed_field(  # type: ignore[prop-decorator]
+        description=(
+            "Read-only: shared data keys `<device_id>:<key>` the configured controllers "
+            "provide in the device control shared data store, sorted."
+        ),
+    )
+    @property
+    def shared_data_keys(self) -> list[str]:
+        """Return the shared data keys of all configured controllers.
+
+        Returns:
+            list[str]: Keys ``<device_id>:<key suffix>`` of every configured controller,
+            sorted. Used e.g. as options for ``grid_power_key`` of an SMA STP-SE.
+        """
+        return sorted(
+            f"{device_id}:{suffix}"
+            for device_id, settings in self.controllers.items()
+            for suffix in settings.shared_data_keys
+        )
 
     load_emr_data_keys: Optional[list[str]] = Field(
         default=None,

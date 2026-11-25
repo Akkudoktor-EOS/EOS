@@ -17,6 +17,10 @@ The structure mirrors ``itemscard.py`` with these key differences:
 - Inner card headers display the string key instead of a numeric index.
 - ``create_config_details`` is called with the string key as the final
   ``values_prefix`` segment.
+- With ``UiHint.item_discriminator`` the entries may have different models
+  (a discriminated union, e.g. the device controllers selected by
+  ``controller_type``): each entry renders the fields of its own model, the
+  discriminator field is read-only, and "Add entry" asks for the type first.
 
 Typical usage in ``configuration.py``::
 
@@ -38,6 +42,7 @@ Typical usage in ``configuration.py``::
 import json
 from typing import Any, Callable, Optional
 
+from fasthtml.common import Fieldset, Option, Select
 from loguru import logger
 from monsterui.franken import (
     H4,
@@ -61,16 +66,22 @@ from akkudoktoreos.server.dash.carditems import (
     required_field_inputs,
 )
 from akkudoktoreos.server.dash.components import (
+    VALIDATE_FORM_ATTRS,
+    CollapsedSection,
     ConfigButton,
     ConfigCard,
     JsonView,
     UpdateError,
+    make_config_update_optional_model_form,
 )
 from akkudoktoreos.server.dash.context import request_url_for
 from akkudoktoreos.server.dash.markdown import Markdown
 from akkudoktoreos.server.dash.uihints import (
     UiHint,
+    discriminated_item_models,
     hint_for_indexed_field,
+    optional_model_rows,
+    resolve_entry_model,
     resolve_form_factory,
     resolve_item_model,
 )
@@ -83,9 +94,9 @@ from akkudoktoreos.server.dash.uihints import (
 def _add_control(
     config_name: str,
     items_map: dict,
-    item_model: Any,
+    entry_models: dict[str, Any],
+    discriminator: Optional[str],
     config_id: str,
-    read_only: str,
 ) -> Any:
     """Build the "Add entry" control.
 
@@ -99,53 +110,112 @@ def _add_control(
     field are filled in — otherwise clicking "Add entry" would persist an
     entry that fails the model's own validation.
 
+    With a discriminator the control also renders a select of the entry
+    types. Each type gets its own group of required-field inputs; only the
+    group of the selected type is enabled and visible, so `required` checks
+    just the fields of that type. The new entry gets the defaults of the
+    selected type's model plus the discriminator value.
+
     If the typed key already exists the existing entry is overwritten — this
     is intentional and allows renaming-by-copy when combined with delete.
+
+    Laid out like the update forms of the other settings: the label "add entry" on the left,
+    the inputs one below the other and the button on the right.
 
     Args:
         config_name: Dotted config key name.
         items_map: The current map, used as the base for the JS merge.
-        item_model: The Pydantic model class or instance for one map entry.
+        entry_models: The Pydantic model class (or instance) of a new entry
+            per entry type, e.g. ``{"sma:energy-meter": SmaEnergyMeterSettings}``.
+            Holds exactly one model under the key ``""`` when all entries share
+            one model.
+        discriminator: Name of the field that selects the entry type, or
+            ``None`` when all entries share one model.
         config_id: CSS-safe version of ``config_name`` (dots replaced with
-            hyphens), used to scope element ids and the key input's name.
+            hyphens), used to scope element ids and the input names.
 
     Returns:
-        A ``Form`` containing the key input, any required-field inputs, and
-        the "Add entry" button.
+        A ``Grid`` with the label and a ``Form`` containing the key input, the type select (with a
+        discriminator), the required-field inputs, and the "Add entry" button.
     """
-    new_entry_defaults, required_missing = item_model_defaults(item_model)
+    defaults_by_type: dict[str, dict] = {}
+    extra_by_type: list[str] = []
+    groups: list[Fieldset] = []
+    for index, (entry_type, entry_model) in enumerate(entry_models.items()):
+        defaults, required_missing = item_model_defaults(entry_model)
+        # The type select sets the discriminator (it has no default, see ControllerBaseSettings).
+        required_missing = [name for name in required_missing if name != discriminator]
+        id_prefix = f"{config_id}-new-entry" + (f"-{index}" if discriminator else "")
+        inputs, js_pairs = required_field_inputs(entry_model, required_missing, id_prefix)
+        defaults_by_type[entry_type] = defaults
+        extra_by_type.append(f"{json.dumps(entry_type)}: () => ({{ {', '.join(js_pairs)} }})")
+        selected = index == 0
+        groups.append(
+            Fieldset(
+                Grid(*inputs, cols=1, cls="gap-2"),
+                data_entry_type=entry_type,
+                disabled=not selected,
+                hidden=not selected,
+            )
+        )
 
-    id_prefix = f"{config_id}-new-entry"
-    inputs, js_pairs = required_field_inputs(item_model, required_missing, id_prefix)
-    extra_js = f"{{ {', '.join(js_pairs)} }}" if js_pairs else "{}"
+    type_select = None
+    type_expr = '""'
+    if discriminator:
+        type_name = f"{config_id}_new_type"
+        type_select = Select(
+            *[
+                Option(entry_type, value=entry_type, selected=index == 0)
+                for index, entry_type in enumerate(entry_models)
+            ],
+            id=f"{config_id}-new-type",
+            name=type_name,
+            onchange=(
+                "this.form.querySelectorAll('fieldset[data-entry-type]').forEach(f => {"
+                " const on = f.dataset.entryType === this.value;"
+                " f.disabled = !on; f.hidden = !on; })"
+            ),
+            cls="border rounded px-3 py-2 text-sm",
+        )
+        type_expr = f"document.querySelector(\"[name='{type_name}']\").value"
 
     current_json = json.dumps(items_map)
-    defaults_json = json.dumps(new_entry_defaults)
+    discriminator_js = f"defaults[{json.dumps(discriminator)}] = t;" if discriminator else ""
 
     build_value_expr = f"""(() => {{
         const k = document.querySelector("[name='{config_id}_new_key']").value.trim();
         if (!k) return {json.dumps(json.dumps(items_map))};
-        const defaults = {defaults_json};
-        const extra = {extra_js};
-        Object.assign(defaults, extra);
+        const t = {type_expr};
+        const defaults = Object.assign({{}}, {json.dumps(defaults_by_type)}[t]);
+        Object.assign(defaults, ({{ {", ".join(extra_by_type)} }})[t]());
+        {discriminator_js}
         if ('device_id' in defaults) defaults.device_id = k;
         const updated = Object.assign({{}}, {current_json}, {{ [k]: defaults }});
         return JSON.stringify(updated);
     }})()"""
 
-    return Form(
+    form = Form(
         Grid(
-            Input(
-                placeholder="Entry name / key",
-                name=f"{config_id}_new_key",
-                id=f"{config_id}-new-key",
-                required=True,
-                cls="border rounded px-3 py-2 text-sm",
+            Div(
+                P("name (required)", cls="text-xs text-muted-foreground"),
+                Input(
+                    placeholder="Entry name / key",
+                    name=f"{config_id}_new_key",
+                    id=f"{config_id}-new-key",
+                    required=True,
+                    cls="border rounded px-3 py-2 text-sm",
+                ),
             ),
-            *inputs,
-            cols=2,
+            Div(
+                P(discriminator, cls="text-xs text-muted-foreground"),
+                type_select,
+            )
+            if discriminator
+            else None,
+            cols=1,
             cls="gap-2",
         ),
+        *groups,
         ConfigButton(
             UkIcon("plus"),
             " Add entry",
@@ -153,9 +223,16 @@ def _add_control(
             hx_target="#page-content",
             hx_swap="innerHTML",
             hx_vals=f'js:{{ action: "update", key: "{config_name}", value: {build_value_expr} }}',
-            cls="mt-2",
+            cls=" mt-2",
+            **VALIDATE_FORM_ATTRS,
         ),
-        cls="space-y-2 mt-3",
+        cls="space-y-2",
+    )
+    return Grid(
+        DivRAligned(P("add entry")),
+        form,
+        id=f"{config_id}-add-entry",
+        cls="mt-3",
     )
 
 
@@ -207,8 +284,12 @@ def _inner_card(
     item_rows: list,
     item_update_open: bool,
     delete_control: Optional[Details],
+    entry_type: Optional[str] = None,
 ) -> Card:
     """Render a single collapsible inner card for one map entry.
+
+    The header shows the name of the entry (and its type), the JSON value of the entry is in a
+    collapsed section below the field rows.
 
     Args:
         config_name: Dotted config key of the parent map field.
@@ -222,6 +303,8 @@ def _inner_card(
         item_update_open: Whether this card should start expanded.
         delete_control: The two-click delete ``Details`` widget, or ``None``
             for read-only fields.
+        entry_type: The discriminator value of the entry, e.g. the controller type, or
+            ``None`` when all entries share one model.
 
     Returns:
         A ``Card`` component for this map entry.
@@ -230,27 +313,30 @@ def _inner_card(
         Details(
             Summary(
                 Grid(
-                    Grid(
-                        DivLAligned(
-                            UkIcon(icon="play"),
-                            H4(
-                                f"{item_path}.{key}",
-                                cls="text-muted-foreground" if is_empty else "",
-                            ),
-                            delete_control,
+                    DivLAligned(
+                        UkIcon(icon="play"),
+                        H4(
+                            f"{item_path}.{key}",
+                            cls="text-muted-foreground" if is_empty else "",
                         ),
-                        DivRAligned(
-                            P(
-                                "empty" if is_empty else read_only,
-                                cls="text-xs text-muted-foreground" if is_empty else "",
-                            ),
+                        P(entry_type, cls="text-sm text-muted-foreground") if entry_type else None,
+                        delete_control,
+                    ),
+                    DivRAligned(
+                        P(
+                            "empty" if is_empty else read_only,
+                            cls="text-xs text-muted-foreground" if is_empty else "",
                         ),
                     ),
-                    JsonView(json.loads(item_value)),
                 ),
                 cls="list-none",
             ),
             *item_rows,
+            CollapsedSection(
+                "JSON",
+                JsonView(json.loads(item_value)),
+                id=f"{config_name.lower().replace('.', '-')}-{key}-json",
+            ),
             cls="space-y-4 gap-4",
             open=item_update_open,
         ),
@@ -270,10 +356,15 @@ def _outer_card(
     items_update_value: str,
     items_update_error: Optional[str],
     items_update_open: bool,
+    advanced_open: bool,
     rows: list,
     add_control: Optional[Grid],
 ) -> Card:
     """Render the outer collapsible card for the whole map field.
+
+    The JSON value, the default and the raw JSON update input are in a collapsed
+    "Advanced (JSON)" section, which opens when the last update of the map failed. The error
+    of that update is shown above it.
 
     Args:
         config_name: Dotted config key name.
@@ -287,6 +378,8 @@ def _outer_card(
         items_update_error: Error string from the last failed update, or
             ``None``.
         items_update_open: Whether the outer card starts expanded.
+        advanced_open: Whether the "Advanced (JSON)" section starts expanded, i.e. the
+            latest update was one of the whole field and it failed.
         rows: Pre-built list of inner ``Card`` components.
         add_control: The "Add entry" ``Grid`` widget, or ``None`` for
             read-only fields.
@@ -298,18 +391,15 @@ def _outer_card(
         Details(
             Summary(
                 Grid(
-                    Grid(
-                        DivLAligned(
-                            UkIcon(icon="play"),
-                            P(config_name),
-                            P(
-                                f"{num_entries} entr{'ies' if num_entries != 1 else 'y'}",
-                                cls="ml-2 text-xs text-muted-foreground",
-                            ),
+                    DivLAligned(
+                        UkIcon(icon="play"),
+                        P(config_name),
+                        P(
+                            f"{num_entries} entr{'ies' if num_entries != 1 else 'y'}",
+                            cls="ml-2 text-xs text-muted-foreground",
                         ),
-                        DivRAligned(P(read_only)),
                     ),
-                    JsonView(json.loads(value)),
+                    DivRAligned(P(read_only)),
                 ),
                 cls="list-none",
             ),
@@ -322,29 +412,6 @@ def _outer_card(
                 ),
                 P(config_type),
             ),
-            # Default value row
-            Grid(
-                DivRAligned(P("default")),
-                P(default),
-            )
-            if read_only == "rw"
-            else None,
-            # Raw JSON fallback update form
-            Grid(
-                DivRAligned(P("update")),
-                Grid(
-                    Form(
-                        Input(value="update", type="hidden", id="action"),
-                        Input(value=config_name, type="hidden", id="key"),
-                        Input(value=items_update_value, type="text", id="value"),
-                        hx_put=request_url_for("/eosdash/configuration"),
-                        hx_target="#page-content",
-                        hx_swap="innerHTML",
-                    ),
-                ),
-            )
-            if read_only == "rw"
-            else None,
             # Last update error
             Grid(
                 DivRAligned(P("update error")),
@@ -352,6 +419,35 @@ def _outer_card(
             )
             if items_update_error
             else None,
+            CollapsedSection(
+                "Advanced (JSON)",
+                JsonView(json.loads(value)),
+                # Default value row
+                Grid(
+                    DivRAligned(P("default")),
+                    P(default),
+                )
+                if read_only == "rw"
+                else None,
+                # Raw JSON fallback update form
+                Grid(
+                    DivRAligned(P("update")),
+                    Grid(
+                        Form(
+                            Input(value="update", type="hidden", id="action"),
+                            Input(value=config_name, type="hidden", id="key"),
+                            Input(value=items_update_value, type="text", id="value"),
+                            hx_put=request_url_for("/eosdash/configuration"),
+                            hx_target="#page-content",
+                            hx_swap="innerHTML",
+                        ),
+                    ),
+                )
+                if read_only == "rw"
+                else None,
+                open=advanced_open,
+                id=f"{config_name.lower().replace('.', '-')}-advanced",
+            ),
             # Per-entry inner cards
             *rows,
             cls="space-y-4 gap-4",
@@ -372,6 +468,7 @@ def ConfigMapCard(
     config_details: dict[str, dict],
     config_update_latest: dict[str, dict],
     create_config_details: Callable,
+    open_name: Optional[str] = None,
 ) -> Card:
     """Creates a styled configuration card for a map of Pydantic sub-model entries.
 
@@ -412,6 +509,8 @@ def ConfigMapCard(
         create_config_details: The ``create_config_details`` callable from
             ``configuration.py``, injected to avoid a circular import.
             Signature: ``(model, values, values_prefix) -> dict[str, dict]``.
+        open_name: Dotted name of this map or one of its entries to show expanded, e.g.
+            ``"adapter.control.controllers.inverter1"``. An entry opens the outer card, too.
 
     Returns:
         Card: A fully rendered outer ``Card`` component containing the map
@@ -467,17 +566,25 @@ def ConfigMapCard(
     items_update_error = config_update_latest.get(config_name, {}).get("error")
     items_update_value = config_update_latest.get(config_name, {}).get("value") or value
     items_update_open = config_update_latest.get(config_name, {}).get("open") or False
+    # The error stays until the field is updated again; open only right after the failure.
+    advanced_open = bool(items_update_error) and items_update_open
+    if open_name and (open_name == config_name or open_name.startswith(f"{config_name}.")):
+        items_update_open = True
 
     # Add entry control (key input + button) shown at the bottom of the card.
     # One-click append when the item model is fully defaulted, otherwise an inline form that
     # collects required fields before the PUT fires (see _add_control / _item_model_defaults
     # docstrings).
+    discriminator = hint.item_discriminator
+    entry_models: dict[str, Any] = (
+        dict(discriminated_item_models(hint)) if discriminator else {"": item_model}
+    )
     add_control = _add_control(
         config_name=config_name,
         items_map=items_map,
-        item_model=item_model,
+        entry_models=entry_models,
+        discriminator=discriminator,
         config_id=config_id,
-        read_only=read_only,
     )
 
     # Build inner cards — one per map key, sorted for stable ordering
@@ -490,18 +597,39 @@ def ConfigMapCard(
         for part in reversed(path_parts):
             wrapped = {part: wrapped}
 
-        item_config = create_config_details(
-            item_model,
-            wrapped,
-            values_prefix=path_parts + [key],
+        item_rows: list = []
+        entry_model = resolve_entry_model(hint, entry)
+        if entry_model is None:
+            # The type of the entry selects no model: show the entry as JSON only, it can be
+            # fixed with the raw JSON update form of the outer card.
+            item_config: dict[str, dict] = {}
+            entry_type = entry.get(discriminator) if isinstance(entry, dict) else None
+            item_rows.append(
+                P(
+                    f"Unknown {discriminator} {json.dumps(entry_type)},"
+                    f" expected one of {', '.join(entry_models)}.",
+                    cls="text-sm text-destructive",
+                )
+            )
+        else:
+            item_config = create_config_details(
+                entry_model,
+                wrapped,
+                values_prefix=path_parts + [key],
+            )
+        entry_name = f"{item_path}.{key}"
+        switched_names, hidden_names = optional_model_rows(
+            item_config, lambda name: hint_for_indexed_field(name, item_path)
         )
-
-        item_rows = []
-        item_update_open = False
+        # Options of a field may come from the page or from the same entry
+        entry_config_details = {**config_details, **item_config}
+        item_update_open = open_name == entry_name
         item_value = json.dumps(entry) if entry is not None else json.dumps(None)
         is_empty = not entry
 
         for field_key in sorted(item_config.keys()):
+            if field_key in hidden_names:
+                continue
             sub = item_config[field_key]
             update_error = config_update_latest.get(sub["name"], {}).get("error")
             update_value = config_update_latest.get(sub["name"], {}).get("value")
@@ -519,14 +647,28 @@ def ConfigMapCard(
                 logger.error(error_msg)
                 raise TypeError(error_msg)
             sub_hint = hint_for_indexed_field(sub["name"], item_path)
-            update_form_factory = (
-                resolve_form_factory(sub_hint, config_details) if sub_hint else None
+            update_form_factory: Optional[Callable]
+            if field_key in switched_names:
+                update_form_factory = make_config_update_optional_model_form(
+                    sub["optional-model"], sub["value"]
+                )
+            elif sub_hint:
+                update_form_factory = resolve_form_factory(
+                    sub_hint, entry_config_details, entry_name=entry_name
+                )
+            else:
+                update_form_factory = None
+            # The type of an entry is not changed in place: the required fields differ by type.
+            sub_read_only = (
+                "ro"
+                if discriminator and sub["name"] == f"{item_path}.{key}.{discriminator}"
+                else sub["read-only"]
             )
             item_rows.append(
                 ConfigCard(
                     sub["name"],
                     sub["type"],
-                    sub["read-only"],
+                    sub_read_only,
                     sub["value"],
                     sub["default"],
                     sub["description"],
@@ -552,6 +694,9 @@ def ConfigMapCard(
                 delete_control=_delete_control(config_name, items_map, key)
                 if read_only == "rw"
                 else None,
+                entry_type=entry.get(discriminator)
+                if discriminator and isinstance(entry, dict)
+                else None,
             )
         )
 
@@ -567,6 +712,7 @@ def ConfigMapCard(
         items_update_value=items_update_value,
         items_update_error=items_update_error,
         items_update_open=items_update_open,
+        advanced_open=advanced_open,
         rows=rows,
         add_control=add_control,
     )

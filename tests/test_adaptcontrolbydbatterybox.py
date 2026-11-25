@@ -780,8 +780,8 @@ class TestSettings:
             }
         )
         assert isinstance(common.controllers["battery"], b.BydBatteryBoxSettings)
-        keys = common.controllers["battery"].shared_data_keys
-        assert "bms3_error_bits" in keys and "soc_factor" in keys
+        assert "battery:bms3_error_bits" in common.shared_data_keys
+        assert "battery:soc_factor" in common.shared_data_keys
 
 
 class TestController:

@@ -37,7 +37,7 @@ from bokeh.models.annotations import ColorBar
 from bokeh.models.glyphs import Image
 from bokeh.models.renderers import DataRenderer
 from bokeh.palettes import Category10_10, Viridis256
-from fasthtml.common import Option, Select, Table, Tbody, Td, Th, Thead, Tr
+from fasthtml.common import Button, Option, Select, Table, Tbody, Td, Th, Thead, Tr
 from loguru import logger
 from monsterui.franken import Code, Div, P, Span
 
@@ -737,10 +737,49 @@ def EventsPartial(eos_host: str, eos_port: Union[str, int], data: Optional[dict]
 # ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
+CONTROLLERS_CONFIG_NAME = "adapter.control.controllers"
+
+
+def config_url(device_id: str) -> str:
+    """URL of the Config page with the settings of one controller expanded.
+
+    Args:
+        device_id: Device id of the controller.
+
+    Returns:
+        The Config page URL, filtered to the controllers, with the card of the controller open.
+    """
+    query = urlencode(
+        {"search": CONTROLLERS_CONFIG_NAME, "open": f"{CONTROLLERS_CONFIG_NAME}.{device_id}"}
+    )
+    return f"{request_url_for('/eosdash/configuration')}?{query}"
+
+
+def ConfigLink(device_id: str) -> Button:
+    """Link that opens the settings of a controller in the Config tab.
+
+    Args:
+        device_id: Device id of the controller.
+
+    Returns:
+        A link-styled button that loads the Config page into the page content.
+    """
+    return Button(
+        "Open in Config tab",
+        type="button",
+        hx_get=config_url(device_id),
+        hx_target="#page-content",
+        hx_swap="innerHTML",
+        hx_vals=_dark_vals(),
+        cls="uk-link underline",
+    )
+
+
 def _diagnostics_off(device_id: str) -> Div:
     return Info(
         "Diagnostics are off. Set 'diagnostic_log_capacity' (e.g. 1000) of "
-        f"'adapter/control/controllers/{device_id}' in the Config tab to collect them."
+        f"'adapter/control/controllers/{device_id}' in the Config tab to collect them. ",
+        ConfigLink(device_id),
     )
 
 
@@ -852,7 +891,8 @@ def Control(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = Non
             "Settings",
             JsonView(settings),
             P(
-                f"Change them in the Config tab under 'adapter/control/controllers/{device_id}'.",
+                f"Change them in the Config tab under 'adapter/control/controllers/{device_id}'. ",
+                ConfigLink(device_id),
                 cls=HINT_CLS,
             ),
             open=False,

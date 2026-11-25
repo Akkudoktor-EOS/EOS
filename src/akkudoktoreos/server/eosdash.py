@@ -384,13 +384,24 @@ def get_eosdash_configuration_options(  # type: ignore
 def get_eosdash_configuration(request: Request):  # type: ignore
     """Serve the EOSdash Configuration page.
 
+    Only the search term and the value to show expanded are taken from the query (e.g.
+    ``?search=latitude`` as sent by the search box, or
+    ``?open=adapter.control.controllers.inverter1`` from a link), so a GET never triggers a
+    configuration action.
+
     Args:
         request (Request): The incoming FastHTML request.
 
     Returns:
         Configuration: The Configuration page component.
     """
-    return Configuration(*eos_server())
+    return Configuration(
+        *eos_server(),
+        {
+            "search": request.query_params.get("search", ""),
+            "open": request.query_params.get("open", ""),
+        },
+    )
 
 
 @app.put("/eosdash/configuration")

@@ -227,6 +227,21 @@ class TestControlAdapterCommonSettings:
         )
         assert isinstance(settings.controllers["m1"], SmaEnergyMeterSettings)
 
+    def test_shared_data_keys_of_all_controllers(self):
+        settings = ControlAdapterCommonSettings.model_validate(
+            {
+                "controllers": {
+                    "m2": {"controller_type": "sma:energy-meter", "serial": 2},
+                    "m1": {"controller_type": "sma:energy-meter", "serial": 1},
+                }
+            }
+        )
+        suffixes = SmaEnergyMeterSettings(controller_type="sma:energy-meter", serial=1).shared_data_keys
+        assert settings.shared_data_keys == sorted(
+            f"{device_id}:{suffix}" for device_id in ("m1", "m2") for suffix in suffixes
+        )
+        assert "m1:grid_net_w" in settings.shared_data_keys
+
     def test_controller_type_survives_saving_the_config(self, config_eos):
         # The config file is saved without default values: the type must not be one.
         controllers = {
@@ -248,6 +263,9 @@ class TestControlAdapterCommonSettings:
     def test_controller_type_is_required(self):
         with pytest.raises(ValidationError, match="controller_type"):
             SmaEnergyMeterSettings(serial=1)  # type: ignore[call-arg]
+
+    def test_shared_data_keys_without_controllers(self):
+        assert ControlAdapterCommonSettings().shared_data_keys == []
 
     def test_rejects_unknown_controller_type(self):
         with pytest.raises(ValidationError):

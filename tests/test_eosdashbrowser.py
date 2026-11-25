@@ -286,3 +286,207 @@ class TestEOSdashInBrowser:
             assert dash.errors == []
         finally:
             requests.put(controllers_url, json={}, timeout=10)
+
+    def test_config_adds_a_controller_by_type(
+        self, dash: DashPage, servers: dict[str, Any]
+    ) -> None:
+        """The controllers card adds a controller of the selected type with its required fields."""
+        controllers_url = f"{servers['server']}/v1/config/adapter/control/controllers"
+        try:
+            assert dash.open_tab("/eosdash/configuration") == 200
+            dash.open_details("summary:has(h3:text-is('adapter'))")
+            dash.open_details("summary:has-text('adapter.control.controllers')")
+
+            form = "form:has(#adapter-control-controllers-new-key)"
+            # Without a name nothing is sent: htmx halts on the missing required input.
+            puts: list[str] = []
+            dash.page.on(
+                "request", lambda request: puts.append(request.url) if request.method == "PUT" else None
+            )
+            dash.page.evaluate(
+                "window.halted = 0; document.addEventListener("
+                "'htmx:validation:halted', () => { window.halted += 1; })"
+            )
+            dash.page.click(f"{form} button:has-text('Add entry')")
+            dash.page.wait_for_function("window.halted > 0")
+            assert puts == []
+            assert requests.get(controllers_url, timeout=10).json() in ({}, None)
+
+            dash.page.fill("#adapter-control-controllers-new-key", "inverter1")
+            dash.page.select_option(
+                "#adapter-control-controllers-new-type", "sma:sunny-tripower-smart-energy"
+            )
+            # Only the required fields of the selected type are enabled.
+            assert dash.page.locator(f"{form} fieldset:not([disabled])").count() == 1
+            stpe = f"{form} fieldset[data-entry-type='sma:sunny-tripower-smart-energy']"
+            dash.page.fill(f"{stpe} input[placeholder='host']", "127.0.0.1")
+            dash.page.fill(f"{stpe} input[placeholder='battery_id']", "battery1")
+            dash.page.fill(f"{stpe} input[placeholder='grid_power_key']", "meter1:grid_net_w")
+
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/configuration"
+                and response.request.method == "PUT"
+            ) as response_info:
+                dash.page.click(f"{form} button:has-text('Add entry')")
+            assert response_info.value.ok
+            dash.page.wait_for_selector("h4:text-is('adapter.control.controllers.inverter1')")
+
+            controllers = requests.get(controllers_url, timeout=10).json()
+            assert controllers["inverter1"]["controller_type"] == "sma:sunny-tripower-smart-energy"
+            assert controllers["inverter1"]["host"] == "127.0.0.1"
+            assert controllers["inverter1"]["port"] == 502
+
+            # A setting of the controller is changed by its own form.
+            dash.open_details("summary:has(h4:text-is('adapter.control.controllers.inverter1'))")
+            dash.open_details(
+                "summary:has(p:text-is('adapter.control.controllers.inverter1.port'))"
+            )
+            port_input = "#adapter-control-controllers-inverter1-port-update-form input[type='text']"
+            dash.page.fill(port_input, "1")
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/configuration"
+                and response.request.method == "PUT"
+            ) as response_info:
+                dash.page.press(port_input, "Enter")
+            assert response_info.value.ok
+            assert requests.get(controllers_url, timeout=10).json()["inverter1"]["port"] == 1
+            assert dash.errors == []
+        finally:
+            requests.put(controllers_url, json={}, timeout=10)
+
+    def test_config_switches_an_optional_controller_setting(
+        self, dash: DashPage, servers: dict[str, Any]
+    ) -> None:
+        """PV curtailment is switched on and off without JSON; readings are picked by key."""
+        controllers_url = f"{servers['server']}/v1/config/adapter/control/controllers"
+        controller = {
+            "controller_type": "sma:sunny-tripower-smart-energy",
+            "host": "127.0.0.1",
+            "port": 1,
+            "battery_id": "battery1",
+            "grid_power_key": "meter1:grid_net_w",
+        }
+        response = requests.put(controllers_url, json={"inverter1": controller}, timeout=10)
+        assert response.ok, response.text
+        name = "adapter.control.controllers.inverter1.pv_curtailment"
+        config_id = name.replace(".", "-")
+
+        def put(click: str) -> None:
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/configuration"
+                and response.request.method == "PUT"
+            ) as response_info:
+                dash.page.click(click)
+            assert response_info.value.ok
+
+        try:
+            assert dash.open_tab("/eosdash/configuration") == 200
+            dash.open_details("summary:has(h3:text-is('adapter'))")
+            dash.open_details("summary:has-text('adapter.control.controllers')")
+            dash.open_details("summary:has(h4:text-is('adapter.control.controllers.inverter1'))")
+            # The raw JSON input is out of the way.
+            assert not dash.page.is_visible("#adapter-control-controllers-advanced input#value")
+
+            # Readings are mapped to measurements in adapter.control, picked from the shared
+            # data keys of the controllers.
+            sources = "#adapter-control-device_measurement_data_keys-update-map-form select"
+            options = dash.page.eval_on_selector_all(
+                f"{sources} option",
+                "options => options.map(o => o.value).filter(v => v)",
+            )
+            assert "inverter1:bat_soc_factor" in options
+
+            # Off: the fields are hidden. Switch on writes the defaults.
+            assert dash.page.locator(f"p:text-is('{name}.deadband_w')").count() == 0
+            dash.open_details(f"summary:has(p:text-is('{name}'))")
+            put(f"#{config_id}-switch-on button:has-text('Switch on')")
+            assert requests.get(controllers_url, timeout=10).json()["inverter1"][
+                "pv_curtailment"
+            ]["deadband_w"] == 50.0
+            dash.page.wait_for_selector(f"p:text-is('{name}.deadband_w')", state="attached")
+
+            # Switch off needs a second click. The card of the last update is open again.
+            dash.page.click(f"#{config_id}-switch-off > summary")
+            put(f"#{config_id}-switch-off button:has-text('Confirm switch off')")
+            assert requests.get(controllers_url, timeout=10).json()["inverter1"][
+                "pv_curtailment"
+            ] is None
+            dash.page.wait_for_selector(f"#{config_id}-switch-on", state="attached")
+            assert dash.errors == []
+        finally:
+            requests.put(controllers_url, json={}, timeout=10)
+
+    def test_config_adds_a_typed_energy_meter_reading_key(
+        self, dash: DashPage, servers: dict[str, Any]
+    ) -> None:
+        """A new measurement key is typed into an energy meter reading list and added."""
+        keys_url = f"{servers['server']}/v1/config/measurement/grid_import_emr_keys"
+        name = "measurement.grid_import_emr_keys"
+        add_input = "#measurement-grid_import_emr_keys-add-value-input"
+        add_button = f"form:has({add_input}) button:has-text('Add')"
+        try:
+            assert dash.open_tab("/eosdash/configuration") == 200
+            dash.open_details("summary:has(h3:text-is('measurement'))")
+            dash.open_details(f"summary:has(p:text-is('{name}'))")
+
+            # The field suggests the known keys (a datalist), any key can be typed.
+            assert dash.page.get_attribute(add_input, "list")
+
+            # Empty: nothing is sent.
+            puts: list[str] = []
+            dash.page.on(
+                "request", lambda request: puts.append(request.url) if request.method == "PUT" else None
+            )
+            dash.page.evaluate(
+                "window.halted = 0; document.addEventListener("
+                "'htmx:validation:halted', () => { window.halted += 1; })"
+            )
+            dash.page.click(add_button)
+            dash.page.wait_for_function("window.halted > 0")
+            assert puts == []
+
+            # Enter in the field adds the key: "Add" is the form's default button (no type).
+            dash.page.fill(add_input, "my_grid_import_kwh")
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/configuration"
+                and response.request.method == "PUT"
+            ) as response_info:
+                dash.page.press(add_input, "Enter")
+            assert response_info.value.ok
+            assert requests.get(keys_url, timeout=10).json() == ["my_grid_import_kwh"]
+            assert dash.errors == []
+        finally:
+            requests.put(keys_url, json=None, timeout=10)
+
+    def test_control_tab_links_to_the_controller_settings(
+        self, dash: DashPage, servers: dict[str, Any]
+    ) -> None:
+        """The settings link of the Control tab opens the controller's card in the Config tab."""
+        controllers_url = f"{servers['server']}/v1/config/adapter/control/controllers"
+        # Nothing listens on the port: the controller is configured, but cannot connect.
+        controller = {
+            "controller_type": "sma:sunny-tripower-smart-energy",
+            "host": "127.0.0.1",
+            "port": 1,
+            "battery_id": "battery1",
+            "grid_power_key": "meter1:grid_net_w",
+        }
+        response = requests.put(controllers_url, json={"inverter1": controller}, timeout=10)
+        assert response.ok, response.text
+        try:
+            assert dash.open_tab("/eosdash/control") == 200
+            dash.page.click("summary:has-text('Settings')")
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/configuration"
+                and response.request.method == "GET"
+            ) as response_info:
+                dash.page.click("details[open] button:has-text('Open in Config tab')")
+            assert response_info.value.ok
+
+            heading = "h4:text-is('adapter.control.controllers.inverter1')"
+            dash.page.wait_for_selector(heading)
+            assert dash.page.locator(f"details[open]:has(> summary {heading})").count() == 1
+            assert dash.page.input_value("#config-search") == "adapter.control.controllers"
+            assert dash.errors == []
+        finally:
+            requests.put(controllers_url, json={}, timeout=10)

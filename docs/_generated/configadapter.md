@@ -70,7 +70,8 @@
                "grid_export_emr_data_keys": null,
                "grid_import_emr_data_keys": null,
                "pv_production_emr_data_keys": null,
-               "device_measurement_data_keys": null
+               "device_measurement_data_keys": null,
+               "shared_data_keys": []
            },
            "homeassistant": {
                "config_entity_ids": null,
@@ -271,6 +272,7 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
 | grid_import_emr_data_keys | `Optional[list[str]]` | `rw` | `None` | Shared data keys `<device_id>:<key>` of the energy meter readings of energy import from grid [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a grid import energy meter reading. |
 | load_emr_data_keys | `Optional[list[str]]` | `rw` | `None` | Shared data keys `<device_id>:<key>` of the load energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a load energy meter reading. |
 | pv_production_emr_data_keys | `Optional[list[str]]` | `rw` | `None` | Shared data keys `<device_id>:<key>` of the PV production energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a PV production energy meter reading. |
+| shared_data_keys | `list[str]` | `ro` | `N/A` | Read-only: shared data keys `<device_id>:<key>` the configured controllers provide in the device control shared data store, sorted. |
 :::
 <!-- pyml enable line-length -->
 
@@ -354,7 +356,14 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
                ],
                "device_measurement_data_keys": {
                    "battery1-soc-factor": "inverter1:bat_soc_factor"
-               }
+               },
+               "shared_data_keys": [
+                   "meter1:grid_export_kwh",
+                   "meter1:grid_export_w",
+                   "meter1:grid_import_kwh",
+                   "meter1:grid_import_w",
+                   "meter1:grid_net_w"
+               ]
            }
        }
    }

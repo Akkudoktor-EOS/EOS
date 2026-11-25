@@ -2,9 +2,10 @@ import json
 import re
 from typing import Any, Callable, Optional, Union
 
-from fasthtml.common import H1, Button, Div, Li, Select
+from fasthtml.common import H1, Button, Datalist, Div, Li, Select
 from monsterui.foundations import stringify
 from monsterui.franken import (  # Select: Does not work - using Select from FastHTML instead;; Button: Does not pass hx_vals - using Button from FastHTML instead
+    FT,
     H3,
     H4,
     ButtonT,
@@ -27,7 +28,13 @@ from monsterui.franken import (  # Select: Does not work - using Select from Fas
     TabContainer,
     UkIcon,
 )
+from pydantic import BaseModel
 
+from akkudoktoreos.server.dash.carditems import (
+    item_model_defaults,
+    optional_model_is_on,
+    required_field_inputs,
+)
 from akkudoktoreos.server.dash.context import request_url_for
 from akkudoktoreos.server.dash.markdown import Markdown
 
@@ -209,6 +216,15 @@ def ConfigButton(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any
     return Button(*c, submit=False, **kwargs)
 
 
+# Attributes of a button in a form whose request needs the form's `required` inputs filled in.
+# htmx checks the form before the request and does not send it when an input is missing
+# (`hx-validate`); `reportValidity()` shows the browser's hint at the missing input.
+VALIDATE_FORM_ATTRS: dict[str, str] = {
+    "hx_validate": "true",
+    "onclick": "this.form.reportValidity()",
+}
+
+
 def UpdateError(error_text: str) -> Div:
     """Renders a compact error with collapsible full detail.
 
@@ -349,11 +365,15 @@ def make_config_update_value_form(
     return ConfigUpdateValueForm
 
 
-def make_config_update_list_form(available_values: list[str]) -> Callable[[str, str], Grid]:
+def make_config_update_list_form(
+    available_values: list[str], free_text: bool = False
+) -> Callable[[str, str], Grid]:
     """Factory function that creates a ConfigUpdateListForm with pre-set available values.
 
     Args:
         available_values: List of available values to choose from
+        free_text: Let the add field take any value: a text input that suggests
+            ``available_values`` (those not in the list yet), instead of a select of them.
 
     Returns:
         A function that creates ConfigUpdateListForm instances with the given available_values.
@@ -380,40 +400,70 @@ def make_config_update_list_form(available_values: list[str]) -> Callable[[str, 
             current_values = []
         config_id = config_name.lower().replace(".", "-")
 
+        add_button = ConfigButton(
+            "Add",
+            hx_put=request_url_for("/eosdash/configuration"),
+            hx_target="#page-content",
+            hx_swap="innerHTML",
+            hx_vals=f"""js:{{
+                action: "update",
+                key: "{config_name}",
+                value: JSON.stringify(
+                    [...new Set([
+                        ...{json.dumps(current_values)},
+                        document.querySelector("[name='{config_id}_selected_add_value']").value.trim()
+                    ])].filter(v => v !== "")
+                )
+            }}""",
+            hx_include=HTMX_INCLUDE,
+            **(VALIDATE_FORM_ATTRS if free_text else {}),
+        )
+        if free_text:
+            # Any value can be typed; the values not in the list yet are suggested.
+            options_id = f"{config_id}-add-value-options"
+            add_control: Any = Form(
+                DivHStacked(
+                    add_button,
+                    Input(
+                        id=f"{config_id}-add-value-input",
+                        name=f"{config_id}_selected_add_value",
+                        list=options_id,
+                        placeholder="Type or pick a value...",
+                        required=True,
+                        autocomplete="off",
+                        cls="border rounded px-3 py-2 mr-2 col-span-4",
+                    ),
+                    Datalist(
+                        *[
+                            Option(value=val)
+                            for val in available_values
+                            if val not in current_values
+                        ],
+                        id=options_id,
+                    ),
+                ),
+            )
+        else:
+            add_control = DivHStacked(
+                add_button,
+                Select(
+                    Option("Select a value...", value="", selected=True, disabled=True),
+                    *[
+                        Option(val, value=val, disabled=val in current_values)
+                        for val in available_values
+                    ],
+                    id=f"{config_id}-add-value-select",
+                    name=f"{config_id}_selected_add_value",  # Name of hidden input with selected value
+                    required=True,
+                    cls="border rounded px-3 py-2 mr-2 col-span-4",
+                ),
+            )
+
         return Grid(
             DivRAligned(P("update list")),
             Grid(
                 # Form to add new value to list
-                DivHStacked(
-                    ConfigButton(
-                        "Add",
-                        hx_put=request_url_for("/eosdash/configuration"),
-                        hx_target="#page-content",
-                        hx_swap="innerHTML",
-                        hx_vals=f"""js:{{
-                            action: "update",
-                            key: "{config_name}",
-                            value: JSON.stringify(
-                                [...new Set([
-                                    ...{json.dumps(current_values)},
-                                    document.querySelector("[name='{config_id}_selected_add_value']").value.trim()
-                                ])].filter(v => v !== "")
-                            )
-                        }}""",
-                        hx_include=HTMX_INCLUDE,
-                    ),
-                    Select(
-                        Option("Select a value...", value="", selected=True, disabled=True),
-                        *[
-                            Option(val, value=val, disabled=val in current_values)
-                            for val in available_values
-                        ],
-                        id=f"{config_id}-add-value-select",
-                        name=f"{config_id}_selected_add_value",  # Name of hidden input with selected value
-                        required=True,
-                        cls="border rounded px-3 py-2 mr-2 col-span-4",
-                    ),
-                ),
+                add_control,
                 # Form to delete value from list
                 DivHStacked(
                     ConfigButton(
@@ -1064,6 +1114,113 @@ def make_config_update_time_windows_windows_form(
         )
 
     return ConfigUpdateTimeWindowsWindowsForm
+
+
+def CollapsedSection(title: str, *c: Any, open: bool = False, **kwargs: Any) -> Details:
+    """A titled section that is collapsed unless ``open``.
+
+    Used e.g. for the JSON views and the raw JSON update input of the list and map
+    configuration cards, which only the expert needs.
+
+    Args:
+        title: The title shown while collapsed.
+        *c: The content of the section.
+        open: Show the section expanded.
+        **kwargs: Additional keyword arguments passed to the ``Details``, e.g. ``id``.
+
+    Returns:
+        Details: The section.
+    """
+    return Details(
+        Summary(
+            DivLAligned(
+                UkIcon(icon="chevron-right"),
+                P(title, cls="text-sm text-muted-foreground"),
+            ),
+            cls="list-none cursor-pointer",
+        ),
+        Div(*c, cls="space-y-4 mt-2"),
+        open=open,
+        **kwargs,
+    )
+
+
+def make_config_update_optional_model_form(
+    model: type[BaseModel], current_value: str
+) -> Callable[[str, str], Grid]:
+    """Factory for the on/off switch of an optional sub-model configuration value.
+
+    An optional sub-model (e.g. ``pv_curtailment: Optional[SmaPvCurtailmentSettings]``) is
+    either ``null`` (off) or a model value (on). Switching on sets the defaults of the model;
+    fields without a default are asked for first, ``required`` blocks the switch until they are
+    filled in. Switching off sets ``null`` after a second click, as it drops the sub-settings.
+
+    The state of the switch is the current value of the field, not the value of the last
+    update, which may have failed.
+
+    Args:
+        model: The Pydantic model class of the sub-model.
+        current_value: The current JSON-encoded value of the field.
+
+    Returns:
+        A function (config_name: str, value: str) -> Grid
+    """
+    defaults, required_missing = item_model_defaults(model)
+    is_on = optional_model_is_on(current_value)
+
+    def ConfigUpdateOptionalModelForm(config_name: str, value: str) -> Grid:
+        config_id = config_name.lower().replace(".", "-")
+
+        control: FT
+        if is_on:
+            control = Details(
+                Summary(
+                    ConfigButton(UkIcon("power"), " Switch off", cls=" pointer-events-none"),
+                    cls="list-none cursor-pointer",
+                ),
+                Div(
+                    ConfigButton(
+                        UkIcon("power"),
+                        " Confirm switch off",
+                        hx_put=request_url_for("/eosdash/configuration"),
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                        hx_vals=f'js:{{ action: "update", key: "{config_name}", value: "null" }}',
+                        hx_include=HTMX_INCLUDE,
+                        cls=" px-3 py-1 text-sm bg-destructive text-destructive-foreground"
+                        " hover:bg-destructive/90",
+                    ),
+                    cls="absolute z-10 mt-1 p-2 rounded-md border bg-background shadow-md",
+                ),
+                id=f"{config_id}-switch-off",
+                cls="relative",
+            )
+        else:
+            inputs, js_pairs = required_field_inputs(model, required_missing, f"{config_id}-on")
+            value_expr = f"JSON.stringify(Object.assign({json.dumps(defaults)}, {{ {', '.join(js_pairs)} }}))"
+            control = Form(
+                Grid(*inputs, cols=1, cls="gap-2") if inputs else None,
+                ConfigButton(
+                    UkIcon("power"),
+                    " Switch on",
+                    hx_put=request_url_for("/eosdash/configuration"),
+                    hx_target="#page-content",
+                    hx_swap="innerHTML",
+                    hx_vals=f'js:{{ action: "update", key: "{config_name}", value: {value_expr} }}',
+                    hx_include=HTMX_INCLUDE,
+                    **VALIDATE_FORM_ATTRS,
+                ),
+                id=f"{config_id}-switch-on",
+                cls="space-y-2",
+            )
+
+        return Grid(
+            DivRAligned(P("on" if is_on else "off")),
+            control,
+            id=f"{config_id}-update-optional-model-form",
+        )
+
+    return ConfigUpdateOptionalModelForm
 
 
 def ConfigCard(

@@ -1,7 +1,18 @@
 import enum
 import json
 from collections.abc import Sequence
-from typing import Any, Dict, List, Optional, TypeVar, Union
+from types import UnionType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 import requests
 from fasthtml.common import Select
@@ -24,6 +35,7 @@ from akkudoktoreos.server.dash.components import (
     ConfigCard,
     ConfigSection,
     Input,
+    make_config_update_optional_model_form,
 )
 from akkudoktoreos.server.dash.context import request_url_for
 from akkudoktoreos.server.dash.eosstatus import eos_pvlib_cec_names, eos_server_address
@@ -32,6 +44,7 @@ from akkudoktoreos.server.dash.mapcard import ConfigMapCard
 from akkudoktoreos.server.dash.uihints import (
     LAZY_OPTIONS_SOURCES,
     UI_HINTS,
+    optional_model_rows,
     register_lazy_options_source,
     resolve_form_factory,
 )
@@ -249,10 +262,28 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
     return resolved_types
 
 
+def _optional_model(field_type: Any) -> Optional[type[PydanticBaseModel]]:
+    """Return the model of an ``Optional[<model>]`` type, else ``None``."""
+    if get_origin(field_type) not in (Union, UnionType):
+        return None
+    args = get_args(field_type)
+    others = [arg for arg in args if arg is not type(None)]
+    if len(others) != 1 or len(others) == len(args):
+        return None
+    model = others[0]
+    if isinstance(model, type) and issubclass(model, PydanticBaseModel):
+        return model
+    return None
+
+
 def create_config_details(
     model: type[PydanticBaseModel] | type[ConfigEOS], values: dict, values_prefix: list[str] = []
 ) -> dict[str, dict]:
     """Generate configuration details based on provided values and model metadata.
+
+    The field of an optional sub-model below the top level (e.g.
+    ``adapter.control.controllers.<id>.pv_curtailment``) gets a row of its own besides the rows
+    of its sub-fields, marked by the key ``"optional-model"`` with the model class.
 
     Args:
         model: An EOS model or the top-level settings class to extract configuration from.
@@ -278,6 +309,29 @@ def create_config_details(
         )
 
         nested_types = resolve_nested_types(subtype, [])
+        optional_model = _optional_model(subtype)
+        if (
+            optional_model is not None
+            and isinstance(subfield_info, FieldInfo)
+            and len(values_prefix + parent_types) > 1
+        ):
+            # Row of its own for the on/off switch of an optional sub-model below the top level
+            # (the top-level groups, e.g. `general`, are optional in the model only).
+            extra = get_field_extra_dict(subfield_info)
+            name = ".".join(values_prefix + parent_types)
+            config_details[name] = {
+                "name": name,
+                "value": json.dumps(
+                    get_nested_value(values, values_prefix + parent_types, "<unknown>")
+                ),
+                "default": json.dumps(get_default_value(subfield_info, True)),
+                "description": get_description(subfield_info, extra),
+                "deprecated": get_deprecated(subfield_info, extra),
+                "scope": get_scope(extra),
+                "read-only": "rw",
+                "type": f"Optional[{optional_model.__name__}]",
+                "optional-model": optional_model,
+            }
         found_basic = False
         for nested_type, nested_parent_types in nested_types:
             if not isinstance(nested_type, type) or not issubclass(nested_type, PydanticBaseModel):
@@ -514,23 +568,34 @@ def config_update(eos_host: str, eos_port: Union[str, int], data: dict) -> None:
     }
 
 
-def config_card(config: dict[str, Any], config_details: dict[str, dict]) -> Optional[Card]:
+def config_card(
+    config: dict[str, Any], config_details: dict[str, dict], open_name: Optional[str] = None
+) -> Optional[Card]:
     """Create the card to show and update a configuration value.
 
     Args:
         config (dict[str, Any]): Configuration details of the value, as created by
             ``create_config_details``.
         config_details (dict[str, dict]): Configuration details of all values.
+        open_name (Optional[str]): Dotted name of a configuration value or map entry to show
+            expanded, e.g. ``"adapter.control.controllers.inverter1"``.
 
     Returns:
-        Optional[Card]: The card, or None if the configuration value is deprecated.
+        Optional[Card]: The card, or None if the configuration value is deprecated or is an
+        optional sub-model without on/off switch.
     """
     if config["deprecated"]:
+        return None
+    hint = UI_HINTS.get(config["name"])
+    optional_model = config.get("optional-model")
+    if optional_model is not None and hint is not None and not hint.optional_switch:
         return None
 
     update_error = config_update_latest.get(config["name"], {}).get("error")
     update_value = config_update_latest.get(config["name"], {}).get("value")
     update_open = config_update_latest.get(config["name"], {}).get("open")
+    if open_name == config["name"]:
+        update_open = True
 
     # Make mypy happy - should never trigger
     if (
@@ -541,8 +606,6 @@ def config_card(config: dict[str, Any], config_details: dict[str, dict]) -> Opti
         error_msg = "update_error or update_value or update_open of wrong type."
         logger.error(error_msg)
         raise TypeError(error_msg)
-
-    hint = UI_HINTS.get(config["name"])
 
     if hint and hint.form == "items":
         return ConfigItemsCard(
@@ -559,8 +622,15 @@ def config_card(config: dict[str, Any], config_details: dict[str, dict]) -> Opti
             config_details=config_details,
             config_update_latest=config_update_latest,
             create_config_details=create_config_details,
+            open_name=open_name,
         )
-    update_form_factory = resolve_form_factory(hint, config_details) if hint else None
+    update_form_factory: Optional[Callable]
+    if optional_model is not None:
+        update_form_factory = make_config_update_optional_model_form(
+            optional_model, config["value"]
+        )
+    else:
+        update_form_factory = resolve_form_factory(hint, config_details) if hint else None
     return ConfigCard(
         config["name"],
         config["type"],
@@ -616,10 +686,13 @@ def Configuration(
 
     # Configuration search
     search_value = (data.get("search", "") if data else "").strip().lower()
+    # Configuration value or map entry to show expanded, e.g. from a link of another page
+    open_name = (data.get("open", "") if data else "").strip() or None
 
     SearchBar = Card(
         Input(
             placeholder="Search configuration… (name, description, type)",
+            id="config-search",  # included in the requests of the page, see HTMX_INCLUDE
             name="search",
             value=search_value,
             hx_get=request_url_for("/eosdash/configuration"),
@@ -704,8 +777,13 @@ def Configuration(
     # build visual representation
     sections: dict[str, dict[str, Any]] = {}
 
+    # Sub-fields of optional sub-models that are switched off are not shown
+    _, hidden_names = optional_model_rows(config_details, UI_HINTS.get)
+
     # Fill sections with config cards
     for config_key in sorted(config_details.keys()):
+        if config_key in hidden_names:
+            continue
         config = config_details[config_key]
         category = config["name"].split(".")[0]
         sections.setdefault(category, {})
@@ -721,7 +799,7 @@ def Configuration(
             # Search value given but does not match
             continue
 
-        card = config_card(config, config_details)
+        card = config_card(config, config_details, open_name)
         if card is None:
             continue
 
@@ -736,7 +814,9 @@ def Configuration(
         # dict, since that dict only holds top-level model fields. ConfigItemsCard
         # resolves per-item sub-fields internally via its own create_config_details
         # call, so we must match against config_update_latest's own keys instead.
-        open_section = bool(search_value)
+        open_section = bool(search_value) or bool(
+            open_name and open_name.startswith(f"{category}.")
+        )
 
         if not open_section:
             open_section = any(

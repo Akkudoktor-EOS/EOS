@@ -51,16 +51,20 @@ from akkudoktoreos.server.dash.carditems import (
     required_field_inputs,
 )
 from akkudoktoreos.server.dash.components import (
+    VALIDATE_FORM_ATTRS,
+    CollapsedSection,
     ConfigButton,
     ConfigCard,
     JsonView,
     UpdateError,
+    make_config_update_optional_model_form,
 )
 from akkudoktoreos.server.dash.context import request_url_for
 from akkudoktoreos.server.dash.markdown import Markdown
 from akkudoktoreos.server.dash.uihints import (
     UiHint,
     hint_for_indexed_field,
+    optional_model_rows,
     resolve_form_factory,
     resolve_item_model,
 )
@@ -131,7 +135,8 @@ def _add_control(
                 hx_target="#page-content",
                 hx_swap="innerHTML",
                 hx_vals=f'js:{{ action: "update", key: "{config_name}", value: {build_value_expr} }}',
-                cls="mt-2 px-3 py-1 text-sm",
+                cls=" mt-2 px-3 py-1 text-sm",
+                **VALIDATE_FORM_ATTRS,
             ),
             cls="absolute z-10 mt-1 p-3 rounded-md border bg-background shadow-md space-y-2",
         ),
@@ -191,6 +196,9 @@ def _inner_card(
 ) -> Card:
     """Render a single collapsible inner card for one list item.
 
+    The header shows the name of the item, the JSON value of the item is in a collapsed section
+    below the field rows.
+
     Args:
         config_name: Dotted config key of the parent list field.
         item_path: Dotted path prefix for this item type, e.g.
@@ -212,27 +220,29 @@ def _inner_card(
         Details(
             Summary(
                 Grid(
-                    Grid(
-                        DivLAligned(
-                            UkIcon(icon="play"),
-                            H4(
-                                f"{item_path}.{index}",
-                                cls="text-muted-foreground" if is_empty else "",
-                            ),
-                            delete_control,
+                    DivLAligned(
+                        UkIcon(icon="play"),
+                        H4(
+                            f"{item_path}.{index}",
+                            cls="text-muted-foreground" if is_empty else "",
                         ),
-                        DivRAligned(
-                            P(
-                                "empty" if is_empty else read_only,
-                                cls="text-xs text-muted-foreground" if is_empty else "",
-                            ),
+                        delete_control,
+                    ),
+                    DivRAligned(
+                        P(
+                            "empty" if is_empty else read_only,
+                            cls="text-xs text-muted-foreground" if is_empty else "",
                         ),
                     ),
-                    JsonView(json.loads(item_value)),
                 ),
                 cls="list-none",
             ),
             *item_rows,
+            CollapsedSection(
+                "JSON",
+                JsonView(json.loads(item_value)),
+                id=f"{config_name.lower().replace('.', '-')}-{index}-json",
+            ),
             cls="space-y-4 gap-4",
             open=item_update_open,
         ),
@@ -253,9 +263,14 @@ def _outer_card(
     items_update_value: str,
     items_update_error: Optional[str],
     items_update_open: bool,
+    advanced_open: bool,
     rows: list,
 ) -> Card:
     """Render the outer collapsible card for the whole list field.
+
+    The JSON value, the default and the raw JSON update input are in a collapsed
+    "Advanced (JSON)" section, which opens when the last update of the list failed. The error
+    of that update is shown above it.
 
     Args:
         config_name: Dotted config key name.
@@ -273,6 +288,8 @@ def _outer_card(
         items_update_error: Error string from the last failed update, or
             ``None``.
         items_update_open: Whether the outer card starts expanded.
+        advanced_open: Whether the "Advanced (JSON)" section starts expanded, i.e. the
+            latest update was one of the whole field and it failed.
         rows: Pre-built list of inner ``Card`` components.
 
     Returns:
@@ -282,19 +299,16 @@ def _outer_card(
         Details(
             Summary(
                 Grid(
-                    Grid(
-                        DivLAligned(
-                            UkIcon(icon="play"),
-                            P(config_name),
-                            P(
-                                f"{num_items} item{'s' if num_items != 1 else ''}",
-                                cls="ml-2 text-xs text-muted-foreground",
-                            ),
-                            add_button,
+                    DivLAligned(
+                        UkIcon(icon="play"),
+                        P(config_name),
+                        P(
+                            f"{num_items} item{'s' if num_items != 1 else ''}",
+                            cls="ml-2 text-xs text-muted-foreground",
                         ),
-                        DivRAligned(P(read_only)),
+                        add_button,
                     ),
-                    JsonView(json.loads(value)),
+                    DivRAligned(P(read_only)),
                 ),
                 cls="list-none",
             ),
@@ -305,29 +319,6 @@ def _outer_card(
                 ),
                 P(config_type),
             ),
-            # Default value row
-            Grid(
-                DivRAligned(P("default")),
-                P(default),
-            )
-            if read_only == "rw"
-            else None,
-            # Raw JSON fallback update form
-            Grid(
-                DivRAligned(P("update")),
-                Grid(
-                    Form(
-                        Input(value="update", type="hidden", id="action"),
-                        Input(value=config_name, type="hidden", id="key"),
-                        Input(value=items_update_value, type="text", id="value"),
-                        hx_put=request_url_for("/eosdash/configuration"),
-                        hx_target="#page-content",
-                        hx_swap="innerHTML",
-                    ),
-                ),
-            )
-            if read_only == "rw"
-            else None,
             # Last update error
             Grid(
                 DivRAligned(P("update error")),
@@ -335,6 +326,35 @@ def _outer_card(
             )
             if items_update_error
             else None,
+            CollapsedSection(
+                "Advanced (JSON)",
+                JsonView(json.loads(value)),
+                # Default value row
+                Grid(
+                    DivRAligned(P("default")),
+                    P(default),
+                )
+                if read_only == "rw"
+                else None,
+                # Raw JSON fallback update form
+                Grid(
+                    DivRAligned(P("update")),
+                    Grid(
+                        Form(
+                            Input(value="update", type="hidden", id="action"),
+                            Input(value=config_name, type="hidden", id="key"),
+                            Input(value=items_update_value, type="text", id="value"),
+                            hx_put=request_url_for("/eosdash/configuration"),
+                            hx_target="#page-content",
+                            hx_swap="innerHTML",
+                        ),
+                    ),
+                )
+                if read_only == "rw"
+                else None,
+                open=advanced_open,
+                id=f"{config_name.lower().replace('.', '-')}-advanced",
+            ),
             # Per-item inner cards
             *rows,
             cls="space-y-4 gap-4",
@@ -465,6 +485,8 @@ def ConfigItemsCard(
     items_update_error = config_update_latest.get(config_name, {}).get("error")
     items_update_value = config_update_latest.get(config_name, {}).get("value") or value
     items_update_open = config_update_latest.get(config_name, {}).get("open") or False
+    # The error stays until the field is updated again; open only right after the failure.
+    advanced_open = bool(items_update_error) and items_update_open
 
     # Add button.
     # One-click append when the item model is fully defaulted, otherwise an inline form that
@@ -482,10 +504,18 @@ def ConfigItemsCard(
         )
         item_rows = []
         item_update_open = False
+        entry_name = f"{item_path}.{i}"
+        switched_names, hidden_names = optional_model_rows(
+            item_config, lambda name: hint_for_indexed_field(name, item_path)
+        )
+        # Options of a field may come from the page or from the same item
+        entry_config_details = {**config_details, **item_config}
         item_value = json.dumps(items_list[i]) if items_list[i] is not None else json.dumps(None)
         is_empty = not items_list[i]
 
         for field_key in sorted(item_config.keys()):
+            if field_key in hidden_names:
+                continue
             sub = item_config[field_key]
             update_error = config_update_latest.get(sub["name"], {}).get("error")
             update_value = config_update_latest.get(sub["name"], {}).get("value")
@@ -503,9 +533,17 @@ def ConfigItemsCard(
                 logger.error(error_msg)
                 raise TypeError(error_msg)
             sub_hint = hint_for_indexed_field(sub["name"], item_path)
-            update_form_factory = (
-                resolve_form_factory(sub_hint, config_details) if sub_hint else None
-            )
+            update_form_factory: Optional[Callable]
+            if field_key in switched_names:
+                update_form_factory = make_config_update_optional_model_form(
+                    sub["optional-model"], sub["value"]
+                )
+            elif sub_hint:
+                update_form_factory = resolve_form_factory(
+                    sub_hint, entry_config_details, entry_name=entry_name
+                )
+            else:
+                update_form_factory = None
             item_rows.append(
                 ConfigCard(
                     sub["name"],
@@ -553,5 +591,6 @@ def ConfigItemsCard(
         items_update_value=items_update_value,
         items_update_error=items_update_error,
         items_update_open=items_update_open,
+        advanced_open=advanced_open,
         rows=rows,
     )

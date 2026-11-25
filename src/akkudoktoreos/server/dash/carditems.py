@@ -7,6 +7,7 @@ two card types. Free of imports from ``configuration.py``, ``itemscard.py``,
 or ``mapcard.py`` to avoid circular dependencies.
 """
 
+import json
 from typing import Any, cast
 
 from monsterui.franken import Div, Input, P
@@ -27,6 +28,22 @@ def resolve_model_cls(item_model: Any) -> type[BaseModel]:
     if isinstance(item_model, type):
         return cast(type[BaseModel], item_model)
     return cast(type[BaseModel], type(item_model))
+
+
+def optional_model_is_on(value: str) -> bool:
+    """Whether the JSON value of an optional sub-model field is switched on.
+
+    Args:
+        value: The JSON-encoded value of the field, e.g. ``"null"`` or ``'{"hold_s": 60}'``.
+
+    Returns:
+        ``True`` for a model value (a JSON object), ``False`` for ``null``, a missing value
+        (``"<unknown>"``) or a value that is no JSON.
+    """
+    try:
+        return isinstance(json.loads(value), dict)
+    except ValueError:
+        return False
 
 
 def item_model_defaults(item_model: Any) -> tuple[dict, list[str]]:

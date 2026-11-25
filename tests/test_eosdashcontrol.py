@@ -5,9 +5,10 @@ controllers configured and the control adapter state set up by the tests, so the
 page and API.
 """
 
+from html import escape
 from types import MappingProxyType
 from typing import Any, Iterator
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi import FastAPI
@@ -293,6 +294,8 @@ class TestDiagnostics:
         html = render({"device_id": "meter1"})
         assert "Diagnostics are off" in html
         assert "adapter/control/controllers/meter1" in html
+        # The hints of the graphs and events sections and the settings section.
+        assert html.count(f'hx-get="{escape(page.config_url("meter1"))}"') == 3
         assert 'id="control-diagnostics"' not in html
         assert 'id="control-events"' not in html
 
@@ -330,6 +333,19 @@ class TestPage:
         start = html.index(">Settings<")
         details = html.rfind("<details", 0, start)
         assert " open" not in html[details : html.index(">", details)]
+
+    def test_settings_link_to_the_config_tab(self, rest: RestShim) -> None:
+        html = render()
+        start = html.index(">Settings<")
+        assert f'hx-get="{escape(page.config_url("inverter1"))}"' in html[start:]
+        assert 'hx-target="#page-content"' in html[start:]
+
+    def test_config_url_opens_the_controller_card(self) -> None:
+        query = parse_qs(urlsplit(page.config_url("inverter1")).query)
+        assert query == {
+            "search": ["adapter.control.controllers"],
+            "open": ["adapter.control.controllers.inverter1"],
+        }
 
     def test_no_controller_configured(self, rest: RestShim, config_eos) -> None:
         config_eos.adapter.control.controllers = {}
