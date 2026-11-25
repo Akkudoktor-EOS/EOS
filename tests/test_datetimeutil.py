@@ -14,6 +14,7 @@ import babel
 import pandas as pd
 import pendulum
 import pytest
+import time_machine
 from pendulum.tz.timezone import Timezone
 from pydantic import ValidationError
 
@@ -1394,7 +1395,60 @@ def test_to_datetime(
 # to_duration
 # -----------------------------
 
+BERLIN = "Europe/Berlin"
+
+
+# | Time parameter | Purpose |
+# |---|---|
+# | `winter` | Tests in CET (UTC+1). |
+# | `summer` | Tests in CEST (UTC+2). |
+# | `reference-time` | Tests at a specific timestamp. |
+# | `before-spring-dst` | Immediately before the spring clock change. |
+# | `after-spring-dst` | Immediately after the spring clock change. |
+# | `before-fall-dst` | The first occurrence of 02:30 on the autumn transition day. |
+# | `after-fall-dst` | The second occurrence of 02:30 on the autumn transition day. |
+#
+TEST_TIMES = [
+    pytest.param(
+        pendulum.datetime(2026, 1, 15, 12, 0, tz=BERLIN),
+        id="winter",
+    ),
+    pytest.param(
+        pendulum.datetime(2026, 7, 15, 12, 0, tz=BERLIN),
+        id="summer",
+    ),
+    pytest.param(
+        pendulum.datetime(2026, 10, 23, 10, 46, 0, 294000, tz=BERLIN),
+        id="reference-time",
+    ),
+    pytest.param(
+        pendulum.datetime(2026, 3, 29, 1, 59, 59, tz=BERLIN),
+        id="before-spring-dst",
+    ),
+    pytest.param(
+        pendulum.datetime(2026, 3, 29, 3, 0, 0, tz=BERLIN),
+        id="after-spring-dst",
+    ),
+    pytest.param(
+        pendulum.datetime(2026, 10, 25, 2, 30, tz=BERLIN, fold=0),
+        id="before-fall-dst",
+    ),
+    pytest.param(
+        pendulum.datetime(2026, 10, 25, 2, 30, tz=BERLIN, fold=1),
+        id="after-fall-dst",
+    ),
+]
+
+
 class TestToDuration:
+    @pytest.fixture(autouse=True, params=TEST_TIMES)
+    def system_time(self, request, set_other_timezone):
+        """Run every test with a frozen system time in Berlin."""
+        set_other_timezone(BERLIN)
+
+        with time_machine.travel(request.param, tick=False):
+            yield request.param
+
     # ------------------------------------------------------------------
     # Valid input conversions (no formatting)
     # ------------------------------------------------------------------
@@ -1550,6 +1604,31 @@ class TestToDuration:
                     f"to_duration raised length ValueError unexpectedly for string at limit: {at_limit_string}"
                 )
             pass
+
+
+class TestToDurationAtDSTTransition:
+
+    def test_summation_across_dst_transition(self):
+        """Test duration addition across the end of DST in Berlin."""
+        start_datetime = pendulum.datetime(
+            2026, 10, 25, 1, 30, tz="Europe/Berlin"
+        )
+
+        # Before the clock moves back.
+        assert start_datetime.utcoffset() == pendulum.duration(hours=2)
+
+        # One elapsed hour later: still CEST.
+        first_hour = start_datetime + to_duration("1 hour")
+        assert first_hour.hour == 2
+        assert first_hour.utcoffset() == pendulum.duration(hours=2)
+
+        # Two elapsed hours later: the local clock has moved back.
+        second_hour = start_datetime + to_duration("2 hours")
+        assert second_hour.hour == 2
+        assert second_hour.utcoffset() == pendulum.duration(hours=1)
+
+        # Despite the repeated local hour, two elapsed hours have passed.
+        assert (second_hour - start_datetime).total_seconds() == 7200
 
 
 # -----------------------------
