@@ -12,6 +12,7 @@ from akkudoktoreos.adapter.adapterabc import AdapterProvider
 
 # Importing the settings classes imports the controller modules, which binds each controller
 # class to its settings class (ControllerBase.__init_subclass__).
+from akkudoktoreos.adapter.controllers.byd.bydbatterybox import BydBatteryBoxSettings
 from akkudoktoreos.adapter.controllers.controlabc import (
     ControlDiagnosticEntry,
     ControlDiagnosticLog,
@@ -27,7 +28,7 @@ from akkudoktoreos.utils.datetimeutil import to_datetime
 
 # Pydantic picks the settings class by the `controller_type` literal of each settings class.
 ControllerSettings = Annotated[
-    Union[SmaEnergyMeterSettings, SmaStpeSettings],
+    Union[SmaEnergyMeterSettings, SmaStpeSettings, BydBatteryBoxSettings],
     Field(discriminator="controller_type"),
 ]
 

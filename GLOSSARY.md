@@ -92,6 +92,26 @@ The name `<device_id>:<key>` under which one device controller publishes a curre
 other device controllers to use, e.g. `meter:grid_w`.
 _Avoid_: shared key, data point
 
+## Batteries
+
+**Cell**:
+The smallest electrochemical unit of a battery, with its own voltage reading. Many cells in series
+make up a battery module.
+_Avoid_: battery (for a single cell)
+
+**Temperature sensor**:
+A temperature probe in a battery module. It measures a group of neighbouring cells, not one cell.
+_Avoid_: cell temperature (for a single sensor reading)
+
+**Battery module**:
+A housing of cells in series. Battery modules are stacked into a tower.
+_Avoid_: pack, block
+
+**Tower**:
+A stack of battery modules in series with its own battery management system. Towers of one
+battery are connected in parallel.
+_Avoid_: stack, string, rack
+
 ## AI-assisted development
 
 **Host**:

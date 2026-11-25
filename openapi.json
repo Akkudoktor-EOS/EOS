@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611242253356820"
+    "version": "v0.3.0.dev2611242260026908"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -4752,6 +4752,272 @@
         "title": "BatteryProfileAdjustment",
         "description": "How a battery unit differs from its battery profile.\n\nEach field is named after the profile field it adjusts. None keeps the\nprofile value."
       },
+      "BydBatteryBoxSettings-Input": {
+        "properties": {
+          "measurement_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age S",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "diagnostic_log_capacity": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Diagnostic Log Capacity",
+            "description": "Maximum number of controller diagnostic events retained in memory. Zero disables diagnostic collection.",
+            "default": 0,
+            "examples": [
+              0,
+              500
+            ]
+          },
+          "controller_type": {
+            "type": "string",
+            "const": "byd:battery-box-premium",
+            "title": "Controller Type"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Host name or IP address of the battery management unit (BMU). Its fixed Ethernet address is 192.168.16.254; EOS needs a route to 192.168.16.0/24 or a forwarded address.",
+            "examples": [
+              "192.168.16.254"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "description": "TCP port of the BMU (Modbus RTU over TCP).",
+            "default": 8080,
+            "examples": [
+              8080
+            ]
+          },
+          "unit_id": {
+            "type": "integer",
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Unit Id",
+            "description": "Modbus unit id of the BMU.",
+            "default": 1,
+            "examples": [
+              1
+            ]
+          },
+          "timeout_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Timeout S",
+            "description": "Timeout of one Modbus transaction and of a mailbox request [s].",
+            "default": 5.0,
+            "examples": [
+              5.0
+            ]
+          },
+          "status_interval_s": {
+            "type": "number",
+            "minimum": 10.0,
+            "title": "Status Interval S",
+            "description": "Seconds between two reads of the BMU status.",
+            "default": 30.0,
+            "examples": [
+              30.0
+            ]
+          },
+          "bms_info_interval_s": {
+            "type": "number",
+            "minimum": 60.0,
+            "title": "Bms Info Interval S",
+            "description": "Seconds between two requests of the BMS information (cells, warnings, faults) of a tower.",
+            "default": 600.0,
+            "examples": [
+              600.0
+            ]
+          },
+          "event_log_interval_s": {
+            "type": "number",
+            "minimum": 120.0,
+            "title": "Event Log Interval S",
+            "description": "Seconds between two requests of the newest event log page of the BMU and of each tower. The event log is only read while the diagnostic log is enabled.",
+            "default": 600.0,
+            "examples": [
+              600.0
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "HVS",
+                  "HVM",
+                  "HVL"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Model of the towers. Empty: detected from the cell count (32 cells per module: HVS, 16: HVM), else from the BMU configuration, which is not always right.",
+            "examples": [
+              null,
+              "HVS"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "controller_type",
+          "host"
+        ],
+        "title": "BydBatteryBoxSettings",
+        "description": "Settings of the BYD Battery-Box Premium (HVS, HVM, HVL) monitor."
+      },
+      "BydBatteryBoxSettings-Output": {
+        "properties": {
+          "measurement_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age S",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "diagnostic_log_capacity": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Diagnostic Log Capacity",
+            "description": "Maximum number of controller diagnostic events retained in memory. Zero disables diagnostic collection.",
+            "default": 0,
+            "examples": [
+              0,
+              500
+            ]
+          },
+          "controller_type": {
+            "type": "string",
+            "const": "byd:battery-box-premium",
+            "title": "Controller Type"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Host name or IP address of the battery management unit (BMU). Its fixed Ethernet address is 192.168.16.254; EOS needs a route to 192.168.16.0/24 or a forwarded address.",
+            "examples": [
+              "192.168.16.254"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "description": "TCP port of the BMU (Modbus RTU over TCP).",
+            "default": 8080,
+            "examples": [
+              8080
+            ]
+          },
+          "unit_id": {
+            "type": "integer",
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Unit Id",
+            "description": "Modbus unit id of the BMU.",
+            "default": 1,
+            "examples": [
+              1
+            ]
+          },
+          "timeout_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Timeout S",
+            "description": "Timeout of one Modbus transaction and of a mailbox request [s].",
+            "default": 5.0,
+            "examples": [
+              5.0
+            ]
+          },
+          "status_interval_s": {
+            "type": "number",
+            "minimum": 10.0,
+            "title": "Status Interval S",
+            "description": "Seconds between two reads of the BMU status.",
+            "default": 30.0,
+            "examples": [
+              30.0
+            ]
+          },
+          "bms_info_interval_s": {
+            "type": "number",
+            "minimum": 60.0,
+            "title": "Bms Info Interval S",
+            "description": "Seconds between two requests of the BMS information (cells, warnings, faults) of a tower.",
+            "default": 600.0,
+            "examples": [
+              600.0
+            ]
+          },
+          "event_log_interval_s": {
+            "type": "number",
+            "minimum": 120.0,
+            "title": "Event Log Interval S",
+            "description": "Seconds between two requests of the newest event log page of the BMU and of each tower. The event log is only read while the diagnostic log is enabled.",
+            "default": 600.0,
+            "examples": [
+              600.0
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "HVS",
+                  "HVM",
+                  "HVL"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Model of the towers. Empty: detected from the cell count (32 cells per module: HVS, 16: HVM), else from the BMU configuration, which is not always right.",
+            "examples": [
+              null,
+              "HVS"
+            ]
+          },
+          "shared_data_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shared Data Keys",
+            "description": "Read-only: key suffixes (without the '<device_id>:' prefix) this controller provides in the device control shared data store.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "controller_type",
+          "host",
+          "shared_data_keys"
+        ],
+        "title": "BydBatteryBoxSettings",
+        "description": "Settings of the BYD Battery-Box Premium (HVS, HVM, HVL) monitor."
+      },
       "CacheCommonSettings": {
         "properties": {
           "subpath": {
@@ -4900,11 +5166,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/SmaStpeSettings-Input"
+                },
+                {
+                  "$ref": "#/components/schemas/BydBatteryBoxSettings-Input"
                 }
               ],
               "discriminator": {
                 "propertyName": "controller_type",
                 "mapping": {
+                  "byd:battery-box-premium": "#/components/schemas/BydBatteryBoxSettings-Input",
                   "sma:energy-meter": "#/components/schemas/SmaEnergyMeterSettings-Input",
                   "sma:sunny-tripower-smart-energy": "#/components/schemas/SmaStpeSettings-Input"
                 }
@@ -4937,11 +5207,15 @@
                 },
                 {
                   "$ref": "#/components/schemas/SmaStpeSettings-Output"
+                },
+                {
+                  "$ref": "#/components/schemas/BydBatteryBoxSettings-Output"
                 }
               ],
               "discriminator": {
                 "propertyName": "controller_type",
                 "mapping": {
+                  "byd:battery-box-premium": "#/components/schemas/BydBatteryBoxSettings-Output",
                   "sma:energy-meter": "#/components/schemas/SmaEnergyMeterSettings-Output",
                   "sma:sunny-tripower-smart-energy": "#/components/schemas/SmaStpeSettings-Output"
                 }

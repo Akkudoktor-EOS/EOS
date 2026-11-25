@@ -255,7 +255,7 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| controllers | `dict[str, Annotated[Union[akkudoktoreos.adapter.controllers.sma.smaenergymeter.SmaEnergyMeterSettings, akkudoktoreos.adapter.controllers.sma.smastpe.SmaStpeSettings], FieldInfo(annotation=NoneType, required=True, discriminator='controller_type')]]` | `rw` | `required` | Device controller settings, keyed by device_id. |
+| controllers | `dict[str, Annotated[Union[akkudoktoreos.adapter.controllers.sma.smaenergymeter.SmaEnergyMeterSettings, akkudoktoreos.adapter.controllers.sma.smastpe.SmaStpeSettings, akkudoktoreos.adapter.controllers.byd.bydbatterybox.BydBatteryBoxSettings], FieldInfo(annotation=NoneType, required=True, discriminator='controller_type')]]` | `rw` | `required` | Device controller settings, keyed by device_id. |
 :::
 <!-- pyml enable line-length -->
 
