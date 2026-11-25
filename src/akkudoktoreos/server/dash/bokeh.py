@@ -4,7 +4,7 @@ from typing import Callable, Optional, cast
 
 from bokeh.embed import components
 from bokeh.models import LayoutDOM, Plot
-from bokeh.models.annotations import Title
+from bokeh.models.annotations import ColorBar, Title
 from bokeh.plotting import figure
 from bokeh.resources import INLINE
 from monsterui.franken import H4, Card, Div, NotStr
@@ -21,8 +21,8 @@ def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:
     """Apply a dark or light theme to a Bokeh plot.
 
     This function modifies the appearance of a Bokeh `Plot` object in-place,
-    adjusting background, border, title, axis, and grid colors based on the
-    `dark` parameter.
+    adjusting background, border, title, axis, grid, legend and color bar colors
+    based on the `dark` parameter.
 
     Args:
         plot (Plot): The Bokeh plot to style.
@@ -31,6 +31,8 @@ def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:
     Notes:
         - This only affects the plot passed in; it does not change other plots
           in the same document.
+        - Apply it after the legend (``legend_label``) and color bars are added:
+          annotations created later keep the light Bokeh defaults.
     """
     if dark:
         plot.background_fill_color = "#1e1e1e"
@@ -47,6 +49,7 @@ def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:
                 grid.grid_line_color = "#333"
         for grid in plot.xgrid + plot.ygrid:
             grid.grid_line_color = "#333"
+        _apply_theme_to_annotations(plot, background="#1e1e1e", text="white", border="#333")
     else:
         plot.background_fill_color = "white"
         plot.border_fill_color = "white"
@@ -62,6 +65,23 @@ def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:
                 grid.grid_line_color = "#ddd"
         for grid in plot.xgrid + plot.ygrid:
             grid.grid_line_color = "#ddd"
+        # Legends and color bars keep their light Bokeh defaults.
+
+
+def _apply_theme_to_annotations(plot: Plot, background: str, text: str, border: str) -> None:
+    """Colors of the legends and color bars: the plot colors do not reach annotations."""
+    for legend in plot.legend:
+        legend.background_fill_color = background
+        legend.label_text_color = text
+        legend.title_text_color = text
+        legend.border_line_color = border
+    for color_bar in plot.select(type=ColorBar):
+        if not isinstance(color_bar, ColorBar):  # select() is typed as returning any model
+            continue
+        color_bar.background_fill_color = background
+        color_bar.major_label_text_color = text
+        color_bar.title_text_color = text
+        color_bar.major_tick_line_color = text
 
 
 def Bokeh(plot: LayoutDOM, header: Optional[str] = None) -> Card:
