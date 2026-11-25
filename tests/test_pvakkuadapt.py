@@ -14,6 +14,7 @@ from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktorCommonSettings,
 )
 from akkudoktoreos.prediction.pvakkuadaptstore import PVLearningStore
+from akkudoktoreos.server.rest.error import register_problem_handlers
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
@@ -306,6 +307,7 @@ def adaptive_client(provider, monkeypatch):
 
     monkeypatch.setattr(pvakkuadaptrest, "provider", lambda: provider)
     app = FastAPI()
+    register_problem_handlers(app)
     app.include_router(pvakkuadaptrest.router)
     with TestClient(app) as client:
         yield client

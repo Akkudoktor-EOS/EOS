@@ -18,7 +18,6 @@ import uvicorn
 from fastapi import Body, FastAPI
 from fastapi import Path as FastapiPath
 from fastapi import Query, Request
-from fastapi.exceptions import HTTPException
 from fastapi.responses import (
     HTMLResponse,
     JSONResponse,
@@ -751,10 +750,18 @@ def fastapi_devices_status_get(
     """
     key = ResourceKey(resource_id=resource_id, actuator_id=actuator_id)
     if not get_resource_registry().status_exists(key):
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+        raise EOSProblem(
+            status=404,
+            title="Resource status not available",
+            detail=f"Key '{key}' is not available.",
+        )
     status_latest = get_resource_registry().status_latest(key)
     if status_latest is None:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' does not have a status.")
+        raise EOSProblem(
+            status=404,
+            title="Resource status not available",
+            detail=f"Key '{key}' does not have a status.",
+        )
     return status_latest
 
 
@@ -773,13 +780,18 @@ def fastapi_devices_status_put(
     try:
         get_resource_registry().update_status(key, status)
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
+        raise EOSProblem(
+            status=400,
+            title="Error on resource status update",
             detail=f"Error on resource status update key='{key}', status='{status}': {e}",
-        )
+        ) from e
     status_latest = get_resource_registry().status_latest(key)
     if status_latest is None:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' does not have a status.")
+        raise EOSProblem(
+            status=404,
+            title="Resource status not available",
+            detail=f"Key '{key}' does not have a status.",
+        )
     return status_latest
 
 
@@ -1472,7 +1484,11 @@ async def fastapi_prediction_dataframe_get(
     resolved_start_datetime: DateTime | None
     for key in keys:
         if key not in get_prediction().record_keys:
-            raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+            raise EOSProblem(
+                status=404,
+                title="Prediction key not available",
+                detail=f"Key '{key}' is not available.",
+            )
     if start_datetime is None:
         resolved_start_datetime = get_prediction().ems_start_datetime
     else:
@@ -1495,9 +1511,11 @@ async def fastapi_prediction_dataframe_get(
             align_to_interval=align_to_interval,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error on prediction dataframe for '{key}': {e}"
-        )
+        raise EOSProblem(
+            status=400,
+            title="Error on prediction dataframe",
+            detail=f"Error on prediction dataframe for '{key}': {e}",
+        ) from e
 
     return PydanticDateTimeDataFrame.from_dataframe(prediction_df, tz=get_config().general.timezone)
 
@@ -2072,10 +2090,12 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
             force_update=True,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
+        raise EOSProblem(
+            status=404,
+            title="Prediction update failed",
             detail=f"Can not update predictions: {e}",
-        )
+            cause=e,
+        ) from e
 
     # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -2093,10 +2113,12 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         )
         prediction_list = prediction_array.tolist()
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
+        raise EOSProblem(
+            status=404,
+            title="Load forecast retrieval failed",
             detail=f"Can not get the total load forecast: {e}.\nDid you configure the load forecast provider?",
-        )
+            cause=e,
+        ) from e
 
     return prediction_list
 
@@ -2133,10 +2155,12 @@ async def fastapi_pvforecast() -> ForecastResponse:
             force_update=True,
         )
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
+        raise EOSProblem(
+            status=404,
+            title="Prediction update failed",
             detail=f"Can not update predictions: {e}",
-        )
+            cause=e,
+        ) from e
 
     # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -2165,10 +2189,12 @@ async def fastapi_pvforecast() -> ForecastResponse:
         )
         temp_air_list = temp_air_array.tolist()
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
+        raise EOSProblem(
+            status=404,
+            title="PV forecast retrieval failed",
             detail=f"Can not get the PV forecast: {e}. Did you configure the PV forecast provider?",
-        )
+            cause=e,
+        ) from e
 
     # Return both forecasts as a JSON response
     return ForecastResponse(temperature=temp_air_list, pvpower=ac_power_list)

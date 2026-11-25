@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Query
 from pydantic import AwareDatetime
 
 from akkudoktoreos.core.coreabc import get_config, get_measurement
@@ -13,6 +13,7 @@ from akkudoktoreos.measurement.batterycapacity import (
 )
 from akkudoktoreos.measurement.energy import EnergyInterval
 from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
+from akkudoktoreos.server.rest.error import EOSProblem
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 router = APIRouter(prefix="/v1/measurement", tags=["measurement"])
@@ -43,7 +44,9 @@ async def post_battery_capacity(
             )
         return estimate
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(
+            status=422, title="Battery capacity estimation failed", detail=str(exc)
+        ) from exc
 
 
 @router.put("/samples")
@@ -54,7 +57,9 @@ async def put_samples(
     try:
         await get_measurement().import_samples(samples)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(
+            status=422, title="Measurement sample upsert failed", detail=str(exc)
+        ) from exc
     return {"updated": len(samples)}
 
 
@@ -86,7 +91,9 @@ async def get_samples(
                     raise ValueError("More than 10000 samples; request a shorter range.")
         return result
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(
+            status=422, title="Measurement sample retrieval failed", detail=str(exc)
+        ) from exc
 
 
 @router.get("/energy", response_model=list[EnergyInterval])
@@ -100,7 +107,9 @@ async def get_energy(
     try:
         return await get_measurement().energy_intervals(key, start, end, interval_seconds)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(
+            status=422, title="Energy interval retrieval failed", detail=str(exc)
+        ) from exc
 
 
 @router.get("/household", response_model=dict[str, list[EnergyInterval]])
@@ -111,4 +120,6 @@ async def get_household(
     try:
         return await get_measurement().household_intervals(start, end, interval_seconds)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(
+            status=422, title="Household energy retrieval failed", detail=str(exc)
+        ) from exc

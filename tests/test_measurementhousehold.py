@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from akkudoktoreos.core.coreabc import get_database, get_measurement
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.measurement.quality import MeasurementSample
+from akkudoktoreos.server.rest.error import register_problem_handlers
 from akkudoktoreos.server.rest.measurement import router
 
 START = datetime(2026, 9, 10, tzinfo=timezone.utc)
@@ -191,6 +192,7 @@ async def test_quality_reset_even_with_increasing_meter(setup_measurement):
 async def test_api_upsert_outage_validation_and_readback(setup_measurement):
     m = setup_measurement()
     app = FastAPI()
+    register_problem_handlers(app)
     app.include_router(router)
     with TestClient(app) as client:
         payload = [

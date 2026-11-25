@@ -4,13 +4,14 @@ import asyncio
 from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, Query
 
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.measurement.quality import MeasurementSample
 from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
 )
+from akkudoktoreos.server.rest.error import EOSProblem
 
 router = APIRouter(prefix="/v1/prediction/pv-adaptive", tags=["prediction"])
 
@@ -43,22 +44,30 @@ async def samples(values: list[MeasurementSample] = Body(max_length=10000)) -> d
     instance = provider()
     allowed = instance._sample_keys()
     if any(sample.key not in allowed for sample in values):
-        raise HTTPException(422, "Measurement key is not assigned to an adaptive PV string.")
+        raise EOSProblem(
+            status=422,
+            title="Invalid PV samples",
+            detail="Measurement key is not assigned to an adaptive PV string.",
+        )
     if any(sample.value is not None and sample.value < 0 for sample in values):
-        raise HTTPException(422, "PV production must not be negative.")
+        raise EOSProblem(
+            status=422, title="Invalid PV samples", detail="PV production must not be negative."
+        )
     flags = {
         plane.curtailment_key for plane in instance._learning_planes() if plane.curtailment_key
     }
     if any(sample.key in flags and sample.value not in (None, 0, 1) for sample in values):
-        raise HTTPException(
-            422, "Curtailment flags must be 0 (unrestricted), 1 (curtailed), or null."
+        raise EOSProblem(
+            status=422,
+            title="Invalid PV samples",
+            detail="Curtailment flags must be 0 (unrestricted), 1 (curtailed), or null.",
         )
     try:
         store = await asyncio.to_thread(instance.store)
         updated = await asyncio.to_thread(store.import_samples, values, pd.Timestamp.now(tz="UTC"))
         return dict(updated=updated)
     except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
+        raise EOSProblem(status=422, title="Invalid PV samples", detail=str(exc)) from exc
 
 
 @router.get("/comparisons")
