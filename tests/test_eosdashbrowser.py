@@ -78,6 +78,19 @@ class DashPage:
         )
         return paths
 
+    def open_details(self, summary: str) -> None:
+        """Open the ``<details>`` of the first matching ``<summary>``, unless it is open.
+
+        EOSdash renders the section and card of the latest config update open, so a card may
+        already be open from an earlier test; clicking its summary would close it.
+
+        Args:
+            summary: Selector of the ``<summary>`` element.
+        """
+        locator = self.page.locator(summary).first
+        if not locator.evaluate("summary => summary.parentElement.open"):
+            locator.click()
+
     def page_content(self) -> str:
         """Return the HTML of the page content area."""
         return self.page.inner_html(PAGE_CONTENT_SELECTOR)
@@ -219,3 +232,57 @@ class TestEOSdashInBrowser:
         dash.page.wait_for_selector(f"{planes} >> text=1 item")
         assert dash.page.locator("#wizard[hx-vals*='\"pv\"']").count() == 1
         assert dash.errors == []
+
+    def test_control_tab_selects_a_controller_and_keeps_open_sections(
+        self, dash: DashPage, servers: dict[str, Any]
+    ) -> None:
+        """The control page swaps to the selected controller; an opened section stays open."""
+        controllers_url = f"{servers['server']}/v1/config/adapter/control/controllers"
+        # Nothing listens on the port: the controllers are configured, but cannot connect.
+        controller = {
+            "controller_type": "sma:sunny-tripower-smart-energy",
+            "host": "127.0.0.1",
+            "port": 1,
+            "battery_id": "battery1",
+            "grid_power_key": "meter1:grid_net_w",
+            "diagnostic_log_capacity": 100,
+        }
+        response = requests.put(
+            controllers_url, json={"inverter1": controller, "inverter2": controller}, timeout=10
+        )
+        assert response.ok, response.text
+        try:
+            assert dash.open_tab("/eosdash/control") == 200
+            assert "inverter1" in dash.page_content()
+
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/control"
+                and response.request.method == "POST"
+            ):
+                dash.page.select_option("select[name='device_id']", "inverter2")
+            dash.page.wait_for_function(
+                "() => document.querySelector('#control-status')"
+                "?.getAttribute('hx-get')?.includes('device_id=inverter2')"
+            )
+
+            # Opening the events section loads the events.
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/control/events"
+            ):
+                dash.page.click("summary:has-text('Diagnostic events')")
+            dash.page.wait_for_function(
+                "() => !document.querySelector('#control-events')"
+                "?.textContent.includes('Loading')"
+            )
+
+            # The 5 s status refresh does not close the section.
+            with dash.page.expect_response(
+                lambda response: urlsplit(response.url).path == "/eosdash/control/status"
+            ):
+                pass
+            assert dash.page.evaluate(
+                "() => document.querySelector('#control-events').closest('details').open"
+            )
+            assert dash.errors == []
+        finally:
+            requests.put(controllers_url, json={}, timeout=10)

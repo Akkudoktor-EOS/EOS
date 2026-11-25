@@ -3,7 +3,7 @@
 from typing import Callable, Optional, cast
 
 from bokeh.embed import components
-from bokeh.models import Plot
+from bokeh.models import LayoutDOM, Plot
 from bokeh.models.annotations import Title
 from bokeh.plotting import figure
 from bokeh.resources import INLINE
@@ -64,8 +64,8 @@ def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:
             grid.grid_line_color = "#ddd"
 
 
-def Bokeh(plot: Plot, header: Optional[str] = None) -> Card:
-    """Convert a Bokeh plot to a FastHTML FT component."""
+def Bokeh(plot: LayoutDOM, header: Optional[str] = None) -> Card:
+    """Convert a Bokeh plot or layout (e.g. a column of plots) to a FastHTML FT component."""
     script, div = components(plot)
     if header:
         header = H4(header, cls="mt-2")

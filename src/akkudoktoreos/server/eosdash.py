@@ -29,6 +29,12 @@ from akkudoktoreos.server.dash.context import (
     IngressMiddleware,
     safe_asset_path,
 )
+from akkudoktoreos.server.dash.control import (
+    Control,
+    DiagnosticsPartial,
+    EventsPartial,
+    StatusPartial,
+)
 from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.plan import Plan
 from akkudoktoreos.server.dash.prediction import Prediction
@@ -296,6 +302,7 @@ def get_eosdash(request: Request):  # type: ignore
                 "Prediction": "/eosdash/prediction",
                 "Config": "/eosdash/configuration",
                 "Profiles": "/eosdash/profile",
+                "Control": "/eosdash/control",
                 "Setup": "/eosdash/wizard",
                 "Admin": "/eosdash/admin",
                 "About": "/eosdash/about",
@@ -499,6 +506,76 @@ def post_eosdash_plan(request: Request, data: dict):  # type: ignore
         Plan: The Plan page component.
     """
     return Plan(*eos_server(), data)
+
+
+@app.get("/eosdash/control")
+def get_eosdash_control(request: Request, data: dict):  # type: ignore
+    """Serve the EOSdash Control page.
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): Optional query data (selected ``device_id``, dark mode).
+
+    Returns:
+        Control: The Control page component.
+    """
+    return Control(*eos_server(), data)
+
+
+@app.post("/eosdash/control")
+def post_eosdash_control(request: Request, data: dict):  # type: ignore
+    """Serve the EOSdash Control page for the selected device controller.
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): User-submitted data (selected ``device_id``, dark mode).
+
+    Returns:
+        Control: The Control page component.
+    """
+    return Control(*eos_server(), data)
+
+
+@app.get("/eosdash/control/status")
+def get_eosdash_control_status(request: Request, data: dict):  # type: ignore
+    """Serve the status of one device controller (polled by the Control page).
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): Query data with the ``device_id``.
+
+    Returns:
+        StatusPartial: The status content.
+    """
+    return StatusPartial(*eos_server(), data)
+
+
+@app.get("/eosdash/control/diagnostics")
+def get_eosdash_control_diagnostics(request: Request, data: dict):  # type: ignore
+    """Serve the diagnostic graphs of one device controller (polled by the Control page).
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): Query data with the ``device_id`` and dark mode.
+
+    Returns:
+        DiagnosticsPartial: The diagnostic graphs.
+    """
+    return DiagnosticsPartial(*eos_server(), data)
+
+
+@app.get("/eosdash/control/events")
+def get_eosdash_control_events(request: Request, data: dict):  # type: ignore
+    """Serve the raw diagnostic events of one device controller (polled by the Control page).
+
+    Args:
+        request (Request): The incoming FastHTML request.
+        data (dict): Query data with the ``device_id``.
+
+    Returns:
+        EventsPartial: The events table.
+    """
+    return EventsPartial(*eos_server(), data)
 
 
 @app.get("/eosdash/prediction")
