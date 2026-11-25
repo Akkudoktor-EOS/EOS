@@ -264,6 +264,11 @@ def _migrate_controllers(value: Any) -> Any:
     adapter: TypeAdapter[Any] = TypeAdapter(ControllerSettings)
     kept: dict[str, Any] = {}
     for device_id, entry in value.items():
+        sources: Any = None
+        if isinstance(entry, dict) and "measurement_sources" in entry:
+            # Moved to adapter.control, placed after the devices are migrated.
+            entry = dict(entry)
+            sources = entry.pop("measurement_sources")
         if not isinstance(entry, dict) or not isinstance(entry.get("controller_type"), str):
             logger.error(
                 f"Controller '{device_id}': dropped, it has no controller_type. Add it again "
@@ -279,7 +284,69 @@ def _migrate_controllers(value: Any) -> Any:
             )
             continue
         kept[device_id] = entry
+        if isinstance(sources, dict) and sources:
+            pending_measurement_sources[str(device_id)] = sources
     return kept
+
+
+def _apply_measurement_sources(new_config: Any) -> None:
+    """Move the former ``measurement_sources`` of the controllers to ``adapter.control``.
+
+    A measurement key of a device (``devices.measurement_keys``, e.g. ``battery1-soc-factor``)
+    goes to ``device_measurement_data_keys``. A key in an energy meter reading list
+    (``measurement.<role>_emr_keys``) goes, as shared data key, to
+    ``<role>_emr_data_keys`` and is removed from that list: the reading is stored as
+    ``<device_id>_<key>`` from now on (logged). Other keys are dropped and logged as error.
+
+    Args:
+        new_config: The migrated settings (``SettingsEOSDefaults``).
+    """
+    from akkudoktoreos.measurement.measurement import EMR_ROLES
+
+    if not pending_measurement_sources:
+        return
+    device_keys = set(new_config.devices.measurement_keys or [])
+    control = new_config.adapter.control
+    device_map: dict[str, str] = dict(control.device_measurement_data_keys or {})
+    for device_id, sources in pending_measurement_sources.items():
+        for measurement_key, suffix in sources.items():
+            data_key = f"{device_id}:{suffix}"
+            if measurement_key in device_keys:
+                device_map[measurement_key] = data_key
+                continue
+            role = next(
+                (
+                    role
+                    for role in EMR_ROLES
+                    if measurement_key
+                    in (getattr(new_config.measurement, f"{role}_emr_keys") or [])
+                ),
+                None,
+            )
+            if role is None:
+                logger.error(
+                    f"Controller '{device_id}': dropped the measurement '{measurement_key}' of "
+                    f"'{suffix}', it is no device measurement and in no energy meter reading "
+                    f"list. Map '{data_key}' in adapter.control again."
+                )
+                continue
+            emr_list = [
+                key
+                for key in getattr(new_config.measurement, f"{role}_emr_keys")
+                if key != measurement_key
+            ]
+            new_config.set_nested_value(f"measurement/{role}_emr_keys", emr_list or None)
+            data_keys = list(getattr(control, f"{role}_emr_data_keys") or [])
+            if data_key not in data_keys:
+                data_keys.append(data_key)
+            new_config.set_nested_value(f"adapter/control/{role}_emr_data_keys", data_keys)
+            logger.warning(
+                f"Controller '{device_id}': the {role} energy meter reading '{measurement_key}' "
+                f"is now stored as '{data_key.replace(':', '_')}' (adapter.control."
+                f"{role}_emr_data_keys); earlier readings stay under '{measurement_key}'."
+            )
+    if device_map:
+        new_config.set_nested_value("adapter/control/device_measurement_data_keys", device_map)
 
 
 def _migrate_config_entity_ids(value: Any) -> Any:
@@ -522,6 +589,9 @@ MIGRATION_MAP: Dict[
 # Global migration stats
 # -----------------------------
 migrated_source_paths: Set[str] = set()
+# measurement_sources of the controllers, kept by _migrate_controllers for
+# _apply_measurement_sources: {device_id: {measurement key: shared data key suffix}}
+pending_measurement_sources: Dict[str, Dict[str, str]] = {}
 mapped_count: int = 0
 auto_count: int = 0
 skipped_paths: List[str] = []
@@ -537,6 +607,7 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
 
     # Reset globals at the start of each migration
     migrated_source_paths = set()
+    pending_measurement_sources.clear()
     mapped_count = 0
     auto_count = 0
     skipped_paths = []
@@ -626,6 +697,12 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     auto_count += _migrate_matching_fields(
         config_data, new_config, migrated_source_paths, skipped_paths
     )
+
+    # The controllers' former measurement_sources need the migrated devices and measurement lists
+    try:
+        _apply_measurement_sources(new_config)
+    except Exception as e:
+        logger.opt(exception=True).error(f"Failed to migrate measurement_sources: {e}")
 
     # 3) Ensure version
     try:

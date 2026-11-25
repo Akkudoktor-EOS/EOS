@@ -277,8 +277,14 @@ def check_load(config_details: dict[str, dict]) -> list[str]:
         ]
     if provider in ("LoadAkkudoktor", "LoadAkkudoktorAdjusted"):
         todo = _missing(config_details, "load.loadakkudoktor.loadakkudoktor_year_energy_kwh")
-        if provider == "LoadAkkudoktorAdjusted":
-            todo += _missing(config_details, "measurement.load_emr_keys")
+        if provider == "LoadAkkudoktorAdjusted" and all(
+            _is_empty(config_value(config_details, name))
+            for name in ("measurement.load_emr_keys", "adapter.control.load_emr_data_keys")
+        ):
+            todo.append(
+                "No load meter readings are configured (measurement.load_emr_keys or "
+                "adapter.control.load_emr_data_keys)."
+            )
         return todo
     return []
 
@@ -766,7 +772,8 @@ Energy meter readings are optional. They are meter readings in kWh that only cou
 the current power. With `LoadAkkudoktorAdjusted` EOS uses the load meter readings to adapt
 the load forecast to your household; list their measurement keys in
 `measurement.load_emr_keys`. The Home Assistant adapter does this on its own for the
-entities it reads.
+entities it reads; the readings of a device controller are picked in
+`adapter.control.load_emr_data_keys`.
 """,
         example="""
 Your own system, e.g. a Node-RED flow or a script, at least every five minutes:

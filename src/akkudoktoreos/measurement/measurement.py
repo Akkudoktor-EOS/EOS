@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Literal, Optional
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional
 
 import numpy as np
 from loguru import logger
@@ -20,6 +20,9 @@ from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+
+if TYPE_CHECKING:
+    from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
 from akkudoktoreos.core.databaseabc import DatabaseTimestamp
@@ -116,7 +119,12 @@ class MeasurementCommonSettings(SettingsBaseModel):
     household: Optional[HouseholdSettings] = Field(
         default=None,
         json_schema_extra={
-            "description": "Optional household energy balance definition.",
+            "description": (
+                "Optional household energy balance definition. The input keys are measurement "
+                "keys: of `measurement.keys`, of the devices (`devices.measurement_keys`) or "
+                "energy meter readings of device controllers (`adapter.control.*_emr_data_keys`, "
+                "stored as `<device_id>_<key>`)."
+            ),
             "examples": [None],
         },
     )
@@ -141,10 +149,8 @@ class MeasurementCommonSettings(SettingsBaseModel):
                         raise ValueError(
                             f"Legacy meter key {key!r} must remain cumulative_energy in kWh."
                         )
-        if self.household is not None:
-            for item in self.household.inputs:
-                if item.key not in self.keys:
-                    raise ValueError(f"Unknown household measurement key: {item.key!r}")
+        # The household input keys are checked by the whole configuration (SettingsEOSDefaults):
+        # they may also be device measurement keys or energy meter readings of device controllers.
         return self
 
     load_emr_keys: Optional[list[str]] = Field(
@@ -206,6 +212,31 @@ class MeasurementCommonSettings(SettingsBaseModel):
         return sorted(set(key_list))
 
 
+# Roles of energy meter readings: `measurement.<role>_emr_keys`.
+EMR_ROLES: tuple[str, ...] = ("load", "grid_export", "grid_import", "pv_production")
+
+
+def emr_keys(config: "ConfigEOS", role: str) -> list[str]:
+    """Return the measurement keys of the energy meter readings of a role.
+
+    The keys of ``measurement.<role>_emr_keys`` and the keys of the readings the device
+    controllers provide for the role (``adapter.control.<role>_emr_data_keys``, stored as
+    ``<device_id>_<key>``). The adapter keys are not written into the configuration.
+
+    Args:
+        config: The EOS configuration (``ConfigEOS``).
+        role: One of ``EMR_ROLES``, e.g. ``"pv_production"``.
+
+    Returns:
+        list[str]: The keys without duplicates, the measurement keys first.
+    """
+    keys = list(getattr(config.measurement, f"{role}_emr_keys") or [])
+    for key in config.adapter.control.emr_measurement_keys(role):
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
 class MeasurementDataRecord(DataRecord):
     """Represents a measurement data record containing various measurements at a specific datetime."""
 
@@ -228,6 +259,9 @@ class MeasurementDataRecord(DataRecord):
         # Add measurment keys that are needed/ handled by the resource/ device simulations.
         if cls.config.devices.measurement_keys:
             keys.extend(cls.config.devices.measurement_keys)
+        # Add the energy meter readings the device controllers provide.
+        for role in EMR_ROLES:
+            keys.extend(key for key in emr_keys(cls.config, role) if key not in keys)
         return keys
 
 
@@ -366,8 +400,8 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         channel = self.config.measurement.channels.get(key)
         if channel is not None:
             return channel
-        for name in type(self.config.measurement).model_fields:
-            if name.endswith("_emr_keys") and key in (getattr(self.config.measurement, name) or []):
+        for role in EMR_ROLES:
+            if key in emr_keys(self.config, role):
                 return MeasurementChannelSettings(
                     quantity="cumulative_energy",
                     unit="kWh",
@@ -821,7 +855,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
         size = self._interval_count(start_datetime, end_datetime, interval)
         if size == 0:
             return np.zeros(0)
-        load_keys = self.config.measurement.load_emr_keys or []
+        load_keys = emr_keys(self.config, "load")
         if not load_keys:
             return np.full(size, np.nan)
 

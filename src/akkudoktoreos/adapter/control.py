@@ -1,12 +1,14 @@
 """Control adapter."""
 
 import asyncio
+import math
+import re
 from concurrent.futures import Future
 from types import MappingProxyType
 from typing import Annotated, Any, ClassVar, Optional, Union, get_args
 
 from loguru import logger
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from akkudoktoreos.adapter.adapterabc import AdapterProvider
 
@@ -24,6 +26,7 @@ from akkudoktoreos.adapter.controllers.sma.smaenergymeter import SmaEnergyMeterS
 from akkudoktoreos.adapter.controllers.sma.smastpe import SmaStpeSettings
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.ems import EnergyManagementStage
+from akkudoktoreos.measurement.measurement import EMR_ROLES
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 # Pydantic picks the settings class by the `controller_type` literal of each settings class.
@@ -35,6 +38,15 @@ ControllerSettings = Annotated[
 # Fail at import, not at first start, if a settings class in the union has no controller bound.
 for _settings_class in get_args(get_args(ControllerSettings)[0]):
     _settings_class.controller_class()
+
+
+_SHARED_DATA_KEY = re.compile(r"^[^:\s]+:[^:\s]+$")
+
+
+def _check_shared_data_key(data_key: str) -> None:
+    """Raise ValueError unless ``data_key`` has the form ``<device_id>:<key>``."""
+    if not _SHARED_DATA_KEY.match(data_key):
+        raise ValueError(f"Shared data key {data_key!r} is not of the form '<device_id>:<key>'.")
 
 
 class ControlAdapterCommonSettings(SettingsBaseModel):
@@ -55,13 +67,130 @@ class ControlAdapterCommonSettings(SettingsBaseModel):
         },
     )
 
+    load_emr_data_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Shared data keys `<device_id>:<key>` of the load energy meter readings [kWh] "
+                "the controllers provide. Each is stored as measurement "
+                "`<device_id>_<key>` and counts as a load energy meter reading."
+            ),
+            "examples": [["meter2:load_kwh"]],
+        },
+    )
+    grid_export_emr_data_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Shared data keys `<device_id>:<key>` of the energy meter readings of energy "
+                "export to grid [kWh] the controllers provide. Each is stored as measurement "
+                "`<device_id>_<key>` and counts as a grid export energy meter reading."
+            ),
+            "examples": [["meter1:grid_export_kwh"]],
+        },
+    )
+    grid_import_emr_data_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Shared data keys `<device_id>:<key>` of the energy meter readings of energy "
+                "import from grid [kWh] the controllers provide. Each is stored as measurement "
+                "`<device_id>_<key>` and counts as a grid import energy meter reading."
+            ),
+            "examples": [["meter1:grid_import_kwh"]],
+        },
+    )
+    pv_production_emr_data_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Shared data keys `<device_id>:<key>` of the PV production energy meter "
+                "readings [kWh] the controllers provide. Each is stored as measurement "
+                "`<device_id>_<key>` and counts as a PV production energy meter reading."
+            ),
+            "examples": [["meter3:pv_production_kwh"]],
+        },
+    )
+    device_measurement_data_keys: Optional[dict[str, str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Measurements of devices fed by the controllers: maps the measurement key of a "
+                "device (see `devices.measurement_keys`, e.g. the SoC of a battery) to the "
+                "shared data key `<device_id>:<key>` of the reading."
+            ),
+            "examples": [{"battery1-soc-factor": "inverter1:bat_soc_factor"}],
+        },
+    )
+
+    @field_validator(
+        "load_emr_data_keys",
+        "grid_export_emr_data_keys",
+        "grid_import_emr_data_keys",
+        "pv_production_emr_data_keys",
+    )
+    @classmethod
+    def _check_emr_data_keys(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+        """Only check the format: a key of a removed controller must not invalidate the config."""
+        for data_key in value or []:
+            _check_shared_data_key(data_key)
+        return value
+
+    @field_validator("device_measurement_data_keys")
+    @classmethod
+    def _check_device_measurement_data_keys(
+        cls, value: Optional[dict[str, str]]
+    ) -> Optional[dict[str, str]]:
+        """Only check the format of the shared data keys (see `_check_emr_data_keys`)."""
+        for data_key in (value or {}).values():
+            _check_shared_data_key(data_key)
+        return value
+
+    @staticmethod
+    def measurement_key(data_key: str) -> str:
+        """Return the measurement key of an energy meter reading of a controller.
+
+        Args:
+            data_key: Shared data key ``<device_id>:<key>``, e.g. ``meter1:grid_import_kwh``.
+
+        Returns:
+            str: ``<device_id>_<key>``, e.g. ``meter1_grid_import_kwh``.
+        """
+        return data_key.replace(":", "_")
+
+    def emr_measurement_keys(self, role: str) -> list[str]:
+        """Return the measurement keys of the energy meter readings of a role.
+
+        Args:
+            role: ``"load"``, ``"grid_export"``, ``"grid_import"`` or ``"pv_production"``.
+
+        Returns:
+            list[str]: The measurement keys of ``<role>_emr_data_keys``, in their order.
+        """
+        data_keys: Optional[list[str]] = getattr(self, f"{role}_emr_data_keys")
+        return [self.measurement_key(data_key) for data_key in data_keys or []]
+
+    def measurement_data_keys(self) -> dict[str, str]:
+        """Return the shared data key of every measurement the controllers feed.
+
+        Returns:
+            dict[str, str]: Measurement key -> shared data key ``<device_id>:<key>``, for the
+            energy meter readings of all roles and the device measurements.
+        """
+        mapping: dict[str, str] = {}
+        for role in EMR_ROLES:
+            for data_key in getattr(self, f"{role}_emr_data_keys") or []:
+                mapping[self.measurement_key(data_key)] = data_key
+        mapping.update(self.device_measurement_data_keys or {})
+        return mapping
+
 
 class ControlAdapter(AdapterProvider):
     """Device control adapter.
 
     Orchestrates and manages device controllers: creates and starts them according to the
-    configuration, stops them when they are removed or reconfigured and hands the energy
-    management plan to them.
+    configuration, stops them when they are removed or reconfigured, lets them write their
+    measurements before the optimization and hands the energy management plan to them.
 
     The device control adapter is a singleton as every adapter, so the class level state
     below is the state of the one instance.
@@ -117,12 +246,92 @@ class ControlAdapter(AdapterProvider):
 
         The set of running controllers is reconciled with the configuration at every stage, so
         devices (e.g. an energy meter) are already running when they are needed.
-        At CONTROL_DISPATCH the plan is handed to them.
+        At DATA_ACQUISITION the controllers write their measurements into the measurement
+        store, at CONTROL_DISPATCH the plan is handed to them.
         """
         await self._reconcile()
 
-        if self.ems.stage() == EnergyManagementStage.CONTROL_DISPATCH:
+        stage = self.ems.stage()
+        if stage == EnergyManagementStage.DATA_ACQUISITION:
+            await self._acquire_measurements()
+        elif stage == EnergyManagementStage.CONTROL_DISPATCH:
             self._dispatch_plan()
+
+    async def _acquire_measurements(self) -> None:
+        """Write the readings the controllers feed into the measurement store.
+
+        Called at ``EnergyManagementStage.DATA_ACQUISITION``, before the optimization. The
+        readings mapped in ``adapter.control`` (``*_emr_data_keys``,
+        ``device_measurement_data_keys``) are read from one coherent image of the shared data
+        store and written with one ``measurement.update_value(date, values)`` call.
+
+        A reading is skipped, and the others are still written, if its controller is not
+        configured, its value is missing (device not connected yet), older than the
+        ``measurement_max_age_s`` of its controller (device lost), or not a finite number.
+        Writing stale data would put a wrong value into the measurement history with the
+        current date.
+        """
+        settings = self.config.adapter.control
+        sources = settings.measurement_data_keys()
+        if not sources:
+            return
+        date = to_datetime()  # one date for all devices
+        entries = self.shared_data.get_many(set(sources.values()))
+
+        values: dict[str, float] = {}
+        for measurement_key, data_key in sources.items():
+            device_id = data_key.split(":", 1)[0]
+            controller_settings = settings.controllers.get(device_id)
+            if controller_settings is None:
+                logger.warning(
+                    "Device control: measurement '{}' refers to '{}' of no configured controller",
+                    measurement_key,
+                    data_key,
+                )
+                continue
+            entry = entries.get(data_key)
+            if entry is None:
+                logger.debug("Device control: no data for '{}' yet", data_key)
+                continue
+            value, age = entry
+            max_age = controller_settings.measurement_max_age_s
+            if age > max_age:
+                logger.warning(
+                    "Device control: '{}' is {:.0f} s old (max {:.0f} s), not written",
+                    data_key,
+                    age,
+                    max_age,
+                )
+                continue
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+            ):
+                logger.error(
+                    "Device control: '{}' for measurement '{}' is not a finite number: {!r}",
+                    data_key,
+                    measurement_key,
+                    value,
+                )
+                continue
+            values[measurement_key] = float(value)
+
+        # A key the store does not take (e.g. of a removed battery) must not lose the others.
+        writable = set(self.measurement.record_keys_writable)
+        for measurement_key in [key for key in values if key not in writable]:
+            logger.warning(
+                "Device control: '{}' is no measurement key (any more), '{}' not written",
+                measurement_key,
+                sources[measurement_key],
+            )
+            del values[measurement_key]
+
+        if values:
+            try:
+                await self.measurement.update_value(date, values)
+            except Exception:
+                logger.exception("Device control: writing the measurements failed")
 
     def _dispatch_plan(self) -> None:
         """Hand the energy management plan to every controller."""

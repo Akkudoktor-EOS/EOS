@@ -8,7 +8,12 @@
                "HomeAssistant"
            ],
            "control": {
-               "controllers": {}
+               "controllers": {},
+               "load_emr_data_keys": null,
+               "grid_export_emr_data_keys": null,
+               "grid_import_emr_data_keys": null,
+               "pv_production_emr_data_keys": null,
+               "device_measurement_data_keys": null
            },
            "homeassistant": {
                "config_entity_ids": null,

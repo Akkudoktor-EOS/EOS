@@ -44,7 +44,7 @@ from loguru import logger
 from pydantic import Field, PrivateAttr, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.measurement.measurement import MeterPeriod
+from akkudoktoreos.measurement.measurement import MeterPeriod, emr_keys
 from akkudoktoreos.prediction.predictionabc import cache_request
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecordT,
@@ -340,7 +340,8 @@ class PVForecastAkkudoktorLocalCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": (
                 "Correct systematic model error against measured PV production. Requires "
-                "`measurement.pv_production_emr_keys` to be configured and fed. Fits a "
+                "`measurement.pv_production_emr_keys` (or `adapter.control.pv_production_emr_data_keys`) "
+                "to be configured and fed. Fits a "
                 "global scale factor plus per-solar-azimuth factors, which is what catches "
                 "near-field shading the horizon profile misses."
             ),
@@ -498,7 +499,8 @@ class PVForecastAkkudoktorLocalCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": (
                 "Correct the modelled snow coverage with measured PV production from "
-                "`measurement.pv_production_emr_keys`. Production well above the snow "
+                "`measurement.pv_production_emr_keys` (or `adapter.control.pv_production_emr_data_keys`). "
+                "Production well above the snow "
                 "model clears the coverage at once; production far below the clear-module "
                 "model raises it, but only while snow is plausible (snow on the ground or "
                 "already modelled on the modules). Needs cumulative meter readings."
@@ -1057,7 +1059,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         pv_window: Optional[MeterPeriod] = None
         if (
             calibrate
-            and self.config.measurement.pv_production_emr_keys
+            and emr_keys(self.config, "pv_production")
             and (
                 settings.calibration_enabled
                 or (settings.snow_enabled and settings.snow_feedback_enabled)
@@ -1147,7 +1149,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             share no period.
         """
         return await self.measurement.keys_common_period(
-            self.config.measurement.pv_production_emr_keys or [], "PVForecastAkkudoktorLocal"
+            emr_keys(self.config, "pv_production"), "PVForecastAkkudoktorLocal"
         )
 
     async def _calibration_interval_minutes(self, start: DateTime, end: DateTime) -> int:
@@ -1161,7 +1163,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         """
         native_minutes = self._settings.resolution_minutes
         meter_resolutions: list[float] = []
-        keys = self.config.measurement.pv_production_emr_keys or []
+        keys = emr_keys(self.config, "pv_production")
         valid_datetimes = await self.measurement.keys_valid_datetimes(keys, start, end)
         for key in keys:
             dates = valid_datetimes[key]
@@ -1263,7 +1265,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             Energy in kWh per slot, NaN where any meter lacks full coverage; empty when
             no PV meter is configured.
         """
-        keys = self.config.measurement.pv_production_emr_keys or []
+        keys = emr_keys(self.config, "pv_production")
         if not keys:
             return np.asarray([], dtype=float)
         meters_kwh = await self.measurement.meter_energy_kwh(
@@ -1293,10 +1295,11 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
         settings = self._settings
         if not settings.calibration_enabled:
             return None
-        if not self.config.measurement.pv_production_emr_keys:
+        if not emr_keys(self.config, "pv_production"):
             logger.info(
-                "PVForecastAkkudoktorLocal calibration is enabled but "
-                "measurement.pv_production_emr_keys is not configured - skipping."
+                "PVForecastAkkudoktorLocal calibration is enabled but no PV production meter "
+                "readings are configured (measurement.pv_production_emr_keys, "
+                "adapter.control.pv_production_emr_data_keys) - skipping."
             )
             return None
 
@@ -1794,7 +1797,7 @@ class PVForecastAkkudoktorLocal(PVForecastProvider[PVForecastDataRecordT]):
             complete meter interval within the lookback, and the meter interval length.
         """
         settings = self._settings
-        if not settings.snow_feedback_enabled or not self.config.measurement.pv_production_emr_keys:
+        if not settings.snow_feedback_enabled or not emr_keys(self.config, "pv_production"):
             return [], None
         if pv_window is None:
             # keys_common_period already logged why, once per condition.

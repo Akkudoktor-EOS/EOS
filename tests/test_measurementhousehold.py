@@ -162,7 +162,6 @@ async def test_nonoverlapping_coverage_is_missing(setup_measurement):
         [dict(key="p", branch="x", role="grid"), dict(key="p", branch="y", role="pv")],
         [dict(key="p", branch="x", role="grid"), dict(key="q", branch="x", role="pv")],
         [dict(key="p", branch="x", role="site"), dict(key="q", branch="y", role="pv")],
-        [dict(key="unknown", branch="x", role="grid")],
     ],
 )
 def test_invalid_balance_configuration(setup_measurement, inputs):
@@ -366,3 +365,62 @@ async def test_hour_energy_allocation_and_short_last_interval(setup_measurement)
     row = (await m.energy_intervals("site", START, START + timedelta(seconds=60)))[0]
     assert row.coverage_seconds == 60
     assert row.energy_wh == pytest.approx(1000 / 60)
+
+
+class TestHouseholdKeysOfTheConfiguration:
+    """Household input keys are checked against all measurement keys of the configuration."""
+
+    @staticmethod
+    def _household(key: str) -> dict:
+        return {"topology": "direct", "inputs": [{"key": key, "branch": "house", "role": "site"}]}
+
+    def test_unknown_key_is_rejected_and_the_old_value_kept(self, config_eos):
+        with pytest.raises(ValueError, match="Unknown household measurement key"):
+            config_eos.set_nested_value("measurement/household", self._household("unknown"))
+        assert config_eos.measurement.household is None
+
+    def test_energy_meter_reading_of_a_device_controller_is_a_known_key(self, config_eos):
+        config_eos.set_nested_value("adapter/control/load_emr_data_keys", ["meter2:load_kwh"])
+        config_eos.set_nested_value("measurement/household", self._household("meter2_load_kwh"))
+        assert config_eos.measurement.household.inputs[0].key == "meter2_load_kwh"
+
+    def test_device_measurement_key_is_a_known_key(self, config_eos):
+        config_eos.set_nested_value(
+            "devices/batteries", {"battery1": {"device_id": "battery1"}}
+        )
+        key = config_eos.devices.measurement_keys[0]
+        config_eos.set_nested_value("measurement/household", self._household(key))
+        assert config_eos.measurement.household.inputs[0].key == key
+
+    def test_removing_a_key_in_use_is_rejected(self, config_eos):
+        config_eos.set_nested_value("adapter/control/load_emr_data_keys", ["meter2:load_kwh"])
+        config_eos.set_nested_value("measurement/household", self._household("meter2_load_kwh"))
+        with pytest.raises(ValueError, match="Unknown household measurement key"):
+            config_eos.set_nested_value("adapter/control/load_emr_data_keys", None)
+        assert config_eos.adapter.control.load_emr_data_keys == ["meter2:load_kwh"]
+
+    def test_unknown_key_in_a_new_input_is_rejected(self, config_eos):
+        config_eos.set_nested_value(
+            "devices/batteries", {"battery1": {"device_id": "battery1"}}
+        )
+        key = config_eos.devices.measurement_keys[0]
+        config_eos.set_nested_value("measurement/household", self._household(key))
+        # A new list item: its path does not exist before the change.
+        with pytest.raises(ValueError, match="Unknown household measurement key"):
+            config_eos.set_nested_value("measurement/household/inputs/1/key", "unknown")
+        assert [item.key for item in config_eos.measurement.household.inputs] == [key]
+
+    def test_whole_configuration_is_checked_at_load(self):
+        from akkudoktoreos.config.config import SettingsEOSDefaults
+
+        with pytest.raises(ValidationError, match="Unknown household measurement key"):
+            SettingsEOSDefaults.model_validate(
+                {"measurement": {"household": self._household("unknown")}}
+            )
+        settings = SettingsEOSDefaults.model_validate(
+            {
+                "adapter": {"control": {"load_emr_data_keys": ["meter2:load_kwh"]}},
+                "measurement": {"household": self._household("meter2_load_kwh")},
+            }
+        )
+        assert settings.measurement.household is not None

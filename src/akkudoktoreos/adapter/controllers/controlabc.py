@@ -12,7 +12,8 @@ Layout
 - ``ControllerThreadBase``: ``MonitorThreadBase`` plus a time-based command schedule
   and a safe state. For devices that are controlled (e.g. an inverter).
 - ``ControllerBase``: EOS-server side (event loop) of a device controller.
-  Owns the thread, starts and stops it and feeds it the schedule.
+  Owns the thread, starts and stops it and feeds it the schedule. The Control adapter writes
+  its readings into the EOS measurement store.
 
 This module must not import the device control adapter. The adapter imports this module and
 hands the shared data store to the controllers it creates (dependency injection).
@@ -380,7 +381,8 @@ class ControllerBaseSettings(SettingsBaseModel):
         json_schema_extra={
             "description": (
                 "Maximum age in seconds of a reading of this controller to be written to the "
-                "measurement store. Older values are skipped."
+                "measurement store (see `adapter.control.*_data_keys`). Older values are "
+                "skipped."
             ),
             "examples": [60.0],
         },
@@ -831,8 +833,9 @@ class ControllerThreadBase(MonitorThreadBase, Generic[CommandT]):
 class ControllerBase(ABC, ConfigMixin):
     """EOS-server side of a device controller.
 
-    Owns the thread, starts and stops it and feeds it schedules. One instance per configured
-    device. All public methods are called from the event loop.
+    Owns the thread, starts and stops it and feeds it schedules. Its readings reach the EOS
+    measurement store through the Control adapter (``adapter.control.*_data_keys``). One
+    instance per configured device. All public methods are called from the event loop.
     """
 
     #: Suffixes (without the ``<device_id>:`` prefix) of the keys this device

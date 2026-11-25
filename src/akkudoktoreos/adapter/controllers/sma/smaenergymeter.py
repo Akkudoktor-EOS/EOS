@@ -20,6 +20,10 @@ missing or stale data::
 
 Several values that belong together are read from one coherent image with ``get_many()``.
 
+The energy readings can be written to the EOS measurement store by the Control adapter, e.g.
+``adapter.control.grid_import_emr_data_keys = ["meter1:grid_import_kwh"]`` (stored as measurement
+``meter1_grid_import_kwh``).
+
 Complete readings are also recorded as diagnostic series when diagnostic logging is enabled.
 The diagnostic view exposes separate graphs for instantaneous grid power and cumulative energy.
 """

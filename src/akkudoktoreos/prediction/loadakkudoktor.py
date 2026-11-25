@@ -7,6 +7,7 @@ from loguru import logger
 from pydantic import Field, PrivateAttr
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.measurement.measurement import emr_keys
 from akkudoktoreos.prediction.loadabc import LoadDataRecord, LoadProvider
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
@@ -123,18 +124,18 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         weekend_adjust = np.zeros(24)
         weekend_adjust_weight = np.zeros(24)
 
-        if not self.config.measurement.load_emr_keys:
+        load_keys = emr_keys(self.config, "load")
+        if not load_keys:
             logger.info(
-                "LoadAkkudoktorAdjusted: measurement.load_emr_keys is not configured - "
+                "LoadAkkudoktorAdjusted: no load meter readings are configured "
+                "(measurement.load_emr_keys, adapter.control.load_emr_data_keys) - "
                 "no load adjustment."
             )
             return (weekday_adjust, weekend_adjust)
 
         # Compare against the period every load meter reports, not the whole store:
         # other channels (PV, SoC) often reach further than the load meters.
-        period = await self.measurement.keys_common_period(
-            self.config.measurement.load_emr_keys, "LoadAkkudoktorAdjusted"
-        )
+        period = await self.measurement.keys_common_period(load_keys, "LoadAkkudoktorAdjusted")
         if period is None:
             return (weekday_adjust, weekend_adjust)
         min_dt, max_dt = period.first, period.last

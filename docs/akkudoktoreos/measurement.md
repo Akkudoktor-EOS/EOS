@@ -74,6 +74,11 @@ The associated `measurement key`s can be configured by:
 }
 ```
 
+The energy meter readings of device controllers are not entered here: they are picked in the
+lists of `adapter.control` (`load_emr_data_keys`, `grid_import_emr_data_keys`, ...), stored as
+`<device_id>_<key>` (e.g. `meter1_grid_import_kwh`) and count for their role in addition to the
+keys of these lists.
+
 Load measurements can be stored for any datetime. The values between different meter readings are
 linearly approximated. Storing values between optimization intervals is generally not useful.
 

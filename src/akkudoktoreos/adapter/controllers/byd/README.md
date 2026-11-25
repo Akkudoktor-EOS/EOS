@@ -2,7 +2,8 @@
 
 Device controller `byd:battery-box-premium` for BYD Battery-Box Premium HVS, HVM and HVL. It only
 reads the battery management unit (BMU); the battery is controlled by its inverter. The readings
-are published as shared data keys of the Control adapter.
+are published as shared data keys of the Control adapter and can be mapped to measurements, e.g.
+the SoC of the battery device.
 
 ## Files
 
@@ -45,6 +46,9 @@ Treat every value as unchecked.
         "controller_type": "byd:battery-box-premium",
         "host": "192.168.16.254"
       }
+    },
+    "device_measurement_data_keys": {
+      "battery1-soc-factor": "battery:soc_factor"
     }
   }
 }

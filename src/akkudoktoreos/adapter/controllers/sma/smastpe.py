@@ -92,7 +92,10 @@ Register reference: https://github.com/Optic00/ha-modbus-akku-adapter/blob/main/
 
 Inverter data
 -------------
-The inverter provides its readings under the keys of ``INVERTER_KEYS`` (``"<device_id>:<key>"``).
+The inverter provides its readings under the keys of ``INVERTER_KEYS`` (``"<device_id>:<key>"``),
+which the Control adapter can write to measurements, e.g. the battery SoC to the SoC key of the
+battery: ``adapter.control.device_measurement_data_keys = {"battery1-soc-factor":
+"inverter1:bat_soc_factor"}``.
 
 Diagnostics
 -----------

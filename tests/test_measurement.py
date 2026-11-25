@@ -777,3 +777,45 @@ class TestMeasurementCommonPeriod:
             assert await measurement.keys_common_period(["meter_a_mr", "meter_b_mr"], "test") is None
 
         assert self.warnings(caplog, "meter 'meter_a_mr' last reported at") > 0
+
+
+class TestControllerEnergyReadings:
+    """Energy meter readings mapped at the Control adapter count for their role."""
+
+    def test_role_keys_include_the_control_adapter_keys(self, config_eos):
+        config_eos.merge_settings_from_dict(
+            {
+                "measurement": {"load_emr_keys": ["load0_emr"]},
+                "adapter": {"control": {"load_emr_data_keys": ["meter2:load_kwh"]}},
+            }
+        )
+        from akkudoktoreos.measurement.measurement import (
+            MeasurementDataRecord,
+            emr_keys,
+        )
+
+        assert emr_keys(config_eos, "load") == ["load0_emr", "meter2_load_kwh"]
+        assert emr_keys(config_eos, "grid_import") == []
+        # Writable without being in a measurement list; the saved lists stay unchanged.
+        assert "meter2_load_kwh" in (MeasurementDataRecord.configured_data_keys() or [])
+        assert config_eos.measurement.load_emr_keys == ["load0_emr"]
+
+    @pytest.mark.asyncio
+    async def test_a_controller_reading_is_stored_and_counted_as_load(self, config_eos):
+        config_eos.merge_settings_from_dict(
+            {"adapter": {"control": {"load_emr_data_keys": ["meter2:load_kwh"]}}}
+        )
+        measurement = get_measurement()
+        previous_records = measurement.records
+        try:
+            measurement.records = []
+            await measurement.update_value(to_datetime("2026-09-16T08:00:00Z"), "meter2_load_kwh", 10.0)
+            await measurement.update_value(to_datetime("2026-09-16T09:00:00Z"), "meter2_load_kwh", 11.5)
+            total = await measurement.load_total_kwh(
+                start_datetime=to_datetime("2026-09-16T08:00:00Z"),
+                end_datetime=to_datetime("2026-09-16T09:00:00Z"),
+                interval=to_duration("1 hour"),
+            )
+            assert total.tolist() == pytest.approx([1.5])
+        finally:
+            measurement.records = previous_records

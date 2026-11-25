@@ -2,7 +2,8 @@
 
 Scope: only the adapter module — ``ControlAdapter``,
 ``ControlAdapterCommonSettings``, the import-time settings<->controller
-binding invariant, ``_reconcile``, ``_diagnostic_log``, ``_dispatch_plan``, ``_update_data``, ``clear``, ``provider_id`` and
+binding invariant, ``_reconcile``, ``_diagnostic_log``, ``_acquire_measurements``,
+``_dispatch_plan``, ``_update_data``, ``clear``, ``provider_id`` and
 ``device_control_clear``.
 
 Everything in ``controlabc.py`` (shared store, settings base, command and
@@ -253,6 +254,38 @@ class TestControlAdapterCommonSettings:
             ControlAdapterCommonSettings.model_validate(
                 {"controllers": {"m1": {"controller_type": "does:not-exist"}}}
             )
+
+    def test_maps_controller_readings_to_measurement_keys(self):
+        settings = ControlAdapterCommonSettings.model_validate(
+            {
+                "grid_import_emr_data_keys": ["meter1:grid_import_kwh"],
+                "grid_export_emr_data_keys": ["meter1:grid_export_kwh"],
+                "device_measurement_data_keys": {"battery1-soc-factor": "inverter1:bat_soc_factor"},
+            }
+        )
+        # The measurement key of a role reading is derived from its shared data key.
+        assert settings.emr_measurement_keys("grid_import") == ["meter1_grid_import_kwh"]
+        assert settings.emr_measurement_keys("load") == []
+        assert settings.measurement_data_keys() == {
+            "meter1_grid_import_kwh": "meter1:grid_import_kwh",
+            "meter1_grid_export_kwh": "meter1:grid_export_kwh",
+            "battery1-soc-factor": "inverter1:bat_soc_factor",
+        }
+
+    def test_rejects_a_malformed_shared_data_key(self):
+        with pytest.raises(ValidationError, match="<device_id>:<key>"):
+            ControlAdapterCommonSettings.model_validate({"load_emr_data_keys": ["load_kwh"]})
+        with pytest.raises(ValidationError, match="<device_id>:<key>"):
+            ControlAdapterCommonSettings.model_validate(
+                {"device_measurement_data_keys": {"battery1-soc-factor": "soc"}}
+            )
+
+    def test_accepts_a_key_of_a_controller_that_is_not_configured(self):
+        # A removed controller must not make the configuration invalid.
+        settings = ControlAdapterCommonSettings.model_validate(
+            {"grid_import_emr_data_keys": ["gone:grid_import_kwh"]}
+        )
+        assert settings.grid_import_emr_data_keys == ["gone:grid_import_kwh"]
 
 
 def test_provider_id(h: Harness):
@@ -706,10 +739,25 @@ class TestUpdateData:
         h.ems.stage.return_value = EnergyManagementStage.OPTIMIZATION
 
         with patch.object(type(h.adapter), "_reconcile", AsyncMock()) as reconcile, \
+             patch.object(type(h.adapter), "_acquire_measurements", AsyncMock()) as acquire, \
              patch.object(type(h.adapter), "_dispatch_plan", MagicMock()) as dispatch:
             await h.adapter._update_data()
 
         reconcile.assert_awaited_once()
+        acquire.assert_not_awaited()
+        dispatch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_data_acquisition_acquires_measurements(self, h: Harness):
+        h.ems.stage.return_value = EnergyManagementStage.DATA_ACQUISITION
+
+        with patch.object(type(h.adapter), "_reconcile", AsyncMock()) as reconcile, \
+             patch.object(type(h.adapter), "_acquire_measurements", AsyncMock()) as acquire, \
+             patch.object(type(h.adapter), "_dispatch_plan", MagicMock()) as dispatch:
+            await h.adapter._update_data()
+
+        reconcile.assert_awaited_once()
+        acquire.assert_awaited_once()
         dispatch.assert_not_called()
 
     @pytest.mark.asyncio
@@ -717,16 +765,163 @@ class TestUpdateData:
         h.ems.stage.return_value = EnergyManagementStage.CONTROL_DISPATCH
 
         with patch.object(type(h.adapter), "_reconcile", AsyncMock()) as reconcile, \
+             patch.object(type(h.adapter), "_acquire_measurements", AsyncMock()) as acquire, \
              patch.object(type(h.adapter), "_dispatch_plan", MagicMock()) as dispatch:
             await h.adapter._update_data()
 
         reconcile.assert_awaited_once()
+        acquire.assert_not_awaited()
         dispatch.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
-# _dispatch_plan
+# _acquire_measurements / _dispatch_plan
 # ---------------------------------------------------------------------------
+
+
+class TestAcquireMeasurements:
+    """The adapter writes the readings mapped in adapter.control into the measurement store."""
+
+    @pytest.fixture
+    def measurement(self, h: Harness) -> Iterator[MagicMock]:
+        measurement = MagicMock(name="measurement")
+        measurement.update_value = AsyncMock()
+        measurement.record_keys_writable = [
+            "meter1_grid_import_kwh",
+            "meter1_grid_export_kwh",
+            "gone_grid_import_kwh",
+            "battery1-soc-factor",
+        ]
+        with patch.object(
+            type(h.adapter), "measurement", new_callable=PropertyMock, return_value=measurement
+        ):
+            yield measurement
+
+    @staticmethod
+    def _configure(h: Harness, **mapping: Any) -> None:
+        h.config.adapter.control = ControlAdapterCommonSettings.model_validate(
+            {
+                "controllers": {
+                    "meter1": {
+                        "controller_type": "sma:energy-meter",
+                        "serial": 1,
+                        "measurement_max_age_s": 60,
+                    },
+                    "inverter1": {
+                        "controller_type": "sma:sunny-tripower-smart-energy",
+                        "host": "h",
+                        "battery_id": "battery1",
+                        "grid_power_key": "meter1:grid_net_w",
+                    },
+                },
+                **mapping,
+            }
+        )
+
+    @pytest.mark.asyncio
+    async def test_writes_role_and_device_readings_at_the_current_time(
+        self, h: Harness, measurement: MagicMock
+    ):
+        self._configure(
+            h,
+            grid_import_emr_data_keys=["meter1:grid_import_kwh"],
+            device_measurement_data_keys={"battery1-soc-factor": "inverter1:bat_soc_factor"},
+        )
+        h.adapter.shared_data.publish_sync(
+            {"meter1:grid_import_kwh": 1234.5, "inverter1:bat_soc_factor": 0.55}
+        )
+
+        before = to_datetime()
+        await h.adapter._acquire_measurements()
+        after = to_datetime()
+
+        measurement.update_value.assert_awaited_once()
+        assert measurement.update_value.await_args is not None
+        date, values = measurement.update_value.await_args.args
+        assert before <= date <= after
+        assert values == {"meter1_grid_import_kwh": 1234.5, "battery1-soc-factor": 0.55}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("bad_value", [True, "12", math.nan, math.inf, -math.inf])
+    async def test_skips_invalid_values(self, h: Harness, measurement: MagicMock, bad_value: Any):
+        self._configure(h, grid_import_emr_data_keys=["meter1:grid_import_kwh"])
+        h.adapter.shared_data.publish_sync({"meter1:grid_import_kwh": bad_value})
+
+        await h.adapter._acquire_measurements()
+
+        measurement.update_value.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_skips_missing_and_keeps_the_others(self, h: Harness, measurement: MagicMock):
+        self._configure(
+            h, grid_import_emr_data_keys=["meter1:grid_import_kwh", "meter1:grid_export_kwh"]
+        )
+        h.adapter.shared_data.publish_sync({"meter1:grid_export_kwh": 10.0})
+
+        await h.adapter._acquire_measurements()
+
+        assert measurement.update_value.await_args is not None
+        assert measurement.update_value.await_args.args[1] == {"meter1_grid_export_kwh": 10.0}
+
+    @pytest.mark.asyncio
+    async def test_skips_stale_values(self, h: Harness, measurement: MagicMock):
+        self._configure(h, grid_import_emr_data_keys=["meter1:grid_import_kwh"])
+        h.adapter.shared_data.publish_sync({"meter1:grid_import_kwh": 1.0})
+        original = h.adapter.shared_data.get_many
+        with patch.object(
+            h.adapter.shared_data,
+            "get_many",
+            lambda keys: {k: (v, 3600.0) for k, (v, _) in original(keys).items()},
+        ):
+            await h.adapter._acquire_measurements()
+
+        measurement.update_value.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_skips_a_key_of_a_controller_that_is_not_configured(
+        self, h: Harness, measurement: MagicMock
+    ):
+        self._configure(h, grid_import_emr_data_keys=["gone:grid_import_kwh"])
+        h.adapter.shared_data.publish_sync({"gone:grid_import_kwh": 1.0})
+
+        await h.adapter._acquire_measurements()
+
+        measurement.update_value.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_nothing_mapped_writes_nothing(self, h: Harness, measurement: MagicMock):
+        self._configure(h)
+
+        await h.adapter._acquire_measurements()
+
+        measurement.update_value.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_a_key_the_store_does_not_take_does_not_lose_the_others(
+        self, h: Harness, measurement: MagicMock
+    ):
+        # battery2 was removed: its SoC key is no measurement key any more.
+        self._configure(
+            h,
+            grid_import_emr_data_keys=["meter1:grid_import_kwh"],
+            device_measurement_data_keys={"battery2-soc-factor": "inverter1:bat_soc_factor"},
+        )
+        h.adapter.shared_data.publish_sync(
+            {"meter1:grid_import_kwh": 7.0, "inverter1:bat_soc_factor": 0.5}
+        )
+
+        await h.adapter._acquire_measurements()
+
+        assert measurement.update_value.await_args is not None
+        assert measurement.update_value.await_args.args[1] == {"meter1_grid_import_kwh": 7.0}
+
+    @pytest.mark.asyncio
+    async def test_a_failed_write_is_logged_not_raised(self, h: Harness, measurement: MagicMock):
+        self._configure(h, grid_import_emr_data_keys=["meter1:grid_import_kwh"])
+        h.adapter.shared_data.publish_sync({"meter1:grid_import_kwh": 1.0})
+        measurement.update_value.side_effect = RuntimeError("store down")
+
+        await h.adapter._acquire_measurements()  # does not raise
 
 
 class TestDispatchPlan:

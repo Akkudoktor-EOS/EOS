@@ -22,7 +22,7 @@ import pendulum
 import pydantic_settings
 from loguru import logger
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 # settings
 from akkudoktoreos.adapter.adapter import AdapterCommonSettings
@@ -44,7 +44,7 @@ from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, deep_merge
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import DevicesCommonSettings
-from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
+from akkudoktoreos.measurement.measurement import EMR_ROLES, MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
 from akkudoktoreos.prediction.elecfee import ElecFeeCommonSettings
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
@@ -375,6 +375,33 @@ class SettingsEOSDefaults(SettingsEOS):
         # Just for usage in configmigrate, finally overwritten when used by ConfigEOS.
         # This is mutable, so pydantic does not set a hash.
         return id(self)
+
+    @model_validator(mode="after")
+    def _validate_household_keys(self) -> "SettingsEOSDefaults":
+        """Reject household inputs whose key is no measurement key (see `check_household_keys`)."""
+        self.check_household_keys()
+        return self
+
+    def check_household_keys(self) -> None:
+        """Reject household inputs whose key is no measurement key of the configuration.
+
+        The keys of ``measurement.keys``, the device measurement keys
+        (``devices.measurement_keys``) and the energy meter readings of the device controllers
+        (``adapter.control.*_emr_data_keys``, stored as ``<device_id>_<key>``) are measurement
+        keys. Checked here, as only the whole configuration knows all of them.
+
+        Raises:
+            ValueError: If a household input refers to an unknown measurement key.
+        """
+        household = self.measurement.household
+        if household is None:
+            return
+        known = set(self.measurement.keys) | set(self.devices.measurement_keys or [])
+        for role in EMR_ROLES:
+            known.update(self.adapter.control.emr_measurement_keys(role))
+        for item in household.inputs:
+            if item.key not in known:
+                raise ValueError(f"Unknown household measurement key: {item.key!r}")
 
     def validate_optimization_horizons(self) -> "SettingsEOSDefaults":
         """Report a forecast budget that cannot serve the optimization horizons.
@@ -923,9 +950,40 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         Args:
             path (str): A '/'-separated path to the nested attribute (e.g. "server/port").
             value (Any): The new value to set.
+
+        Raises:
+            ValueError: If the value is invalid, or the household inputs would refer to an
+                unknown measurement key (the old value of the path, or of the nearest part of
+                it that existed before, is restored then).
         """
+        keys_in_path = path.strip("/").split("/")
+        check_household = keys_in_path[0] in ("measurement", "adapter", "devices")
+        restore_path = ""
+        restore_value: Any = None
+        if check_household:
+            # The value to restore if the check fails: of the path, or of the nearest part of it
+            # that exists (e.g. the list a new item is added to). A copy, as the change may
+            # modify it in place.
+            parts = list(keys_in_path)
+            while parts:
+                try:
+                    current = self.get_nested_value("/".join(parts))
+                except Exception:
+                    parts.pop()  # does not exist (yet), e.g. a new list item
+                    continue
+                restore_value = deepcopy(current)
+                restore_path = "/".join(parts)
+                break
         try:
             super().set_nested_value(path, value)
+            if check_household:
+                # A nested change does not run the validators of the whole configuration.
+                try:
+                    self.check_household_keys()
+                except ValueError:
+                    if restore_path:
+                        super().set_nested_value(restore_path, restore_value)
+                    raise
         finally:
             # Also after a partly applied change.
             ConfigEOS._settings_generation += 1

@@ -13,7 +13,7 @@
 | grid_export_emr_keys | `EOS_MEASUREMENT__GRID_EXPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy export to grid [kWh]. |
 | grid_import_emr_keys | `EOS_MEASUREMENT__GRID_IMPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy import from grid [kWh]. |
 | historic_hours | `EOS_MEASUREMENT__HISTORIC_HOURS` | `Optional[int]` | `rw` | `17520` | Number of hours into the past for measurement data |
-| household | `EOS_MEASUREMENT__HOUSEHOLD` | `Optional[akkudoktoreos.measurement.household.HouseholdSettings]` | `rw` | `None` | Optional household energy balance definition. |
+| household | `EOS_MEASUREMENT__HOUSEHOLD` | `Optional[akkudoktoreos.measurement.household.HouseholdSettings]` | `rw` | `None` | Optional household energy balance definition. The input keys are measurement keys: of `measurement.keys`, of the devices (`devices.measurement_keys`) or energy meter readings of device controllers (`adapter.control.*_emr_data_keys`, stored as `<device_id>_<key>`). |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the measurements that can be stored. |
 | load_emr_keys | `EOS_MEASUREMENT__LOAD_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of a load [kWh]. |
 | pv_production_emr_keys | `EOS_MEASUREMENT__PV_PRODUCTION_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are PV production energy meter readings [kWh]. |

@@ -27,7 +27,12 @@
                "HomeAssistant"
            ],
            "control": {
-               "controllers": {}
+               "controllers": {},
+               "load_emr_data_keys": null,
+               "grid_export_emr_data_keys": null,
+               "grid_import_emr_data_keys": null,
+               "pv_production_emr_data_keys": null,
+               "device_measurement_data_keys": null
            },
            "homeassistant": {
                "config_entity_ids": null,
@@ -60,7 +65,12 @@
                "HomeAssistant"
            ],
            "control": {
-               "controllers": {}
+               "controllers": {},
+               "load_emr_data_keys": null,
+               "grid_export_emr_data_keys": null,
+               "grid_import_emr_data_keys": null,
+               "pv_production_emr_data_keys": null,
+               "device_measurement_data_keys": null
            },
            "homeassistant": {
                "config_entity_ids": null,
@@ -256,6 +266,11 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | controllers | `dict[str, Annotated[Union[akkudoktoreos.adapter.controllers.sma.smaenergymeter.SmaEnergyMeterSettings, akkudoktoreos.adapter.controllers.sma.smastpe.SmaStpeSettings, akkudoktoreos.adapter.controllers.byd.bydbatterybox.BydBatteryBoxSettings], FieldInfo(annotation=NoneType, required=True, discriminator='controller_type')]]` | `rw` | `required` | Device controller settings, keyed by device_id. |
+| device_measurement_data_keys | `Optional[dict[str, str]]` | `rw` | `None` | Measurements of devices fed by the controllers: maps the measurement key of a device (see `devices.measurement_keys`, e.g. the SoC of a battery) to the shared data key `<device_id>:<key>` of the reading. |
+| grid_export_emr_data_keys | `Optional[list[str]]` | `rw` | `None` | Shared data keys `<device_id>:<key>` of the energy meter readings of energy export to grid [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a grid export energy meter reading. |
+| grid_import_emr_data_keys | `Optional[list[str]]` | `rw` | `None` | Shared data keys `<device_id>:<key>` of the energy meter readings of energy import from grid [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a grid import energy meter reading. |
+| load_emr_data_keys | `Optional[list[str]]` | `rw` | `None` | Shared data keys `<device_id>:<key>` of the load energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a load energy meter reading. |
+| pv_production_emr_data_keys | `Optional[list[str]]` | `rw` | `None` | Shared data keys `<device_id>:<key>` of the PV production energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a PV production energy meter reading. |
 :::
 <!-- pyml enable line-length -->
 
@@ -277,6 +292,21 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
                        "interface_ip": "0.0.0.0",
                        "rejoin_after": 60.0
                    }
+               },
+               "load_emr_data_keys": [
+                   "meter2:load_kwh"
+               ],
+               "grid_export_emr_data_keys": [
+                   "meter1:grid_export_kwh"
+               ],
+               "grid_import_emr_data_keys": [
+                   "meter1:grid_import_kwh"
+               ],
+               "pv_production_emr_data_keys": [
+                   "meter3:pv_production_kwh"
+               ],
+               "device_measurement_data_keys": {
+                   "battery1-soc-factor": "inverter1:bat_soc_factor"
                }
            }
        }
@@ -309,6 +339,21 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
                            "grid_net_w"
                        ]
                    }
+               },
+               "load_emr_data_keys": [
+                   "meter2:load_kwh"
+               ],
+               "grid_export_emr_data_keys": [
+                   "meter1:grid_export_kwh"
+               ],
+               "grid_import_emr_data_keys": [
+                   "meter1:grid_import_kwh"
+               ],
+               "pv_production_emr_data_keys": [
+                   "meter3:pv_production_kwh"
+               ],
+               "device_measurement_data_keys": {
+                   "battery1-soc-factor": "inverter1:bat_soc_factor"
                }
            }
        }

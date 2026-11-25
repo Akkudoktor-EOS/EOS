@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611242260026908"
+    "version": "v0.3.0.dev2611242292982803"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -4758,7 +4758,7 @@
             "type": "number",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age S",
-            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store (see `adapter.control.*_data_keys`). Older values are skipped.",
             "default": 60.0,
             "examples": [
               60.0
@@ -4886,7 +4886,7 @@
             "type": "number",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age S",
-            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store (see `adapter.control.*_data_keys`). Older values are skipped.",
             "default": 60.0,
             "examples": [
               60.0
@@ -5191,6 +5191,106 @@
                 }
               }
             ]
+          },
+          "load_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the load energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a load energy meter reading.",
+            "examples": [
+              [
+                "meter2:load_kwh"
+              ]
+            ]
+          },
+          "grid_export_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the energy meter readings of energy export to grid [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a grid export energy meter reading.",
+            "examples": [
+              [
+                "meter1:grid_export_kwh"
+              ]
+            ]
+          },
+          "grid_import_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Import Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the energy meter readings of energy import from grid [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a grid import energy meter reading.",
+            "examples": [
+              [
+                "meter1:grid_import_kwh"
+              ]
+            ]
+          },
+          "pv_production_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Production Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the PV production energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a PV production energy meter reading.",
+            "examples": [
+              [
+                "meter3:pv_production_kwh"
+              ]
+            ]
+          },
+          "device_measurement_data_keys": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Measurement Data Keys",
+            "description": "Measurements of devices fed by the controllers: maps the measurement key of a device (see `devices.measurement_keys`, e.g. the SoC of a battery) to the shared data key `<device_id>:<key>` of the reading.",
+            "examples": [
+              {
+                "battery1-soc-factor": "inverter1:bat_soc_factor"
+              }
+            ]
           }
         },
         "type": "object",
@@ -5230,6 +5330,106 @@
                   "controller_type": "sma:energy-meter",
                   "serial": 1900123456
                 }
+              }
+            ]
+          },
+          "load_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the load energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a load energy meter reading.",
+            "examples": [
+              [
+                "meter2:load_kwh"
+              ]
+            ]
+          },
+          "grid_export_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the energy meter readings of energy export to grid [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a grid export energy meter reading.",
+            "examples": [
+              [
+                "meter1:grid_export_kwh"
+              ]
+            ]
+          },
+          "grid_import_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Import Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the energy meter readings of energy import from grid [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a grid import energy meter reading.",
+            "examples": [
+              [
+                "meter1:grid_import_kwh"
+              ]
+            ]
+          },
+          "pv_production_emr_data_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Production Emr Data Keys",
+            "description": "Shared data keys `<device_id>:<key>` of the PV production energy meter readings [kWh] the controllers provide. Each is stored as measurement `<device_id>_<key>` and counts as a PV production energy meter reading.",
+            "examples": [
+              [
+                "meter3:pv_production_kwh"
+              ]
+            ]
+          },
+          "device_measurement_data_keys": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Measurement Data Keys",
+            "description": "Measurements of devices fed by the controllers: maps the measurement key of a device (see `devices.measurement_keys`, e.g. the SoC of a battery) to the shared data key `<device_id>:<key>` of the reading.",
+            "examples": [
+              {
+                "battery1-soc-factor": "inverter1:bat_soc_factor"
               }
             ]
           }
@@ -14768,7 +14968,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional household energy balance definition.",
+            "description": "Optional household energy balance definition. The input keys are measurement keys: of `measurement.keys`, of the devices (`devices.measurement_keys`) or energy meter readings of device controllers (`adapter.control.*_emr_data_keys`, stored as `<device_id>_<key>`).",
             "examples": [
               null
             ]
@@ -14919,7 +15119,7 @@
                 "type": "null"
               }
             ],
-            "description": "Optional household energy balance definition.",
+            "description": "Optional household energy balance definition. The input keys are measurement keys: of `measurement.keys`, of the devices (`devices.measurement_keys`) or energy meter readings of device controllers (`adapter.control.*_emr_data_keys`, stored as `<device_id>_<key>`).",
             "examples": [
               null
             ]
@@ -16159,7 +16359,7 @@
           "snow_feedback_enabled": {
             "type": "boolean",
             "title": "Snow Feedback Enabled",
-            "description": "Correct the modelled snow coverage with measured PV production from `measurement.pv_production_emr_keys`. Production well above the snow model clears the coverage at once; production far below the clear-module model raises it, but only while snow is plausible (snow on the ground or already modelled on the modules). Needs cumulative meter readings.",
+            "description": "Correct the modelled snow coverage with measured PV production from `measurement.pv_production_emr_keys` (or `adapter.control.pv_production_emr_data_keys`). Production well above the snow model clears the coverage at once; production far below the clear-module model raises it, but only while snow is plausible (snow on the ground or already modelled on the modules). Needs cumulative meter readings.",
             "default": true,
             "examples": [
               true
@@ -16578,7 +16778,7 @@
           "calibration_enabled": {
             "type": "boolean",
             "title": "Calibration Enabled",
-            "description": "Correct systematic model error against measured PV production. Requires `measurement.pv_production_emr_keys` to be configured and fed. Fits a global scale factor plus per-solar-azimuth factors, which is what catches near-field shading the horizon profile misses.",
+            "description": "Correct systematic model error against measured PV production. Requires `measurement.pv_production_emr_keys` (or `adapter.control.pv_production_emr_data_keys`) to be configured and fed. Fits a global scale factor plus per-solar-azimuth factors, which is what catches near-field shading the horizon profile misses.",
             "default": false,
             "examples": [
               true
@@ -16731,7 +16931,7 @@
           "snow_feedback_enabled": {
             "type": "boolean",
             "title": "Snow Feedback Enabled",
-            "description": "Correct the modelled snow coverage with measured PV production from `measurement.pv_production_emr_keys`. Production well above the snow model clears the coverage at once; production far below the clear-module model raises it, but only while snow is plausible (snow on the ground or already modelled on the modules). Needs cumulative meter readings.",
+            "description": "Correct the modelled snow coverage with measured PV production from `measurement.pv_production_emr_keys` (or `adapter.control.pv_production_emr_data_keys`). Production well above the snow model clears the coverage at once; production far below the clear-module model raises it, but only while snow is plausible (snow on the ground or already modelled on the modules). Needs cumulative meter readings.",
             "default": true,
             "examples": [
               true
@@ -18380,7 +18580,7 @@
             "type": "number",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age S",
-            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store (see `adapter.control.*_data_keys`). Older values are skipped.",
             "default": 60.0,
             "examples": [
               60.0
@@ -18445,7 +18645,7 @@
             "type": "number",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age S",
-            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store (see `adapter.control.*_data_keys`). Older values are skipped.",
             "default": 60.0,
             "examples": [
               60.0
@@ -18612,7 +18812,7 @@
             "type": "number",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age S",
-            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store (see `adapter.control.*_data_keys`). Older values are skipped.",
             "default": 60.0,
             "examples": [
               60.0
@@ -18725,7 +18925,7 @@
             "type": "number",
             "exclusiveMinimum": 0.0,
             "title": "Measurement Max Age S",
-            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store (see `adapter.control.*_data_keys`). Older values are skipped.",
             "default": 60.0,
             "examples": [
               60.0

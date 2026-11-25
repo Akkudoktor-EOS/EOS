@@ -776,3 +776,98 @@ class TestControllerMigration:
         assert list(controllers) == ["meter2"]
         assert len(messages) == 1
         assert "'unknown1'" in messages[0]
+
+    def test_measurement_sources_move_to_the_control_adapter(self):
+        from loguru import logger
+
+        messages: list[tuple[str, str]] = []
+        sink_id = logger.add(
+            lambda message: messages.append((message.record["level"].name, message.record["message"])),
+            level="WARNING",
+        )
+        try:
+            config = migrate_config_data(
+                {
+                    "devices": {"batteries": {"battery1": {"device_id": "battery1"}}},
+                    "measurement": {"grid_import_emr_keys": ["grid-import", "other_emr"]},
+                    "adapter": {
+                        "control": {
+                            "controllers": {
+                                "meter1": {
+                                    "controller_type": "sma:energy-meter",
+                                    "serial": 5,
+                                    "measurement_sources": {
+                                        "grid-import": "grid_import_kwh",
+                                        "nowhere": "grid_export_kwh",
+                                    },
+                                },
+                                "inverter1": {
+                                    "controller_type": "sma:sunny-tripower-smart-energy",
+                                    "host": "h",
+                                    "battery_id": "battery1",
+                                    "grid_power_key": "meter1:grid_net_w",
+                                    "measurement_sources": {"battery1-soc-factor": "bat_soc_factor"},
+                                },
+                            }
+                        }
+                    },
+                }
+            )
+        finally:
+            logger.remove(sink_id)
+
+        control = config.adapter.control
+        assert sorted(control.controllers) == ["inverter1", "meter1"]  # kept
+        # A device measurement keeps its key, mapped to the shared data key
+        assert control.device_measurement_data_keys == {
+            "battery1-soc-factor": "inverter1:bat_soc_factor"
+        }
+        # A role reading moves to the role list of the adapter, its old key leaves the list
+        assert control.grid_import_emr_data_keys == ["meter1:grid_import_kwh"]
+        assert config.measurement.grid_import_emr_keys == ["other_emr"]
+        assert any(
+            level == "WARNING" and "'grid-import'" in text and "meter1_grid_import_kwh" in text
+            for level, text in messages
+        )
+        # Anything else is dropped and logged as error
+        assert any(level == "ERROR" and "'nowhere'" in text for level, text in messages)
+
+    def test_measurement_sources_of_a_dropped_controller_are_not_mapped(self):
+        config = migrate_config_data(
+            {
+                "measurement": {"grid_import_emr_keys": ["grid-import"]},
+                "adapter": {
+                    "control": {
+                        "controllers": {
+                            "meter1": {
+                                "serial": 5,  # no controller_type: dropped
+                                "measurement_sources": {"grid-import": "grid_import_kwh"},
+                            },
+                        }
+                    }
+                },
+            }
+        )
+        assert config.adapter.control.controllers == {}
+        assert config.adapter.control.grid_import_emr_data_keys is None
+        assert config.measurement.grid_import_emr_keys == ["grid-import"]
+
+    def test_moving_the_last_key_of_a_role_list_empties_it(self):
+        config = migrate_config_data(
+            {
+                "measurement": {"grid_import_emr_keys": ["grid-import"]},
+                "adapter": {
+                    "control": {
+                        "controllers": {
+                            "meter1": {
+                                "controller_type": "sma:energy-meter",
+                                "serial": 5,
+                                "measurement_sources": {"grid-import": "grid_import_kwh"},
+                            },
+                        }
+                    }
+                },
+            }
+        )
+        assert config.measurement.grid_import_emr_keys is None
+        assert config.adapter.control.grid_import_emr_data_keys == ["meter1:grid_import_kwh"]

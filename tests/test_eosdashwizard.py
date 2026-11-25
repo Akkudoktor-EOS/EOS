@@ -254,7 +254,12 @@ class TestWizardChecks:
 
         set_value(config_details, "load.provider", "LoadAkkudoktorAdjusted")
         set_value(config_details, "measurement.load_emr_keys", None)
-        assert check_load(config_details) == ["measurement.load_emr_keys is not set."]
+        set_value(config_details, "adapter.control.load_emr_data_keys", None)
+        todo = check_load(config_details)
+        assert len(todo) == 1 and "measurement.load_emr_keys" in todo[0]
+        # Load meter readings of a device controller are enough, too.
+        set_value(config_details, "adapter.control.load_emr_data_keys", ["meter2:load_kwh"])
+        assert check_load(config_details) == []
 
     def test_devices(self, config_details):
         for kind in ("batteries", "electric_vehicles", "home_appliances"):
