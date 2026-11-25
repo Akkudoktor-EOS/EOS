@@ -123,9 +123,17 @@ The device controller is two split, the EOS-server side of the device controller
 running the control loop for one device controller. The device controller owns the thread and
 starts and stops it.
 
-## Controller status
+## Status REST API
 
-The control adapter reports the status of every configured device controller.
+The REST API `/v1/control` (`server/rest/control.py`) provides the read-only status of the device
+controllers, e.g. for the Control tab of EOSdash:
+
+| Endpoint | Content |
+|---|---|
+| `GET /v1/control` | Every configured controller with its state |
+| `GET /v1/control/{device_id}/status` | State, active command, readings and settings |
+| `GET /v1/control/{device_id}/diagnostics` | Diagnostic series and suggested graphs |
+| `GET /v1/control/{device_id}/events?limit=100` | Last raw diagnostic events, newest first |
 
 The state of a controller is `running`, `start_failed` (the last start failed, `error` holds the
 start error) or `stopped` (not running, e.g. until the next start after a reconfiguration). The

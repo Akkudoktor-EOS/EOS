@@ -69,6 +69,7 @@ from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.pvforecastpvlib import _cec_inverters, _cec_modules
 from akkudoktoreos.server.containerhealthcheck import publish_port
+from akkudoktoreos.server.rest.control import router as control_router
 from akkudoktoreos.server.rest.error import (
     EOSProblem,
     create_error_page,
@@ -310,6 +311,9 @@ register_problem_handlers(app)
 class SeriesProcessing(str, Enum):
     RAW = "raw"
     RESAMPLED = "resampled"
+
+
+app.include_router(control_router)
 
 
 @app.post("/v1/admin/cache/clear", tags=["admin"])

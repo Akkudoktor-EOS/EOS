@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2611242292982803`
+**Version**: `v0.3.0.dev2611242263325175`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -719,6 +719,133 @@ Returns:
   "description": "The value to assign to the specified configuration path (can be None).",
   "title": "Value"
 }
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/control
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_controllers_v1_control_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_controllers_v1_control_get)
+<!-- pyml enable line-length -->
+
+Get Controllers
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the configured device controllers with their state, sorted by device id.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## GET /v1/control/{device_id}/diagnostics
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_controller_diagnostics_v1_control__device_id__diagnostics_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_controller_diagnostics_v1_control__device_id__diagnostics_get)
+<!-- pyml enable line-length -->
+
+Get Controller Diagnostics
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the diagnostic series and suggested graphs of a device controller.
+
+The series are collected while the diagnostic log of the controller is enabled and
+survive controller restarts. Pass the ``last_seq`` of the previous view as ``since_seq``
+to get new points only.
+
+Raises:
+    EOSProblem: 404 if no controller with this device id is configured.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `device_id` (path, required): Device id of the controller, e.g. 'inverter1'.
+
+- `since_seq` (query, optional): Return diagnostic data after this sequence number.
+
+- `max_points` (query, optional): Maximum number of diagnostic points to return.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/control/{device_id}/events
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_controller_events_v1_control__device_id__events_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_controller_events_v1_control__device_id__events_get)
+<!-- pyml enable line-length -->
+
+Get Controller Events
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the last raw events of the diagnostic log of a device controller, newest first.
+
+Empty while the diagnostic log is off.
+
+Raises:
+    EOSProblem: 404 if no controller with this device id is configured.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `device_id` (path, required): Device id of the controller, e.g. 'inverter1'.
+
+- `limit` (query, optional): Maximum number of events to return.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/control/{device_id}/status
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_controller_status_v1_control__device_id__status_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_controller_status_v1_control__device_id__status_get)
+<!-- pyml enable line-length -->
+
+Get Controller Status
+
+<!-- pyml disable line-length -->
+```python
+"""
+Return the status of a device controller: state, active command, readings, settings.
+
+Raises:
+    EOSProblem: 404 if no controller with this device id is configured.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `device_id` (path, required): Device id of the controller, e.g. 'inverter1'.
 
 **Responses**:
 

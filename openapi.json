@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611242292982803"
+    "version": "v0.3.0.dev2611242263325175"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -1014,6 +1014,218 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/control": {
+      "get": {
+        "tags": [
+          "control"
+        ],
+        "summary": "Get Controllers",
+        "description": "Return the configured device controllers with their state, sorted by device id.",
+        "operationId": "get_controllers_v1_control_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ControllerSummary"
+                  },
+                  "type": "array",
+                  "title": "Response Get Controllers V1 Control Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/control/{device_id}/status": {
+      "get": {
+        "tags": [
+          "control"
+        ],
+        "summary": "Get Controller Status",
+        "description": "Return the status of a device controller: state, active command, readings, settings.\n\nRaises:\n    EOSProblem: 404 if no controller with this device id is configured.",
+        "operationId": "get_controller_status_v1_control__device_id__status_get",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device id of the controller, e.g. 'inverter1'.",
+              "title": "Device Id"
+            },
+            "description": "Device id of the controller, e.g. 'inverter1'."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ControllerStatusView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/control/{device_id}/diagnostics": {
+      "get": {
+        "tags": [
+          "control"
+        ],
+        "summary": "Get Controller Diagnostics",
+        "description": "Return the diagnostic series and suggested graphs of a device controller.\n\nThe series are collected while the diagnostic log of the controller is enabled and\nsurvive controller restarts. Pass the ``last_seq`` of the previous view as ``since_seq``\nto get new points only.\n\nRaises:\n    EOSProblem: 404 if no controller with this device id is configured.",
+        "operationId": "get_controller_diagnostics_v1_control__device_id__diagnostics_get",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device id of the controller, e.g. 'inverter1'.",
+              "title": "Device Id"
+            },
+            "description": "Device id of the controller, e.g. 'inverter1'."
+          },
+          {
+            "name": "since_seq",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Return diagnostic data after this sequence number.",
+              "title": "Since Seq"
+            },
+            "description": "Return diagnostic data after this sequence number."
+          },
+          {
+            "name": "max_points",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "description": "Maximum number of diagnostic points to return.",
+              "default": 500,
+              "title": "Max Points"
+            },
+            "description": "Maximum number of diagnostic points to return."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/control/{device_id}/events": {
+      "get": {
+        "tags": [
+          "control"
+        ],
+        "summary": "Get Controller Events",
+        "description": "Return the last raw events of the diagnostic log of a device controller, newest first.\n\nEmpty while the diagnostic log is off.\n\nRaises:\n    EOSProblem: 404 if no controller with this device id is configured.",
+        "operationId": "get_controller_events_v1_control__device_id__events_get",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Device id of the controller, e.g. 'inverter1'.",
+              "title": "Device Id"
+            },
+            "description": "Device id of the controller, e.g. 'inverter1'."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum number of events to return.",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Maximum number of events to return."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DiagnosticEvent"
+                  },
+                  "title": "Response Get Controller Events V1 Control  Device Id  Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -5438,6 +5650,220 @@
         "title": "ControlAdapterCommonSettings",
         "description": "Common settings for the device control adapter."
       },
+      "ControlCommandView": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Label of the command, e.g. the operation mode."
+          },
+          "date_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date Time",
+            "description": "Start of the command."
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until",
+            "description": "End of the command; None: until the next command."
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload",
+            "description": "Controller specific fields of the command, e.g. 'mode' and 'operation_factor'."
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "date_time"
+        ],
+        "title": "ControlCommandView",
+        "description": "Command a controller executes."
+      },
+      "ControllerStatusView": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "Device id of the controller."
+          },
+          "controller_type": {
+            "type": "string",
+            "title": "Controller Type",
+            "description": "Controller type, e.g. 'sma:energy-meter'."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "start_failed",
+              "stopped"
+            ],
+            "title": "State",
+            "description": "'running': started; 'start_failed': the last start failed (see 'error'); 'stopped': not running, e.g. until the next start after a reconfiguration."
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected",
+            "description": "Whether the device is connected.",
+            "default": false
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Start error, or the last error of the running controller."
+          },
+          "status_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Time",
+            "description": "Time of the last status of the running controller."
+          },
+          "diagnostics_enabled": {
+            "type": "boolean",
+            "title": "Diagnostics Enabled",
+            "description": "Whether diagnostic series and events are collected (log capacity > 0)."
+          },
+          "settings_pending": {
+            "type": "boolean",
+            "title": "Settings Pending",
+            "description": "Whether the configured settings differ from the ones the running controller uses. While the Control adapter is enabled, they are applied when the controller is restarted: right after a change of a setting by PUT /v1/config/{path} (as the Config tab does), otherwise (e.g. after the whole configuration was replaced or reverted) at the next energy management run.",
+            "default": false
+          },
+          "active_command": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ControlCommandView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Command in effect; None: no command (safe state)."
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data",
+            "description": "Readings the controller published last."
+          },
+          "settings": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Settings",
+            "description": "Settings of the controller."
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "controller_type",
+          "state",
+          "diagnostics_enabled"
+        ],
+        "title": "ControllerStatusView",
+        "description": "Status of one device controller."
+      },
+      "ControllerSummary": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "Device id of the controller."
+          },
+          "controller_type": {
+            "type": "string",
+            "title": "Controller Type",
+            "description": "Controller type, e.g. 'sma:energy-meter'."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "start_failed",
+              "stopped"
+            ],
+            "title": "State",
+            "description": "'running': started; 'start_failed': the last start failed (see 'error'); 'stopped': not running, e.g. until the next start after a reconfiguration."
+          },
+          "connected": {
+            "type": "boolean",
+            "title": "Connected",
+            "description": "Whether the device is connected.",
+            "default": false
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Start error, or the last error of the running controller."
+          },
+          "status_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Time",
+            "description": "Time of the last status of the running controller."
+          },
+          "diagnostics_enabled": {
+            "type": "boolean",
+            "title": "Diagnostics Enabled",
+            "description": "Whether diagnostic series and events are collected (log capacity > 0)."
+          },
+          "settings_pending": {
+            "type": "boolean",
+            "title": "Settings Pending",
+            "description": "Whether the configured settings differ from the ones the running controller uses. While the Control adapter is enabled, they are applied when the controller is restarted: right after a change of a setting by PUT /v1/config/{path} (as the Config tab does), otherwise (e.g. after the whole configuration was replaced or reverted) at the next energy management run.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "controller_type",
+          "state",
+          "diagnostics_enabled"
+        ],
+        "title": "ControllerSummary",
+        "description": "State of one configured device controller."
+      },
       "CycleTimeWindowSequence-Input": {
         "properties": {
           "windows": {
@@ -6228,6 +6654,173 @@
         ],
         "title": "DevicesCommonSettings",
         "description": "Configuration for all controllable devices in the simulation.\n\nEvery device collection is a ``dict[str, <Settings>]`` keyed by\n``device_id``.  This makes config paths stable regardless of\ndeclaration order and lets each device settings class build its own\nconfig path from ``self.device_id`` without needing an external index."
+      },
+      "DiagnosticEvent": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq",
+            "description": "Sequence number in the diagnostic log."
+          },
+          "date_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date Time",
+            "description": "Time of the event."
+          },
+          "event": {
+            "type": "string",
+            "title": "Event",
+            "description": "Event name, e.g. 'register_write'."
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data",
+            "description": "Event data."
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "date_time",
+          "event"
+        ],
+        "title": "DiagnosticEvent",
+        "description": "One raw event of the diagnostic log of a controller."
+      },
+      "DiagnosticGraph": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "numeric",
+              "state",
+              "profile",
+              "heatmap"
+            ],
+            "title": "Kind"
+          },
+          "series": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Series",
+            "description": "Keys into DiagnosticView.series (numeric, state) or DiagnosticView.vectors (profile, heatmap)."
+          },
+          "index_label": {
+            "type": "string",
+            "title": "Index Label",
+            "description": "Name of the numbered elements of vector series (profile and heatmap), e.g. 'Cell'.",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "unit",
+          "kind",
+          "series"
+        ],
+        "title": "DiagnosticGraph",
+        "description": "A suggested graph: series that belong together."
+      },
+      "DiagnosticVectorSeries": {
+        "properties": {
+          "date_time": {
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "array",
+            "title": "Date Time",
+            "description": "Time of each point."
+          },
+          "values": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Values",
+            "description": "Element values of each point, None for a missing value."
+          }
+        },
+        "type": "object",
+        "required": [
+          "date_time",
+          "values"
+        ],
+        "title": "DiagnosticVectorSeries",
+        "description": "Points of a vector series: all element values per point, element 1 first."
+      },
+      "DiagnosticView": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "default": ""
+          },
+          "last_seq": {
+            "type": "integer",
+            "title": "Last Seq",
+            "description": "Pass as since_seq on the next call for new points only."
+          },
+          "reset": {
+            "type": "boolean",
+            "title": "Reset",
+            "description": "The requested since_seq is ahead of the log (restart): drop what you have.",
+            "default": false
+          },
+          "graphs": {
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticGraph"
+            },
+            "type": "array",
+            "title": "Graphs"
+          },
+          "series": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PydanticDateTimeSeries"
+            },
+            "type": "object",
+            "title": "Series"
+          },
+          "vectors": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DiagnosticVectorSeries"
+            },
+            "type": "object",
+            "title": "Vectors",
+            "description": "Vector series, e.g. the voltages of all cells."
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_seq",
+          "graphs",
+          "series"
+        ],
+        "title": "DiagnosticView",
+        "description": "Device independent view of the control operation for graphs.\n\nThe series hold the points newer than the requested sequence number. numeric series have\ndtype float64, state series bool or object, the index is timezone aware."
       },
       "EOSdashCommonSettings": {
         "properties": {
