@@ -374,6 +374,16 @@ without a measurement. Inverter profiles are stored, looked up and managed like 
 (kind `inverter`, user directory `<general/data_folder_path>/profile/inverter/`), with the same
 REST API and the **Profiles** page of EOSdash.
 
+EOS also ships profiles of battery-capable SMA inverters, named after the model in lower case:
+Sunny Boy Storage (`sbs2.5-1vl-10`, `sbs3.7-10`, `sbs5.0-10`, `sbs6.0-10`), Sunny Tripower Smart
+Energy (`stp5.0-3se-40`, `stp6.0-3se-40`, `stp8.0-3se-40`, `stp10.0-3se-40`) and Sunny Tripower
+Storage X (`stps30-20`, `stps50-20`). Their nominal power and efficiencies come from the SMA
+Technical Information "Efficiency and Derating" (WirkungDerat-TI-en-53, version 5.3). The SMA
+document gives the efficiency of the DC to AC conversion only, which the profiles also use for
+AC to DC. They have no derating curve and no separate maximum AC charge power, because the
+document shows derating as plots only. `src/akkudoktoreos/data/profile/inverter/sma-profiles.md`
+describes how the curves were taken from the document.
+
 The optimization always gets valid inverter parameters. If they cannot be resolved, EOS logs an
 error and uses defaults: the profile `generic-hybrid` for an unusable profile, a nominal power of
 10000 W if none is set, and the parameters at 45 °C if the inverter is derated to zero power at

@@ -163,3 +163,46 @@ class TestPackagedGenericHybrid:
         for load_fraction in (0.05, 0.1, 0.3, 0.5, 1.0):
             assert 0.85 <= profile.dc_to_ac_efficiency_at(load_fraction) < 1.0
             assert 0.85 <= profile.ac_to_dc_efficiency_at(load_fraction) < 1.0
+
+
+# Packaged SMA profiles: file name -> inverter model and nominal power in W.
+SMA_PROFILES = {
+    "sbs2.5-1vl-10": ("SBS2.5-1VL-10", 2500.0),
+    "sbs3.7-10": ("SBS3.7-10", 3760.0),
+    "sbs5.0-10": ("SBS5.0-10", 5000.0),
+    "sbs6.0-10": ("SBS6.0-10", 6000.0),
+    "stp5.0-3se-40": ("STP5.0-3SE-40", 5000.0),
+    "stp6.0-3se-40": ("STP6.0-3SE-40", 6000.0),
+    "stp8.0-3se-40": ("STP8.0-3SE-40", 8000.0),
+    "stp10.0-3se-40": ("STP10.0-3SE-40", 10000.0),
+    "stps30-20": ("STPS30-20", 30000.0),
+    "stps50-20": ("STPS50-20", 50000.0),
+}
+
+
+class TestPackagedSmaProfiles:
+    """The SMA profiles from the SMA Technical Information "Efficiency and Derating"."""
+
+    @pytest.fixture
+    def store(self, config_eos) -> Iterator[ProfileStore]:
+        ProfileStore.reset_instance()
+        yield get_profile_store()
+        ProfileStore.reset_instance()
+
+    def test_all_are_listed(self, store: ProfileStore) -> None:
+        names = {entry.name for entry in store.list_profiles(InverterProfileSettings)}
+        assert set(SMA_PROFILES) <= names
+
+    @pytest.mark.parametrize("name", sorted(SMA_PROFILES))
+    def test_profile_compiles_with_its_model(self, store: ProfileStore, name: str) -> None:
+        model, nominal_power_w = SMA_PROFILES[name]
+        document = store.load(InverterProfileSettings, name)
+        profile = store.get(InverterProfileSettings, name)
+        assert document.inverter_model == model
+        assert profile.nominal_power_w == pytest.approx(nominal_power_w)
+        assert profile.max_ac_charge_power_w is None  # not in the SMA document
+        assert document.power_derating is None  # only plotted in the SMA document
+        assert profile.power_fraction_at(60.0) == pytest.approx(1.0)
+        for load_fraction in (0.05, 0.1, 0.3, 0.5, 1.0):
+            assert 0.8 <= profile.dc_to_ac_efficiency_at(load_fraction) < 1.0
+            assert 0.8 <= profile.ac_to_dc_efficiency_at(load_fraction) < 1.0
