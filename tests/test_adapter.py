@@ -1,8 +1,4 @@
-"""
-Tests for Adapter and AdapterContainer integration.
-"""
-
-from __future__ import annotations
+"""Tests for Adapter and AdapterContainer integration."""
 
 from datetime import datetime
 from typing import TypeAlias
@@ -14,6 +10,7 @@ from akkudoktoreos.adapter.adapter import (
     AdapterCommonSettings,
 )
 from akkudoktoreos.adapter.adapterabc import AdapterContainer
+from akkudoktoreos.adapter.control import ControlAdapter
 from akkudoktoreos.adapter.homeassistant import HomeAssistantAdapter
 from akkudoktoreos.adapter.nodered import NodeREDAdapter
 from akkudoktoreos.core.coreabc import get_adapter
@@ -45,14 +42,16 @@ class TestAdapter:
 
     def test_providers_present(self, adapter: AdapterFixture) -> None:
         """Adapter must contain HA and NodeRED providers."""
-        assert len(adapter.providers) == 2
+        assert len(adapter.providers) == 3
+        assert any(isinstance(p, ControlAdapter) for p in adapter.providers)
         assert any(isinstance(p, HomeAssistantAdapter) for p in adapter.providers)
         assert any(isinstance(p, NodeREDAdapter) for p in adapter.providers)
 
     def test_adapter_order(self, adapter: AdapterFixture) -> None:
-        """Provider order should match HomeAssistantAdapter -> NodeREDAdapter."""
-        assert isinstance(adapter.providers[0], HomeAssistantAdapter)
-        assert isinstance(adapter.providers[1], NodeREDAdapter)
+        """Provider order should match ControlAdapter -> HomeAssistantAdapter -> NodeREDAdapter."""
+        assert isinstance(adapter.providers[0], ControlAdapter)
+        assert isinstance(adapter.providers[1], HomeAssistantAdapter)
+        assert isinstance(adapter.providers[2], NodeREDAdapter)
 
     # ----- AdapterCommonSettings -----
 
@@ -67,13 +66,15 @@ class TestAdapter:
 
     def test_settings_accepts_multiple_providers(self, settings: SettingsFixture) -> None:
         """Settings should accept multiple provider literals."""
-        settings.provider = ["HomeAssistant", "NodeRED"]
+        settings.provider = ["Control", "HomeAssistant", "NodeRED"]
         assert isinstance(settings.provider, list)
-        assert settings.provider == ["HomeAssistant", "NodeRED"]
+        assert settings.provider == ["Control", "HomeAssistant", "NodeRED"]
 
     def test_provider_sub_settings(self, settings: SettingsFixture) -> None:
         """sub-settings (homeassistant & nodered) must be initialized."""
+        assert hasattr(settings, "control")
         assert hasattr(settings, "homeassistant")
         assert hasattr(settings, "nodered")
+        assert settings.control is not None
         assert settings.homeassistant is not None
         assert settings.nodered is not None

@@ -26,6 +26,7 @@ from fastapi.responses import (
 )
 from loguru import logger
 
+from akkudoktoreos.adapter.control import ControlAdapter, device_control_clear
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS
 from akkudoktoreos.core.cache import CacheFileStore, cache_clear, cache_load, cache_save
 from akkudoktoreos.core.coreabc import (
@@ -191,6 +192,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Create the singletons that do not exist yet; a no-op after run_eos().
     singletons_init()
 
+    # Restart a reconfigured device controller right after the change of its configuration,
+    # not only at the next energy management run.
+    ControlAdapter().track_config_changes(asyncio.get_running_loop())
+
     await load_eos_state()
 
     # Prepare the Manager and all task that are handled by the manager
@@ -232,6 +237,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # On shutdown
     await save_eos_state()
+    await device_control_clear()
 
 
 app = FastAPI(

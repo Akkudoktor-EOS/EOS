@@ -19,5 +19,6 @@ properly if cyclic energy management runs are configured.
 
 adapter/adapterhomeassistant.md
 adapter/adapternodered.md
+adapter/adaptercontrol.md
 
 ```

@@ -7,6 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| control | `EOS_ADAPTER__CONTROL` | `ControlAdapterCommonSettings` | `rw` | `required` | Device control adapter settings. |
 | homeassistant | `EOS_ADAPTER__HOMEASSISTANT` | `HomeAssistantAdapterCommonSettings` | `rw` | `required` | Home Assistant adapter settings. |
 | nodered | `EOS_ADAPTER__NODERED` | `NodeREDAdapterCommonSettings` | `rw` | `required` | NodeRED adapter settings. |
 | provider | `EOS_ADAPTER__PROVIDER` | `Optional[list[str]]` | `rw` | `None` | List of adapter provider id(s) of provider(s) to be used. |
@@ -25,6 +26,9 @@
            "provider": [
                "HomeAssistant"
            ],
+           "control": {
+               "controllers": {}
+           },
            "homeassistant": {
                "config_entity_ids": null,
                "load_emr_entity_ids": null,
@@ -55,6 +59,9 @@
            "provider": [
                "HomeAssistant"
            ],
+           "control": {
+               "controllers": {}
+           },
            "homeassistant": {
                "config_entity_ids": null,
                "load_emr_entity_ids": null,
@@ -73,6 +80,7 @@
                "port": 1880
            },
            "providers": [
+               "Control",
                "HomeAssistant",
                "NodeRED"
            ]
@@ -232,6 +240,76 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
                "homeassistant_entity_ids": [],
                "eos_solution_entity_ids": [],
                "eos_device_instruction_entity_ids": []
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the device control adapter
+
+<!-- pyml disable line-length -->
+:::{table} adapter::control
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| controllers | `dict[str, Annotated[Union[akkudoktoreos.adapter.controllers.sma.smaenergymeter.SmaEnergyMeterSettings, akkudoktoreos.adapter.controllers.sma.smastpe.SmaStpeSettings], FieldInfo(annotation=NoneType, required=True, discriminator='controller_type')]]` | `rw` | `required` | Device controller settings, keyed by device_id. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "adapter": {
+           "control": {
+               "controllers": {
+                   "meter1": {
+                       "measurement_max_age_s": 60.0,
+                       "diagnostic_log_capacity": 0,
+                       "controller_type": "sma:energy-meter",
+                       "serial": 1900123456,
+                       "interface_ip": "0.0.0.0",
+                       "rejoin_after": 60.0
+                   }
+               }
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "adapter": {
+           "control": {
+               "controllers": {
+                   "meter1": {
+                       "measurement_max_age_s": 60.0,
+                       "diagnostic_log_capacity": 0,
+                       "controller_type": "sma:energy-meter",
+                       "serial": 1900123456,
+                       "interface_ip": "0.0.0.0",
+                       "rejoin_after": 60.0,
+                       "shared_data_keys": [
+                           "grid_import_kwh",
+                           "grid_export_kwh",
+                           "grid_import_w",
+                           "grid_export_w",
+                           "grid_net_w"
+                       ]
+                   }
+               }
            }
        }
    }

@@ -241,6 +241,47 @@ def _migrate_inverter_item(item: Dict[str, Any]) -> None:
         item["profile_adjustment"] = adjustment
 
 
+def _migrate_controllers(value: Any) -> Any:
+    """Migrate the device controllers, dropping the entries that can not be kept.
+
+    The controllers are migrated as one map: an entry of a discriminated union can not be
+    created field by field. An entry without ``controller_type`` (e.g. saved before the type was
+    always saved) or with invalid settings is dropped and logged as error with its settings, so
+    it can be added again.
+
+    Args:
+        value: The old ``adapter/control/controllers`` value.
+
+    Returns:
+        The controllers that are valid on their own, ``None`` if the value is no map.
+    """
+    from pydantic import TypeAdapter, ValidationError
+
+    from akkudoktoreos.adapter.control import ControllerSettings
+
+    if not isinstance(value, dict):
+        return None
+    adapter: TypeAdapter[Any] = TypeAdapter(ControllerSettings)
+    kept: dict[str, Any] = {}
+    for device_id, entry in value.items():
+        if not isinstance(entry, dict) or not isinstance(entry.get("controller_type"), str):
+            logger.error(
+                f"Controller '{device_id}': dropped, it has no controller_type. Add it again "
+                f"with its type. Its settings were: {entry!r}"
+            )
+            continue
+        try:
+            adapter.validate_python(entry)
+        except ValidationError as e:
+            logger.error(
+                f"Controller '{device_id}': dropped, its settings are invalid ({e.error_count()} "
+                f"errors: {e.errors()[0]['msg']}). Add it again. Its settings were: {entry!r}"
+            )
+            continue
+        kept[device_id] = entry
+    return kept
+
+
 def _migrate_config_entity_ids(value: Any) -> Any:
     """Rewrite Home Assistant config paths of device fields moved into the profile adjustment.
 
@@ -327,6 +368,11 @@ MIGRATION_MAP: Dict[
     "adapter/homeassistant/config_entity_ids": (
         "adapter/homeassistant/config_entity_ids",
         _migrate_config_entity_ids,
+    ),
+    # - Control
+    "adapter/control/controllers": (
+        "adapter/control/controllers",
+        _migrate_controllers,
     ),
     # - NodeRed
     # devices

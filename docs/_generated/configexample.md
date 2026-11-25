@@ -7,6 +7,9 @@
            "provider": [
                "HomeAssistant"
            ],
+           "control": {
+               "controllers": {}
+           },
            "homeassistant": {
                "config_entity_ids": null,
                "load_emr_entity_ids": null,

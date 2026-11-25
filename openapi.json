@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2611242215430159"
+    "version": "v0.3.0.dev2611242253356820"
   },
   "paths": {
     "/v1/measurement/battery-capacity/{battery_id}": {
@@ -3678,10 +3678,15 @@
                 "HomeAssistant"
               ],
               [
+                "Control",
                 "HomeAssistant",
                 "NodeRED"
               ]
             ]
+          },
+          "control": {
+            "$ref": "#/components/schemas/ControlAdapterCommonSettings-Input",
+            "description": "Device control adapter settings."
           },
           "homeassistant": {
             "$ref": "#/components/schemas/HomeAssistantAdapterCommonSettings-Input",
@@ -3717,10 +3722,15 @@
                 "HomeAssistant"
               ],
               [
+                "Control",
                 "HomeAssistant",
                 "NodeRED"
               ]
             ]
+          },
+          "control": {
+            "$ref": "#/components/schemas/ControlAdapterCommonSettings-Output",
+            "description": "Device control adapter settings."
           },
           "homeassistant": {
             "$ref": "#/components/schemas/HomeAssistantAdapterCommonSettings-Output",
@@ -4879,6 +4889,80 @@
         ],
         "title": "ConsumerScheduleMode",
         "description": "Schedule mode of a flexible consumer (home appliance).\n\nDetermines how often a consumer's load profile is scheduled within the\noptimization horizon.\n\nModes\n-----\n- ONCE:\n    The consumer runs exactly once somewhere within the optimization\n    horizon (\"fire and forget\"). The optimizer picks the start.\n\n- DAILY:\n    The consumer runs once per local calendar day, but only on days for\n    which at least one complete, allowed run still fits into the remaining\n    horizon. The optimizer picks one start per eligible day."
+      },
+      "ControlAdapterCommonSettings-Input": {
+        "properties": {
+          "controllers": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SmaEnergyMeterSettings-Input"
+                },
+                {
+                  "$ref": "#/components/schemas/SmaStpeSettings-Input"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "controller_type",
+                "mapping": {
+                  "sma:energy-meter": "#/components/schemas/SmaEnergyMeterSettings-Input",
+                  "sma:sunny-tripower-smart-energy": "#/components/schemas/SmaStpeSettings-Input"
+                }
+              }
+            },
+            "type": "object",
+            "title": "Controllers",
+            "description": "Device controller settings, keyed by device_id.",
+            "examples": [
+              {
+                "meter1": {
+                  "controller_type": "sma:energy-meter",
+                  "serial": 1900123456
+                }
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ControlAdapterCommonSettings",
+        "description": "Common settings for the device control adapter."
+      },
+      "ControlAdapterCommonSettings-Output": {
+        "properties": {
+          "controllers": {
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SmaEnergyMeterSettings-Output"
+                },
+                {
+                  "$ref": "#/components/schemas/SmaStpeSettings-Output"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "controller_type",
+                "mapping": {
+                  "sma:energy-meter": "#/components/schemas/SmaEnergyMeterSettings-Output",
+                  "sma:sunny-tripower-smart-energy": "#/components/schemas/SmaStpeSettings-Output"
+                }
+              }
+            },
+            "type": "object",
+            "title": "Controllers",
+            "description": "Device controller settings, keyed by device_id.",
+            "examples": [
+              {
+                "meter1": {
+                  "controller_type": "sma:energy-meter",
+                  "serial": 1900123456
+                }
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ControlAdapterCommonSettings",
+        "description": "Common settings for the device control adapter."
       },
       "CycleTimeWindowSequence-Input": {
         "properties": {
@@ -18015,6 +18099,474 @@
         "type": "object",
         "title": "SettingsEOS",
         "description": "Settings for all EOS.\n\nOnly used to update the configuration with specific settings."
+      },
+      "SmaEnergyMeterSettings-Input": {
+        "properties": {
+          "measurement_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age S",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "diagnostic_log_capacity": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Diagnostic Log Capacity",
+            "description": "Maximum number of controller diagnostic events retained in memory. Zero disables diagnostic collection.",
+            "default": 0,
+            "examples": [
+              0,
+              500
+            ]
+          },
+          "controller_type": {
+            "type": "string",
+            "const": "sma:energy-meter",
+            "title": "Controller Type"
+          },
+          "serial": {
+            "type": "integer",
+            "title": "Serial",
+            "description": "Serial number of the SMA Energy Meter. Telegrams of other meters are ignored.",
+            "examples": [
+              1900123456
+            ]
+          },
+          "interface_ip": {
+            "type": "string",
+            "title": "Interface Ip",
+            "description": "Local IPv4 address of the network interface that joins the Speedwire multicast group. 0.0.0.0 selects the default interface of the operating system.",
+            "default": "0.0.0.0",
+            "examples": [
+              "0.0.0.0",
+              "192.168.1.10"
+            ]
+          },
+          "rejoin_after": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Rejoin After",
+            "description": "Seconds without any telegram after which the multicast group is re-joined.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "controller_type",
+          "serial"
+        ],
+        "title": "SmaEnergyMeterSettings",
+        "description": "Settings of the SMA Energy Meter controller."
+      },
+      "SmaEnergyMeterSettings-Output": {
+        "properties": {
+          "measurement_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age S",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "diagnostic_log_capacity": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Diagnostic Log Capacity",
+            "description": "Maximum number of controller diagnostic events retained in memory. Zero disables diagnostic collection.",
+            "default": 0,
+            "examples": [
+              0,
+              500
+            ]
+          },
+          "controller_type": {
+            "type": "string",
+            "const": "sma:energy-meter",
+            "title": "Controller Type"
+          },
+          "serial": {
+            "type": "integer",
+            "title": "Serial",
+            "description": "Serial number of the SMA Energy Meter. Telegrams of other meters are ignored.",
+            "examples": [
+              1900123456
+            ]
+          },
+          "interface_ip": {
+            "type": "string",
+            "title": "Interface Ip",
+            "description": "Local IPv4 address of the network interface that joins the Speedwire multicast group. 0.0.0.0 selects the default interface of the operating system.",
+            "default": "0.0.0.0",
+            "examples": [
+              "0.0.0.0",
+              "192.168.1.10"
+            ]
+          },
+          "rejoin_after": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Rejoin After",
+            "description": "Seconds without any telegram after which the multicast group is re-joined.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "shared_data_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shared Data Keys",
+            "description": "Read-only: key suffixes (without the '<device_id>:' prefix) this controller provides in the device control shared data store.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "controller_type",
+          "serial",
+          "shared_data_keys"
+        ],
+        "title": "SmaEnergyMeterSettings",
+        "description": "Settings of the SMA Energy Meter controller."
+      },
+      "SmaPvCurtailmentSettings": {
+        "properties": {
+          "rated_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rated Power W",
+            "description": "Rated AC power of the inverter in W, the 100 % of the power limit. None: the nominal power of the battery's inverter device (the inverter device whose 'battery_id' is the battery of this controller).",
+            "examples": [
+              null,
+              10000
+            ]
+          },
+          "deadband_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Deadband W",
+            "description": "Export in W that is tolerated without limiting the PV production.",
+            "default": 50.0,
+            "examples": [
+              50.0
+            ]
+          },
+          "hold_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Hold S",
+            "description": "Seconds the export must last, with the battery unable to take it, before the PV limit is changed.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "min_write_interval_s": {
+            "type": "number",
+            "minimum": 10.0,
+            "title": "Min Write Interval S",
+            "description": "Minimum seconds between two writes of the PV limit to the inverter.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "step_percent": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Step Percent",
+            "description": "Smallest change of the PV limit in percent that is written.",
+            "default": 2,
+            "examples": [
+              2
+            ]
+          },
+          "headroom_w": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Headroom W",
+            "description": "Export in W that is left on purpose while the PV production is limited, so that the grid power controller keeps charging the battery at its maximum power.",
+            "default": 100.0,
+            "examples": [
+              100.0
+            ]
+          },
+          "keepalive_s": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keepalive S",
+            "description": "Write an unchanged PV limit this often while limiting. Needed if the inverter falls back from the plant control limit without regular communication (event 'Timeout in communication for active power limitation'). None: off.",
+            "examples": [
+              null,
+              240.0
+            ]
+          }
+        },
+        "type": "object",
+        "title": "SmaPvCurtailmentSettings",
+        "description": "PV curtailment of the mode NON_EXPORT. Configuring it enables the feature.\n\nThe limit is a persistent parameter of the inverter, so the defaults write rarely."
+      },
+      "SmaStpeSettings-Input": {
+        "properties": {
+          "measurement_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age S",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "diagnostic_log_capacity": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Diagnostic Log Capacity",
+            "description": "Maximum number of controller diagnostic events retained in memory. Zero disables diagnostic collection.",
+            "default": 0,
+            "examples": [
+              0,
+              500
+            ]
+          },
+          "controller_type": {
+            "type": "string",
+            "const": "sma:sunny-tripower-smart-energy",
+            "title": "Controller Type"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Host name or IP address of the inverter (Modbus TCP).",
+            "examples": [
+              "192.168.178.6"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "description": "Modbus TCP port.",
+            "default": 502,
+            "examples": [
+              502
+            ]
+          },
+          "unit_id": {
+            "type": "integer",
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Unit Id",
+            "description": "Modbus unit id of the SMA Modbus register profile.",
+            "default": 3,
+            "examples": [
+              3
+            ]
+          },
+          "battery_id": {
+            "type": "string",
+            "title": "Battery Id",
+            "description": "Resource id of the battery in the energy management plan whose instructions this inverter executes. The battery device 'devices/batteries/<battery_id>' and its inverter device (the inverter device with this 'battery_id') limit the battery power.",
+            "examples": [
+              "battery1"
+            ]
+          },
+          "grid_power_key": {
+            "type": "string",
+            "pattern": "^[^:\\s]+:[^:\\s]+$",
+            "title": "Grid Power Key",
+            "description": "Shared data key '<device_id>:<key>' of the grid power in W, positive when drawing from the grid. Used by the grid power controller, typically the 'grid_net_w' value of an SMA Energy Meter device.",
+            "examples": [
+              "meter1:grid_net_w"
+            ]
+          },
+          "grid_power_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Grid Power Max Age S",
+            "description": "Maximum age in seconds of the grid power. Older values are not used for control, the battery is held at 0 W.",
+            "default": 3.0,
+            "examples": [
+              3.0
+            ]
+          },
+          "pv_curtailment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SmaPvCurtailmentSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Let the mode NON_EXPORT curtail PV production when the battery cannot take the surplus. Needs the inverter parameter 'active power limitation mode' (register 40210) set to plant control (1079). None: no PV curtailment.",
+            "examples": [
+              null,
+              {
+                "rated_power_w": 10000
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "controller_type",
+          "host",
+          "battery_id",
+          "grid_power_key"
+        ],
+        "title": "SmaStpeSettings",
+        "description": "Settings of one SMA Sunny Tripower Smart Energy."
+      },
+      "SmaStpeSettings-Output": {
+        "properties": {
+          "measurement_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Measurement Max Age S",
+            "description": "Maximum age in seconds of a reading of this controller to be written to the measurement store. Older values are skipped.",
+            "default": 60.0,
+            "examples": [
+              60.0
+            ]
+          },
+          "diagnostic_log_capacity": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Diagnostic Log Capacity",
+            "description": "Maximum number of controller diagnostic events retained in memory. Zero disables diagnostic collection.",
+            "default": 0,
+            "examples": [
+              0,
+              500
+            ]
+          },
+          "controller_type": {
+            "type": "string",
+            "const": "sma:sunny-tripower-smart-energy",
+            "title": "Controller Type"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "description": "Host name or IP address of the inverter (Modbus TCP).",
+            "examples": [
+              "192.168.178.6"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port",
+            "description": "Modbus TCP port.",
+            "default": 502,
+            "examples": [
+              502
+            ]
+          },
+          "unit_id": {
+            "type": "integer",
+            "maximum": 255.0,
+            "minimum": 0.0,
+            "title": "Unit Id",
+            "description": "Modbus unit id of the SMA Modbus register profile.",
+            "default": 3,
+            "examples": [
+              3
+            ]
+          },
+          "battery_id": {
+            "type": "string",
+            "title": "Battery Id",
+            "description": "Resource id of the battery in the energy management plan whose instructions this inverter executes. The battery device 'devices/batteries/<battery_id>' and its inverter device (the inverter device with this 'battery_id') limit the battery power.",
+            "examples": [
+              "battery1"
+            ]
+          },
+          "grid_power_key": {
+            "type": "string",
+            "pattern": "^[^:\\s]+:[^:\\s]+$",
+            "title": "Grid Power Key",
+            "description": "Shared data key '<device_id>:<key>' of the grid power in W, positive when drawing from the grid. Used by the grid power controller, typically the 'grid_net_w' value of an SMA Energy Meter device.",
+            "examples": [
+              "meter1:grid_net_w"
+            ]
+          },
+          "grid_power_max_age_s": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Grid Power Max Age S",
+            "description": "Maximum age in seconds of the grid power. Older values are not used for control, the battery is held at 0 W.",
+            "default": 3.0,
+            "examples": [
+              3.0
+            ]
+          },
+          "pv_curtailment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SmaPvCurtailmentSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Let the mode NON_EXPORT curtail PV production when the battery cannot take the surplus. Needs the inverter parameter 'active power limitation mode' (register 40210) set to plant control (1079). None: no PV curtailment.",
+            "examples": [
+              null,
+              {
+                "rated_power_w": 10000
+              }
+            ]
+          },
+          "shared_data_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Shared Data Keys",
+            "description": "Read-only: key suffixes (without the '<device_id>:' prefix) this controller provides in the device control shared data store.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "controller_type",
+          "host",
+          "battery_id",
+          "grid_power_key",
+          "shared_data_keys"
+        ],
+        "title": "SmaStpeSettings",
+        "description": "Settings of one SMA Sunny Tripower Smart Energy."
       },
       "TailDiagnostics": {
         "properties": {

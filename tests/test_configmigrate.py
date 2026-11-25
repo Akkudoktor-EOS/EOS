@@ -720,3 +720,59 @@ class TestSlashKeyedDictMigration:
         migrated = json.loads(config_file.read_text(encoding="utf-8"))
         assert migrated["general"]["version"] == __version__
         assert migrated["adapter"]["homeassistant"]["config_entity_ids"] == self.ENTITY_IDS
+
+
+class TestControllerMigration:
+    """Device controllers are migrated as a whole; entries that can not be kept are dropped."""
+
+    @staticmethod
+    def _migrate(controllers: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        from loguru import logger
+
+        messages: list[str] = []
+        sink_id = logger.add(lambda message: messages.append(message.record["message"]), level="ERROR")
+        try:
+            config = migrate_config_data({"adapter": {"control": {"controllers": controllers}}})
+        finally:
+            logger.remove(sink_id)
+        return dict(config.adapter.control.controllers or {}), messages
+
+    def test_migration_keeps_valid_controllers(self):
+        controllers, messages = self._migrate(
+            {
+                "meter1": {"controller_type": "sma:energy-meter", "serial": 5},
+                "inverter1": {
+                    "controller_type": "sma:sunny-tripower-smart-energy",
+                    "host": "192.168.1.6",
+                    "battery_id": "battery1",
+                    "grid_power_key": "meter1:grid_net_w",
+                },
+            }
+        )
+        assert sorted(controllers) == ["inverter1", "meter1"]
+        assert controllers["meter1"].serial == 5
+        assert messages == []
+
+    def test_migration_drops_a_controller_without_type(self):
+        controllers, messages = self._migrate(
+            {
+                "sma_energy_meter": {"serial": 123},
+                "meter2": {"controller_type": "sma:energy-meter", "serial": 5},
+            }
+        )
+        assert list(controllers) == ["meter2"]
+        assert len(messages) == 1
+        assert "'sma_energy_meter'" in messages[0]
+        assert "controller_type" in messages[0]
+        assert "'serial': 123" in messages[0]  # the settings, to add it again
+
+    def test_migration_drops_an_invalid_controller(self):
+        controllers, messages = self._migrate(
+            {
+                "unknown1": {"controller_type": "does:not-exist"},
+                "meter2": {"controller_type": "sma:energy-meter", "serial": 5},
+            }
+        )
+        assert list(controllers) == ["meter2"]
+        assert len(messages) == 1
+        assert "'unknown1'" in messages[0]

@@ -12,6 +12,7 @@ from pydantic import (
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
+    EnergyManagementSystemMixin,
     MeasurementMixin,
     SingletonMixin,
     StartMixin,
@@ -22,7 +23,14 @@ from akkudoktoreos.utils.datetimeutil import (
 )
 
 
-class AdapterProvider(SingletonMixin, ConfigMixin, MeasurementMixin, StartMixin, PydanticBaseModel):
+class AdapterProvider(
+    SingletonMixin,
+    ConfigMixin,
+    MeasurementMixin,
+    StartMixin,
+    EnergyManagementSystemMixin,  # keep here to prevent MRO error
+    PydanticBaseModel,
+):
     """Abstract base class for adapter providers with singleton thread-safety and configurable data parameters.
 
     Note:
@@ -157,7 +165,8 @@ class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel, Generic[A
 
         This method searches through the list of all available providers and
         returns the first provider whose `provider_id` matches the given
-        `provider_id`. If no matching provider is found, the method returns `None`.
+        `provider_id`. If no matching provider is found, the method raises
+        an exception.
 
         Args:
             provider_id (str): The unique identifier of the desired data provider.

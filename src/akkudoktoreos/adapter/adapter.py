@@ -3,6 +3,10 @@ from typing import Optional, Union
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.adapter.adapterabc import AdapterContainer
+from akkudoktoreos.adapter.control import (
+    ControlAdapter,
+    ControlAdapterCommonSettings,
+)
 from akkudoktoreos.adapter.homeassistant import (
     HomeAssistantAdapter,
     HomeAssistantAdapterCommonSettings,
@@ -18,8 +22,13 @@ class AdapterCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": ("List of adapter provider id(s) of provider(s) to be used."),
-            "examples": [["HomeAssistant"], ["HomeAssistant", "NodeRED"]],
+            "examples": [["HomeAssistant"], ["Control", "HomeAssistant", "NodeRED"]],
         },
+    )
+
+    control: ControlAdapterCommonSettings = Field(
+        default_factory=ControlAdapterCommonSettings,
+        json_schema_extra={"description": "Device control adapter settings."},
     )
 
     homeassistant: HomeAssistantAdapterCommonSettings = Field(
@@ -56,24 +65,27 @@ class AdapterCommonSettings(SettingsBaseModel):
 
 # Initialize adapter providers, all are singletons.
 homeassistant_adapter = HomeAssistantAdapter()
+control_adapter = ControlAdapter()
 nodered_adapter = NodeREDAdapter()
 
 
-def adapter_providers() -> list[Union["HomeAssistantAdapter", "NodeREDAdapter"]]:
+def adapter_providers() -> list[Union["ControlAdapter", "HomeAssistantAdapter", "NodeREDAdapter"]]:
     """Return list of adapter providers."""
-    global homeassistant_adapter, nodered_adapter
+    global homeassistant_adapter, inverter_adapter, nodered_adapter
 
     return [
+        control_adapter,
         homeassistant_adapter,
         nodered_adapter,
     ]
 
 
-class Adapter(AdapterContainer[HomeAssistantAdapter | NodeREDAdapter]):
+class Adapter(AdapterContainer[ControlAdapter | HomeAssistantAdapter | NodeREDAdapter]):
     """Adapter container to manage multiple adapter providers."""
 
     providers: list[
         Union[
+            ControlAdapter,
             HomeAssistantAdapter,
             NodeREDAdapter,
         ]
