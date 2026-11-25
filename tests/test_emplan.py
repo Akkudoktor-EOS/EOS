@@ -163,6 +163,43 @@ class TestEnergyManagementPlan:
         assert len(dev1_instructions) == 1
         assert dev1_instructions[0].resource_id == "dev-1"
 
+    def test_get_applicable_instructions_for_resource(self, fixed_now):
+        instr1 = OMBCInstruction(
+            resource_id="dev-1",
+            execution_time=fixed_now.subtract(minutes=1),
+            operation_mode_id="mymode1",
+            operation_mode_factor=1.0,
+        )
+        instr2 = OMBCInstruction(
+            resource_id="dev-2",
+            execution_time=fixed_now.subtract(minutes=1),
+            operation_mode_id="mymode1",
+            operation_mode_factor=1.0,
+        )
+        instr3 = OMBCInstruction(
+            resource_id="dev-2",
+            execution_time=fixed_now.add(minutes=1),
+            operation_mode_id="mymode1",
+            operation_mode_factor=1.0,
+        )
+        plan = EnergyManagementPlan(
+            id="plan-123",
+            generated_at=fixed_now,
+            instructions=[instr1, instr2, instr3],
+        )
+        plan._update_time_range()
+
+        resource_ids = plan.get_resources()
+        assert resource_ids == ["dev-1", "dev-2"]
+
+        applicable = plan.get_applicable_instructions_for_resource(resource_id = "dev-2", now=fixed_now)
+        ids = {i.resource_id for i in applicable}
+        assert ids == {"dev-2"}
+
+        assert len(applicable) == 2
+        assert applicable[0].execution_time == fixed_now.subtract(minutes=1)
+        assert applicable[1].execution_time == fixed_now.add(minutes=1)
+
     def test_add_various_instructions(self, fixed_now):
         plan = EnergyManagementPlan(
             id="plan-123",
@@ -277,8 +314,6 @@ class TestEnergyManagementPlan:
         ids = {i.resource_id for i in active}
         assert ids == {"dev-1", "dev-3"}
 
-
-
     def test_get_active_instructions_with_duration(self, fixed_now):
         instr = self._make_instr(
             "dev-1",
@@ -364,9 +399,12 @@ class TestEnergyManagementPlan:
         active_after = plan.get_active_instructions(exec_future)
         assert {i.resource_id for i in active_after} == {"dev-1"}
 
+    # -------------------------------------------
+    # Special testing - repeated local clock times
+    # -------------------------------------------
 
-class TestEnergyManagementPlanDST:
     def test_repeated_hour_keeps_instruction_order_and_dispatch(self):
+        """Repeated local clock times must dispatch by their real UTC instant."""
         first = to_datetime("2026-10-25T02:45:00+02:00").in_timezone("Europe/Berlin")
         second = to_datetime("2026-10-25T02:15:00+01:00").in_timezone("Europe/Berlin")
         plan = EnergyManagementPlan(id="fold", generated_at=first, instructions=[])

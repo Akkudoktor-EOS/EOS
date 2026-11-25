@@ -74,6 +74,24 @@ A default or heuristic value that replaces an invalid or missing input while the
 parameters are prepared, always reported as an error.
 _Avoid_: dummy value, demo value
 
+## Device control
+
+**Device controller**:
+The running link between EOS and one real device that carries out the energy management plan on
+it, reports the device's readings, or both. One that only reports readings watches the device and
+never changes it on behalf of the plan.
+_Avoid_: adapter, driver
+
+**Controller type**:
+The kind of device a device controller can drive, which fixes the settings it takes, e.g.
+`sma:energy-meter`.
+_Avoid_: controller class, driver type
+
+**Shared data key**:
+The name `<device_id>:<key>` under which one device controller publishes a current value for
+other device controllers to use, e.g. `meter:grid_w`.
+_Avoid_: shared key, data point
+
 ## AI-assisted development
 
 **Host**:

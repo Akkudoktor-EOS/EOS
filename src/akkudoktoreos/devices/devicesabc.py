@@ -6,56 +6,106 @@ from typing import Optional
 
 
 class BatteryOperationMode(StrEnum):
-    """Battery Operation Mode.
+    """Battery operating modes for home energy management.
 
-    Enumerates the operating modes of a battery in a home energy
-    management simulation. These modes require no direct awareness
-    of electricity prices or carbon intensity — higher-level
-    controllers or optimizers decide when to switch modes.
+    These modes define control objectives rather than energy prices,
+    carbon intensity, or specific inverter register settings. Higher-level
+    controllers and optimizers select the mode; the device controller
+    implements it within the applicable operational and safety limits.
+
+    Grid power uses a positive-for-export, negative-for-import convention.
+    Grid-support setpoints refer to net grid power, not battery power.
+
+    The operation modes are accompanied by an operation mode factor (0.0–1.0). It specifies the
+    normalized power rate relative to the battery's nominal maximum charge or discharge power.
 
     Modes
     -----
-    - IDLE:
-        No charging or discharging.
+    IDLE:
+        Neither charge nor discharge intentionally.
 
-    - SELF_CONSUMPTION:
-        Charge from local surplus and discharge to meet local demand.
+        operation mode factor: 1.0
 
-    - NON_EXPORT:
-        Charge from on-site or local surplus with the goal of
-        minimizing or preventing energy export to the external grid.
-        Discharging to the grid is not allowed.
+    SELF_CONSUMPTION:
+        Minimize grid import by charging from local surplus and discharging
+        to serve local demand. Do not intentionally charge from the grid or
+        discharge to export.
 
-    - PEAK_SHAVING:
-        Discharge during local demand peaks to reduce grid draw.
+        operation mode factor: Maximum charge or discharge power at the battery.
+        Specified as nominal power rate relative to the battery's nominal maximum charge or
+        discharge power.
 
-    - GRID_SUPPORT_EXPORT:
-        Discharge to support the upstream grid when commanded.
+    NON_EXPORT:
+        Minimize both grid import and grid export. Behave like
+        SELF_CONSUMPTION, and, where controllable, curtail PV production
+        when the battery cannot absorb enough surplus to prevent export.
 
-    - GRID_SUPPORT_IMPORT:
-        Charge from the grid when instructed to absorb excess supply.
+        operation mode factor: Maximum charge or discharge power at the battery.
+        Specified as nominal power rate relative to the battery's nominal maximum charge or
+        discharge power.
 
-    - FREQUENCY_REGULATION:
-        Perform fast bidirectional power adjustments based on grid
-        frequency deviations.
+    PEAK_SHAVING:
+        Discharge during local demand peaks to reduce grid import. Do not intentionally charge
+        from the grid or discharge to export. GENETIC0 plans this mode for a solution that only
+        allows discharging.
 
-    - RAMP_RATE_CONTROL:
+        operation mode factor: 1.0
+
+    GRID_SUPPORT_EXPORT:
+        Track a requested positive net grid-power setpoint. Charge the battery when export exceeds
+        the target and discharge it when export falls below the target, subject to operational
+        constraints.
+
+        operation mode factor: Grid export power specified as nominal power rate relative to the
+        battery's nominal maximum discharge power. To get the grid-power setpoint the battery
+        to ac conversion efficiency has to be applied, if available::
+
+            operation_mode_factor * max_discharge_power / bat_to_ac_eff_factor
+
+    GRID_SUPPORT_IMPORT:
+        Track a requested negative net grid-power setpoint. Discharge the battery when import
+        exceeds the target and charge it when import falls below the target, subject to operational
+        constraints.
+
+        operation mode factor: Grid import power specified as nominal power rate relative to the
+        battery's nominal maximum charge power.
+
+    FREQUENCY_REGULATION:
+        Perform fast bidirectional power adjustments based on grid frequency deviations.
+
+    RAMP_RATE_CONTROL:
         Smooth changes in local net load or generation.
 
-    - RESERVE_BACKUP:
+    RESERVE_BACKUP:
         Maintain a minimum state of charge for emergency use.
 
-    - OUTAGE_SUPPLY:
+    OUTAGE_SUPPLY:
         Discharge to power critical loads during a grid outage.
 
-    - FORCED_CHARGE:
-        Override all other logic and charge regardless of conditions.
+    The optimizers of EOS do not plan FREQUENCY_REGULATION, RAMP_RATE_CONTROL, RESERVE_BACKUP and
+    OUTAGE_SUPPLY. All modes are kept because optimization results list every mode (ADR 0008).
 
-    - FORCED_DISCHARGE:
-        Override all other logic and discharge regardless of conditions.
+    FORCED_CHARGE:
+        Request battery charging independently of normal energy-management
+        objectives, within battery, inverter, and safety constraints.
+        Forced charge may import from the grid.
 
-    - FAULT:
-        Battery is unavailable due to fault or error state.
+        operation mode: Charge power at the battery. Specified as nominal power rate relative to
+        the battery's nominal maximum charge power.
+
+    FORCED_DISCHARGE:
+        Request battery discharging independently of normal energy-management
+        objectives, within battery, inverter, and safety constraints.
+        Forced discharge may export to the grid.
+
+        operation mode: Discharge power at the battery. Specified as nominal power rate relative to
+        the battery's nominal maximum discharge power.
+
+
+    FAULT:
+        Indicate that normal battery dispatch is unavailable or prohibited
+        because of a fault or error state. Fault handling takes precedence
+        over normal dispatch requests.
     """
 
     IDLE = "IDLE"

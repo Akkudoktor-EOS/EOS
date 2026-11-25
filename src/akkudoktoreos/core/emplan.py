@@ -18,7 +18,12 @@ from loguru import logger
 from pydantic import Field, computed_field, model_validator
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_datetime
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    compare_datetimes,
+    to_datetime,
+)
 
 # S2 Basic Data Types
 # - Array -> list
@@ -2303,7 +2308,7 @@ class EnergyManagementPlan(PydanticBaseModel):
             latest = max(instrs, key=lambda i: i.execution_time.timestamp())
 
             if len(instrs) == 0:
-                # No instructions, ther shall be at least one
+                # No instructions, there shall be at least one
                 error_msg = f"No instructions for {resource_id}"
                 logger.error(error_msg)
                 raise ValueError(error_msg)
@@ -2336,3 +2341,17 @@ class EnergyManagementPlan(PydanticBaseModel):
     def get_instructions_for_resource(self, resource_id: ID) -> list[EnergyManagementInstruction]:
         """Filters the plan's instructions for a specific resource."""
         return [i for i in self.instructions if i.resource_id == resource_id]
+
+    def get_applicable_instructions_for_resource(
+        self, resource_id: ID, now: Optional[DateTime] = None
+    ) -> list[EnergyManagementInstruction]:
+        """Filters the plan's applicable instructions for a specific resource."""
+        now = now or to_datetime()
+        applicable: list[EnergyManagementInstruction] = []
+        for instr in self.instructions:
+            if instr.resource_id == resource_id:
+                if compare_datetimes(instr.execution_time, now).le and len(applicable) > 0:
+                    applicable[0] = instr
+                else:
+                    applicable.append(instr)
+        return applicable

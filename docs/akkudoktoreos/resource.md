@@ -64,7 +64,7 @@ There is a wealth of possible battery operation modes:
 | Mode                      | Purpose / Behavior                                                                      | Typical Trigger / Context                                        |
 | ------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | **IDLE**                  | Battery neither charges nor discharges (SOC stable).                                    | No active control objective or power imbalance below thresholds. |
-| **SELF_CONSUMPTION**      | Charge from PV surplus and discharge to cover local load.                               | PV generation > load (charge) or load > PV (discharge).          |
+| **SELF_CONSUMPTION**      | Charge from local surplus and discharge to cover local load.                            | PV generation > load (charge) or load > PV (discharge).          |
 | **NON_EXPORT**   | Charge from on-site or local surplus with the goal of minimizing or preventing energy export to the external grid. Discharging to the grid is not allowed. | Export limit reached and SOC < SOC_max.                          |
 | **PEAK_SHAVING**          | Discharge to keep grid import below a target threshold.                                 | Predicted or measured site load exceeds peak limit.              |
 | **GRID_SUPPORT_EXPORT**   | Discharge energy to grid for revenue (V2G, wholesale market, flexibility service).      | Market or signal permits profitable export.                      |
@@ -89,7 +89,7 @@ operated in three discrete operation modes with fill rate based control (FRBC):
 | **Operation Mode ID**    | **Description**                                                       |
 | ------------------------ | --------------------------------------------------------------------- |
 | **SELF_CONSUMPTION**     | Charge from local surplus and discharge to cover local load.          |
-| **NON_EXPORT**           | Charge from local surplus and do not discharge.                       |
+| **NON_EXPORT**           | Charge from local surplus and do not discharge to grid.               |
 | **FORCED_CHARGE**        | Charge.                                                               |
 
 The **operation mode factor** (0.0–1.0) specifies the normalized power rate relative to the
