@@ -43,6 +43,7 @@ dependencies = [
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.15.0",
     "pydantic-settings==2.16.1",
+    "pymodbus==3.16.1",
     "linkify-it-py==2.2.0",
     "loguru==0.8.0",
     "lmdb==3.0.0",
@@ -78,7 +79,7 @@ dev = [
     "GitPython==3.2.1",
     "myst-parser==5.1.0",
     "docutils==0.21.2",
-    "sphinxcontrib-mermaid==2.1.1   ",
+    "sphinxcontrib-mermaid==2.1.1",
 
     # Pytest
     "pytest==9.1.1",
@@ -91,6 +92,7 @@ dev = [
     # Browser tests of EOSdash (pytest --browser-test). The browser itself is installed
     # separately: uv run playwright install chromium
     "playwright==1.65.2",
+    "time-machine==3.5.1",
 ]
 
 [project.urls]
