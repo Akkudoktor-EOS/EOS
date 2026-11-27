@@ -110,25 +110,23 @@ class TestReadFileLog:
         assert _messages(logs) == ["info 2", "info 3", "info 4"]
 
     @pytest.mark.parametrize(
-        ("timezone", "expected"),
-        [(None, ["info 2"]), ("Europe/Berlin", []), ("America/New_York", [])],
+        ("timezone", "wall_clock"),
+        [
+            (None, "2026-11-27T10:02"),  # UTC
+            ("Europe/Berlin", "2026-11-27T11:02"),
+            ("America/New_York", "2026-11-27T05:02"),
+            ("Asia/Kathmandu", "2026-11-27T15:47"),
+        ],
     )
-    def test_time_without_offset_is_in_given_timezone(self, serialized_log, timezone, expected):
+    def test_time_without_offset_is_in_given_timezone(self, serialized_log, timezone, wall_clock):
+        # All parameters name 10:02 UTC, the time of "info 2".
         logs = read_file_log(
             serialized_log,
-            from_time="2026-11-27T10:02:00",
-            to_time="2026-11-27T10:02:30",
+            from_time=f"{wall_clock}:00",
+            to_time=f"{wall_clock}:30",
             timezone=timezone,
         )
-        assert _messages(logs) == expected
-        if timezone == "Europe/Berlin":
-            logs = read_file_log(
-                serialized_log,
-                from_time="2026-11-27T11:02:00",
-                to_time="2026-11-27T11:02:30",
-                timezone=timezone,
-            )
-            assert _messages(logs) == ["info 2"]
+        assert _messages(logs) == ["info 2"]
 
     def test_invalid_time_raises_value_error(self, serialized_log):
         with pytest.raises(ValueError, match="date/time"):
@@ -179,7 +177,9 @@ class TestLoggingGetLogEndpoint:
         return TestClient(eos.app)
 
     def test_tail_with_level(self, client):
-        response = client.get("/v1/logging/log", params={"tail": True, "limit": 1, "level": "WARNING"})
+        response = client.get(
+            "/v1/logging/log", params={"tail": True, "limit": 1, "level": "WARNING"}
+        )
         assert response.status_code == 200
         assert _messages(response.json()) == ["snow: coverage 250%"]
 
