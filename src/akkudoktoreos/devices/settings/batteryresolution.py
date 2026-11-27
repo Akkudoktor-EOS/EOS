@@ -518,7 +518,7 @@ class BatteryPowerCurves:
     """Power limits and efficiencies of a battery profile at one temperature.
 
     Prepared for simulations that evaluate the battery many times, e.g. the
-    GENETIC optimizer: plain lists instead of profile lookups.
+    OHMRAKEL42 optimizer: plain lists instead of profile lookups.
 
     Attributes:
         temperature_degC: Battery temperature the profile was evaluated at.

@@ -64,6 +64,20 @@
                        0.9,
                        1.0
                    ],
+                   "adapter_supports_discharge_limit": false,
+                   "discharge_rates": [
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
+                   "pv_charge_switchable": false,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "grid_export_rates": [
@@ -107,6 +121,20 @@
                        0.9,
                        1.0
                    ],
+                   "adapter_supports_discharge_limit": false,
+                   "discharge_rates": [
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
+                   "pv_charge_switchable": false,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "grid_export_rates": [
@@ -143,7 +171,13 @@
                    "deadline_policy": "BEST_EFFORT"
                }
            },
-           "max_home_appliances": 3
+           "max_home_appliances": 3,
+           "heat_sources": {},
+           "grid_connection": {
+               "import_limit_w": 11000.0,
+               "export_limit_w": 7000.0,
+               "import_limit_penalty_eur_per_kwh": 10.0
+           }
        },
        "elecfee": {
            "provider": "ElecFeeFixed",
@@ -281,39 +315,41 @@
            "emr_max_gap_seconds": 10800
        },
        "optimization": {
-           "algorithm": "GENETIC",
-           "genetic": {
-               "interval_sec": 3600,
-               "horizon_hours": 24,
-               "individuals": 400,
-               "generations": 400,
-               "seed": null,
-               "fitness_cache_max_entries": null,
-               "workers": null,
-               "pin_workers": true,
-               "measurement_max_age_seconds": 300,
-               "tail_horizon_hours": 48,
-               "terminal_value_mode": "AUTO",
-               "terminal_value_euro_per_kwh": 0.0,
-               "terminal_value_window_hours": 24,
-               "penalties": {
-                   "ev_soc_miss": 10
-               }
+           "interval_sec": 3600,
+           "horizon_hours": 24,
+           "measurement_max_age_seconds": 300,
+           "tail_horizon_hours": 48,
+           "terminal_value_mode": "AUTO",
+           "terminal_value_euro_per_kwh": 0.0,
+           "terminal_value_window_hours": 24,
+           "penalties": {
+               "ev_soc_miss": 10
            },
-           "genetic0": {
-               "horizon_hours": 24,
-               "individuals": 400,
-               "generations": 400,
-               "seed": null,
-               "penalties": {
-                   "ev_soc_miss": 10
-               }
+           "search": {
+               "time_budget_seconds": 30.0,
+               "effort": "NORMAL"
            },
            "self_consumption_interpolator": "scipy"
        },
        "prediction": {
            "hours": 48,
            "historic_hours": 48
+       },
+       "presence": {
+           "provider": null,
+           "zones": {},
+           "history_days": 56,
+           "minimum_support_days": 7,
+           "allow_provisional_setback": false,
+           "sample_max_age_seconds": 90,
+           "occupancy_hold_seconds": 600,
+           "absence_delay_seconds": 1800,
+           "local_correction_seconds": 3600,
+           "recency_half_life_days": 21.0,
+           "minimum_bucket_coverage": 0.8,
+           "absence_probability_threshold": 0.2,
+           "absences": [],
+           "absence_return_hold_minutes": 120
        },
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
@@ -519,6 +555,37 @@
            "eosdash_supervise_interval_sec": 10,
            "run_as_user": null,
            "reload": true
+       },
+       "thermal": {
+           "mode": "off",
+           "zones": {},
+           "tracking": {
+               "enabled": false,
+               "operation": "pilot",
+               "zone_id": null,
+               "minimum_temperature_c": 18,
+               "occupied_tolerance_c": 0.3,
+               "max_increase_c": 0.5,
+               "maximum_preheat_temperature_c": 30.0,
+               "max_decrease_c": 0.5,
+               "cold_guard_below_manual_c": 0.25,
+               "measured_room_ceiling_above_manual_c": 0.5,
+               "lease_seconds": 150,
+               "operator_max_age_seconds": 90,
+               "room_max_age_seconds": 180,
+               "presence_max_age_seconds": 90,
+               "source_max_age_seconds": 1800,
+               "absence_delay_seconds": 1800
+           },
+           "planning_time_limit_seconds": 60.0,
+           "electric_power_block_seconds": 1800,
+           "solver_process_memory_limit_mb": 1024,
+           "solver_process_grace_seconds": 5.0,
+           "pattern_polish_seconds": 0.0,
+           "plan_ttl_seconds": 1800,
+           "absence_delay_seconds": 1800,
+           "measurement_max_age_seconds": 180,
+           "presence_max_age_seconds": 90
        },
        "utils": {},
        "weather": {

@@ -17,6 +17,8 @@ from akkudoktoreos.devices.settings.batterysettings import (
 from akkudoktoreos.devices.settings.batterysettings import (
     BatteriesCommonSettings,
 )
+from akkudoktoreos.devices.settings.gridsettings import GridConnectionSettings
+from akkudoktoreos.devices.settings.heatsourcesettings import HeatSourceSettings
 from akkudoktoreos.devices.settings.homeappliancesettings import (
     HomeApplianceCommonSettings,
 )
@@ -47,7 +49,9 @@ class DevicesCommonSettings(SettingsBaseModel):
                     }
                 }
             ],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     max_batteries: Optional[int] = Field(
@@ -56,7 +60,9 @@ class DevicesCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "Maximum number of batteries allowed.",
             "examples": [1],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
 
@@ -74,7 +80,9 @@ class DevicesCommonSettings(SettingsBaseModel):
                     }
                 }
             ],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     max_electric_vehicles: Optional[int] = Field(
@@ -83,7 +91,9 @@ class DevicesCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "Maximum number of EVs allowed.",
             "examples": [1],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
 
@@ -93,7 +103,9 @@ class DevicesCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "Inverter devices, keyed by device_id.",
             "examples": [{}],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     max_inverters: Optional[int] = Field(
@@ -102,7 +114,9 @@ class DevicesCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "Maximum number of inverters allowed.",
             "examples": [1],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
 
@@ -121,7 +135,9 @@ class DevicesCommonSettings(SettingsBaseModel):
                     },
                 },
             ],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     max_home_appliances: Optional[int] = Field(
@@ -130,12 +146,42 @@ class DevicesCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "Maximum number of home appliances allowed.",
             "examples": [3],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
+        },
+    )
+
+    # Heat sources are planned by the device by device optimizer only. They are deliberately
+    # not registered as active devices or added to measurement_keys below.
+    heat_sources: dict[str, HeatSourceSettings] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Heat sources keyed by device_id. The device by device optimizer plans each "
+                "enabled heat source with a thermal zone as a device; nothing is actuated."
+            ),
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
+        },
+    )
+
+    # ---- Grid connection ----
+    grid_connection: GridConnectionSettings = Field(
+        default_factory=GridConnectionSettings,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
+            "description": "Limits of the grid connection point of the installation.",
+            "examples": [{"import_limit_w": 11000, "export_limit_w": 7000}],
         },
     )
 
     @field_validator(
-        "batteries", "electric_vehicles", "inverters", "home_appliances", mode="before"
+        "batteries",
+        "electric_vehicles",
+        "inverters",
+        "home_appliances",
+        "heat_sources",
+        mode="before",
     )
     @classmethod
     def validate_device_ids(cls, value: Any) -> Any:

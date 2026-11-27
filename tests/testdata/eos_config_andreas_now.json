@@ -41,9 +41,9 @@
         ]
     },
     "optimization": {
-        "genetic0": {
-            "horizon_hours": 48
-        }
+        "horizon_hours": 48,
+        "tail_horizon_hours": 0,
+        "terminal_value_mode": "FIXED"
     },
     "elecprice": {
         "provider": "ElecPriceAkkudoktor"

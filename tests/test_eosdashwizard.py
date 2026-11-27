@@ -6,7 +6,6 @@ from typing import Any
 import pytest
 from fasthtml.common import to_xml
 
-from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.server.dash import wizard
 from akkudoktoreos.server.dash.configuration import create_config_details
 from akkudoktoreos.server.dash.wizard import (
@@ -75,11 +74,8 @@ class TestWizardSteps:
         """A renamed provider must not silently lose its settings in the wizard."""
         for step in WIZARD_STEPS:
             for choice in step.choices:
-                if choice.name == "optimization.algorithm":
-                    available = [algorithm.value for algorithm in OptimizationAlgorithm]
-                else:
-                    assert choice.name.endswith(".provider")
-                    available = config_value(config_details, f"{choice.name}s")
+                assert choice.name.endswith(".provider")
+                available = config_value(config_details, f"{choice.name}s")
                 for value in choice.config_names:
                     assert value in available, f"Step {step.id}: unknown {value}."
 
@@ -121,12 +117,9 @@ class TestWizardSteps:
         names = step_config_names(wizard_step("homeassistant"), config_details)
         assert sorted(names) == sorted(adapter_names)
 
-    @pytest.mark.parametrize("algorithm", [algorithm.value for algorithm in OptimizationAlgorithm])
-    def test_horizon_follows_algorithm(self, config_details, algorithm):
-        set_value(config_details, "optimization.algorithm", algorithm)
+    def test_horizon_step_exposes_the_planning_horizon(self, config_details):
         names = step_config_names(wizard_step("horizon"), config_details)
-        horizons = [name for name in names if name.endswith(".horizon_hours")]
-        assert horizons == [f"optimization.{algorithm.lower()}.horizon_hours"]
+        assert "optimization.horizon_hours" in names
 
     def test_wizard_step(self):
         assert wizard_step("location").id == "location"
@@ -175,16 +168,14 @@ class TestWizardChecks:
         assert len(todo) == 1
         assert "DISABLED" in todo[0]
 
-    @pytest.mark.parametrize("algorithm", [algorithm.value for algorithm in OptimizationAlgorithm])
     @pytest.mark.parametrize("hours", [None, 12])
-    def test_horizon_prediction_too_short(self, config_details, algorithm, hours):
+    def test_horizon_prediction_too_short(self, config_details, hours):
         set_value(config_details, "ems.mode", "OPTIMIZATION")
-        set_value(config_details, "optimization.algorithm", algorithm)
-        set_value(config_details, f"optimization.{algorithm.lower()}.horizon_hours", 24)
+        set_value(config_details, "optimization.horizon_hours", 24)
         set_value(config_details, "prediction.hours", hours)
         todo = check_horizon(config_details)
         assert len(todo) == 1
-        assert f"optimization.{algorithm.lower()}.horizon_hours (24)" in todo[0]
+        assert "optimization.horizon_hours (24)" in todo[0]
 
     def test_pv(self, config_details):
         set_value(config_details, "pvforecast.provider", None)
@@ -307,9 +298,7 @@ class TestWizardChecks:
                 }
             }
         )
-        details = create_config_details(
-            type(config_eos), json.loads(config_eos.model_dump_json())
-        )
+        details = create_config_details(type(config_eos), json.loads(config_eos.model_dump_json()))
         todo = check_devices(details)
         assert len(todo) == 1
         assert todo[0].startswith("battery1 has no nominal_capacity_wh")
@@ -463,7 +452,9 @@ class TestWizardPage:
         assert eos["save"] == []
 
     def test_save(self, eos):
-        html = to_xml(Wizard("localhost", 8503, {"wizard_step": "finish", "action": "save_to_file"}))
+        html = to_xml(
+            Wizard("localhost", 8503, {"wizard_step": "finish", "action": "save_to_file"})
+        )
         assert eos["save"] == [("localhost", 8503)]
         assert "saved-by-test" in html
 
@@ -493,7 +484,11 @@ class TestWizardPage:
             for name in names:
                 assert name in model.model_fields
                 assert f"<code>{name}</code>" in html or f"profile_adjustment.{name}" in html
-        for stale in ("<code>capacity_wh</code>", "<code>charging_efficiency</code>", "<code>max_power_w</code>"):
+        for stale in (
+            "<code>capacity_wh</code>",
+            "<code>charging_efficiency</code>",
+            "<code>max_power_w</code>",
+        ):
             assert stale not in html
 
     def test_homeassistant_step_example_renders_yaml(self, eos):

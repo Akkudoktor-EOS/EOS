@@ -30,10 +30,8 @@ from akkudoktoreos.config.configabc import (
     ValueTimeWindow,
     ValueTimeWindowSequence,
 )
-from akkudoktoreos.devices.genetic.homeappliance import (
-    HomeAppliance,
-    HomeApplianceParameters,
-)
+from akkudoktoreos.devices.appliancescheduling import ApplianceTimes
+from akkudoktoreos.devices.settings.homeappliancesettings import HomeApplianceCommonSettings
 from akkudoktoreos.utils.datetimeutil import Time, to_datetime, to_duration
 
 # ===========================================================================
@@ -2412,27 +2410,20 @@ class TestTimeWindowBoundaries:
         )
         # Exercise the serialized settings used by the dashboard/API as well.
         sequence = CycleTimeWindowSequence.model_validate_json(sequence.model_dump_json())
-        appliance = HomeAppliance(
-            parameters=HomeApplianceParameters(
+        appliance = ApplianceTimes(
+            HomeApplianceCommonSettings(
                 device_id="dishwasher",
                 duration_h=2,
                 consumption_wh=2000,
-                num_cycles=1,
-                time_windows=sequence,
+                cycle_time_windows=sequence,
             ),
-            prediction_hours=24,
-            optimization_hours=24,
+            slot_duration_h=1,
+            total_slots=24,
         )
-        start = pendulum.datetime(2026, 10, 26)
-        appliance.start_allowed = []
-        appliance.start_earliest = []
-        appliance.start_latest = []
-
-        appliance._build_cycle_start_allowed(
-            sequence, start, start.add(days=1), pendulum.duration(hours=1)
-        )
-
-        np.testing.assert_array_equal(np.flatnonzero(appliance.start_allowed[0]), [8, 9, 10])
+        start = to_datetime("2026-10-26T00:00:00")
+        assert appliance.allowed_start_slots(
+            slot0=start, earliest_slot=0, horizon_end_slot=24, cycle_index=0
+        ) == [8, 9, 10]
 
 
 class TestTimeWindowDST:

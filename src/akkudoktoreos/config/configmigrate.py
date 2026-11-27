@@ -430,13 +430,10 @@ MIGRATION_MAP: Dict[
     # optimization
     # ============
     "optimization/interval": None,
-    "optimization/horizon_hours": "optimization/genetic0/horizon_hours",
     "optimization/ev_available_charge_rates_percent": (
         "devices/electric_vehicles/ev0/charge_rates",
         lambda v: [x / 100 for x in v],
     ),
-    "optimization/hours": "optimization/genetic0/horizon_hours",
-    "optimization/penalty": ("optimization/genetic0/penalties/ev_soc_miss", lambda v: float(v)),
     # pvforecast
     # ==========
     # - PVForecastAkkudoktor
@@ -500,17 +497,19 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     # Normalize this provider before the generic field-by-field transfer. Validate
     # coupled bounds together so a transient intermediate default cannot lose them.
     config_data = dict(config_data)
-    from akkudoktoreos.optimization.genetic.geneticsettings import (
-        normalize_genetic_settings,
-    )
+    from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
 
-    if "optimization" in config_data:
-        config_data["optimization"] = normalize_genetic_settings(config_data["optimization"])
     pv_settings = normalize_akkudoktor_settings(config_data.get("pvforecast"))
     if isinstance(pv_settings, dict):
         config_data["pvforecast"] = pv_settings
 
     new_config = SettingsEOSDefaults()
+    if isinstance(optimization := config_data.get("optimization"), dict):
+        # Validate the migrated settings together, including the entire penalties map.
+        planning = OptimizationCommonSettings.model_validate(optimization)
+        new_config.set_nested_value("optimization", planning)
+        migrated_source_paths.add("optimization")
+        mapped_count += 1
     if isinstance(pv_settings, dict) and "akkudoktor" in pv_settings:
         local_settings = PVForecastAkkudoktorLocalCommonSettings.model_validate(
             pv_settings["akkudoktor"]
@@ -643,6 +642,14 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
             )
 
     try:
+        from akkudoktoreos.config.config import SettingsEOSDefaults
+
+        # Strip computed fields
+        config_data = _strip_computed_fields(config_data, SettingsEOSDefaults)
+
+        # Migrate config data
+        new_config = migrate_config_data(config_data)
+
         # Backup existing file - we already know it is existing
         try:
             config_file.replace(backup_file)
@@ -657,14 +664,6 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
                 logger.warning(
                     f"Failed to backup existing config (replace: {e_replace}; copy: {e_copy}). Continuing without backup."
                 )
-
-        from akkudoktoreos.config.config import SettingsEOSDefaults
-
-        # Strip computed fields
-        config_data = _strip_computed_fields(config_data, SettingsEOSDefaults)
-
-        # Migrate config data
-        new_config = migrate_config_data(config_data)
 
         # Write migrated configuration
         try:

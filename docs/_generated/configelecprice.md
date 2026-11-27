@@ -88,6 +88,7 @@
                "ElecPriceEnergyCharts",
                "ElecPriceFixed",
                "ElecPriceImport",
+               "ElecPriceResidualLoad",
                "ElecPriceSMARD",
                "ElecPriceTibber"
            ]

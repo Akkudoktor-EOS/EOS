@@ -17,8 +17,10 @@
 ../_generated/configmeasurement.md
 ../_generated/configoptimization.md
 ../_generated/configprediction.md
+../_generated/configpresence.md
 ../_generated/configpvforecast.md
 ../_generated/configserver.md
+../_generated/configthermal.md
 ../_generated/configutils.md
 ../_generated/configweather.md
 ../_generated/configexample.md

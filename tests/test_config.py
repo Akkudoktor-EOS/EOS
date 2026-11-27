@@ -630,7 +630,7 @@ class TestConfigEOS:
         write_config_file(
             config_eos_file,
             {
-                "optimization": {"genetic": {"individuals": 200}},
+                "optimization": {"measurement_max_age_seconds": 200},
                 "pvforecast": {
                     "planes": [
                         {"surface_tilt": 30.0, "surface_azimuth": azimuth, "peakpower": 5.0}
@@ -639,30 +639,30 @@ class TestConfigEOS:
                 },
             },
         )
-        assert config_eos_file.optimization.genetic.individuals == 200
+        assert config_eos_file.optimization.measurement_max_age_seconds == 200
         assert len(config_eos_file.pvforecast.planes) == 4
 
         config_eos_file.merge_settings_from_dict(
             {
-                "optimization": {"genetic": {"individuals": 300}},
+                "optimization": {"measurement_max_age_seconds": 300},
                 "pvforecast": {
                     "planes": [{"surface_tilt": 30.0, "surface_azimuth": 180.0, "peakpower": 5.0}]
                 },
             }
         )
 
-        assert config_eos_file.optimization.genetic.individuals == 300
+        assert config_eos_file.optimization.measurement_max_age_seconds == 300
         assert len(config_eos_file.pvforecast.planes) == 1
 
     def test_merge_settings_overrides_env(self, config_eos_file, monkeypatch):
         """Runtime settings take precedence over environment variables."""
-        monkeypatch.setenv("EOS_OPTIMIZATION__GENETIC__INDIVIDUALS", "150")
+        monkeypatch.setenv("EOS_OPTIMIZATION__MEASUREMENT_MAX_AGE_SECONDS", "150")
         config_eos_file.reset_settings()
-        assert config_eos_file.optimization.genetic.individuals == 150
+        assert config_eos_file.optimization.measurement_max_age_seconds == 150
 
-        config_eos_file.merge_settings_from_dict({"optimization": {"genetic": {"individuals": 300}}})
+        config_eos_file.merge_settings_from_dict({"optimization": {"measurement_max_age_seconds": 300}})
 
-        assert config_eos_file.optimization.genetic.individuals == 300
+        assert config_eos_file.optimization.measurement_max_age_seconds == 300
 
     def test_env_overrides_config_file_after_merge(self, config_eos_file, monkeypatch):
         """Environment variables keep precedence over the config file for untouched keys."""
@@ -682,13 +682,13 @@ class TestConfigEOS:
 
     def test_reset_settings_drops_runtime_settings(self, config_eos_file):
         """Reset drops runtime settings and falls back to the config file."""
-        write_config_file(config_eos_file, {"optimization": {"genetic": {"individuals": 200}}})
+        write_config_file(config_eos_file, {"optimization": {"measurement_max_age_seconds": 200}})
 
-        config_eos_file.merge_settings_from_dict({"optimization": {"genetic": {"individuals": 300}}})
-        assert config_eos_file.optimization.genetic.individuals == 300
+        config_eos_file.merge_settings_from_dict({"optimization": {"measurement_max_age_seconds": 300}})
+        assert config_eos_file.optimization.measurement_max_age_seconds == 300
 
         config_eos_file.reset_settings()
-        assert config_eos_file.optimization.genetic.individuals == 200
+        assert config_eos_file.optimization.measurement_max_age_seconds == 200
 
     def test_set_nested_value_survives_merge(self, config_eos_file):
         """Granular updates are not lost by a later bulk update."""
@@ -696,7 +696,7 @@ class TestConfigEOS:
             config_eos_file,
             {
                 "general": {"latitude": 48.0},
-                "optimization": {"genetic": {"individuals": 200}},
+                "optimization": {"measurement_max_age_seconds": 200},
                 "pvforecast": {
                     "planes": [
                         {"surface_tilt": 30.0, "surface_azimuth": azimuth, "peakpower": 5.0}
@@ -706,7 +706,7 @@ class TestConfigEOS:
             },
         )
 
-        config_eos_file.set_nested_value("optimization/genetic/individuals", 400)
+        config_eos_file.set_nested_value("optimization/measurement_max_age_seconds", 400)
         # A list index can not be expressed by the settings dictionary
         config_eos_file.set_nested_value("pvforecast/planes/1/peakpower", 9.9)
         # Clearing a value must not be reverted by the config file either
@@ -715,13 +715,13 @@ class TestConfigEOS:
         config_eos_file.merge_settings_from_dict({"server": {"port": 8600}})
 
         assert config_eos_file.server.port == 8600
-        assert config_eos_file.optimization.genetic.individuals == 400
+        assert config_eos_file.optimization.measurement_max_age_seconds == 400
         assert config_eos_file.pvforecast.planes[1].peakpower == 9.9
         assert config_eos_file.general.latitude is None
 
     def test_revert_settings_restores_backup(self, config_eos_file):
         """Revert restores the backup values even if the config file differs."""
-        write_config_file(config_eos_file, {"optimization": {"genetic": {"individuals": 200}}})
+        write_config_file(config_eos_file, {"optimization": {"measurement_max_age_seconds": 200}})
 
         config_file_path = config_eos_file.general.config_file_path
         assert config_file_path is not None
@@ -730,7 +730,7 @@ class TestConfigEOS:
             json.dumps(
                 {
                     "general": {"version": config_eos_file.general.version},
-                    "optimization": {"genetic": {"individuals": 500}},
+                    "optimization": {"measurement_max_age_seconds": 500},
                 }
             ),
             encoding="utf-8",
@@ -738,7 +738,7 @@ class TestConfigEOS:
 
         config_eos_file.revert_settings("backup")
 
-        assert config_eos_file.optimization.genetic.individuals == 500
+        assert config_eos_file.optimization.measurement_max_age_seconds == 500
 
     def test_config_from_env_on_first_init(self, config_eos, config_default_dirs, monkeypatch):
         """Environment variables are applied on the first configuration build."""
@@ -936,6 +936,97 @@ class TestConfigProviderValidation:
 
         for section, value in providers.items():
             assert getattr(config, section).provider == value["provider"]
+
+
+class TestRetiredHeatSourceSettings:
+    """A configuration with the retired staged-model fields of a heat source loads without them."""
+
+    OLD_SOURCE = {
+        "device_id": "hp",
+        "kind": "electric_room",
+        "max_electric_power_w": 2300,
+        "stages": 5,
+        "min_run_seconds": 3600,
+        "min_pause_seconds": 1800,
+        "comfort_penalty_eur_per_kh": 80.0,
+    }
+
+    def _check(self, config) -> None:
+        source = config.devices.heat_sources["hp"]
+        assert source.max_electric_power_w == 2300
+        assert source.comfort_penalty_eur_per_kh == 80.0
+        assert not {"stages", "min_run_seconds", "min_pause_seconds"} & set(source.model_dump())
+
+    def test_the_current_version_loads_without_migration(self, uncreated_config):
+        """The version is pinned on the plant: no migration runs, the fields are dropped on load."""
+        from akkudoktoreos.core import coreabc
+        from akkudoktoreos.core.version import __version__
+
+        data = {"general": {"version": __version__}, "devices": {"heat_sources": {"hp": self.OLD_SOURCE}}}
+        uncreated_config.write_text(json.dumps(data))
+        self._check(coreabc.get_config(init=True))
+        assert json.loads(uncreated_config.read_text()) == data  # the file itself is not touched
+
+    def test_an_older_version_is_migrated(self, uncreated_config):
+        """A migration (version change) keeps every other setting and leaves the fields out."""
+        from akkudoktoreos.core import coreabc
+
+        data = {"general": {"version": "0.0.1"}, "devices": {"heat_sources": {"hp": self.OLD_SOURCE}}}
+        uncreated_config.write_text(json.dumps(data))
+        self._check(coreabc.get_config(init=True))
+        written = json.loads(uncreated_config.read_text())["devices"]["heat_sources"]["hp"]
+        assert "stages" not in written and "min_run_seconds" not in written
+        assert written["max_electric_power_w"] == 2300 and written["comfort_penalty_eur_per_kh"] == 80.0
+
+
+class TestRetiredInverterSettings:
+    """A configuration with the unused inverter fields of the former optimizer still loads."""
+
+    OLD_INVERTER = {
+        "device_id": "inv",
+        "battery_id": "bat",
+        "off_state_power_consumption_w": 5.0,
+        "on_state_power_consumption_w": 10.0,
+        "pv_to_ac_efficiency": 0.97,
+        "pv_to_battery_efficiency": 0.98,
+        "pv_max_power_w": 8000.0,
+        "pv_min_power_w": 50.0,
+        "pv_power_w_key": "pvforecast_dc_power_w",
+        "battery_capacity_wh": 10000.0,
+        "battery_charge_rates": [0.5, 1.0],
+        "battery_min_charge_rate": 0.1,
+        "battery_max_charge_rate": 0.5,
+        "battery_min_discharge_rate": 0.1,
+        "battery_max_discharge_rate": 0.5,
+        "battery_min_soc_factor": 0.1,
+        "battery_max_soc_factor": 0.9,
+        "battery_initial_soc_factor_key": "bat_soc",
+        "battery_lcos_amt_kwh": 0.05,
+        "battery_discharge_reward_amt_kwh": 0.17,
+        "profile_adjustment": {"nominal_power_w": 10000},
+    }
+
+    def _check(self, config) -> None:
+        inverter = config.devices.inverters["inv"]
+        assert inverter.battery_id == "bat"
+        assert not {k for k in self.OLD_INVERTER if k not in ("device_id", "battery_id", "profile_adjustment")} & set(
+            type(inverter).model_fields
+        )
+
+    def test_the_current_version_loads_without_migration(self, uncreated_config):
+        from akkudoktoreos.core import coreabc
+        from akkudoktoreos.core.version import __version__
+
+        data = {"general": {"version": __version__}, "devices": {"inverters": {"inv": self.OLD_INVERTER}}}
+        uncreated_config.write_text(json.dumps(data))
+        self._check(coreabc.get_config(init=True))
+
+    def test_an_older_version_is_migrated(self, uncreated_config):
+        from akkudoktoreos.core import coreabc
+
+        data = {"general": {"version": "0.0.1"}, "devices": {"inverters": {"inv": self.OLD_INVERTER}}}
+        uncreated_config.write_text(json.dumps(data))
+        self._check(coreabc.get_config(init=True))
 
 
 class TestDocumentationMode:

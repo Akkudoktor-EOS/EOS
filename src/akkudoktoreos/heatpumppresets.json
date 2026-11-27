@@ -1,0 +1,1779 @@
+{
+  "schema_version": 1,
+  "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+  "profiles": {
+    "aira_6": {
+      "profile_id": "aira_6",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.5
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.69
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.52
+        },
+        {
+          "outdoor_temperature_c": 12.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 6.4
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 1.75
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6000.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 9500.0
+        }
+      ],
+      "thermal_min_points": [],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "aira_8": {
+      "profile_id": "aira_8",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.4
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.58
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.73
+        },
+        {
+          "outdoor_temperature_c": 12.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 6.46
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 1.75
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 8000.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 10000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 12000.0
+        }
+      ],
+      "thermal_min_points": [],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "aira_12": {
+      "profile_id": "aira_12",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.23
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.36
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.94
+        },
+        {
+          "outdoor_temperature_c": 12.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 6.38
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 1.56
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 12000.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 13000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 16000.0
+        }
+      ],
+      "thermal_min_points": [],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "pana_l5": {
+      "profile_id": "pana_l5",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.01
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.52
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.05
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.12
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.34
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.07
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5000.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5000.0
+        }
+      ],
+      "thermal_min_points": [],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "pana_l7": {
+      "profile_id": "pana_l7",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.01
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.43
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.93
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.12
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.34
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.98
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5800.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6850.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7000.0
+        }
+      ],
+      "thermal_min_points": [],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "pana_l9": {
+      "profile_id": "pana_l9",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.8
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.41
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.55
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.13
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.41
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.03
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7000.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 9000.0
+        }
+      ],
+      "thermal_min_points": [],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "wolf_cha07": {
+      "profile_id": "wolf_cha07",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.73
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.54
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.47
+        },
+        {
+          "outdoor_temperature_c": 10.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.88
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.02
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6800.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2400.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2200.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2800.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "wolf_cha10": {
+      "profile_id": "wolf_cha10",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.88
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.65
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.72
+        },
+        {
+          "outdoor_temperature_c": 10.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 6.05
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.06
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 9800.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 10000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 10000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2300.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3500.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "vaillant_35": {
+      "profile_id": "vaillant_35",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.04
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.07
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.92
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.14
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.57
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.92
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5010.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5520.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6780.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1890.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1890.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1390.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "vaillant_55": {
+      "profile_id": "vaillant_55",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.67
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.07
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.92
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.17
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.57
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.92
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5880.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6280.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7200.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1890.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1890.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1390.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "vaillant_75": {
+      "profile_id": "vaillant_75",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.67
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.07
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.92
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.13
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.52
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.82
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7250.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 8029.999999999999
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 9510.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2550.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2550.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1930.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "lambda_10L": {
+      "profile_id": "lambda_10L",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.39
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.21
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 6.02
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.42
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.68
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 9200.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 10900.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 13700.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1300.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1700.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2100.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "lambda_13L": {
+      "profile_id": "lambda_13L",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.77
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.05
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.94
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.59
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.71
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 12900.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 13500.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 16800.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3300.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2900.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3300.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "lambda_15L": {
+      "profile_id": "lambda_15L",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.83
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.11
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.89
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.71
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.47
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 15300.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 15700.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 20400.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3900.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 4500.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5100.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "lambda_20L": {
+      "profile_id": "lambda_20L",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.7
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.04
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.74
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.62
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.69
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 20800.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 25100.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 28300.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 4600.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 5600.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6700.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "lambda_35L": {
+      "profile_id": "lambda_35L",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.53
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.21
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 6.01
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.59
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.86
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 34100.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 37700.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 40000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6100.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 8500.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "viessmann_250A": {
+      "profile_id": "viessmann_250A",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.16
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.46
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.31
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.13
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 11000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 12000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2200.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2600.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "alpha_08": {
+      "profile_id": "alpha_08",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.2
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.21
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.3
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7330.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 8000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 8000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1930.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2730.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3140.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "alpha_11": {
+      "profile_id": "alpha_11",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.04
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.38
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.04
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.03
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 9410.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 10000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 10000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3570.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3580.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2970.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "stiebel_07_2": {
+      "profile_id": "stiebel_07_2",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.25
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.57
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.5
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.58
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.84
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.19
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 7090.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6960.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 8470.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1710.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2360.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2760.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "stiebel_10_2": {
+      "profile_id": "stiebel_10_2",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.15
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.54
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.4
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.48
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.9
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.18
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 10070.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 9840.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 11970.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 2670.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3050.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 3690.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "vaillant_105": {
+      "profile_id": "vaillant_105",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.01
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.4
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 5.29
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.03
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.76
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.19
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 11250.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 12480.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 14400.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 4760.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 4610.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "mitsubishi_13_10": {
+      "profile_id": "mitsubishi_13_10",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.7
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.24
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.56
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.9
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 11300.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 11300.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 16000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 4600.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 4200.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 4100.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "weishaupt_11": {
+      "profile_id": "weishaupt_11",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 2.82
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.9
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.88
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.99
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6000.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 6900.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 8500.0
+        },
+        {
+          "outdoor_temperature_c": 20.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 11000.0
+        }
+      ],
+      "thermal_min_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1600.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1700.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 1800.0
+        }
+      ],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    },
+    "lg_12": {
+      "profile_id": "lg_12",
+      "heat_pump_type": "air_to_water",
+      "cop_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.27
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 3.72
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "cop": 4.7
+        },
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 2.32
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 55.0,
+          "cop": 3.1
+        }
+      ],
+      "thermal_max_points": [
+        {
+          "outdoor_temperature_c": -7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 11800.0
+        },
+        {
+          "outdoor_temperature_c": 2.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 12000.0
+        },
+        {
+          "outdoor_temperature_c": 7.0,
+          "delivery_temperature_c": 35.0,
+          "thermal_power_w": 12000.0
+        }
+      ],
+      "thermal_min_points": [],
+      "cop_includes_defrost": null,
+      "provenance": {
+        "source": "User-supplied annual heat-pump sizing HTML; numeric WP_PRESETS only",
+        "quality": "unverified_html",
+        "source_sha256": "d736b640594185d2a71d6ce941b38320108d9c0f8612796a5ab6b0461620951c",
+        "assumptions": [
+          "Capacity outdoor curves are assigned to W35 as in the HTML; original manufacturer rating conditions are unverified.",
+          "No W55 capacity derating, missing-COP imputation, missing minimum-capacity estimate, or cycling loss has been imported."
+        ]
+      }
+    }
+  }
+}

@@ -164,8 +164,7 @@ def check_location(config_details: dict[str, dict]) -> list[str]:
 def check_horizon(config_details: dict[str, dict]) -> list[str]:
     """Report what is still to do for the horizons and the energy management."""
     todo = []
-    algorithm = str(config_value(config_details, "optimization.algorithm", "")).lower()
-    horizon_name = f"optimization.{algorithm}.horizon_hours"
+    horizon_name = "optimization.horizon_hours"
     horizon = config_value(config_details, horizon_name)
     prediction = config_value(config_details, "prediction.hours")
     if isinstance(horizon, (int, float)) and (prediction is None or prediction < horizon):
@@ -433,7 +432,7 @@ Two horizons decide how far EOS looks ahead, and the energy management decides w
 how often EOS works on its own.
 
 - `prediction.hours` - how many hours into the future EOS predicts PV yield, load and prices.
-- `optimization.<algorithm>.horizon_hours` - how many hours the plan covers. The predictions
+- `optimization.horizon_hours` - how many hours the OHMRAKEL42 plan covers. The predictions
   must cover at least this horizon, otherwise the optimization fails.
 - `ems.mode` - what the energy management does in each run: `DISABLED` nothing,
   `PREDICTION` updates the predictions, `OPTIMIZATION` updates the predictions and
@@ -451,18 +450,9 @@ Use `PREDICTION` while you are still setting up the forecasts and want to look a
 """,
         config_names=(
             "prediction.hours",
-            "optimization.algorithm",
+            "optimization.horizon_hours",
             "ems.mode",
             "ems.interval",
-        ),
-        choices=(
-            WizardChoice(
-                "optimization.algorithm",
-                {
-                    "GENETIC": ("optimization.genetic.horizon_hours",),
-                    "GENETIC0": ("optimization.genetic0.horizon_hours",),
-                },
-            ),
         ),
         check=check_horizon,
     ),
@@ -749,8 +739,8 @@ between 10:00 and 16:00: add a home appliance with `device_id` = `dishwasher`,
         intro="""
 To plan a battery or an electric vehicle EOS must know its **current state of charge**. The
 measurement is named `<device_id>-soc-factor` and is a factor from `0.0` (empty) to `1.0`
-(full) - not a percentage. It must be fresh: the GENETIC optimization does not use a state
-of charge older than `optimization.genetic.measurement_max_age_seconds` and then assumes an
+(full) - not a percentage. It must be fresh: OHMRAKEL42 does not use a state
+of charge older than `optimization.measurement_max_age_seconds` and then assumes an
 **empty** battery (0 %).
 
 There are two ways to get measurements into EOS:
@@ -778,7 +768,7 @@ step.
         config_names=(
             "adapter.provider",
             "measurement.load_emr_keys",
-            "optimization.genetic.measurement_max_age_seconds",
+            "optimization.measurement_max_age_seconds",
         ),
         choices=(
             WizardChoice(

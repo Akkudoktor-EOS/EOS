@@ -1,6 +1,6 @@
 """Battery and electric vehicle device settings.
 
-Note: Used for the GENETIC and GENETIC0 algorithm.
+Note: Used for the OHMRAKEL42 optimizer.
 
 The technical battery data (capacity, power limits, efficiencies, technical
 SOC bounds) comes from a battery profile (see BatteryProfileSettings). The user
@@ -120,14 +120,7 @@ from akkudoktoreos.measurement.batterycapacity import (
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 if TYPE_CHECKING:
-    from akkudoktoreos.devices.genetic0.genetic0battery import (
-        Genetic0ElectricVehicleParameters,
-        Genetic0SolarPanelBatteryParameters,
-    )
-    from akkudoktoreos.devices.genetic.battery import (
-        ElectricVehicleParameters,
-        SolarPanelBatteryParameters,
-    )
+    from akkudoktoreos.devices.models.storage import StorageParams
     from akkudoktoreos.devices.profile.batteryprofileruntime import BatteryProfile
 
 
@@ -136,6 +129,9 @@ BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 
 
 
 BATTERY_DEFAULT_GRID_EXPORT_RATES: list[float] = [0.25, 0.5, 0.75, 1.0]
+
+# Default discharge ceilings of a battery: factors of the maximum discharge power.
+BATTERY_DEFAULT_DISCHARGE_RATES: list[float] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 # Name of the battery profile used when the user selects none.
 BATTERY_DEFAULT_PROFILE: str = "generic-lfp"
@@ -190,7 +186,7 @@ class BatteryProfileAdjustment(SettingsBaseModel):
         gt=0,
         allow_inf_nan=False,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Maximum number of days between two full charges of a stationary "
                 "battery [d]. Replaces the interval of the battery profile. When the "
@@ -208,7 +204,7 @@ class BatteryProfileAdjustment(SettingsBaseModel):
         ge=1,
         le=100,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Measured state of charge from which the battery counts as fully "
                 "charged [%]. Replaces the threshold of the battery profile. The "
@@ -225,7 +221,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
 
     Used for both stationary batteries and EV battery packs.
 
-    Note: Used for the GENETIC and GENETIC0 algorithm.
+    Note: Used for the OHMRAKEL42 optimizer.
     """
 
     # Reference resolution shared by the effective_* computed fields, see
@@ -292,6 +288,42 @@ class BatteriesCommonSettings(DevicesBaseSettings):
                 "None triggers fallback to default charge-rates."
             ),
             "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
+        },
+    )
+    adapter_supports_discharge_limit: bool = Field(
+        default=False,
+        description=(
+            "Enable staged discharge only if the adapter or flow controlling this battery "
+            "applies SELF_CONSUMPTION's operation_mode_factor as a discharge power ceiling. "
+            "When false, the planner uses only on/off discharge."
+        ),
+    )
+    discharge_rates: Optional[list[float]] = Field(
+        default_factory=lambda: list(BATTERY_DEFAULT_DISCHARGE_RATES),
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
+            "description": (
+                "Discharge ceilings the optimizer may choose per time step, as factor of the "
+                "maximum discharge power ]0.00 ... 1.00]. The battery then covers at most this "
+                "share of the maximum power of the load that is left, never more than the load. "
+                "An empty list or [1.0] allows plain on/off discharging. None uses the default "
+                "levels 0.1 ... 1.0. Stationary batteries only."
+            ),
+            "examples": [[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], [1.0], []],
+        },
+    )
+    pv_charge_switchable: bool = Field(
+        default=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
+            "description": (
+                "Whether the optimizer may switch off charging from PV surplus per time step "
+                "(for example to keep capacity for cheaper grid energy). A step without PV "
+                "charging is a step without discharging, grid charging and export (operation "
+                "mode IDLE). False keeps PV charging always on, as the former optimizers did when "
+                "no direct marketing is active. Stationary batteries only."
+            ),
+            "examples": [False, True],
         },
     )
     min_soc_percentage: int = Field(
@@ -400,7 +432,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         except ValueError as exc:
             raise BatteryResolutionError(f"Battery '{self.device_id}': {exc}") from exc
 
-    def _genetic_snapshot(
+    def _storage_snapshot(
         self, operating_parameters: Optional[BatteryOperatingParameters], use_profile_tables: bool
     ) -> tuple[BatteryOperatingParameters, Optional["BatteryProfile"]]:
         """Return the snapshot to convert and the profile, loading the profile once.
@@ -429,10 +461,10 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             profile,
         )
 
-    def _genetic_power_parameters(
+    def _storage_power_parameters(
         self, p: BatteryOperatingParameters, profile: Optional["BatteryProfile"]
     ) -> dict[str, Any]:
-        """Return the power and efficiency fields of the GENETIC battery parameters.
+        """Return the power and efficiency fields of the storage parameters.
 
         With power curves from the profile, the rated powers are the highest
         powers over SoC; the per-SoC tables limit them in the simulation.
@@ -634,7 +666,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         Returns:
             ``(parameters, use_profile_tables)``. ``use_profile_tables`` is
             False if the parameters were resolved without profile; pass it to
-            the GENETIC conversions. The parameters are always valid; if the
+            storage conversion. The parameters are always valid; if the
             profile inhibits charging at the operating point (e.g. too cold),
             the maximum charge power is 0.
         """
@@ -869,7 +901,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         return p.max_soc_percentage if p is not None else None
 
     # ------------------------------------------------------------------
-    # GENETIC domain conversion
+    # Stationary battery domain settings
     # ------------------------------------------------------------------
 
     grid_export_rates: Optional[list[float]] = Field(
@@ -879,10 +911,10 @@ class BatteriesCommonSettings(DevicesBaseSettings):
                 "Battery-to-grid export rates as factor of maximum discharge "
                 "power ]0.00 ... 1.00]. Available to algorithms that explicitly "
                 "enable battery-to-grid export; configuring rates alone does not "
-                "enable export. [1.0] selects full-power export. None uses the "
+                "enable export. [] disables battery export, [1.0] selects full-power export. None uses the "
                 "default export rates."
             ),
-            "examples": [[0.25, 0.5, 0.75, 1.0], [1.0], None],
+            "examples": [[0.25, 0.5, 0.75, 1.0], [], [1.0], None],
         },
     )
 
@@ -899,8 +931,8 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         else:
             arr = np.array(v, dtype=float)
 
-        if arr.ndim != 1 or arr.size == 0:
-            raise ValueError("grid_export_rates must be a nonempty one-dimensional list.")
+        if arr.ndim != 1:
+            raise ValueError("grid_export_rates must be a one-dimensional list.")
         if not np.isfinite(arr).all():
             raise ValueError("grid_export_rates must contain finite values.")
 
@@ -917,7 +949,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     min_soc_deadline_datetime: Optional[DateTime] = Field(
         default=None,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Absolute moment by which 'min_soc_percentage' has to be "
                 "reached (departure time). A date time without timezone is read "
@@ -931,7 +963,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         gt=0,
         allow_inf_nan=False,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Maximum time from the start of the optimization until "
                 "'min_soc_percentage' has to be reached [h]. Combined with "
@@ -950,7 +982,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         return to_datetime(value)
 
     # ------------------------------------------------------------------
-    # Periodic full charge (stationary batteries, GENETIC only)
+    # Periodic full charge (stationary batteries)
     # ------------------------------------------------------------------
     #
     # The interval and the detection threshold are battery model properties:
@@ -961,7 +993,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         ge=1,
         le=100,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "State of charge a periodic full charge has to reach [%]. May be "
                 "above 'max_soc_percentage', which then applies on the other days. "
@@ -975,7 +1007,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     full_charge_allow_grid: bool = Field(
         default=False,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Enforce a due full charge, charging from the grid if needed. "
                 "False only raises the maximum state of charge, so that PV surplus "
@@ -1013,147 +1045,68 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         """Measured SoC from which the battery counts as fully charged [%]."""
         return self._reference_resolution()[1].detect_percentage
 
-    def to_genetic_pv_bat_param(
+    def to_storage_params(
         self,
-        operating_parameters: Optional[BatteryOperatingParameters] = None,
-        use_profile_tables: bool = True,
-    ) -> "SolarPanelBatteryParameters":
-        """Return SolarPanelBatteryParameters for the GENETIC optimizer.
+        operating_parameters: Optional[BatteryOperatingParameters],
+        use_profile_tables: bool,
+        *,
+        initial_soc_percentage: float,
+        is_vehicle: bool = False,
+    ) -> "StorageParams":
+        """Return the storage parameters of the device by device optimizer.
 
         Args:
             operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-            use_profile_tables: Whether to add the SoC dependent power limits
-                and efficiency curves of the profile. False for a snapshot
-                resolved without profile (see
-                ``resolve_operating_parameters_or_defaults``); requires
-                ``operating_parameters``.
+                ``resolve_current_operating_parameters_or_defaults``.
+            use_profile_tables: Whether to add the SoC dependent power limits and efficiency
+                curves of the profile (False for a snapshot resolved without profile).
+            initial_soc_percentage: State of charge at the start of the horizon [%].
+            is_vehicle: Convert an electric vehicle: it has no minimum state of charge (the
+                configured minimum is its charge target, see ``VehicleTarget``), no storage
+                cost and no discharging.
 
         Raises:
             BatteryResolutionError: See ``resolve_operating_parameters``.
         """
-        from akkudoktoreos.devices.genetic.battery import SolarPanelBatteryParameters
+        import numpy as np
 
-        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
-        return SolarPanelBatteryParameters(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
-            charge_rates=self.charge_rates,
-            grid_export_rates=self.grid_export_rates,
-            **self._genetic_power_parameters(p, profile),
-            levelized_cost_of_storage_kwh=self.levelized_cost_of_storage_amt_kwh,
+        from akkudoktoreos.devices.models.storage import DEFAULT_CHARGE_RATES, StorageParams
+
+        p, profile = self._storage_snapshot(operating_parameters, use_profile_tables)
+        power = self._storage_power_parameters(p, profile)
+
+        def table(values: Optional[list[float]]) -> Optional[tuple[float, ...]]:
+            return None if values is None else tuple(float(v) for v in values)
+
+        def curve(
+            points: Optional[list[tuple[float, float]]],
+        ) -> Optional[tuple[tuple[float, float], ...]]:
+            return None if points is None else tuple((float(a), float(b)) for a, b in points)
+
+        max_charge = power["max_charge_power_w"]
+        max_charge = float(p.capacity_wh) if max_charge is None else float(max_charge)
+        max_discharge = power.get("max_discharge_power_w")
+        rates = (
+            tuple(float(r) for r in np.unique(np.asarray(self.charge_rates, dtype=float)))
+            if self.charge_rates is not None and len(self.charge_rates)
+            else DEFAULT_CHARGE_RATES
         )
-
-    def to_genetic_ev_bat_param(
-        self,
-        operating_parameters: Optional[BatteryOperatingParameters] = None,
-        use_profile_tables: bool = True,
-    ) -> "ElectricVehicleParameters":
-        """Return ElectricVehicleParameters for the GENETIC optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-            use_profile_tables: Whether to add the SoC dependent power limits
-                and efficiency curves of the profile. False for a snapshot
-                resolved without profile (see
-                ``resolve_operating_parameters_or_defaults``); requires
-                ``operating_parameters``.
-
-        Raises:
-            BatteryResolutionError: See ``resolve_operating_parameters``.
-        """
-        from akkudoktoreos.devices.genetic.battery import ElectricVehicleParameters
-
-        p, profile = self._genetic_snapshot(operating_parameters, use_profile_tables)
-        return ElectricVehicleParameters(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            charge_rates=self.charge_rates,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
-            min_soc_deadline_datetime=self.min_soc_deadline_datetime,
-            min_soc_max_duration_h=self.min_soc_max_duration_h,
-            **self._genetic_power_parameters(p, profile),
-        )
-
-    # ------------------------------------------------------------------
-    # GENETIC0 domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic0_pv_bat_param(
-        self, operating_parameters: Optional[BatteryOperatingParameters] = None
-    ) -> "Genetic0SolarPanelBatteryParameters":
-        """Return Genetic0SolarPanelBatteryParameters for the GENETIC0 optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-
-        Raises:
-            BatteryResolutionError: See ``resolve_operating_parameters``.
-        """
-        from akkudoktoreos.devices.genetic0.genetic0battery import (
-            Genetic0SolarPanelBatteryParameters,
-        )
-
-        p = (
-            operating_parameters
-            if operating_parameters is not None
-            else self.resolve_operating_parameters()
-        )
-        return Genetic0SolarPanelBatteryParameters(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            max_charge_power_w=p.max_charge_power_w,
-            max_discharge_power_w=p.max_discharge_power_w,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
-        )
-
-    def to_genetic0_ev_bat_param(
-        self, operating_parameters: Optional[BatteryOperatingParameters] = None
-    ) -> "Genetic0ElectricVehicleParameters":
-        """Return Genetic0ElectricVehicleParameters for the GENETIC0 optimizer.
-
-        Args:
-            operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
-                reference operating point.
-
-        Raises:
-            BatteryResolutionError: See ``resolve_operating_parameters``.
-        """
-        from akkudoktoreos.devices.genetic0.genetic0battery import (
-            Genetic0ElectricVehicleParameters,
-        )
-
-        p = (
-            operating_parameters
-            if operating_parameters is not None
-            else self.resolve_operating_parameters()
-        )
-        return Genetic0ElectricVehicleParameters(
-            device_id=self.device_id,
-            capacity_wh=p.capacity_wh,
-            charging_efficiency=p.charging_efficiency,
-            discharging_efficiency=p.discharging_efficiency,
-            charge_rates=self.charge_rates,
-            max_charge_power_w=p.max_charge_power_w,
-            max_discharge_power_w=p.max_discharge_power_w,
-            min_soc_percentage=p.min_soc_percentage,
-            max_soc_percentage=p.max_soc_percentage,
+        return StorageParams(
+            capacity_wh=float(p.capacity_wh),
+            initial_soc_pct=float(initial_soc_percentage),
+            min_soc_pct=0.0 if is_vehicle else float(p.min_soc_percentage),
+            max_soc_pct=float(p.max_soc_percentage),
+            charging_efficiency=float(p.charging_efficiency),
+            discharging_efficiency=float(p.discharging_efficiency),
+            max_charge_power_w=max_charge,
+            max_discharge_power_w=max_charge if max_discharge is None else float(max_discharge),
+            lcos_per_kwh=0.0 if is_vehicle else float(self.levelized_cost_of_storage_amt_kwh),
+            charge_rates=rates,
+            charge_power_limit_w_by_soc=table(power.get("charge_power_limit_w_by_soc")),
+            discharge_power_limit_w_by_soc=table(power.get("discharge_power_limit_w_by_soc")),
+            charging_efficiency_curve=curve(power.get("charging_efficiency_curve")),
+            discharging_efficiency_curve=curve(power.get("discharging_efficiency_curve")),
+            is_vehicle=is_vehicle,
         )
 
     @field_validator("charge_rates", mode="before")
@@ -1185,6 +1138,26 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         arr.sort()
 
         return arr
+
+    @field_validator("discharge_rates", mode="before")
+    @classmethod
+    def validate_and_sort_discharge_rates(cls, v: Any) -> list[float]:
+        """Normalize discharge ceilings to a finite, sorted, duplicate-free list in ]0, 1]."""
+        if v is None:
+            return list(BATTERY_DEFAULT_DISCHARGE_RATES)
+        if isinstance(v, str):
+            numbers = re.split(r"[,\s]+", v.strip("[]"))
+            arr = np.array([float(x) for x in numbers if x], dtype=float)
+        else:
+            arr = np.array(v, dtype=float)
+        if arr.size == 0:
+            return []
+        if arr.ndim != 1 or not np.isfinite(arr).all():
+            raise ValueError("discharge_rates must be a one-dimensional list of finite values.")
+        # 0.0 is not a level: "no discharging" is always available to the optimizer.
+        if (arr <= 0.0).any() or (arr > 1.0).any():
+            raise ValueError("discharge_rates must be within ]0.0, 1.0].")
+        return [float(x) for x in np.unique(arr)]
 
     @model_validator(mode="after")
     def _validate_soc_range(self) -> "BatteriesCommonSettings":

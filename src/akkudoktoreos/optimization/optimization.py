@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Any, Literal, Optional, Union
 
 from pydantic import Field, computed_field, model_validator
 
@@ -9,61 +9,179 @@ from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
 )
-from akkudoktoreos.optimization.genetic0.genetic0settings import Genetic0CommonSettings
-from akkudoktoreos.optimization.genetic.geneticsettings import (
-    GeneticCommonSettings,
-    normalize_genetic_settings,
-)
+from akkudoktoreos.optimization.searchsettings import SearchCommonSettings
 from akkudoktoreos.utils.datetimeutil import DateTime
 from akkudoktoreos.utils.gridinterpolator import GridInterpolatorBackend
 
 
-class OptimizationAlgorithm(StrEnum):
-    """Optimization Algorithm."""
+class TerminalValueMode(StrEnum):
+    """How the energy left in the battery at the end of the horizon is valued.
 
-    GENETIC = "GENETIC"
-    GENETIC0 = "GENETIC0"
+    Modes
+    -----
+    - AUTO:
+        Solve the deterministic forecast tail and apply a conservative
+        continuation proxy at its end. Tail values may decrease with SOC when
+        empty capacity is valuable. With a zero tail, use the proxy directly.
+
+    - FIXED:
+        Credit every stored kWh with the configured
+        ``terminal_value_euro_per_kwh`` (or ``preis_euro_pro_wh_akku`` of the
+        request). The historical behaviour; a value of 0 makes the optimizer
+        empty the battery towards the end of the horizon.
+    """
+
+    AUTO = "AUTO"
+    FIXED = "FIXED"
 
 
-def optimization_default_algorithm() -> OptimizationAlgorithm:
-    """Provide default optimization algorithm."""
-    return OptimizationAlgorithm.GENETIC
+def normalize_optimization_settings(value: Any) -> Any:
+    """Move active legacy planning settings to their canonical top-level keys."""
+    if not isinstance(value, dict):
+        return value
+    data = dict(value)
+    algorithm = data.pop("algorithm", None)
+    genetic = data.pop("genetic", None) or {}
+    genetic0 = data.pop("genetic0", None) or {}
+    classic = algorithm == "GENETIC0" or (
+        algorithm is None and not genetic and (genetic0 or "hours" in data or "penalty" in data)
+    )
+    legacy = genetic0 if classic else genetic
+    for key in (
+        "interval_sec",
+        "horizon_hours",
+        "tail_horizon_hours",
+        "measurement_max_age_seconds",
+        "terminal_value_mode",
+        "terminal_value_euro_per_kwh",
+        "terminal_value_window_hours",
+        "penalties",
+    ):
+        if key in legacy:
+            data.setdefault(key, legacy[key])
+    if "interval" in data:
+        data.setdefault("interval_sec", data.pop("interval"))
+    if "hours" in data:
+        data.setdefault("horizon_hours", data.pop("hours"))
+    if "penalty" in data:
+        data.setdefault("penalties", {"ev_soc_miss": float(data.pop("penalty"))})
+    if classic:
+        data.setdefault("interval_sec", 3600)
+        data.setdefault("tail_horizon_hours", 0)
+        data.setdefault("terminal_value_mode", "FIXED")
+    return data
 
 
 class OptimizationCommonSettings(SettingsBaseModel):
-    """General Optimization Configuration."""
+    """Settings of the device-by-device optimizer."""
 
     @model_validator(mode="before")
     @classmethod
-    def normalize_old_genetic_settings(cls, value: Any) -> Any:
-        """Accept the feature branch's flat GENETIC settings without losing values."""
-        return normalize_genetic_settings(value)
+    def normalize_legacy_settings(cls, value: Any) -> Any:
+        """Load persisted configurations from previous releases."""
+        return normalize_optimization_settings(value)
 
-    algorithm: OptimizationAlgorithm = Field(
-        default_factory=optimization_default_algorithm,
+    interval_sec: Literal[900, 3600] = Field(
+        default=3600,
+        json_schema_extra={
+            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
+            "examples": [60 * 60, 15 * 60],
+        },
+    )
+
+    horizon_hours: int = Field(
+        default=24,
+        ge=0,
+        json_schema_extra={
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "examples": [24],
+        },
+    )
+
+    measurement_max_age_seconds: int = Field(
+        default=300,
+        gt=0,
+        description=(
+            "Maximum age of SoC measurements used for configuration-based optimization [s]. "
+            "Without an explicit SoC or usable measurement, the initial SoC defaults to 0%."
+        ),
+    )
+
+    tail_horizon_hours: int = Field(
+        default=48,
+        ge=0,
+        json_schema_extra={
+            "description": "Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable."
+        },
+    )
+
+    terminal_value_mode: TerminalValueMode = Field(
+        default=TerminalValueMode.AUTO,
         json_schema_extra={
             "description": (
-                f"Optimization algorithm "
-                f"[{' | '.join(mode.value for mode in OptimizationAlgorithm)}]. "
-                f"Defaults to {optimization_default_algorithm()}."
+                "How to value the energy left in the battery at the end of the "
+                "control horizon. AUTO solves the forecast tail with an AUTO "
+                "continuation proxy at its end (or only the proxy if tail is zero); FIXED "
+                "uses 'terminal_value_euro_per_kwh'. Defaults to AUTO."
             ),
-            "examples": ["GENETIC", "GENETIC0"],
+            "examples": ["AUTO", "FIXED"],
         },
     )
 
-    genetic: GeneticCommonSettings = Field(
-        default_factory=GeneticCommonSettings,
+    terminal_value_euro_per_kwh: float = Field(
+        default=0.0,
         json_schema_extra={
-            "description": "GENETIC optimization algorithm configuration.",
-            "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],
+            "description": (
+                "Value assigned to usable battery energy remaining at the end of the "
+                "optimization horizon [EUR/kWh]. This terminal value is independent "
+                "of the battery LCOS. Only used with terminal_value_mode = FIXED. "
+                "Defaults to 0 EUR/kWh."
+            ),
+            "examples": [0.0, 0.20],
         },
     )
 
-    genetic0: Genetic0CommonSettings = Field(
-        default_factory=Genetic0CommonSettings,
+    terminal_value_window_hours: int = Field(
+        default=24,
+        ge=1,
         json_schema_extra={
-            "description": "GENETIC0 optimization algorithm configuration.",
-            "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],
+            "description": (
+                "Length of the trailing window at the effective tail end the AUTO continuation "
+                "curve is derived from [h]. One day covers a full load and PV "
+                "cycle. Defaults to 24 hours."
+            ),
+            "examples": [24],
+        },
+    )
+
+    # --- Penalties (existing) -------------------------------------------------
+
+    penalties: dict[str, Union[float, int, str]] = Field(
+        default_factory=lambda: dict[str, float | int | str](
+            ev_soc_miss=10,
+            ac_charge_break_even=1.0,
+            battery_full_charge_miss=10,
+        ),
+        json_schema_extra={
+            "description": "Penalty parameters used in fitness evaluation.",
+            "examples": [{"ev_soc_miss": 10}],
+        },
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def horizon(self) -> int:
+        """Number of optimization steps."""
+        if self.interval_sec is None or self.interval_sec == 0 or self.horizon_hours is None:
+            return 0
+        num_steps = int(float(self.horizon_hours * 3600) / self.interval_sec)
+        return num_steps
+
+    search: SearchCommonSettings = Field(
+        default_factory=SearchCommonSettings,
+        json_schema_extra={
+            "description": "OHMRAKEL42 optimizer configuration.",
+            "examples": [{"time_budget_seconds": 30.0, "effort": "NORMAL"}],
         },
     )
 
@@ -80,13 +198,6 @@ class OptimizationCommonSettings(SettingsBaseModel):
             "examples": ["scipy", "numpy"],
         },
     )
-
-    # Computed fields
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def algorithms(self) -> list[str]:
-        """Available optimization algorithms."""
-        return [algo.value for algo in OptimizationAlgorithm]
 
     @computed_field  # type: ignore[prop-decorator]
     @property

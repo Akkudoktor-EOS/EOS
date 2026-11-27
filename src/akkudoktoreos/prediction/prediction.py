@@ -37,6 +37,7 @@ from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.elecpriceresidualload import ElecPriceResidualLoad
 from akkudoktoreos.prediction.elecpricesmard import ElecPriceSMARD
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
 from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
@@ -53,6 +54,7 @@ from akkudoktoreos.prediction.loadakkudoktor import (
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
+from akkudoktoreos.prediction.presence import PresenceHistory
 from akkudoktoreos.prediction.pvakkuadapt import (
     PVForecastAdaptiveAkkudoktor,
 )
@@ -95,6 +97,7 @@ elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
+elecprice_residual_load = ElecPriceResidualLoad()
 elecprice_smard = ElecPriceSMARD()
 elecprice_tibber = ElecPriceTibber()
 feedintariff_akkudoktor = FeedInTariffAkkudoktor()
@@ -121,15 +124,18 @@ weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
 weather_openmeteo = WeatherOpenMeteo()
 weather_import = WeatherImport()
+presence_history = PresenceHistory()
 
 
 PredictionProviderType = Union[
+    PresenceHistory,
     ElecFeeFixed,
     ElecFeeImport,
     ElecPriceAkkudoktor,
     ElecPriceEnergyCharts,
     ElecPriceFixed,
     ElecPriceImport,
+    ElecPriceResidualLoad,
     ElecPriceSMARD,
     ElecPriceTibber,
     FeedInTariffAkkudoktor,
@@ -191,6 +197,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         elecprice_energy_charts, \
         elecprice_fixed, \
         elecprice_import, \
+        elecprice_residual_load, \
         elecprice_smard, \
         elecprice_tibber, \
         feedintariff_akkudoktor, \
@@ -233,6 +240,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         elecprice_energy_charts,
         elecprice_fixed,
         elecprice_import,
+        elecprice_residual_load,
         elecprice_smard,
         elecprice_tibber,
         feedintariff_akkudoktor,
@@ -255,6 +263,7 @@ def prediction_providers() -> list[PredictionProviderType]:
         pvforecast_pvnode,
         pvforecast_solcast,
         pvforecast_vrm,
+        presence_history,
     ]
 
 

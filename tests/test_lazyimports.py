@@ -1,8 +1,8 @@
 """Heavy optional dependencies must not be imported by a plain server start.
 
-A GENETIC server with external (import) providers and EOSdash disabled should not
-load the PDF report stack, the price fallback forecast, pvlib-based providers,
-the HTML scraper, the GENETIC0 optimizer or the timezone polygon lookup. Each of
+A OHMRAKEL42 server with external (import) providers and EOSdash disabled should not
+load the price fallback forecast, pvlib-based providers, the HTML scraper,
+the OHMRAKEL42 search or the timezone polygon lookup. Each of
 these costs several to tens of MB of resident memory on small devices.
 """
 
@@ -16,17 +16,14 @@ import pytest
 
 from akkudoktoreos.config.config import GeneralSettings
 
+# Numba imports SciPy when the request package imports its numerical models.
 LAZY_MODULES = [
-    "matplotlib",
+    "akkudoktoreos.optimization.planner",
     "statsmodels",
     "pvlib",
     "bs4",
     "lxml",
-    "scipy",
     "tzfpy",
-    "akkudoktoreos.optimization.genetic0.genetic0",
-    "akkudoktoreos.optimization.genetic0.genetic0visualize",
-    "akkudoktoreos.optimization.genetic.geneticvisualize",
 ]
 
 PROBE = """
@@ -53,11 +50,12 @@ def _loaded_modules(tmp_path: Path, extra_env: dict[str, str]) -> list[str]:
             "EOS_CONFIG_DIR": str(tmp_path),
             "EOS_GENERAL__DATA_FOLDER_PATH": str(tmp_path / "data"),
             "EOS_SERVER__STARTUP_EOSDASH": "false",
-            "EOS_OPTIMIZATION__ALGORITHM": "GENETIC",
+            "EOS_DATA_DIR": str(tmp_path),
             "EOS_LOGGING__CONSOLE_LEVEL": "ERROR",
         }
     )
     env.update(extra_env)
+    (tmp_path / "EOS.config.json").write_text("{}", encoding="utf8")
     result = subprocess.run(  # noqa: S603
         [sys.executable, "-c", PROBE.format(modules=LAZY_MODULES)],
         cwd=tmp_path,

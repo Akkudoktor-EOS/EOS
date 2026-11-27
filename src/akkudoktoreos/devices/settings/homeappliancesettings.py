@@ -1,9 +1,9 @@
 """Controllable home appliance device settings.
 
-Note: Used for the GENETIC and GENETIC0 algorithm.
+Used by OHMRAKEL42.
 """
 
-from typing import TYPE_CHECKING, Any, Optional, Self
+from typing import Any, Optional, Self
 
 from pydantic import Field, computed_field, field_validator, model_validator
 
@@ -19,12 +19,6 @@ from akkudoktoreos.devices.devicesabc import (
 )
 from akkudoktoreos.devices.settings.devicebasesettings import DevicesBaseSettings
 from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
-
-if TYPE_CHECKING:
-    from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
-        Genetic0HomeApplianceParameters,
-    )
-    from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
 
 
 class HomeApplianceCommonSettings(DevicesBaseSettings):
@@ -121,7 +115,9 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
         json_schema_extra={
             "description": "Energy consumption per run cycle [Wh].",
             "examples": [2000],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     duration_h: Optional[int] = Field(
@@ -131,7 +127,9 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
         json_schema_extra={
             "description": "Run duration per cycle [h] (1-24).",
             "examples": [2],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     num_cycles: int = Field(
@@ -146,7 +144,9 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
                 "Defaults to 1."
             ),
             "examples": [1, 2],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     cycle_time_windows: Optional[CycleTimeWindowSequence] = Field(
@@ -168,7 +168,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
                 },
             ],
             "x-scope": [
-                str(ConfigScope.GENETIC),
+                str(ConfigScope.OHMRAKEL42),
             ],
         },
     )
@@ -183,7 +183,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
             ),
             "examples": [0, 1, 4],
             "x-scope": [
-                str(ConfigScope.GENETIC),
+                str(ConfigScope.OHMRAKEL42),
             ],
         },
     )
@@ -198,7 +198,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
             ),
             "examples": ["dishwasher.cycles_completed", None],
             "x-scope": [
-                str(ConfigScope.GENETIC),
+                str(ConfigScope.OHMRAKEL42),
             ],
         },
     )
@@ -210,13 +210,13 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
                 "UNIX time in seconds, 0 when no run is in progress. The executor "
                 "sets it when it switches the appliance on for a planned run and "
                 "sets 0 when the device reports the run as finished (then it also "
-                "increments the completed cycles). The GENETIC optimizer keeps a "
+                "increments the completed cycles). The OHMRAKEL42 optimizer keeps a "
                 "run in progress until then. Defaults to "
                 "'{device_id}.run_started_at' when null."
             ),
             "examples": ["dishwasher.run_started_at", None],
             "x-scope": [
-                str(ConfigScope.GENETIC),
+                str(ConfigScope.OHMRAKEL42),
             ],
         },
     )
@@ -234,7 +234,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     load_profile_power_w: Optional[list[float]] = Field(
         default=None,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Explicit load profile describing a single complete run as a "
                 "sequence of non-negative power values in watts. Each value "
@@ -248,7 +248,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
         default=None,
         gt=0,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Duration of one 'load_profile_power_w' step in seconds. Defaults "
                 "to the configured optimization interval when a profile is given."
@@ -259,7 +259,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     schedule_mode: ConsumerScheduleMode = Field(
         default=ConsumerScheduleMode.ONCE,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Scheduling mode: ONCE (a single run within the horizon) or DAILY "
                 "(one run per local calendar day with a feasible full run)."
@@ -270,7 +270,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     time_windows: Optional[TimeWindowSequence] = Field(
         default=None,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": "List of allowed time windows. Defaults to optimization general time window.",
             "examples": [
                 [
@@ -282,7 +282,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     earliest_start_datetime: Optional[DateTime] = Field(
         default=None,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Absolute earliest moment the run may start. Starts before it are "
                 "dropped, in addition to 'time_windows' and the horizon. A date "
@@ -295,7 +295,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     deadline_datetime: Optional[DateTime] = Field(
         default=None,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "Absolute deadline: the complete run must have *finished* at or "
                 "before this moment (e.g. end of the day, or 03:00 tonight). A "
@@ -308,7 +308,7 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     deadline_policy: ConsumerDeadlinePolicy = Field(
         default=ConsumerDeadlinePolicy.BEST_EFFORT,
         json_schema_extra={
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
             "description": (
                 "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT "
                 "runs as early as possible instead (warning logged), STRICT keeps "
@@ -372,49 +372,8 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
         return self.num_cycles
 
     # ------------------------------------------------------------------
-    # GENETIC domain conversion
+    # Inverter model conversion
     # ------------------------------------------------------------------
-
-    def to_genetic_param(self) -> "HomeApplianceParameters":
-        """Return HomeApplianceParameters for the GENETIC optimizer."""
-        from akkudoktoreos.devices.genetic.homeappliance import HomeApplianceParameters
-
-        return HomeApplianceParameters(
-            device_id=self.device_id,
-            consumption_wh=self.consumption_wh,
-            duration_h=self.duration_h,
-            num_cycles=self.effective_num_cycles,
-            min_cycle_gap_h=self.min_cycle_gap_h,
-            time_windows=self.cycle_time_windows,
-            shared_time_windows=self.time_windows,
-            load_profile_power_w=self.load_profile_power_w,
-            load_profile_interval_seconds=self.load_profile_interval_seconds,
-            schedule_mode=self.schedule_mode,
-            earliest_start_datetime=self.earliest_start_datetime,
-            deadline_datetime=self.deadline_datetime,
-            deadline_policy=self.deadline_policy,
-        )
-
-    # ------------------------------------------------------------------
-    # GENETIC0 domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic0_param(self) -> "Genetic0HomeApplianceParameters":
-        """Return Genetic0HomeApplianceParameters for the GENETIC0 optimizer."""
-        from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
-            Genetic0HomeApplianceParameters,
-        )
-
-        if self.load_profile_power_w is not None:
-            raise ValueError("Explicit appliance load profiles require the GENETIC optimizer.")
-        if self.consumption_wh is None or self.duration_h is None:
-            raise ValueError("GENETIC0 requires a flat appliance load definition.")
-        return Genetic0HomeApplianceParameters(
-            device_id=self.device_id,
-            consumption_wh=self.consumption_wh,
-            duration_h=self.duration_h,
-            time_windows=self.cycle_time_windows,
-        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

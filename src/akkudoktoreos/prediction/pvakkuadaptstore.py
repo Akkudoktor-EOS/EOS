@@ -2,7 +2,9 @@
 
 import asyncio
 import hashlib
+import itertools
 import json
+import math
 import os
 import sqlite3
 import threading
@@ -44,10 +46,21 @@ class _DatabaseWorker:
 class PVLearningStore:
     """Persist immutable issue/target records through the configured EOS database.
 
-    SQLite is only an in-memory query index. Durable records live in the existing
-    EOS backend namespaces. NoDB intentionally learns in memory without persistence.
-    The old private SQLite file is read-only migration input and remains untouched.
+    SQLite is only a rebuildable query index. With a persistent backend it is a
+    throw-away working file in the EOS cache folder (never synchronised to disk,
+    recreated at every start); with NoDB it stays in memory. Durable records live
+    in the existing EOS backend namespaces. NoDB intentionally learns in memory
+    without persistence. The old private SQLite file is read-only migration input
+    and remains untouched.
+
+    The raw weather archive is write-only for the learner: its payloads are written
+    straight to the backend namespace ``pvakkuadapt.weather`` and only ``issue_ms``
+    and ``digest`` are kept in the index.
     """
+
+    _instances: ClassVar[Iterator[int]] = itertools.count(1)
+    _work_prefix = "pvakkuadapt-work-"
+    _cache_pages = -16384  # negative = KiB, i.e. 16 MiB page cache
 
     _keys = {
         "samples": ("key", "time_ms"),
@@ -55,17 +68,29 @@ class PVLearningStore:
         "baselines": ("signature", "target_ms"),
         "latest": ("target_ms",),
         "metadata": ("key",),
-        "weather": ("issue_ms",),
         "longforecasts": ("signature", "issue_ms", "target_ms"),
     }
+    # Tables mirrored only as small index rows; their payload goes straight to the backend.
+    _direct = ("weather",)
 
     def __init__(self, path: Path):
         self.path = path
         self.database = get_database()
         self.persistent = get_config().database.provider not in (None, "NoDB")
         self._lock = threading.RLock()
-        self._db = sqlite3.connect(":memory:", check_same_thread=False)
+        self._work_path: Path | None = None
+        if self.persistent:
+            self._work_path = self._new_work_path()
+        self._db = sqlite3.connect(
+            str(self._work_path) if self._work_path else ":memory:", check_same_thread=False
+        )
         self._db.row_factory = sqlite3.Row
+        if self._work_path:
+            # Rebuildable mirror: durability is provided by the EOS backend.
+            self._db.execute("PRAGMA synchronous=OFF")
+            self._db.execute("PRAGMA journal_mode=MEMORY")
+            self._db.execute("PRAGMA temp_store=FILE")
+            self._db.execute(f"PRAGMA cache_size={self._cache_pages}")
         self._initializing = True
         self._saved_sequence = 0
         migrated = None
@@ -90,10 +115,12 @@ class PVLearningStore:
                 CREATE TABLE IF NOT EXISTS latest (
                     target_ms INTEGER PRIMARY KEY, issue_ms INTEGER NOT NULL, payload TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, payload TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS weather (issue_ms INTEGER PRIMARY KEY, payload TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS weather (issue_ms INTEGER PRIMARY KEY, digest TEXT);
+                CREATE INDEX IF NOT EXISTS weather_digest ON weather(digest);
                 CREATE TABLE IF NOT EXISTS longforecasts (
                     signature TEXT NOT NULL, issue_ms INTEGER NOT NULL, target_ms INTEGER NOT NULL,
                     payload TEXT NOT NULL, PRIMARY KEY(signature,issue_ms,target_ms));
+                CREATE INDEX IF NOT EXISTS longforecast_target ON longforecasts(signature,target_ms,issue_ms);
             """)
         if self.persistent:
             _DatabaseWorker.run(self.database.open(namespace="pvakkuadapt"))
@@ -128,6 +155,64 @@ class PVLearningStore:
                 )
             )
             _DatabaseWorker.run(self.database.flush())
+        self._thin_history()
+
+    def _thin_history(self) -> None:
+        """Drop archived forecasts that are redundant within their 15-minute lead stage.
+
+        Keeps per signature, target and stage the row closest to the stage centre,
+        the same rule ``remember`` applies to new rows. Idempotent; deletions reach
+        the backend through the change tracking.
+        """
+        with self.connection() as db:
+            db.execute(
+                """DELETE FROM forecasts WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (
+                PARTITION BY signature,target_ms,CAST((lead_minutes+14.999999)/15 AS INTEGER)
+                ORDER BY ABS(lead_minutes-CAST((lead_minutes+14.999999)/15 AS INTEGER)*15+7.5),issue_ms) rn
+                FROM forecasts) WHERE rn>1)"""
+            )
+
+    def _new_work_path(self) -> Path:
+        """Fresh working file in the EOS cache folder; stale files of dead processes go."""
+        try:
+            cache = get_config().cache.path()
+            folder = Path(cache) if cache else self.path.parent
+        except Exception:  # noqa: BLE001 -- cache folder not configured: stay next to the archive
+            folder = self.path.parent
+        folder.mkdir(parents=True, exist_ok=True)
+        for old in folder.glob(self._work_prefix + "*.sqlite3*"):
+            parts = old.name[len(self._work_prefix) :].split("-")
+            try:
+                pid = int(parts[0])
+            except ValueError:
+                continue
+            if pid != os.getpid() and not self._alive(pid):
+                old.unlink(missing_ok=True)
+        work = folder / f"{self._work_prefix}{os.getpid()}-{next(self._instances)}.sqlite3"
+        self._remove_work_files(work)
+        return work
+
+    @staticmethod
+    def _alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except OSError:
+            return True
+        return True
+
+    @staticmethod
+    def _remove_work_files(work: Path) -> None:
+        for suffix in ("", "-journal", "-wal", "-shm"):
+            Path(str(work) + suffix).unlink(missing_ok=True)
+
+    def close(self) -> None:
+        """Release the working file; the durable archive is untouched."""
+        with self._lock:
+            self._db.close()
+            if self._work_path is not None:
+                self._remove_work_files(self._work_path)
 
     def _import_legacy(self) -> None:
         """Read the old archive without changing data, IDs or availability timestamps."""
@@ -159,7 +244,7 @@ class PVLearningStore:
     def _insert_rows(self, table: str, rows: list[dict[str, Any]]) -> None:
         if not rows:
             return
-        if table not in self._keys:
+        if table not in self._keys and table not in self._direct:
             raise ValueError("Unknown PV record type")
         columns = tuple(rows[0])
         allowed = {row[1] for row in self._db.execute("PRAGMA table_info(" + table + ")")}
@@ -172,15 +257,25 @@ class PVLearningStore:
         )
         self._db.commit()
 
-    async def _backend_rows(self, table: str) -> list[dict[str, Any]]:
-        return [
-            json.loads(self.database.deserialize_data(value))
-            async for _, value in self.database.iterate_records(namespace="pvakkuadapt." + table)
-        ]
+    async def _load_table(self, table: str, block: int = 2000) -> None:
+        """Insert one backend namespace in blocks instead of materialising all rows."""
+        rows: list[dict[str, Any]] = []
+        async for _, value in self.database.iterate_records(namespace="pvakkuadapt." + table):
+            row = json.loads(self.database.deserialize_data(value))
+            if table in self._direct:
+                # Stored row format is {issue_ms, payload(JSON text)}; keep only the index part.
+                row = dict(
+                    issue_ms=row["issue_ms"], digest=json.loads(row["payload"]).get("digest")
+                )
+            rows.append(row)
+            if len(rows) >= block:
+                self._insert_rows(table, rows)
+                rows = []
+        self._insert_rows(table, rows)
 
     def _load_backend(self) -> None:
-        for table in self._keys:
-            self._insert_rows(table, _DatabaseWorker.run(self._backend_rows(table)))
+        for table in (*self._keys, *self._direct):
+            _DatabaseWorker.run(self._load_table(table))
         sequence = _DatabaseWorker.run(
             self.database.get_metadata(namespace="pvakkuadapt.forecasts")
         )
@@ -250,7 +345,7 @@ class PVLearningStore:
         """Domain record counts for migration verification and diagnostics."""
         return {
             table: self._db.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]  # noqa: S608
-            for table in self._keys
+            for table in (*self._keys, *self._direct)
         }  # noqa: S608 -- fixed internal table names
 
     def storage_status(self) -> dict[str, Any]:
@@ -384,45 +479,72 @@ class PVLearningStore:
                     )
                 lead = (target - issued) / 60000
                 if lead < 120:
+                    # One row per target and 15-minute lead stage (the stages the trend
+                    # model and the validation use), the one closest to the stage
+                    # centre like select_corrections picks it. Polling faster only
+                    # adds redundant rows.
+                    stage = math.ceil(lead / 15) * 15
+                    kept = db.execute(
+                        "SELECT id,lead_minutes FROM forecasts WHERE signature=? AND target_ms=? AND lead_minutes>? AND lead_minutes<=?",
+                        (signature, target, stage - 15, stage),
+                    ).fetchone()
+                    if kept is not None:
+                        if abs(lead - stage + 7.5) >= abs(kept[1] - stage + 7.5):
+                            continue
+                        db.execute("DELETE FROM forecasts WHERE id=?", (kept[0],))
                     db.execute(
                         "INSERT OR IGNORE INTO forecasts(signature,issue_ms,target_ms,lead_minutes,payload,updated_ms) VALUES (?,?,?,?,?,?)",
                         (signature, issued, target, lead, text, issued),
                     )
 
     def archive_weather(self, data: dict[str, Any], received: pd.Timestamp) -> str:
-        """Archive each received response once, retaining only genuinely future inputs.
+        """Archive each distinct set of future inputs once.
 
         Open-Meteo does not expose the numerical model's issuance here. The first
         local receipt is recorded explicitly; returned past data never become
-        historical forecasts. Cache hits preserve that first receipt.
+        historical forecasts. The digest covers exactly what is stored (future
+        ``minutely_15`` rows plus units), so a refetch that differs only in the
+        returned past or in volatile metadata is recognised as a duplicate. The
+        payload is written directly to the backend and is not held in the process.
         """
-        digest = hashlib.sha256(self.dump(data).encode()).hexdigest()
+        raw = data["minutely_15"]
+        times = pd.DatetimeIndex(pd.to_datetime(raw["time"], utc=True))
+        starts = times - pd.Timedelta(minutes=15)
+        keep = (starts >= received) & (starts <= received + pd.Timedelta(hours=48))
+        subset = {
+            key: [value for value, valid in zip(values, keep) if valid]
+            for key, values in raw.items()
+        }
+        units = data.get("minutely_15_units", {})
+        digest = hashlib.sha256(
+            self.dump(dict(minutely_15=subset, units=units)).encode()
+        ).hexdigest()
+        issue_ms = self.milliseconds(received)
         with self.connection() as db:
             if db.execute(
-                "SELECT 1 FROM weather WHERE json_extract(payload,'$.digest')=? LIMIT 1", (digest,)
+                "SELECT 1 FROM weather WHERE digest=? OR issue_ms=? LIMIT 1", (digest, issue_ms)
             ).fetchone():
                 return digest
-            raw = data["minutely_15"]
-            times = pd.DatetimeIndex(pd.to_datetime(raw["time"], utc=True))
-            starts = times - pd.Timedelta(minutes=15)
-            keep = (starts >= received) & (starts <= received + pd.Timedelta(hours=48))
-            subset = {
-                key: [value for value, valid in zip(values, keep) if valid]
-                for key, values in raw.items()
-            }
             payload = dict(
                 digest=digest,
                 received_at=received.isoformat(),
                 source_issue_at=None,
                 timestamp_semantics="interval_end",
                 minutely_15=subset,
-                units=data.get("minutely_15_units", {}),
+                units=units,
                 elevation=data.get("elevation"),
             )
-            db.execute(
-                "INSERT OR IGNORE INTO weather VALUES (?,?)",
-                (self.milliseconds(received), self.dump(payload)),
-            )
+            if self.persistent:
+                row = self.dump(dict(issue_ms=issue_ms, payload=self.dump(payload)))
+                count = _DatabaseWorker.run(
+                    self.database.save_records(
+                        [(f"[{issue_ms}]".encode(), self.database.serialize_data(row.encode()))],
+                        namespace="pvakkuadapt.weather",
+                    )
+                )
+                if count != 1:
+                    raise RuntimeError("Incomplete PV database write")
+            db.execute("INSERT OR IGNORE INTO weather VALUES (?,?)", (issue_ms, digest))
         return digest
 
     def remember_long(
@@ -442,20 +564,37 @@ class PVLearningStore:
                         signature,
                         bucket,
                         target,
-                        self.dump({**payload, "issued_ms": issued, "response_version": 1}),
+                        self.dump({"response_version": 1, **payload, "issued_ms": issued}),
                     ),
                 )
+
+    def iter_long_rows(
+        self, signature: str, start: pd.Timestamp, cutoff: pd.Timestamp, chunk: int = 1000
+    ) -> Iterator[dict[str, Any]]:
+        """Stream issued long-horizon candidates, with no reconstructed past weather.
+
+        Rows come in chunks, so neither the raw nor the decoded payloads of the whole
+        window are in memory at once and the lock is held only while a chunk is read.
+        """
+        after = (self.milliseconds(start) - 1, -(2**62))
+        end = self.milliseconds(cutoff)
+        while True:
+            with self.connection() as db:
+                rows = db.execute(
+                    "SELECT * FROM longforecasts WHERE signature=? AND target_ms<? AND (target_ms>? OR (target_ms=? AND issue_ms>?)) ORDER BY target_ms,issue_ms LIMIT ?",
+                    (signature, end, after[0], after[0], after[1], chunk),
+                ).fetchall()
+            for row in rows:
+                yield {**dict(row), **json.loads(row["payload"]), "payload": None}
+            if len(rows) < chunk:
+                return
+            after = (rows[-1]["target_ms"], rows[-1]["issue_ms"])
 
     def long_rows(
         self, signature: str, start: pd.Timestamp, cutoff: pd.Timestamp
     ) -> list[dict[str, Any]]:
         """Read issued long-horizon candidates, with no reconstructed past weather."""
-        with self.connection() as db:
-            rows = db.execute(
-                "SELECT * FROM longforecasts WHERE signature=? AND target_ms>=? AND target_ms<? ORDER BY target_ms,issue_ms",
-                (signature, self.milliseconds(start), self.milliseconds(cutoff)),
-            ).fetchall()
-        return [{**dict(row), **json.loads(row["payload"]), "payload": None} for row in rows]
+        return list(self.iter_long_rows(signature, start, cutoff))
 
     def resolve(self, signature: str, observed: pd.DataFrame, now: pd.Timestamp) -> None:
         """Attach first complete observations, preserving the original forecast."""
@@ -669,7 +808,19 @@ class PVLearningStore:
                 "DELETE FROM forecasts WHERE target_ms<?",
                 "DELETE FROM baselines WHERE target_ms<?",
                 "DELETE FROM latest WHERE target_ms<?",
-                "DELETE FROM weather WHERE issue_ms<?",
                 "DELETE FROM longforecasts WHERE target_ms<?",
             ):
                 db.execute(statement, (oldest,))
+            old_weather = [
+                row[0]
+                for row in db.execute("SELECT issue_ms FROM weather WHERE issue_ms<?", (oldest,))
+            ]
+            if old_weather:
+                if self.persistent:
+                    _DatabaseWorker.run(
+                        self.database.delete_records(
+                            [f"[{ms}]".encode() for ms in old_weather],
+                            namespace="pvakkuadapt.weather",
+                        )
+                    )
+                db.execute("DELETE FROM weather WHERE issue_ms<?", (oldest,))

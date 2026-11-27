@@ -3,6 +3,14 @@
 
 **Build optimized energy management plans for your home automation**
 
+> **Branch `ohmrakel42`: experimental parallel path, not `main`.**
+> This branch runs the device-by-device optimizer OHMRAKEL42 with heat pump planning,
+> a presence forecast and reported absences. It replaces GENETIC, GENETIC0 and FLEET and
+> does not follow the optimizer architecture of `main`. It is not offered as a pull
+> request. Read [the optimizer](docs/akkudoktoreos/optimohmrakel42.md) and
+> [the upgrade guide](docs/akkudoktoreos/upgrade-ohmrakel42.md) before you try it, and back
+> up your configuration first.
+
 AkkudoktorEOS is a comprehensive solution for simulating and optimizing energy systems based on
 renewable sources. Optimize your photovoltaic systems, battery storage, load management, and
 electric vehicles while considering real-time electricity pricing.
@@ -46,18 +54,12 @@ the configuration effort needed for the integration you should better use other 
 
 ### Upgrading an existing installation?
 
-The next release includes a substantial energy-planning update: 15-minute GENETIC plans,
-EV departure targets, flexible household loads, optional battery export, and better
-measurement and PV-forecast tools. **These features are currently unreleased.**
+OHMRAKEL42 plans batteries, EV charging, appliances and heating. EOS migrates old
+optimization settings at startup. POST /v1/optimize keeps its configured-device
+contract. The hourly POST /optimize and both historical PDF routes are deprecated.
 
-Existing Home Assistant automations, Node-RED flows and custom API clients may need changes.
-Devices now use stable IDs, the new optimizer reads hardware settings from EOS configuration,
-and incomplete forecasts or outdated battery measurements can stop a run. The legacy
-`POST /optimize` remains available with GENETIC0; the new `POST /v1/optimize` has a different
-request format. Back up your configuration and data before updating.
-
-Read the [upgrade guide](docs/akkudoktoreos/upgrade-genetic.md) and
-[changelog](CHANGELOG.md#unreleased) before switching an existing installation.
+Read the [upgrade guide](docs/akkudoktoreos/upgrade-ohmrakel42.md) and
+[changelog](CHANGELOG.md#unreleased) before updating an existing installation.
 
 ### Start with Docker
 

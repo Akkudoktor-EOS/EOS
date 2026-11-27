@@ -31,7 +31,7 @@ develop/install.md
 akkudoktoreos/setup.md
 akkudoktoreos/configuration.md
 develop/update.md
-akkudoktoreos/upgrade-genetic.md
+akkudoktoreos/upgrade-ohmrakel42.md
 akkudoktoreos/smalldevices.md
 develop/revert.md
 akkudoktoreos/adapter/adapterhomeassistant.md
@@ -48,6 +48,7 @@ akkudoktoreos/configuration.md
 akkudoktoreos/configtimewindow.md
 akkudoktoreos/optimpost.md
 akkudoktoreos/optimauto.md
+akkudoktoreos/optimohmrakel42.md
 akkudoktoreos/resource.md
 akkudoktoreos/prediction.md
 akkudoktoreos/pvakkuadapt.md

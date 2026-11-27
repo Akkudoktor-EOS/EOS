@@ -45,7 +45,7 @@ def local_trend_features(
     )
     if history.empty:
         return result
-    available = pd.to_datetime(history["available_at"], utc=True)
+    available = pd.to_datetime(history["available_at"], utc=True, format="mixed")
     recent = (
         history[
             (available <= cutoff)
@@ -107,7 +107,9 @@ def local_trend_features(
             "slope": slope,
             "volatility": volatility,
             "consistent_ramp": consistent,
-            "feature_available_at": pd.to_datetime(recent.available_at, utc=True).max(),
+            "feature_available_at": pd.to_datetime(
+                recent.available_at, utc=True, format="mixed"
+            ).max(),
         },
         index=future_index,
     )
@@ -148,10 +150,10 @@ class LocalPVTrendModel:
             raise ValueError("Positive regularization and recency half-life required.")
         if samples.empty:
             return self
-        issued = pd.to_datetime(samples.issue, utc=True)
-        target_time = pd.to_datetime(samples.time, utc=True)
-        available = pd.to_datetime(samples.target_available_at, utc=True)
-        feature_available = pd.to_datetime(samples.feature_available_at, utc=True)
+        issued = pd.to_datetime(samples.issue, utc=True, format="mixed")
+        target_time = pd.to_datetime(samples.time, utc=True, format="mixed")
+        available = pd.to_datetime(samples.target_available_at, utc=True, format="mixed")
+        feature_available = pd.to_datetime(samples.feature_available_at, utc=True, format="mixed")
         today = cutoff.tz_convert(self.timezone).normalize()
         target_day = target_time.dt.tz_convert(self.timezone).dt.normalize()
         valid = (
@@ -182,14 +184,18 @@ class LocalPVTrendModel:
             bucket_number = cast(int, bucket)
             count = len(part)
             days = (
-                pd.to_datetime(part.time, utc=True).dt.tz_convert(self.timezone).dt.date.nunique()
+                pd.to_datetime(part.time, utc=True, format="mixed")
+                .dt.tz_convert(self.timezone)
+                .dt.date.nunique()
             )
             self.training_counts[bucket_number] = count
             if count < self.min_samples or days < self.min_days:
                 continue
             x = part[list(self.feature_names)].to_numpy(dtype=float)
             y = part.target_residual.clip(-1.5, 1.5).to_numpy(dtype=float)
-            age = (cutoff - pd.to_datetime(part.issue, utc=True)).dt.total_seconds() / 86400
+            age = (
+                cutoff - pd.to_datetime(part.issue, utc=True, format="mixed")
+            ).dt.total_seconds() / 86400
             base = np.exp2(-age.to_numpy() / self.half_life_days)
             base *= np.minimum(1, part.reference_sky_w.to_numpy(dtype=float) / 1500)
             weight = base.copy()
@@ -226,7 +232,7 @@ class LocalPVTrendModel:
         sky = clear_sky_power.reindex(index)
         leads = (index - cutoff).total_seconds().to_numpy() / 60
         buckets = np.ceil(leads / 15).astype(int) * 15
-        available = pd.to_datetime(rows.feature_available_at, utc=True)
+        available = pd.to_datetime(rows.feature_available_at, utc=True, format="mixed")
         valid = (
             (leads >= 0)
             & (leads < 120)

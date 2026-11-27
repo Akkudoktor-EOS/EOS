@@ -14,9 +14,8 @@ from urllib.parse import urljoin, urlsplit
 
 import psutil
 import uvicorn
-from fastapi import Body, FastAPI
+from fastapi import Body, FastAPI, Query, Request
 from fastapi import Path as FastapiPath
-from fastapi import Query, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import (
     HTMLResponse,
@@ -56,19 +55,9 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
-)
-from akkudoktoreos.optimization.genetic0.genetic0solution import (
-    Genetic0Solution,
-    Genetic0SolutionLegacy,
-)
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.optimization import (
-    OptimizationAlgorithm,
-    OptimizationSolution,
-)
+from akkudoktoreos.optimization.optimization import OptimizationSolution
+from akkudoktoreos.optimization.request import EnergyManagementRunRequest
+from akkudoktoreos.optimization.solutionmodel import Ohmrakel42Solution
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
@@ -81,6 +70,14 @@ from akkudoktoreos.server.rest.error import (
     register_problem_handlers,
 )
 from akkudoktoreos.server.rest.measurement import router as measurement_router
+from akkudoktoreos.server.rest.optimizecompatmodels import (
+    ConfigOptimizationRequest,
+    ConfigOptimizationResponse,
+    HourlyOptimizationRequest,
+    HourlyOptimizationResponse,
+)
+from akkudoktoreos.server.rest.optimizereport import optimization_report
+from akkudoktoreos.server.rest.presence import router as presence_router
 from akkudoktoreos.server.rest.profile import router as profile_router
 from akkudoktoreos.server.rest.pvakkuadaptrest import router as pvadaptive_router
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
@@ -92,6 +89,7 @@ from akkudoktoreos.server.server import (
     get_host_ip,
     wait_for_port_free,
 )
+from akkudoktoreos.thermal.thermalmodels import ThermalPlan
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
@@ -255,7 +253,7 @@ Field names containing cost, price, revenue, tariff, or similar monetary terms (
 
 ## Deprecated Field Names
 
-The genetic optimization API fields were renamed from German to English. For backward compatibility the old German field names (e.g. `gesamtlast`, `pv_prognose_wh`, `Gesamtbilanz_Euro`) are still accepted on input and are emitted in responses alongside the English names, marked as deprecated in the schema. They will be removed in a future release — new clients should use the English field names only.
+The compatibility optimization API accepts both English and historically German fields. For backward compatibility the old German field names (e.g. `gesamtlast`, `pv_prognose_wh`, `Gesamtbilanz_Euro`) are still accepted on input and are emitted in responses alongside the English names, marked as deprecated in the schema. They will be removed in a future release — new clients should use the English field names only.
 """,
     summary="Comprehensive solution for simulating and optimizing an energy system based on renewable energy sources",
     version=f"v{__version__}",
@@ -272,6 +270,7 @@ The genetic optimization API fields were renamed from German to English. For bac
 # ----------------------
 
 app.include_router(measurement_router)
+app.include_router(presence_router)
 app.include_router(profile_router)
 app.include_router(pvadaptive_router)
 
@@ -1848,72 +1847,41 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
     return solution
 
 
-@app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
-async def fastapi_energy_management_optimization_solution_algorithm_get(
-    algorithm: OptimizationAlgorithm,
-) -> Union[GeneticSolution, Genetic0Solution]:
-    """Get the latest algorithm specific solution of the optimization.
-
-    Args:
-        algorithm: Optimization algorithm
-    """
-    solution: Optional[Union[GeneticSolution, Genetic0Solution]] = None
-
-    if algorithm not in get_config().optimization.algorithms:
-        raise EOSProblem(
-            status=404,
-            title="Algorithm specific optimization solution retrieval failed",
-            detail=f"Optimization algorithm '{algorithm}' unknown.",
-        )
-
-    if algorithm == OptimizationAlgorithm.GENETIC:
-        solution = get_ems().genetic_solution()
-    elif algorithm == OptimizationAlgorithm.GENETIC0:
-        solution = get_ems().genetic0_solution()
-
+@app.get("/v1/energy-management/optimization/solution/OHMRAKEL42", tags=["energy-management"])
+def fastapi_energy_management_optimization_solution_ohmrakel42_get() -> Ohmrakel42Solution:
+    """Get the latest native OHMRAKEL42 solution."""
+    solution = get_ems().ohmrakel42_solution()
     if solution is None:
         raise EOSProblem(
             status=404,
-            title="Algorithm specific optimization solution retrieval failed",
-            detail=(
-                f"Can not get the '{algorithm}' optimization solution.\n"
-                f"Did you configure automatic '{algorithm}' optimization?\n"
-                "Did you run the optimization/ energy management?"
-            ),
+            title="Optimization solution retrieval failed",
+            detail="Run the energy management optimization first.",
         )
-
     return solution
 
 
 @app.get(
     "/v1/energy-management/optimization/solution/GENETIC/pdf",
     tags=["energy-management"],
+    deprecated=True,
     response_class=Response,
     responses={200: {"content": {"application/pdf": {}}}},
 )
-async def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> Response:
-    """Render the retained GENETIC result without rerunning optimization.
+def fastapi_energy_management_optimization_solution_genetic_pdf_get() -> Response:
+    """Get the latest configuration-based OHMRAKEL42 report at the historical PDF URL.
 
-    Rendering runs outside the event loop. Copy the result before offloading;
-    its recorded timestamp, interval and inputs own the report's time grid.
-    The legacy /visualization_results.pdf route continues to serve GENETIC0.
+    Fetch the plan at GET /v1/energy-management/plan and the result series at
+    GET /v1/energy-management/optimization/solution when migrating.
     """
-    retained = get_ems().genetic_solution()
-    if retained is None:
+    outcome = get_ems().planning_outcome()
+    if outcome is None:
         raise EOSProblem(
             status=404,
             title="Optimization solution report retrieval failed",
-            detail="Can not get the 'GENETIC' optimization solution.",
+            detail="Run the configuration-based energy management optimization first.",
         )
-    snapshot = retained.model_copy(deep=True)
-    # matplotlib is only needed for the PDF report; import it on first use.
-    from akkudoktoreos.optimization.genetic.geneticvisualize import (
-        genetic_prepare_visualize,
-    )
-
-    pdf = await asyncio.to_thread(genetic_prepare_visualize, solution=snapshot)
     return Response(
-        content=pdf,
+        content=optimization_report(outcome),
         media_type="application/pdf",
         headers={"Content-Disposition": 'inline; filename="optimization-genetic.pdf"'},
     )
@@ -1934,6 +1902,63 @@ def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
             ),
         )
 
+    return plan
+
+
+@app.get("/v1/energy-management/thermal-plan", tags=["energy-management"])
+def fastapi_energy_management_thermal_plan_get() -> list[ThermalPlan]:
+    """Get the latest thermal plans, one per heat source with a zone.
+
+    Each plan holds the room temperature target and limits per slot. The planned heat and
+    electric power are forecast columns of the optimization solution
+    (`<source id>_planned_heat_w`, `<source id>_planned_electric_w`), not set points.
+    The list is empty when the latest run planned no heat source.
+    """
+    if get_ems().ohmrakel42_solution() is None:
+        raise EOSProblem(
+            status=404,
+            title="Thermal plan retrieval failed",
+            detail=(
+                "Can not get the thermal plan.\n"
+                "Did you run the energy management with the 'OHMRAKEL42' algorithm?"
+            ),
+        )
+    return get_ems().thermal_plans()
+
+
+@app.post("/v1/energy-management/run", tags=["energy-management"])
+async def fastapi_energy_management_run_post(
+    request: Request,
+    parameters: EnergyManagementRunRequest = Body(default_factory=EnergyManagementRunRequest),
+) -> EnergyManagementPlan:
+    """Run the energy management with the stored configuration and return the plan.
+
+    The body may carry runtime values (state of charge, forecast series, vehicle plug-in
+    times, blocks of heat sources, reported absences) and changed_devices. Those devices
+    are planned first, starting from the last plan. Everything else comes from the
+    configuration. Query parameters are rejected.
+    """
+    if request.query_params:
+        raise EOSProblem(
+            status=422,
+            title="Invalid optimization query",
+            detail="Configure optimization settings; query overrides are not supported.",
+        )
+    try:
+        solution = await get_ems().run(
+            mode=EnergyManagementMode.OPTIMIZATION,
+            ohmrakel42_request=parameters,
+            changed_devices=parameters.changed_devices,
+        )
+    except ValueError as exc:
+        raise EOSProblem(status=422, title="Planning failed", detail=str(exc)) from exc
+    plan = get_ems().plan()
+    if solution is None or plan is None:
+        raise EOSProblem(
+            status=503,
+            title="Planning produced no plan",
+            detail="The energy management is disabled or did not complete.",
+        )
     return plan
 
 
@@ -2230,119 +2255,104 @@ async def fastapi_pvforecast() -> ForecastResponse:
 async def fastapi_optimize_config(
     request: Request,
     parameters: ConfigOptimizationRequest = Body(default_factory=ConfigOptimizationRequest),
-) -> GeneticSolution:
-    """Optimize GENETIC using configured devices and optional fresh runtime inputs.
+) -> ConfigOptimizationResponse:
+    """Optimize with OHMRAKEL42 using configured devices and optional observations.
 
-    Static settings belong in configuration; query overrides are rejected.
-    Forecast arrays start at local
-    midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
-    An empty body uses configured providers. Explicit SoC values take precedence over
-    fresh measured states of charge; missing usable measurements default to an assumed
-    initial SoC of 0% without blocking a plan.
-    The deprecated /optimize endpoint continues to run hourly GENETIC0.
+    Forecast arrays start at local midnight and contain Wh per configured slot. Prices
+    are currency per Wh. Query overrides are rejected. The compatibility response keeps the
+    historical on/off discharge contract, so this run plans only on/off discharge.
     """
     if request.query_params:
-        raise HTTPException(
-            status_code=422,
+        raise EOSProblem(
+            status=422,
+            title="Invalid optimization query",
             detail="Configure optimization settings; query overrides are not supported.",
         )
-    solution = await get_ems().run(
-        mode=EnergyManagementMode.OPTIMIZATION,
-        algorithm=OptimizationAlgorithm.GENETIC,
-        genetic_parameters=parameters,
+
+    from akkudoktoreos.optimization.solution import PlanningOutcome
+    from akkudoktoreos.server.rest.optimizecompat import (
+        ConfiguredCompatibilityPlanningRequest,
+        configured_response,
     )
-    if solution is None:
+
+    try:
+        outcome = await get_ems().run(
+            mode=EnergyManagementMode.OPTIMIZATION,
+            ohmrakel42_request=ConfiguredCompatibilityPlanningRequest.from_compatibility_request(
+                parameters
+            ),
+            binary_discharge=True,
+            include_outcome=True,
+        )
+    except ValueError as exc:
+        raise EOSProblem(status=503, title="Optimization failed", detail=str(exc)) from exc
+    if not isinstance(outcome, PlanningOutcome):
         raise EOSProblem(
             status=503,
-            title="GENETIC optimization failed",
+            title="Optimization failed",
             detail="No new solution was produced. Check configured devices and forecast coverage.",
         )
-    if not isinstance(solution, GeneticSolution):
-        raise EOSProblem(
-            status=500,
-            title="Unexpected optimization algorithm result",
-            detail="GENETIC did not return its native solution type.",
-        )
-    return solution
+    return configured_response(outcome, parameters)
 
 
-@app.post("/optimize", tags=["optimize"])
+@app.post("/optimize", tags=["optimize"], deprecated=True)
 async def fastapi_optimize(
-    parameters: Genetic0OptimizationParameters,
+    request: Request,
+    parameters: HourlyOptimizationRequest,
     start_hour: Annotated[
-        Optional[int], Query(description="Defaults to current hour of the day.")
+        Optional[int], Query(ge=0, le=23, description="Defaults to the current local hour.")
     ] = None,
     ngen: Annotated[
-        Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
+        Optional[int], Query(deprecated=True, description="Accepted for compatibility.")
     ] = None,
-) -> Genetic0SolutionLegacy:
-    """Deprecated: Optimize.
+) -> HourlyOptimizationResponse:
+    """Plan with hourly forecasts and devices for this request only.
 
-    Endpoint to handle optimization.
-
-    Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
-
-    Note:
-        Use automatic optimization instead.
-        "v1/energy-management/optimization/solution/GENETIC0"
+    For new integrations use /v1/energy-management/run with devices in the configuration.
+    The historical genome, number of generations and display temperatures have no effect.
     """
-    if start_hour is None:
-        start_datetime = None
-    else:
-        start_datetime = to_datetime().set(hour=start_hour)
+    from akkudoktoreos.server.rest.optimizecompat import optimize_hourly
 
-    # Ensure there is only one optimization/ energy management run at a time
-    solution = await get_ems().run(
-        start_datetime=start_datetime,
-        mode=EnergyManagementMode.OPTIMIZATION,
-        algorithm=OptimizationAlgorithm.GENETIC0,
-        genetic0_parameters=parameters,
-        genetic0_generations=ngen,
-    )
-
-    if solution is None:
-        raise EOSProblem(
-            status=404,
-            title="Optimization solution retrieval failed",
-            detail="Can not get the 'GENETIC0' optimization solution.",
-        )
-
-    # Create compatible solution.
-    legacy_solution = Genetic0SolutionLegacy.model_validate(
-        {
-            "ac_charge": solution.ac_charge,
-            "dc_charge": solution.dc_charge,
-            "discharge_allowed": solution.discharge_allowed,
-            "ev_charge_hours_float": solution.ev_charge_hours_float,
-            "result": solution.result,
-            "ev_obj": solution.ev_obj,
-            "start_solution": solution.start_solution,
-            "washingstart": solution.washingstart,
-        }
-    )
-    return legacy_solution
+    now = to_datetime(in_timezone=get_config().general.timezone)
+    start = now.start_of("hour")
+    if start_hour is not None:
+        start = start.set(hour=start_hour)
+        if start.hour != start_hour:
+            raise EOSProblem(
+                status=422,
+                title="Hourly planning failed",
+                detail=f"Local start_hour {start_hour} does not exist on this day.",
+            )
+    try:
+        response, outcome = await optimize_hourly(parameters, start)
+    except ValueError as exc:
+        raise EOSProblem(status=422, title="Hourly planning failed", detail=str(exc)) from exc
+    request.app.state.hourly_optimization_outcome = outcome
+    return response
 
 
-@app.get("/visualization_results.pdf", tags=["optimize"])
-def get_pdf() -> Response:
-    # Endpoint to serve the generated PDF with visualization results
-    genetic0_solution = get_ems().genetic0_solution()
-    if genetic0_solution is None:
+@app.get(
+    "/visualization_results.pdf",
+    tags=["optimize"],
+    deprecated=True,
+    response_class=Response,
+    responses={200: {"content": {"application/pdf": {}}}},
+)
+def get_pdf(request: Request) -> Response:
+    """Get the report for the latest hourly compatibility request.
+
+    The POST /optimize response includes the controls and series. For ongoing operation,
+    use the energy-management run, plan and optimization solution APIs.
+    """
+    outcome = getattr(request.app.state, "hourly_optimization_outcome", None)
+    if outcome is None:
         raise EOSProblem(
             status=404,
             title="Optimization solution report retrieval failed",
-            detail="Can not get the 'GENETIC0' optimization solution.",
+            detail="Submit an hourly optimization request to POST /optimize first.",
         )
-
-    # matplotlib is only needed for the PDF report; import it on first use.
-    from akkudoktoreos.optimization.genetic0.genetic0visualize import (
-        genetic0_prepare_visualize,
-    )
-
-    pdf = genetic0_prepare_visualize(solution=genetic0_solution)
-
     return Response(
-        content=pdf,
+        content=optimization_report(outcome, hourly=True),
         media_type="application/pdf",
         headers={"Content-Disposition": 'inline; filename="optimization-report.pdf"'},
     )

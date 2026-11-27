@@ -329,6 +329,22 @@ Fees are applied if given by the ElecFee prediction.
 The same raw SMARD series is also available as `FeedInTariffSMARD` for direct-marketing feed-in
 revenue.
 
+### ElecPriceResidualLoad Provider
+
+The `ElecPriceResidualLoad` provider builds on `ElecPriceSMARD`: published SMARD day-ahead prices
+(DE-LU), with Energy-Charts filling missing slots, are kept as they are. For the days after the
+last published day it replaces the seasonal ETS extrapolation by a model that predicts the residual
+load (load minus wind and PV) from the ECMWF weather forecast (Open-Meteo, 12 weather points) and
+turns it into a price with a monotonic price curve anchored at the known price level (days D+2 to
+D+5). Beyond D+5 and whenever the model is not available (no data yet, not trained, source error)
+the behaviour of `ElecPriceSMARD` is kept and a message is logged.
+
+The provider needs no settings of its own beyond `elecprice.smard.region` and stores its data
+(SMARD and weather cache, monthly models, error history) in the folder `elecprice_residualload`
+of the data folder. After each update it writes the 10/25/50/75/90 % quantiles of the price
+forecast to `uncertainty.json` there. The file is informational only and not used by the
+optimization.
+
 ### ElecPriceTibber Provider
 
 :::{admonition} Warning
@@ -354,6 +370,10 @@ Configuration options:
       Akkudoktor API without
     - `FeedInTariffEnergyCharts`: Retrieves Energy-Charts day-ahead market prices and extends
       them to the configured prediction horizon when necessary.
+      With `feedintariff.direct_marketing_enabled` and an `ElecPriceAkkudoktor`,
+      `ElecPriceEnergyCharts`, `ElecPriceSMARD` or `ElecPriceResidualLoad` price provider in the same
+      bidding zone, the series of that provider is mirrored instead of fetching a second one, so
+      purchase and feed-in forecasts do not diverge.
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
     - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
     - `FeedInTariffTibber`: Retrieves Tibber's native quarter-hour energy-price component.
@@ -410,7 +430,7 @@ as `feed_in_tariff_wh` in EUR/Wh, converted from the API's EUR/MWh prices. These
 are raw market prices; no import charges or VAT are added.
 
 Only published prices are stored. If the data does not cover the configured
-GENETIC or GENETIC0 control horizon, automatic optimization cancels with a
+OHMRAKEL42 control horizon, automatic optimization cancels with a
 missing tariff error instead of extending the final known price. Request, response, and storage
 errors also fail the update, including when older prices are already stored.
 Set the control horizon within the published day-ahead window to use this
@@ -1079,7 +1099,7 @@ The provider integrates Forecast.Solar's instantaneous power samples into 15-min
 interval-average W before summing the planes. Sunrise and sunset retain their actual
 timestamps during integration; explicit zero boundaries establish nighttime zeros within
 each forecast day. Missing daylight samples, invalid values, and unavailable days remain
-missing. GENETIC converts the averages to Wh for its configured 15-minute or hourly slots.
+missing. OHMRAKEL42 converts the averages to Wh for its configured 15-minute or hourly slots.
 Refreshing the provider replaces older samples and removes unavailable forecast tails.
 On the first refresh after upgrading, legacy forecasts with non-aligned timestamps are
 cleared, including history, so they cannot distort cadence detection. Later refreshes

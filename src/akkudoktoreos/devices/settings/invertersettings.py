@@ -20,10 +20,10 @@ point (``InverterOperatingPoint()``: 45 degC ambient temperature). They never
 raise; they are None if the inverter cannot be resolved.
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from loguru import logger
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import ConfigScope, SettingsBaseModel
 from akkudoktoreos.devices.settings import invertermeasurement
@@ -43,10 +43,7 @@ from akkudoktoreos.devices.settings.inverterresolution import (
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 if TYPE_CHECKING:
-    from akkudoktoreos.devices.genetic0.genetic0inverter import (
-        Genetic0InverterParameters,
-    )
-    from akkudoktoreos.devices.genetic.inverter import InverterParameters
+    from akkudoktoreos.devices.models.inverter import InverterParams
     from akkudoktoreos.devices.profile.inverterprofile import InverterProfile
 
 
@@ -111,7 +108,7 @@ class InverterCommonSettings(DevicesBaseSettings):
     """
 
     # ------------------------------------------------------------------
-    # Shared fields (GENETIC + GENETIC0)
+    # Shared inverter fields
     # ------------------------------------------------------------------
 
     inverter_profile: str = Field(
@@ -124,7 +121,9 @@ class InverterCommonSettings(DevicesBaseSettings):
                 "Differences of this unit go into 'profile_adjustment'."
             ),
             "examples": [INVERTER_DEFAULT_PROFILE],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     profile_adjustment: InverterProfileAdjustment = Field(
@@ -135,7 +134,9 @@ class InverterCommonSettings(DevicesBaseSettings):
                 "and installation limits."
             ),
             "examples": [{"nominal_power_w": 10000}],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
     dc_to_ac_efficiency_reference_load_fraction: float = Field(
@@ -151,7 +152,7 @@ class InverterCommonSettings(DevicesBaseSettings):
                 "battery, e.g. the night-time base load. Default 0.06."
             ),
             "examples": [0.06, 0.1],
-            "x-scope": [str(ConfigScope.GENETIC)],
+            "x-scope": [str(ConfigScope.OHMRAKEL42)],
         },
     )
     battery_id: Optional[str] = Field(
@@ -159,270 +160,11 @@ class InverterCommonSettings(DevicesBaseSettings):
         json_schema_extra={
             "description": ("Device ID of the battery."),
             "examples": [None],
-            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+            "x-scope": [
+                str(ConfigScope.OHMRAKEL42),
+            ],
         },
     )
-
-    # ------------------------------------------------------------------
-    # UNUSED-only fields
-    # ------------------------------------------------------------------
-
-    # Auxiliary power consumption
-    off_state_power_consumption_w: float = Field(
-        default=0.0,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Standby power consumed when the inverter is fully idle "
-                "(battery=0 and PV=0) [W]. Default 0.0."
-            ),
-            "examples": [5.0, 0.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    on_state_power_consumption_w: float = Field(
-        default=0.0,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Auxiliary power consumed whenever the inverter is active "
-                "(non-zero AC power) [W]. Default 0.0."
-            ),
-            "examples": [10.0, 0.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-
-    # PV parameters (used for SOLAR and HYBRID inverter types)
-    pv_to_ac_efficiency: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Efficiency of PV DC→AC conversion (0–1). "
-                "Required when pv_power_w_key is set (SOLAR or HYBRID). Default 1.0."
-            ),
-            "examples": [0.97, 1.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    pv_to_battery_efficiency: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Efficiency of PV DC→battery charging path (0–1). "
-                "Used for HYBRID inverters only. Default 1.0."
-            ),
-            "examples": [0.98, 1.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    pv_max_power_w: Optional[float] = Field(
-        default=None,
-        gt=0,
-        json_schema_extra={
-            "description": (
-                "Maximum DC PV power fed into the inverter [W]. "
-                "Required when pv_power_w_key is set (SOLAR or HYBRID). "
-                "Values from pv_power_w_key are clipped to this limit."
-            ),
-            "examples": [8000.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    pv_min_power_w: float = Field(
-        default=0.0,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Minimum DC PV power threshold [W]. Steps with available PV "
-                "below this value are treated as zero. Default 0.0."
-            ),
-            "examples": [50.0, 0.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    pv_power_w_key: Optional[str] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "SimulationContext prediction key resolving to a per-step PV "
-                "power forecast array [W] of shape (horizon,). "
-                "Set for SOLAR and HYBRID inverter types; leave None for BATTERY."
-            ),
-            "examples": ["pv_forecast_w", None],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-
-    # Battery parameters (used for BATTERY and HYBRID inverter types)
-    battery_capacity_wh: Optional[float] = Field(
-        default=None,
-        gt=0,
-        json_schema_extra={
-            "description": (
-                "Usable battery capacity [Wh]. Required for BATTERY and HYBRID inverter types."
-            ),
-            "examples": [10000.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_charge_rates: Optional[list[float]] = Field(
-        default=None,
-        json_schema_extra={
-            "description": (
-                "Optional list of discrete charge rate fractions (each in (0, 1]). "
-                "When set, the battery is constrained to these specific fractions "
-                "of battery_max_charge_rate. null means continuous charging. "
-                "All values must be in (0, 1]."
-            ),
-            "examples": [None, [0.25, 0.5, 1.0]],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_min_charge_rate: float = Field(
-        default=0.0,
-        ge=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Minimum non-zero charge rate as a fraction of the 1C rate "
-                "(1C = battery_capacity_wh W). "
-                "Charge commands below this threshold are rounded to zero. Default 0.0."
-            ),
-            "examples": [0.1, 0.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_max_charge_rate: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Maximum charge rate as a fraction of the 1C rate "
-                "(1C = battery_capacity_wh W). "
-                "bat_factor=+1 maps to this rate. Default 1.0."
-            ),
-            "examples": [0.5, 1.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_min_discharge_rate: float = Field(
-        default=0.0,
-        ge=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Minimum discharge rate as a fraction of the 1C rate "
-                "(1C = battery_capacity_wh W). "
-                "Discharge commands below this threshold are rounded to zero. Default 0.0."
-            ),
-            "examples": [0.1, 0.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_max_discharge_rate: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Maximum discharge rate as a fraction of the 1C rate. "
-                "(1C = battery_capacity_wh W). "
-                "bat_factor=−1 maps to this rate. Default 1.0."
-            ),
-            "examples": [0.5, 1.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_min_soc_factor: float = Field(
-        default=0.0,
-        ge=0,
-        lt=1,
-        json_schema_extra={
-            "description": (
-                "Minimum allowed state of charge as a fraction of battery_capacity_wh. "
-                "Must be < battery_max_soc_factor. Default 0.0."
-            ),
-            "examples": [0.1, 0.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_max_soc_factor: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Maximum allowed state of charge as a fraction of battery_capacity_wh. "
-                "Must be > battery_min_soc_factor. Default 1.0."
-            ),
-            "examples": [0.9, 1.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_initial_soc_factor_key: str = Field(
-        default="",
-        json_schema_extra={
-            "description": (
-                "SimulationContext measurement key resolving to the initial battery "
-                "SoC as a fraction of battery_capacity_wh, in [min_soc_factor, max_soc_factor]. "
-                "An empty string means the device uses battery_min_soc_factor as the "
-                "initial SoC (fully depleted to the minimum)."
-            ),
-            "examples": ["battery1_soc_factor", ""],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_lcos_amt_kwh: float = Field(
-        default=0.0,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Levelized cost of battery storage [Amt./kWh cycled]. "
-                "Penalises unnecessary charging/discharging so the GA avoids "
-                "grid-charge→discharge cycles with no price-spread benefit. "
-                "Typical residential Li-ion value: 0.05 Amt./kWh. "
-                "Set to 0.0 to encourage the optimizer to use the battery. "
-                "Defaults to 0.0."
-            ),
-            "examples": [0.05, 0.0],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-    battery_discharge_reward_amt_kwh: float = Field(
-        default=0.02,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Shadow price rewarding battery discharge [Amt./kWh discharged AC]. "
-                "Adds a direct fitness benefit per kWh the battery delivers, on top of "
-                "the grid import cost reduction already captured by GridConnectionDevice. "
-                "Helps the GA discover discharge when the load-matching rate is small "
-                "relative to mutation noise. "
-                "Suggested value: import_price - export_price - lcos "
-                "(e.g. 0.30 - 0.08 - 0.05 = 0.17). Set to 0.0 to disable."
-            ),
-            "examples": [0.0, 0.17],
-            "x-scope": [str(ConfigScope.UNUSED)],
-        },
-    )
-
-    # ------------------------------------------------------------------
-    # Validators
-    # ------------------------------------------------------------------
-
-    @model_validator(mode="after")
-    def _validate_soc_factors(self) -> "InverterCommonSettings":
-        if self.battery_min_soc_factor >= self.battery_max_soc_factor:
-            raise ValueError(
-                "battery_min_soc_factor must be strictly less than battery_max_soc_factor"
-            )
-        return self
 
     # ------------------------------------------------------------------
     # Inverter profile loading (see profilestore)
@@ -678,68 +420,46 @@ class InverterCommonSettings(DevicesBaseSettings):
         return p.ac_to_dc_efficiency if p is not None else None
 
     # ------------------------------------------------------------------
-    # GENETIC domain conversion
+    # Inverter model conversion
     # ------------------------------------------------------------------
 
-    def to_genetic_param(
-        self, operating_parameters: Optional[InverterOperatingParameters] = None
-    ) -> "InverterParameters":
-        """Return InverterParameters for the GENETIC optimizer.
+    def to_inverter_params(
+        self,
+        operating_parameters: Optional[InverterOperatingParameters] = None,
+        battery_index: Optional[int] = None,
+    ) -> "InverterParams":
+        """Return the inverter parameters of the device by device optimizer.
 
         Args:
             operating_parameters: Resolved snapshot to convert, e.g. from
-                ``resolve_current_operating_parameters``. None resolves at the
+                ``resolve_current_operating_parameters_or_defaults``. None resolves at the
                 reference operating point.
+            battery_index: Index of the attached battery in the list of batteries of the plan,
+                None for an inverter without battery.
 
         Raises:
-            InverterResolutionError: If the snapshot is resolved here and the
-                inverter cannot be resolved.
+            InverterResolutionError: If the snapshot is resolved here and the inverter cannot
+                be resolved.
         """
-        from akkudoktoreos.devices.genetic.inverter import InverterParameters
+        from akkudoktoreos.devices.models.inverter import InverterParams
 
         p = operating_parameters or self.resolve_operating_parameters()
-        return InverterParameters(
-            device_id=self.device_id,
-            max_power_wh=p.max_power_w,
-            battery_id=self.battery_id,
-            ac_to_dc_efficiency=p.ac_to_dc_efficiency,
-            dc_to_ac_efficiency=p.dc_to_ac_efficiency,
-            dc_to_ac_efficiency_curve=list(p.dc_to_ac_efficiency_curve),
-            ac_to_dc_efficiency_curve=list(p.ac_to_dc_efficiency_curve),
-            dc_to_ac_efficiency_reference_load_fraction=(
-                self.dc_to_ac_efficiency_reference_load_fraction
-            ),
+
+        def curve(points: Any) -> Optional[tuple[tuple[float, float], ...]]:
+            return tuple((float(a), float(b)) for a, b in points) if points else None
+
+        return InverterParams(
+            max_power_w=float(p.max_power_w),
+            battery_index=battery_index,
+            dc_to_ac_efficiency=float(p.dc_to_ac_efficiency),
+            ac_to_dc_efficiency=float(p.ac_to_dc_efficiency),
+            dc_to_ac_efficiency_curve=curve(p.dc_to_ac_efficiency_curve),
+            ac_to_dc_efficiency_curve=curve(p.ac_to_dc_efficiency_curve),
             max_ac_charge_power_w=p.max_ac_charge_power_w,
             ac_charge_limits_total_charge=p.ac_charge_limits_total_charge,
-        )
-
-    # ------------------------------------------------------------------
-    # GENETIC0 domain conversion
-    # ------------------------------------------------------------------
-
-    def to_genetic0_param(
-        self, operating_parameters: Optional[InverterOperatingParameters] = None
-    ) -> "Genetic0InverterParameters":
-        """Return Genetic0InverterParameters for the GENETIC0 optimizer.
-
-        GENETIC0 uses constant efficiencies: the DC→AC efficiency at the
-        reference load fraction and the AC→DC efficiency at the AC charge limit.
-
-        Raises:
-            InverterResolutionError: See ``to_genetic_param``.
-        """
-        from akkudoktoreos.devices.genetic0.genetic0inverter import (
-            Genetic0InverterParameters,
-        )
-
-        p = operating_parameters or self.resolve_operating_parameters()
-        return Genetic0InverterParameters(
-            device_id=self.device_id,
-            max_power_wh=p.max_power_w,
-            battery_id=self.battery_id,
-            ac_to_dc_efficiency=p.ac_to_dc_efficiency,
-            dc_to_ac_efficiency=p.dc_to_ac_efficiency,
-            max_ac_charge_power_w=p.max_ac_charge_power_w,
+            dc_to_ac_efficiency_reference_load_fraction=float(
+                self.dc_to_ac_efficiency_reference_load_fraction
+            ),
         )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -751,12 +471,5 @@ class InverterCommonSettings(DevicesBaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def measurement_keys(self) -> list[str]:
-        """Measurement keys for this inverter.
-
-        The ambient temperature, and the ``battery_initial_soc_factor_key`` if
-        non-empty, so the EMS measurement store knows to watch for them.
-        """
-        keys = [self.measurement_key_temperature_degc]
-        if self.battery_initial_soc_factor_key:
-            keys.append(self.battery_initial_soc_factor_key)
-        return keys
+        """Measurement keys for this inverter: the ambient temperature."""
+        return [self.measurement_key_temperature_degc]

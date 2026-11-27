@@ -275,6 +275,12 @@ class WeatherOpenMeteo(WeatherProvider):
 
         logger.info("Using direct radiation values from Open-Meteo (GHI, DNI, DHI)")
 
+        # A forecast replaces the forecast range already held: records of earlier updates on
+        # other instants (e.g. precipitable water on a run-start grid) must not stay as
+        # valueless rows between the hourly values.
+        first_hour = to_datetime(timestamps[0], in_timezone=self.config.general.timezone)
+        await self.delete_by_datetime(start_datetime=first_hour)
+
         # Process the data for each timestamp
         for idx, timestamp in enumerate(timestamps):
             weather_record = WeatherDataRecord()
@@ -314,12 +320,17 @@ class WeatherOpenMeteo(WeatherProvider):
             )
 
         # Add Precipitable Water (PWAT) using PVLib method
+        # Precipitable water on the hourly instants of the response, independent of the run start.
+        hours_start = first_hour
+        hours_end = to_datetime(timestamps[-1], in_timezone=self.config.general.timezone).add(
+            hours=1
+        )
         key = WeatherDataRecord.key_from_description("Temperature (°C)")
         assert key  # noqa: S101
         temperature = await self.key_to_array(
             key=key,
-            start_datetime=self.ems_start_datetime,
-            end_datetime=self.end_datetime,
+            start_datetime=hours_start,
+            end_datetime=hours_end,
             interval=to_duration("1 hour"),
         )
         if any(x is None or isinstance(x, float) and np.isnan(x) for x in temperature):
@@ -332,8 +343,8 @@ class WeatherOpenMeteo(WeatherProvider):
         assert key  # noqa: S101
         humidity = await self.key_to_array(
             key=key,
-            start_datetime=self.ems_start_datetime,
-            end_datetime=self.end_datetime,
+            start_datetime=hours_start,
+            end_datetime=hours_end,
             interval=to_duration("1 hour"),
         )
         if any(x is None or isinstance(x, float) and np.isnan(x) for x in humidity):
@@ -343,15 +354,12 @@ class WeatherOpenMeteo(WeatherProvider):
             return
 
         data = pvlib.atmosphere.gueymard94_pw(temperature, humidity)
-        end_datetime = self.end_datetime
-        if end_datetime is None:
-            raise ValueError("Prediction end datetime is not available")
         pwat = pd.Series(
             data=data,
             index=pd.DatetimeIndex(
                 pd.date_range(
-                    start=self.ems_start_datetime,
-                    end=end_datetime,
+                    start=hours_start,
+                    end=hours_end,
                     freq="1h",
                     inclusive="left",
                 )

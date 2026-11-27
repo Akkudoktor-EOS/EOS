@@ -41,7 +41,7 @@ schedules and supervises all periodic and asynchronous work.
   Several REST endpoints are asynchronous and delegate heavy work to the `EnergyManagementSystem`.
   Examples include:
   - `POST /v1/prediction/update` – updates all prediction providers asynchronously.
-  - `POST /optimize` – runs a genetic optimisation (deprecated, but still async).
+  - `POST /optimize` – runs an hourly OHMRAKEL42 optimization (deprecated).
   - `POST /v1/admin/server/restart` – spawns a new process and schedules a shutdown task.
 
 ## Asynchronous Workflow

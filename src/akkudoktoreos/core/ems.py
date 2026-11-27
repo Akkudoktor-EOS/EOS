@@ -4,12 +4,14 @@ import traceback
 import urllib.request
 from asyncio import Lock, get_running_loop
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from enum import StrEnum
-from typing import ClassVar, Optional, cast
+from typing import TYPE_CHECKING, ClassVar, Optional, Sequence
 
 from loguru import logger
 from pydantic import computed_field
 
+from akkudoktoreos.config.configabc import OHMRAKEL42_ALGORITHM_NAME
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import (
     AdapterMixin,
@@ -20,21 +22,16 @@ from akkudoktoreos.core.coreabc import (
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.optimization.genetic0.genetic0params import (
-    Genetic0OptimizationParameters,
-)
-from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
-from akkudoktoreos.optimization.genetic.configrequest import ConfigOptimizationRequest
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
-)
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.optimization import (
-    OptimizationAlgorithm,
-    OptimizationSolution,
-)
+from akkudoktoreos.optimization.optimization import OptimizationSolution
+from akkudoktoreos.optimization.solutionmodel import Ohmrakel42Solution
+from akkudoktoreos.thermal.thermalmodels import ThermalPlan
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
+
+if TYPE_CHECKING:
+    # The device by device optimizer is imported on first use (it needs numba).
+    from akkudoktoreos.optimization.planner import WarmStart
+    from akkudoktoreos.optimization.request import PlanningRequest
+    from akkudoktoreos.optimization.solution import PlanningOutcome
 
 # The executor to execute the CPU heavy energy management run
 executor = ThreadPoolExecutor(max_workers=1)
@@ -122,13 +119,15 @@ class EnergyManagement(
     # opimization solution of the latest energy management run
     _optimization_solution: ClassVar[Optional[OptimizationSolution]] = None
 
-    # Solution of the genetic algorithm of latest energy management run with optimization
-    # For classic API
-    _genetic_solution: ClassVar[Optional[GeneticSolution]] = None
+    # Solution of the device by device algorithm of latest energy management run with optimization
+    _ohmrakel42_solution: ClassVar[Optional[Ohmrakel42Solution]] = None
+    _planning_outcome: ClassVar[Optional["PlanningOutcome"]] = None
 
-    # Solution of the genetic0 algorithm of latest energy management run with optimization
-    # For classic API
-    _genetic0_solution: ClassVar[Optional[Genetic0Solution]] = None
+    # Thermal plans (one per heat source) of the latest device by device run
+    _thermal_plans: ClassVar[list[ThermalPlan]] = []
+
+    # Plan of the latest device by device run, the start of the next one
+    _ohmrakel42_warm_start: ClassVar[Optional["WarmStart"]] = None
 
     # energy management lock (for energy management run)
     _run_lock: ClassVar[Lock] = Lock()
@@ -166,7 +165,7 @@ class EnergyManagement(
         Args:
             start_datetime (Optional[DateTime]): The datetime to set as the start.
                 If None, the current datetime is used.
-            interval_seconds: Explicit slot duration; otherwise use the configured algorithm.
+            interval_seconds: Explicit slot duration; otherwise use the configured interval.
 
         Returns:
             DateTime: The adjusted start datetime.
@@ -175,11 +174,7 @@ class EnergyManagement(
             start_datetime = to_datetime()
         cls._observation_datetime = start_datetime
         if interval_seconds is None:
-            interval_seconds = (
-                cls.config.optimization.genetic.interval_sec
-                if cls.config.optimization.algorithm == OptimizationAlgorithm.GENETIC
-                else 3600
-            )
+            interval_seconds = cls.config.optimization.interval_sec
         if interval_seconds not in (900, 3600):
             raise ValueError("Optimization slots must be 900 or 3600 seconds.")
         midnight = start_datetime.start_of("day").int_timestamp
@@ -218,40 +213,31 @@ class EnergyManagement(
         return cls._optimization_solution
 
     @classmethod
-    def genetic_solution(cls) -> Optional[GeneticSolution]:
-        """Get the latest solution of the genetic algorithm.
-
-        Returns:
-            Optional[GeneticSolution]: The latest solution of the genetic algorithm.
-        """
-        return cls._genetic_solution
+    def planning_outcome(cls) -> Optional["PlanningOutcome"]:
+        """Get the latest successful configuration-based planning outcome."""
+        return cls._planning_outcome
 
     @classmethod
-    def genetic0_solution(cls) -> Optional[Genetic0Solution]:
-        """Get the latest solution of the genetic0 algorithm.
+    def ohmrakel42_solution(cls) -> Optional[Ohmrakel42Solution]:
+        """Get the latest OHMRAKEL42 solution."""
+        return cls._ohmrakel42_solution
 
-        Returns:
-            Optional[Genetic0Solution]: The latest solution of the genetic algorithm.
-        """
-        return cls._genetic0_solution
+    @classmethod
+    def thermal_plans(cls) -> list[ThermalPlan]:
+        """Get the thermal plans (one per heat source) of the latest device by device run."""
+        return list(cls._thermal_plans)
 
     async def run(
         self,
         start_datetime: Optional[DateTime] = None,
         mode: Optional[EnergyManagementMode] = None,
-        algorithm: Optional[OptimizationAlgorithm] = None,
-        genetic_parameters: Optional[
-            GeneticOptimizationParameters | ConfigOptimizationRequest
-        ] = None,
-        genetic_generations: Optional[int] = None,
-        genetic_individuals: Optional[int] = None,
-        genetic_seed: Optional[int] = None,
-        genetic0_parameters: Optional[Genetic0OptimizationParameters] = None,
-        genetic0_generations: Optional[int] = None,
-        genetic0_seed: Optional[int] = None,
+        ohmrakel42_request: Optional["PlanningRequest"] = None,
+        changed_devices: Optional[Sequence[str]] = None,
+        binary_discharge: bool = False,
+        include_outcome: bool = False,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
-    ) -> Optional[GeneticSolution | Genetic0Solution]:
+    ) -> "Ohmrakel42Solution | PlanningOutcome | None":
         """Run the energy management.
 
         This method initializes the energy management run by setting its
@@ -266,29 +252,14 @@ class EnergyManagement(
                 - "DISABLED": Does not run.
 
                 Defaults to the mode defined in the current configuration.
-            algorithm (OptimizationAlgorithm, optional):
-                The algorithm to use. Must be one of:
-                - "GENETIC": Optimization uses the `GENETIC` optimization algorithm.
-                - "GENETIC0": Optimization uses the `GENETIC0` optimization algorithm.
-
-                Defaults to the algorithm defined in the current configuration.
-            genetic_parameters (GeneticOptimizationParameters, optional): The
-                parameter set for the `GENETIC` algorithm. If not provided, it will
-                be constructed based on the current configuration and predictions.
-            genetic_generations (int, optional): The number of generations for the
-                `GENETIC` algorithm. Defaults to the algorithm's internal default (400)
-                if not specified.
-            genetic_individuals (int, optional): Population size override for this run.
-            genetic_seed (int, optional): The seed for the `GENETIC` algorithm. Defaults
-                to the algorithm's internal random seed if not specified.
-            genetic0_parameters (Genetic0OptimizationParameters, optional): The
-                parameter set for the `GENETIC0` algorithm. If not provided, it will
-                be constructed based on the current configuration and predictions.
-            genetic0_generations (int, optional): The number of generations for the
-                `GENETIC0` algorithm. Defaults to the algorithm's internal default (400)
-                if not specified.
-            genetic0_seed (int, optional): The seed for the `GENETIC0` algorithm. Defaults
-                to the algorithm's internal random seed if not specified.
+            ohmrakel42_request (PlanningRequest, optional): Runtime values (state of charge,
+                forecasts, blocks, absences) for the `OHMRAKEL42` algorithm. Everything else
+                is resolved from the current configuration and predictions.
+            changed_devices (Sequence[str], optional): Ids of devices an event concerns
+                (for example a vehicle that leaves earlier). The `OHMRAKEL42` algorithm plans
+                them first, starting from the last plan. An unknown id is an error.
+            include_outcome: Include the simulation and plan for callers translating the result.
+            binary_discharge: Limit discharge to on/off for compatibility clients.
             force_enable (bool, optional): If True, bypasses any disabled state
                 to force the update process. This is mostly applicable to
                 prediction providers.
@@ -317,20 +288,9 @@ class EnergyManagement(
 
             # Remember/ set the start datetime of this energy management run.
             # None leads to current time as start datetime
-            if algorithm is None:
-                algorithm = self.config.optimization.algorithm
-            if start_datetime is None and algorithm == OptimizationAlgorithm.GENETIC:
-                # Consumer windows and midnight-based forecasts use the site clock,
-                # which can differ from the server's local timezone.
+            if start_datetime is None:
                 start_datetime = to_datetime(in_timezone=self.config.general.timezone)
-            self.set_start_datetime(
-                start_datetime,
-                interval_seconds=(
-                    self.config.optimization.genetic.interval_sec
-                    if algorithm == OptimizationAlgorithm.GENETIC
-                    else 3600
-                ),
-            )
+            self.set_start_datetime(start_datetime)
 
             # Throw away any memory cached results of the last energy management run.
             CacheEnergyManagementStore().clear()
@@ -371,156 +331,49 @@ class EnergyManagement(
             optimization_start = to_datetime()
             logger.info("Starting energy management optimization.")
 
-            if algorithm is None:
-                algorithm = self.config.optimization.algorithm
+            algorithm = OHMRAKEL42_ALGORITHM_NAME
+            from akkudoktoreos.optimization.planner import run_planning, warm_start_of
+            from akkudoktoreos.optimization.request import PlanningRequest
 
-            run_solution: GeneticSolution | Genetic0Solution
-
-            # --- GENETIC algorithm ---
-            if algorithm == OptimizationAlgorithm.GENETIC:
-                # Prepare optimization parameters
-                # This also creates default configurations for missing values and updates the predictions
-                logger.info(f"{algorithm}: Starting optimzation parameter preparation.")
-                try:
-                    if isinstance(genetic_parameters, ConfigOptimizationRequest):
-                        genetic_parameters = await genetic_parameters.resolve()
-                    elif genetic_parameters is None:
-                        genetic_parameters = await GeneticOptimizationParameters.prepare()
-                    if genetic_parameters is None:
-                        logger.error("GENETIC: Parameter preparation failed; canceling run.")
-                        EnergyManagement._stage = EnergyManagementStage.IDLE
-                        return None
-                except Exception:
-                    logger.exception("GENETIC: Parameter preparation failed.")
-                    EnergyManagement._stage = EnergyManagementStage.IDLE
-                    return None
-
-                # Take values from config if not given
-                if genetic_generations is None:
-                    genetic_generations = self.config.optimization.genetic.generations
-                if genetic_seed is None:
-                    genetic_seed = self.config.optimization.genetic.seed
-
-                if EnergyManagement._start_datetime is None:  # Make mypy happy - already set by us
-                    raise RuntimeError(f"{algorithm}: Start datetime not set.")
-
-                # --- Optimization (CPU-bound → MUST offload) ---
-                try:
-                    genetic_optimization = GeneticOptimization(
-                        verbose=bool(self.config.server.verbose),
-                        fixed_seed=genetic_seed,
-                    )
-
-                    loop = get_running_loop()
-                    start_hour = EnergyManagement._start_datetime.hour
-                    genetic_solution = await loop.run_in_executor(
-                        None,
-                        lambda: genetic_optimization.optimize_ems(
-                            start_hour=start_hour,
-                            parameters=cast(
-                                GeneticOptimizationParameters, genetic_parameters
-                            ),  # cast for mypy
-                            ngen=genetic_generations,
-                            individuals=genetic_individuals,
+            logger.info(f"{algorithm}: Starting planning task preparation.")
+            try:
+                request = (
+                    ohmrakel42_request if ohmrakel42_request is not None else PlanningRequest()
+                )
+                task = await request.resolve()
+                if binary_discharge:
+                    task = replace(
+                        task,
+                        search=replace(
+                            task.search,
+                            battery_discharge_levels=((1.0,),) * len(task.battery_ids),
                         ),
                     )
+                previous = EnergyManagement._ohmrakel42_warm_start
+                ttl_seconds = self.config.thermal.plan_ttl_seconds
+                changed = list(changed_devices or [])
 
-                    # Build all representations before publishing any of them.
-                    optimization_solution = await genetic_solution.optimization_solution()
-                    plan = genetic_solution.energy_management_plan()
-
-                except Exception:
-                    logger.exception(f"{algorithm}: Energy management optimization failed.")
-                    EnergyManagement._stage = EnergyManagementStage.IDLE
-                    return None
-
-                # Publish a consistent set without yielding to another coroutine.
-                EnergyManagement._genetic_solution = genetic_solution
-                EnergyManagement._optimization_solution = optimization_solution
-                EnergyManagement._plan = plan
-                run_solution = genetic_solution
-
-                logger.debug(
-                    "{}: Energy management genetic solution:\n{}",
-                    algorithm,
-                    EnergyManagement._genetic_solution,
+                # --- Planning (CPU-bound → MUST offload) ---
+                loop = get_running_loop()
+                outcome = await loop.run_in_executor(
+                    None, lambda: run_planning(task, previous, changed, ttl_seconds)
                 )
-
-            # --- GENETIC0 algorithm ---
-            elif algorithm == OptimizationAlgorithm.GENETIC0:
-                # Prepare optimization parameters
-                # This also creates default configurations for missing values and updates the predictions
-                logger.info(f"{algorithm}: Starting optimzation parameter preparation.")
-                if genetic0_parameters is None:
-                    genetic0_parameters = await Genetic0OptimizationParameters.prepare()
-                    if genetic0_parameters is None:
-                        logger.error(
-                            f"{algorithm}: Energy management run canceled. "
-                            "Could not prepare optimisation parameters."
-                        )
-                        EnergyManagement._stage = EnergyManagementStage.IDLE
-                        return None
-
-                # Take values from config if not given
-                if genetic0_generations is None:
-                    genetic0_generations = self.config.optimization.genetic0.generations
-                if genetic0_seed is None:
-                    genetic0_seed = self.config.optimization.genetic0.seed
-
-                if EnergyManagement._start_datetime is None:  # Make mypy happy - already set by us
-                    raise RuntimeError(f"{algorithm}: Start datetime not set.")
-
-                # --- Optimization (CPU-bound → MUST offload) ---
-                try:
-                    # Imported on first use: a server that runs GENETIC never needs
-                    # the GENETIC0 optimizer and its simulation.
-                    from akkudoktoreos.optimization.genetic0.genetic0 import (
-                        Genetic0Optimization,
-                    )
-
-                    genetic0_optimization = Genetic0Optimization(
-                        verbose=bool(self.config.server.verbose),
-                        fixed_seed=genetic0_seed,
-                    )
-
-                    loop = get_running_loop()
-                    start_hour = EnergyManagement._start_datetime.hour
-                    genetic0_solution = await loop.run_in_executor(
-                        None,
-                        lambda: genetic0_optimization.optimize_ems(
-                            start_hour=start_hour,
-                            parameters=cast(
-                                Genetic0OptimizationParameters, genetic0_parameters
-                            ),  # cast for mypy
-                            ngen=genetic0_generations,
-                        ),
-                    )
-
-                    # Build all representations before publishing any of them.
-                    optimization_solution = await genetic0_solution.optimization_solution()
-                    plan = genetic0_solution.energy_management_plan()
-
-                except Exception:
-                    logger.exception(f"{algorithm}: Energy management optimization failed.")
-                    EnergyManagement._stage = EnergyManagementStage.IDLE
-                    return None
-
-                # Publish a consistent set without yielding to another coroutine.
-                EnergyManagement._genetic0_solution = genetic0_solution
-                EnergyManagement._optimization_solution = optimization_solution
-                EnergyManagement._plan = plan
-                run_solution = genetic0_solution
-
-                logger.debug(
-                    "{}: Energy management genetic solution:\n{}",
-                    algorithm,
-                    EnergyManagement._genetic0_solution,
-                )
-
-            else:
-                logger.error(f"Unknown optimization algorithm: '{algorithm}'. Skipping.")
+            except Exception:
+                # A failed planning is loud: the cause goes to the caller, no plan is made up.
+                logger.exception(f"{algorithm}: Energy management optimization failed.")
                 EnergyManagement._stage = EnergyManagementStage.IDLE
-                return None
+                raise
+
+            # Publish a consistent set without yielding to another coroutine.
+            EnergyManagement._planning_outcome = outcome
+            EnergyManagement._ohmrakel42_solution = outcome.solution
+            EnergyManagement._optimization_solution = outcome.optimization_solution
+            EnergyManagement._plan = outcome.energy_management_plan
+            EnergyManagement._thermal_plans = list(outcome.thermal_plans)
+            # The outcome's task may be the one without heat pumps (see ``run_planning``).
+            EnergyManagement._ohmrakel42_warm_start = warm_start_of(outcome.task, outcome.plan)
+
+            logger.debug("{}: Energy management solution:\n{}", algorithm, outcome.solution)
 
             optimization_duration = to_datetime() - optimization_start
             logger.info(
@@ -566,4 +419,4 @@ class EnergyManagement(
 
             # energy management run finished
             EnergyManagement._stage = EnergyManagementStage.IDLE
-            return run_solution
+            return outcome if include_outcome else outcome.solution

@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2611151515912129`
+**Version**: `v0.3.0.dev2611260797651041`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -15,7 +15,7 @@ Field names containing cost, price, revenue, tariff, or similar monetary terms (
 
 ## Deprecated Field Names
 
-The genetic optimization API fields were renamed from German to English. For backward compatibility the old German field names (e.g. `gesamtlast`, `pv_prognose_wh`, `Gesamtbilanz_Euro`) are still accepted on input and are emitted in responses alongside the English names, marked as deprecated in the schema. They will be removed in a future release — new clients should use the English field names only.
+The compatibility optimization API accepts both English and historically German fields. For backward compatibility the old German field names (e.g. `gesamtlast`, `pv_prognose_wh`, `Gesamtbilanz_Euro`) are still accepted on input and are emitted in responses alongside the English names, marked as deprecated in the schema. They will be removed in a future release — new clients should use the English field names only.
 
 <!-- pyml enable line-length -->
 
@@ -121,29 +121,24 @@ Fastapi Optimize
 <!-- pyml disable line-length -->
 ```python
 """
-Deprecated: Optimize.
+Plan with hourly forecasts and devices for this request only.
 
-Endpoint to handle optimization.
-
-Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
-
-Note:
-    Use automatic optimization instead.
-    "v1/energy-management/optimization/solution/GENETIC0"
+For new integrations use /v1/energy-management/run with devices in the configuration.
+The historical genome, number of generations and display temperatures have no effect.
 """
 ```
 <!-- pyml enable line-length -->
 
 **Parameters**:
 
-- `start_hour` (query, optional): Defaults to current hour of the day.
+- `start_hour` (query, optional): Defaults to the current local hour.
 
-- `ngen` (query, optional): Number of indivuals to generate for genetic algorithm.
+- `ngen` (query, optional): Accepted for compatibility.
 
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/Genetic0OptimizationParameters-Input"
+  "$ref": "#/components/schemas/HourlyOptimizationRequest"
 }
 
 **Responses**:
@@ -761,11 +756,10 @@ Fastapi Energy Management Optimization Solution Genetic Pdf Get
 <!-- pyml disable line-length -->
 ```python
 """
-Render the retained GENETIC result without rerunning optimization.
+Get the latest configuration-based OHMRAKEL42 report at the historical PDF URL.
 
-Rendering runs outside the event loop. Copy the result before offloading;
-its recorded timestamp, interval and inputs own the report's time grid.
-The legacy /visualization_results.pdf route continues to serve GENETIC0.
+Fetch the plan at GET /v1/energy-management/plan and the result series at
+GET /v1/energy-management/optimization/solution when migrating.
 """
 ```
 <!-- pyml enable line-length -->
@@ -776,34 +770,25 @@ The legacy /visualization_results.pdf route continues to serve GENETIC0.
 
 ---
 
-## GET /v1/energy-management/optimization/solution/{algorithm}
+## GET /v1/energy-management/optimization/solution/OHMRAKEL42
 
 <!-- pyml disable line-length -->
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_ohmrakel42_get_v1_energy-management_optimization_solution_ohmrakel42_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_ohmrakel42_get_v1_energy-management_optimization_solution_ohmrakel42_get)
 <!-- pyml enable line-length -->
 
-Fastapi Energy Management Optimization Solution Algorithm Get
+Fastapi Energy Management Optimization Solution Ohmrakel42 Get
 
 <!-- pyml disable line-length -->
 ```python
 """
-Get the latest algorithm specific solution of the optimization.
-
-Args:
-    algorithm: Optimization algorithm
+Get the latest native OHMRAKEL42 solution.
 """
 ```
 <!-- pyml enable line-length -->
 
-**Parameters**:
-
-- `algorithm` (path, required): No description provided.
-
 **Responses**:
 
 - **200**: Successful Response
-
-- **422**: Validation Error
 
 ---
 
@@ -819,6 +804,68 @@ Fastapi Energy Management Plan Get
 ```python
 """
 Get the latest energy management plan.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/energy-management/run
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_run_post_v1_energy-management_run_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_run_post_v1_energy-management_run_post)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Run Post
+
+<!-- pyml disable line-length -->
+```python
+"""
+Run the energy management with the stored configuration and return the plan.
+
+The body may carry runtime values (state of charge, forecast series, vehicle plug-in
+times, blocks of heat sources, reported absences) and changed_devices. Those devices
+are planned first, starting from the last plan. Everything else comes from the
+configuration. Query parameters are rejected.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/EnergyManagementRunRequest"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/energy-management/thermal-plan
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_thermal_plan_get_v1_energy-management_thermal-plan_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_thermal_plan_get_v1_energy-management_thermal-plan_get)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Thermal Plan Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get the latest thermal plans, one per heat source with a zone.
+
+Each plan holds the room temperature target and limits per slot. The planned heat and
+electric power are forecast columns of the optimization solution
+(`<source id>_planned_heat_w`, `<source id>_planned_electric_w`), not set points.
+The list is empty when the latest run planned no heat source.
 """
 ```
 <!-- pyml enable line-length -->
@@ -1380,15 +1427,11 @@ Fastapi Optimize Config
 <!-- pyml disable line-length -->
 ```python
 """
-Optimize GENETIC using configured devices and optional fresh runtime inputs.
+Optimize with OHMRAKEL42 using configured devices and optional observations.
 
-Static settings belong in configuration; query overrides are rejected.
-Forecast arrays start at local
-midnight and contain Wh per configured GENETIC slot; prices are currency/Wh.
-An empty body uses configured providers. Explicit SoC values take precedence over
-fresh measured states of charge; missing usable measurements default to an assumed
-initial SoC of 0% without blocking a plan.
-The deprecated /optimize endpoint continues to run hourly GENETIC0.
+Forecast arrays start at local midnight and contain Wh per configured slot. Prices
+are currency per Wh. Query overrides are rejected. The compatibility response keeps the
+historical on/off discharge contract, so this run plans only on/off discharge.
 """
 ```
 <!-- pyml enable line-length -->
@@ -2372,6 +2415,142 @@ Return:
 
 ---
 
+## GET /v1/thermal/absences
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/get_absences_v1_thermal_absences_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_absences_v1_thermal_absences_get)
+<!-- pyml enable line-length -->
+
+Get Absences
+
+<!-- pyml disable line-length -->
+```python
+"""
+Stored absences with the running and the next one.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/thermal/absences
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/post_absence_v1_thermal_absences_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/post_absence_v1_thermal_absences_post)
+<!-- pyml enable line-length -->
+
+Post Absence
+
+<!-- pyml disable line-length -->
+```python
+"""
+Report a new absence (``start`` defaults to now, ``end`` None = until back home).
+"""
+```
+<!-- pyml enable line-length -->
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/AbsenceInput"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## POST /v1/thermal/absences/back
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/post_back_v1_thermal_absences_back_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/post_back_v1_thermal_absences_back_post)
+<!-- pyml enable line-length -->
+
+Post Back
+
+<!-- pyml disable line-length -->
+```python
+"""
+Back home: end every running absence now (kept for learning).
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## DELETE /v1/thermal/absences/{ident}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/delete_absence_v1_thermal_absences__ident__delete), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/delete_absence_v1_thermal_absences__ident__delete)
+<!-- pyml enable line-length -->
+
+Delete Absence
+
+<!-- pyml disable line-length -->
+```python
+"""
+Revoke an absence (a running one ends now, a future one is removed).
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `ident` (path, required): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## PUT /v1/thermal/absences/{ident}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/put_absence_v1_thermal_absences__ident__put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/put_absence_v1_thermal_absences__ident__put)
+<!-- pyml enable line-length -->
+
+Put Absence
+
+<!-- pyml disable line-length -->
+```python
+"""
+Create or replace the absence with this id.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `ident` (path, required): No description provided.
+
+**Request Body**:
+
+- `application/json`: {
+  "$ref": "#/components/schemas/AbsenceInput"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
 ## GET /visualization_results.pdf
 
 <!-- pyml disable line-length -->
@@ -2379,6 +2558,17 @@ Return:
 <!-- pyml enable line-length -->
 
 Get Pdf
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get the report for the latest hourly compatibility request.
+
+The POST /optimize response includes the controls and series. For ongoing operation,
+use the energy-management run, plan and optimization solution APIs.
+"""
+```
+<!-- pyml enable line-length -->
 
 **Responses**:
 

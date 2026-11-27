@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock
 import numpy as np
 import pytest
 import pytest_asyncio
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from pendulum import datetime, duration
 from pydantic import ValidationError
 
@@ -15,7 +17,8 @@ from akkudoktoreos.measurement.measurement import (
     MeasurementCommonSettings,
     MeasurementDataRecord,
 )
-from akkudoktoreos.measurement.quality import SampleQuality
+from akkudoktoreos.measurement.quality import MeasurementSample, SampleQuality
+from akkudoktoreos.server.rest.measurement import router as measurement_router
 from akkudoktoreos.utils.datetimeutil import (
     compare_datetimes,
     to_datetime,
@@ -166,12 +169,12 @@ class TestMeasurementDataRecord:
         assert "dish_washer_mr" in record
         assert "solar_power" in record
         assert "date_time" in record  # standard field
-        assert "temp" in record       # allowed but not yet set
+        assert "temp" in record  # allowed but not yet set
         assert "unknown" not in record
 
     def test_dir_includes_measurement_keys(self, record):
         """`dir(record)` should include measurement keys for introspection.
-         It shall not include the internal 'measurements' attribute.
+        It shall not include the internal 'measurements' attribute.
         """
         keys = dir(record)
         assert "measurements" not in keys
@@ -471,7 +474,9 @@ class TestMeasurement:
         end_datetime = to_datetime("2023-01-01T05:00:00")
         interval = duration(hours=1)
 
-        result = await measurement_eos.load_total_kwh(start_datetime=start_datetime, end_datetime=end_datetime, interval=interval)
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
+        )
 
         # Expected total load per interval
         expected = np.array([100, 100])  # Differences between consecutive meter readings
@@ -496,7 +501,9 @@ class TestMeasurement:
         end_datetime = to_datetime("2023-01-01T01:30:00") # End in the middle of another interval
         interval = duration(hours=1)
 
-        result = await measurement_eos.load_total_kwh(start_datetime=start_datetime, end_datetime=end_datetime, interval=interval)
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
+        )
         expected = np.array([100])  # Only one complete interval covered
         np.testing.assert_array_equal(result, expected)
 
@@ -601,13 +608,20 @@ class TestMeasurementFileRestore:
         assert [record["meter"] for record in measurement.records] == [123.5, 124.0]
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("payload", [
-        "invalid json",
-        json.dumps({"records": [
-            {"date_time": "2026-09-16T08:00:00Z", "meter": 123.5},
-            {"date_time": "not a date", "meter": 124.0},
-        ]}),
-    ])
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            "invalid json",
+            json.dumps(
+                {
+                    "records": [
+                        {"date_time": "2026-09-16T08:00:00Z", "meter": 123.5},
+                        {"date_time": "not a date", "meter": 124.0},
+                    ]
+                }
+            ),
+        ],
+    )
     async def test_invalid_json_does_not_partially_restore(self, file_measurements, payload):
         measurement = file_measurements
         measurement._measurement_file_path().write_text(payload, encoding="utf-8")
@@ -636,6 +650,27 @@ CHANNELS = {
 
 
 class TestMeasurementChannels:
+    @pytest.fixture
+    def nonenergy_measurement(self, config_eos):
+        measurement = get_measurement()
+        previous, records = config_eos.measurement, measurement.records
+        try:
+            config_eos.measurement = MeasurementCommonSettings.model_validate(
+                dict(
+                    channels={
+                        "room": dict(quantity="temperature", unit="degC"),
+                        "presence": dict(quantity="presence", unit="1"),
+                        "power": CHANNELS["house_power"],
+                    }
+                )
+            )
+            measurement._db_reset_state()
+            yield measurement
+        finally:
+            measurement._db_reset_state()
+            measurement.records = records
+            config_eos.measurement = previous
+
     @pytest.mark.parametrize(
         "definition",
         [
@@ -646,7 +681,10 @@ class TestMeasurementChannels:
             dict(quantity="cumulative_energy", unit="kWh", timestamp_reference="end"),
             dict(quantity="interval_energy", unit="Wh", interval_seconds=900),
             dict(
-                quantity="interval_energy", unit="Wh", interval_seconds=True, timestamp_reference="end"
+                quantity="interval_energy",
+                unit="Wh",
+                interval_seconds=True,
+                timestamp_reference="end",
             ),
         ],
     )
@@ -659,16 +697,18 @@ class TestMeasurementChannels:
         ["load_emr_keys", "grid_import_emr_keys", "grid_export_emr_keys", "pv_production_emr_keys"],
     )
     def test_legacy_keys_keep_meter_semantics(self, legacy_field):
-        settings = MeasurementCommonSettings.model_validate(dict(**{legacy_field: ["legacy"]}, channels=CHANNELS))
+        settings = MeasurementCommonSettings.model_validate(
+            dict(**{legacy_field: ["legacy"]}, channels=CHANNELS)
+        )
         assert settings.keys == sorted(["legacy", *CHANNELS])
-        compatible = MeasurementCommonSettings.model_validate(dict(
-            **{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_meter"]}
-        ))
+        compatible = MeasurementCommonSettings.model_validate(
+            dict(**{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_meter"]})
+        )
         assert compatible.keys == ["legacy"]
         with pytest.raises(ValidationError, match="must remain"):
-            MeasurementCommonSettings.model_validate(dict(
-                **{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_power"]}
-            ))
+            MeasurementCommonSettings.model_validate(
+                dict(**{legacy_field: ["legacy"]}, channels={"legacy": CHANNELS["house_power"]})
+            )
 
     def test_emr_max_gap_seconds_default(self):
         """Three hours tolerate hourly meters with jitter; None turns the limit off."""
@@ -682,6 +722,163 @@ class TestMeasurementChannels:
         with pytest.raises(ValidationError):
             MeasurementCommonSettings.model_validate(dict(channels={key: CHANNELS["house_meter"]}))
 
+    @pytest.mark.parametrize(
+        "definition",
+        [
+            dict(quantity="temperature", unit="W"),
+            dict(quantity="temperature", unit="kWh"),
+            dict(quantity="temperature", unit="degC", integration_method="linear"),
+            dict(quantity="temperature", unit="degC", max_gap_seconds=60),
+            dict(quantity="presence", unit="degC"),
+            dict(quantity="presence", unit="1", interval_seconds=900, timestamp_reference="start"),
+        ],
+    )
+    def test_nonenergy_units_and_time_semantics_are_explicit(self, definition):
+        with pytest.raises(ValidationError):
+            MeasurementChannelSettings.model_validate(definition)
+
+    @pytest.mark.asyncio
+    async def test_raw_history_preserves_unknown_zero_quality_and_original_times(
+        self, nonenergy_measurement
+    ):
+        measurement = nonenergy_measurement
+        start = to_datetime("2026-09-10T18:00:00Z")
+        await measurement.import_samples(
+            [
+                MeasurementSample(
+                    date_time=start,
+                    key="room",
+                    value=20.125,
+                    quality=SampleQuality(status="estimated"),
+                ),
+                MeasurementSample(date_time=start, key="presence", value=0),
+                MeasurementSample(date_time=start.add(seconds=17), key="power", value=800),
+                MeasurementSample(date_time=start.add(seconds=37), key="room", value=0),
+                MeasurementSample(
+                    date_time=start.add(seconds=129),
+                    key="presence",
+                    value=None,
+                    quality=SampleQuality(status="unavailable"),
+                ),
+            ]
+        )
+        presence = await measurement.get_samples("presence", start, start.add(days=56))
+        assert [sample.value for sample in presence] == [0, None]
+        assert [sample.date_time for sample in presence] == [start, start.add(seconds=129)]
+        assert [sample.quality.status for sample in presence] == ["measured", "unavailable"]
+        assert [
+            sample.value
+            for sample in await measurement.get_samples("presence", start, start.add(seconds=129))
+        ] == [0]
+        room = await measurement.get_samples("room", start, start.add(minutes=3))
+        assert [sample.value for sample in room] == [20.125, 0]
+        assert room[0].quality.status == "estimated"
+        # Consumers must not mutate stored quality through the returned DTO.
+        presence[0].quality.status = "invalid"
+        assert (await measurement.get_samples("presence", start, start.add(minutes=3)))[
+            0
+        ].quality.status == "measured"
+        with pytest.raises(ValueError, match="shorter range"):
+            await measurement.get_samples("presence", start, start.add(minutes=3), max_samples=1)
+        with pytest.raises(ValueError, match="90 days"):
+            await measurement.get_samples("presence", start, start.add(days=91))
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("value", [-1, 0.5, 2])
+    async def test_invalid_presence_rejects_entire_batch(self, nonenergy_measurement, value):
+        measurement = nonenergy_measurement
+        start = to_datetime("2026-09-10T18:00:00Z")
+        await measurement.import_samples(
+            [MeasurementSample(date_time=start, key="room", value=20.125)]
+        )
+        with pytest.raises(ValueError, match="Presence samples"):
+            await measurement.import_samples(
+                [
+                    MeasurementSample(date_time=start, key="room", value=25),
+                    MeasurementSample(date_time=start, key="presence", value=value),
+                ]
+            )
+        assert (await measurement.get_samples("room", start, start.add(seconds=1)))[
+            0
+        ].value == 20.125
+        assert await measurement.get_samples("presence", start, start.add(seconds=1)) == []
+
+    @pytest.mark.asyncio
+    async def test_mutated_nonfinite_temperature_cannot_be_imported(self, nonenergy_measurement):
+        sample = MeasurementSample(
+            date_time=to_datetime("2026-09-10T18:00:00Z"), key="room", value=20
+        )
+        sample.value = float("nan")
+        with pytest.raises(ValidationError):
+            await nonenergy_measurement.import_samples([sample])
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("key", ["room", "presence"])
+    async def test_energy_queries_reject_nonenergy_channels(self, nonenergy_measurement, key):
+        start = to_datetime("2026-09-10T18:00:00Z")
+        with pytest.raises(ValueError, match="does not represent power or energy"):
+            await nonenergy_measurement.energy_intervals(key, start, start.add(minutes=15))
+
+    def test_sample_api_roundtrips_nonenergy_quality_without_energy_conversion(
+        self, nonenergy_measurement
+    ):
+        app = FastAPI()
+        app.include_router(measurement_router)
+        payload: list[dict[str, object]] = [
+            dict(
+                date_time="2026-09-10T18:00:00Z",
+                key="room",
+                value=-2.5,
+                quality={"status": "measured"},
+            ),
+            dict(
+                date_time="2026-09-10T18:00:00Z",
+                key="presence",
+                value=0,
+                quality={"status": "measured"},
+            ),
+            dict(
+                date_time="2026-09-10T18:01:00Z",
+                key="presence",
+                value=None,
+                quality={"status": "unavailable"},
+            ),
+        ]
+        params = dict(start="2026-09-10T18:00:00Z", end="2026-11-05T18:00:00Z")
+        with TestClient(app) as client:
+            response = client.put("/v1/measurement/samples", json=payload)
+            assert response.status_code == 200, response.text
+            samples = client.get("/v1/measurement/samples", params=params | {"key": "presence"})
+            assert samples.status_code == 200, samples.text
+            assert [s["value"] for s in samples.json()] == [0, None]
+            assert samples.json()[1]["quality"]["status"] == "unavailable"
+            assert (
+                client.get("/v1/measurement/samples", params=params | {"key": "room"}).json()[0][
+                    "value"
+                ]
+                == -2.5
+            )
+            assert (
+                client.put(
+                    "/v1/measurement/samples", json=[payload[1] | {"value": 0.3}]
+                ).status_code
+                == 422
+            )
+            assert (
+                client.put(
+                    "/v1/measurement/samples", json=[payload[1] | {"value": True}]
+                ).status_code
+                == 422
+            )
+            energy_params = params | {"end": "2026-09-10T18:15:00Z"}
+            for key in ("room", "presence"):
+                assert (
+                    client.get(
+                        "/v1/measurement/energy", params=energy_params | {"key": key}
+                    ).status_code
+                    == 422
+                )
+
     @pytest.mark.asyncio
     async def test_existing_import_and_file_reload(self, config_eos, tmp_path, monkeypatch):
         """All three quantities retain their raw values through the existing file path."""
@@ -690,7 +887,9 @@ class TestMeasurementChannels:
         previous_records = measurement.records
         previous_folder = config_eos.general.data_folder_path
         try:
-            config_eos.measurement = MeasurementCommonSettings.model_validate(dict(channels=CHANNELS))
+            config_eos.measurement = MeasurementCommonSettings.model_validate(
+                dict(channels=CHANNELS)
+            )
             config_eos.general.data_folder_path = tmp_path
             measurement._db_reset_state()
             values = dict(house_power=800.0, house_meter=12345.6, house_interval=200.0)
@@ -699,9 +898,9 @@ class TestMeasurementChannels:
             assert set(values).issubset(measurement.record_keys)
             monkeypatch.setattr(DataSequence, "save", AsyncMock(return_value=False))
             monkeypatch.setattr(DataSequence, "load", AsyncMock(return_value=False))
-            assert (await measurement.save())
+            assert await measurement.save()
             measurement._db_reset_state()
-            assert (await measurement.load())
+            assert await measurement.load()
             assert len(measurement.records) == 1
             for key, value in values.items():
                 assert measurement.records[0][key] == value

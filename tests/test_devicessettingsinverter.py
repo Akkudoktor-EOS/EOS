@@ -140,7 +140,7 @@ class TestResolution:
         curve = settings.resolve_operating_parameters().dc_to_ac_efficiency_curve
         assert [x for x, _ in curve] == [0.0, 1.0]
         assert [y for _, y in curve] == pytest.approx([0.88, 0.88])
-        settings.to_genetic_param()
+        settings.to_inverter_params(settings.resolve_operating_parameters(), 0)
 
     def test_no_power_at_the_operating_point(self, generic):
         settings = make_settings(nominal_power_w=10000)
@@ -148,7 +148,9 @@ class TestResolution:
             settings.resolve_operating_parameters(InverterOperatingPoint(70.0))
 
     def test_installation_limits_only_lower(self, generic):
-        settings = make_settings(nominal_power_w=10000, max_power_w=8000, max_ac_charge_power_w=3000)
+        settings = make_settings(
+            nominal_power_w=10000, max_power_w=8000, max_ac_charge_power_w=3000
+        )
         parameters = settings.resolve_operating_parameters()
         assert parameters.max_power_w == pytest.approx(8000)
         assert parameters.max_ac_charge_power_w == pytest.approx(3000)
@@ -165,7 +167,12 @@ class TestResolution:
         parameters = settings.resolve_operating_parameters()
         assert parameters.max_ac_charge_power_w == 0
         assert math.isfinite(parameters.ac_to_dc_efficiency)
-        assert settings.to_genetic_param().max_ac_charge_power_w == 0
+        assert (
+            settings.to_inverter_params(
+                settings.resolve_operating_parameters(), 0
+            ).max_ac_charge_power_w
+            == 0
+        )
 
     def test_model_ac_charge_limit_is_derated(self, generic, use_profile):
         use_profile(dataclasses.replace(generic, nominal_power_w=10000, max_ac_charge_power_w=5000))
@@ -228,27 +235,19 @@ class TestMeasurement:
 
 
 class TestConversion:
-    def test_genetic_parameters(self, generic):
+    def test_inverter_parameters(self, generic):
         settings = make_settings(nominal_power_w=10000, max_ac_charge_power_w=4000)
         parameters = settings.resolve_operating_parameters(InverterOperatingPoint(60.0))
-        genetic = settings.to_genetic_param(parameters)
-        assert genetic.device_id == "inverter1"
-        assert genetic.battery_id == "battery1"
-        assert genetic.max_power_wh == pytest.approx(6000)
-        assert genetic.max_ac_charge_power_w == pytest.approx(4000)
-        assert genetic.dc_to_ac_efficiency == pytest.approx(parameters.dc_to_ac_efficiency)
-        assert genetic.ac_to_dc_efficiency == pytest.approx(parameters.ac_to_dc_efficiency)
-        assert genetic.dc_to_ac_efficiency_curve == [
+        inverter = settings.to_inverter_params(parameters, 0)
+        assert inverter.battery_index == 0
+        assert inverter.max_power_w == pytest.approx(6000)
+        assert inverter.max_ac_charge_power_w == pytest.approx(4000)
+        assert inverter.dc_to_ac_efficiency == pytest.approx(parameters.dc_to_ac_efficiency)
+        assert inverter.ac_to_dc_efficiency == pytest.approx(parameters.ac_to_dc_efficiency)
+        assert inverter.dc_to_ac_efficiency_curve == tuple(
             tuple(point) for point in parameters.dc_to_ac_efficiency_curve
-        ]
-        assert genetic.ac_charge_limits_total_charge is False
-
-    def test_genetic0_parameters(self, generic):
-        settings = make_settings(nominal_power_w=10000)
-        genetic0 = settings.to_genetic0_param()
-        assert genetic0.max_power_wh == pytest.approx(10000)
-        assert genetic0.dc_to_ac_efficiency == pytest.approx(settings.effective_dc_to_ac_efficiency)
-        assert genetic0.ac_to_dc_efficiency == pytest.approx(settings.effective_ac_to_dc_efficiency)
+        )
+        assert inverter.ac_charge_limits_total_charge is False
 
 
 @pytest.fixture
@@ -278,7 +277,7 @@ class TestOptimizationDefaults:
         assert len(logged_errors) == 1
         assert "allows no power at 70.0 degC" in logged_errors[0]
         # The conversion gets valid parameters.
-        assert settings.to_genetic_param(parameters).max_power_wh == pytest.approx(10000)
+        assert settings.to_inverter_params(parameters, 0).max_power_w == pytest.approx(10000)
 
     def test_missing_nominal_power_gives_the_fallback(self, generic, logged_errors):
         parameters = make_settings().resolve_operating_parameters_or_defaults()

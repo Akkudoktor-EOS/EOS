@@ -182,6 +182,41 @@ async def test_update_data(
         assert values == hourly[source_key]
 
 
+@pytest.mark.asyncio
+@patch("requests.get")
+async def test_update_data_keeps_every_record_on_the_hourly_instants(
+    mock_get: Mock,
+    provider: WeatherOpenMeteo,
+    sample_openmeteo_1_json: dict[str, Any],
+    cache_store: CacheFileStore,
+) -> None:
+    """Runs starting off the hour leave no valueless records between the hourly values.
+
+    The precipitable water used to be written on the grid of the run start (e.g. xx:45), and
+    the records of earlier runs stayed: the stored temperature series then looked quarter-hourly
+    with three of four records empty, so no hourly value covered a planning slot.
+    """
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = sample_openmeteo_1_json
+    mock_response.content = json.dumps(sample_openmeteo_1_json)
+    mock_get.return_value = mock_response
+    cache_store.clear(clear_all=True)
+
+    ems_eos = get_ems()
+    for start in ("2026-03-02 09:30:00+01:00", "2026-03-02 09:45:00+01:00"):
+        ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
+        await provider.update_data(force_enable=True, force_update=True)
+
+    hourly = sample_openmeteo_1_json["hourly"]
+    expected = list(pd.DatetimeIndex(hourly["time"], tz="Europe/Berlin").to_pydatetime())
+    for key in ("weather_temp_air", "weather_preciptable_water"):
+        raw = await provider.key_to_raw_series(key, dropna=False)
+        assert list(raw.index.to_pydatetime()) == expected
+        assert not raw.isna().any()
+    assert len(provider) == len(expected)
+
+
 # ------------------------------------------------
 # Test specific Open-Meteo features
 # ------------------------------------------------

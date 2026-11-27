@@ -14,6 +14,8 @@ config path from ``self.device_id`` without needing an external index.
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | batteries | `EOS_DEVICES__BATTERIES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Stationary battery storage devices, keyed by device_id. |
 | electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[dict[str, akkudoktoreos.devices.settings.batterysettings.BatteriesCommonSettings]]` | `rw` | `None` | Electric vehicle battery packs, keyed by device_id. |
+| grid_connection | `EOS_DEVICES__GRID_CONNECTION` | `GridConnectionSettings` | `rw` | `required` | Limits of the grid connection point of the installation. |
+| heat_sources | `EOS_DEVICES__HEAT_SOURCES` | `dict[str, akkudoktoreos.devices.settings.heatsourcesettings.HeatSourceSettings]` | `rw` | `required` | Heat sources keyed by device_id. The device by device optimizer plans each enabled heat source with a thermal zone as a device; nothing is actuated. |
 | home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `dict[str, akkudoktoreos.devices.settings.homeappliancesettings.HomeApplianceCommonSettings]` | `rw` | `required` | Shiftable home appliance devices, keyed by device_id. |
 | inverters | `EOS_DEVICES__INVERTERS` | `Optional[dict[str, akkudoktoreos.devices.settings.invertersettings.InverterCommonSettings]]` | `rw` | `None` | Inverter devices, keyed by device_id. |
 | max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `None` | Maximum number of batteries allowed. |
@@ -60,6 +62,20 @@ config path from ``self.device_id`` without needing an external index.
                        0.9,
                        1.0
                    ],
+                   "adapter_supports_discharge_limit": false,
+                   "discharge_rates": [
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
+                   "pv_charge_switchable": false,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "grid_export_rates": [
@@ -103,6 +119,20 @@ config path from ``self.device_id`` without needing an external index.
                        0.9,
                        1.0
                    ],
+                   "adapter_supports_discharge_limit": false,
+                   "discharge_rates": [
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
+                   "pv_charge_switchable": false,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "grid_export_rates": [
@@ -139,7 +169,13 @@ config path from ``self.device_id`` without needing an external index.
                    "deadline_policy": "BEST_EFFORT"
                }
            },
-           "max_home_appliances": 3
+           "max_home_appliances": 3,
+           "heat_sources": {},
+           "grid_connection": {
+               "import_limit_w": 11000.0,
+               "export_limit_w": 7000.0,
+               "import_limit_penalty_eur_per_kwh": 10.0
+           }
        }
    }
 ```
@@ -181,6 +217,20 @@ config path from ``self.device_id`` without needing an external index.
                        0.9,
                        1.0
                    ],
+                   "adapter_supports_discharge_limit": false,
+                   "discharge_rates": [
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
+                   "pv_charge_switchable": false,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "grid_export_rates": [
@@ -251,6 +301,20 @@ config path from ``self.device_id`` without needing an external index.
                        0.9,
                        1.0
                    ],
+                   "adapter_supports_discharge_limit": false,
+                   "discharge_rates": [
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
+                   "pv_charge_switchable": false,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "grid_export_rates": [
@@ -320,6 +384,12 @@ config path from ``self.device_id`` without needing an external index.
                }
            },
            "max_home_appliances": 3,
+           "heat_sources": {},
+           "grid_connection": {
+               "import_limit_w": 11000.0,
+               "export_limit_w": 7000.0,
+               "import_limit_penalty_eur_per_kwh": 10.0
+           },
            "measurement_keys": [
                "bat0-soc-factor",
                "bat0-temperature-degc",
@@ -340,6 +410,43 @@ config path from ``self.device_id`` without needing an external index.
                "dishwasher.cycles_completed",
                "dishwasher.run_started_at"
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Limits of the grid connection point, shared by all devices of the installation
+
+Both limits are electrical power at the connection point. They stand next to the
+inverter and battery settings because they are a physical property of the installation
+(fuse, network operator limit), not of a tariff or of an algorithm.
+
+<!-- pyml disable line-length -->
+:::{table} devices::grid_connection
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| export_limit_w | `Optional[float]` | `rw` | `None` | Maximum power fed into the grid [W], for example a network operator limit. Surplus above it is curtailed and counts as a loss. None means no limit. |
+| import_limit_penalty_eur_per_kwh | `float` | `rw` | `10.0` | Price of exceeding the import limit [EUR/kWh]. The default of 10 EUR/kWh lies above the highest price of the European intraday markets (9.99 EUR/kWh), so no price difference can pay for an excess. |
+| import_limit_w | `Optional[float]` | `rw` | `None` | Maximum power drawn from the grid [W], for example a fuse or a peak limit. The optimizer prices every kWh above it with 'import_limit_penalty_eur_per_kwh', so the limit is practically hard. None means no limit. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "devices": {
+           "grid_connection": {
+               "import_limit_w": null,
+               "export_limit_w": null,
+               "import_limit_penalty_eur_per_kwh": 10.0
+           }
        }
    }
 ```

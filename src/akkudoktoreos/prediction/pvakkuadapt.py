@@ -24,10 +24,12 @@ from akkudoktoreos.prediction.pvakkuadaptquality import (
     select_corrections,
 )
 from akkudoktoreos.prediction.pvakkuadaptresponse import (
+    RESPONSE_VERSION,
+    PairedRows,
     fit_solar_response,
     fit_weather_response,
     lead_bucket,
-    paired_rows,
+    pair_row,
     regime,
     select_responses,
     solar_basis,
@@ -770,6 +772,7 @@ class PVForecastAdaptiveAkkudoktor(
         identity = [
             signature,
             models["fitted_at"],
+            RESPONSE_VERSION,
             settings.solar_response_enabled,
             settings.weather_response_enabled,
             settings.min_validation_days,
@@ -814,7 +817,7 @@ class PVForecastAdaptiveAkkudoktor(
                     dict(
                         base=calibrated[key],
                         actual=observed[key].where(observed[key + "_eligible"]),
-                        common=(common_actual / common_base).where(common_base > 100),
+                        common=(common_actual / common_base).where(common_base > 0),
                         available_at=available,
                     )
                 )
@@ -827,35 +830,45 @@ class PVForecastAdaptiveAkkudoktor(
                 settings.min_training_days,
             )
             solar[key]["reference_keys"] = others
-        rows = store.long_rows(
+        midnight = issue.tz_convert(self.config.general.timezone).normalize()
+        validation_start = store.milliseconds(
+            midnight - pd.DateOffset(days=settings.validation_days)
+        )
+        groups = self._groups()
+        timezone = self.config.general.timezone
+        # One streamed pass: only the paired rows (one per target and horizon) stay in
+        # memory, never the decoded payload of every issued snapshot.
+        pairs_all, pairs_group = PairedRows(), {group: PairedRows() for group in groups}
+        for row in store.iter_long_rows(
             signature,
             issue - pd.Timedelta(days=max(settings.learning_days, settings.validation_days)),
             issue,
-        )
-        pairs = (
-            paired_rows(rows, observed, references, issue, self.config.general.timezone)
-            if references
-            else []
-        )
+        ):
+            if references:
+                pairs_all.add(pair_row(row, observed, references, issue, timezone))
+            if row["target_ms"] >= validation_start:
+                for group, group_keys in groups.items():
+                    pairs_group[group].add(
+                        pair_row(
+                            row,
+                            observed,
+                            group_keys,
+                            issue,
+                            timezone,
+                            response_version=RESPONSE_VERSION,
+                        )
+                    )
         weather = (
-            fit_weather_response(pairs, settings.min_training_days, settings.min_validation_samples)
+            fit_weather_response(
+                pairs_all.rows(), settings.min_training_days, settings.min_validation_samples
+            )
             if settings.weather_response_enabled
             else {}
         )
-        midnight = issue.tz_convert(self.config.general.timezone).normalize()
-        validation_rows = [
-            row
-            for row in rows
-            if row["target_ms"]
-            >= store.milliseconds(midnight - pd.DateOffset(days=settings.validation_days))
-        ]
         selection = {}
-        for group, group_keys in self._groups().items():
-            validation = paired_rows(
-                validation_rows, observed, group_keys, issue, self.config.general.timezone
-            )
+        for group in groups:
             selection[group] = select_responses(
-                validation,
+                pairs_group[group].rows(),
                 settings.min_validation_days,
                 settings.min_validation_samples,
                 settings.min_validation_improvement,
@@ -870,7 +883,7 @@ class PVForecastAdaptiveAkkudoktor(
             weather=weather,
             selection=selection,
             validation_source="issued_candidates",
-            response_version=1,
+            response_version=RESPONSE_VERSION,
             message="Empirical angular response, not a measured horizon; new candidates remain shadowed until validated.",
         )
         store.metadata("response_models", saved)
@@ -1388,6 +1401,7 @@ class PVForecastAdaptiveAkkudoktor(
                         planes=plane_candidates,
                         members=member_values,
                         weather_digest=weather_digest,
+                        response_version=RESPONSE_VERSION,
                     ),
                 )
             )

@@ -235,10 +235,6 @@ UI_HINTS: dict[str, UiHint] = {
     "devices.inverters.load_power_w_key": UiHint(
         form="select", options=["loadforecast_power_w", "null"]
     ),
-    # Sub-field hint for the pv_power_w_key field inside each inverter entry
-    "devices.inverters.pv_power_w_key": UiHint(
-        form="select", options=["pvforecast_dc_power_w", "null"]
-    ),
     # ------------------------------------------------------------------
     # Electricity fee
     # ------------------------------------------------------------------
@@ -305,10 +301,6 @@ UI_HINTS: dict[str, UiHint] = {
     # ------------------------------------------------------------------
     # Optimization
     # ------------------------------------------------------------------
-    "optimization.algorithm": UiHint(
-        form="select",
-        options_from="optimization.algorithms",
-    ),
     # ------------------------------------------------------------------
     # PV forecast — planes
     # item_model is populated lazily by _ensure_item_models() below.

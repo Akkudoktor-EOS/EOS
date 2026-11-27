@@ -61,7 +61,7 @@ def test_issued_forecast_immutable_and_day_ahead_baseline_freezes(tmp_path):
 def provider(config_eos):
     config_eos.merge_settings_from_dict(
         dict(
-            general=dict(latitude=50.8588, longitude=7.3747, timezone="Europe/Berlin"),
+            general=dict(latitude=50.0, longitude=10.0, timezone="Europe/Berlin"),
             pvforecast=dict(
                 provider="PVForecastAdaptiveAkkudoktor",
                 adaptive=dict(regional_weather_model=None, weather_models=["icon_seamless"]),
@@ -709,7 +709,10 @@ def test_nodb_is_explicitly_volatile_and_creates_no_private_file(config_eos, tmp
     assert PVLearningStore(path).metadata("test") is None
 
 
-def test_long_snapshots_and_received_weather_are_immutable(tmp_path):
+def test_long_snapshots_and_received_weather_are_immutable(config_eos, tmp_path):
+    from akkudoktoreos.prediction.pvakkuadaptstore import _DatabaseWorker
+
+    config_eos.database.provider = "SQLite"
     store = PVLearningStore(tmp_path / "unused.sqlite3")
     issued = pd.Timestamp("2026-09-01T12:01Z")
     target = issued.ceil("h") + pd.Timedelta(hours=3)
@@ -721,7 +724,16 @@ def test_long_snapshots_and_received_weather_are_immutable(tmp_path):
     digest = store.archive_weather(data, issued)
     assert store.archive_weather(data, issued + pd.Timedelta(minutes=20)) == digest
     assert store.counts()["weather"] == 1
-    payload = json.loads(store._db.execute("SELECT payload FROM weather").fetchone()[0])
+
+    async def stored_weather() -> list[Any]:
+        return [
+            value
+            async for _, value in store.database.iterate_records(namespace="pvakkuadapt.weather")
+        ]
+
+    (stored,) = _DatabaseWorker.run(stored_weather())
+    row = json.loads(store.database.deserialize_data(stored))
+    payload = json.loads(row["payload"])
     assert payload["source_issue_at"] is None
     assert payload["received_at"] == issued.isoformat()
     assert payload["minutely_15"]["shortwave_radiation"] == [600]
@@ -735,6 +747,7 @@ def test_long_snapshots_and_received_weather_are_immutable(tmp_path):
     assert len(rows) == 1
     assert rows[0]["planes"]["micro"]["calibrated"] == 100
     assert rows[0]["issued_ms"] == store.milliseconds(issued)
+    _DatabaseWorker.run(store.database.close())
 
 
 def test_backend_write_failure_is_reported_and_pending_changes_retry(config_eos, tmp_path):
@@ -758,12 +771,52 @@ def test_long_solar_candidate_limits_ac_and_keeps_physical_dc(provider):
     provider.config.pvforecast.planes[1].inverter_paco = 800
     issue = pd.Timestamp("2026-09-18T06:00Z")
     index = pd.date_range("2026-09-18T12:00Z", periods=4, freq="15min")
-    ac = pd.DataFrame(dict(hybrid=3000., micro=800.), index=index)
-    dc = pd.DataFrame(dict(hybrid=5000., micro=1200.), index=index)
-    response = dict(solar={key:dict(coefficients=[.5]*45) for key in ("hybrid", "micro")}, weather={})
-    candidates, members, dc_candidates = provider._long_candidates({}, ac, ac, dc, {}, response, issue)
+    ac = pd.DataFrame(dict(hybrid=3000.0, micro=800.0), index=index)
+    dc = pd.DataFrame(dict(hybrid=5000.0, micro=1200.0), index=index)
+    response = dict(
+        solar={key: dict(coefficients=[0.5] * 45) for key in ("hybrid", "micro")}, weather={}
+    )
+    candidates, members, dc_candidates = provider._long_candidates(
+        {}, ac, ac, dc, {}, response, issue
+    )
     assert not members
     assert candidates["solar"].hybrid.max() == 3000
     assert candidates["solar"].micro.max() == 800
     np.testing.assert_allclose(dc_candidates["solar"].hybrid, 7500)
     np.testing.assert_allclose(dc_candidates["solar"].micro, 1800)
+
+
+def test_remember_keeps_one_forecast_per_lead_stage_closest_to_its_centre(tmp_path):
+    store = PVLearningStore(tmp_path / "learning.sqlite3")
+    target = pd.Timestamp("2026-09-02T08:00Z")
+    for minutes in (29, 25, 22, 20, 17, 14, 10):  # stages 30, 30, 30, 30, 30, 15, 15
+        store.remember(
+            "a",
+            target - pd.Timedelta(minutes=minutes),
+            [(target, dict(plant_raw_w=minutes, features=None))],
+            "Europe/Berlin",
+        )
+    with store.connection() as db:
+        leads = [
+            r[0] for r in db.execute("SELECT lead_minutes FROM forecasts ORDER BY lead_minutes")
+        ]
+    assert leads == [10, 22]  # centres 7.5 and 22.5
+
+
+def test_thin_history_drops_redundant_rows_once(tmp_path):
+    store = PVLearningStore(tmp_path / "learning.sqlite3")
+    target = pd.Timestamp("2026-09-02T08:00Z")
+    with store.connection() as db:
+        for minutes in (29, 25, 22, 20, 17, 14, 10):
+            issue = store.milliseconds(target - pd.Timedelta(minutes=minutes))
+            db.execute(
+                "INSERT INTO forecasts(signature,issue_ms,target_ms,lead_minutes,payload,updated_ms) VALUES (?,?,?,?,'{}',?)",
+                ("a", issue, store.milliseconds(target), float(minutes), issue),
+            )
+    store._thin_history()
+    store._thin_history()
+    with store.connection() as db:
+        assert [r[0] for r in db.execute("SELECT lead_minutes FROM forecasts ORDER BY 1")] == [
+            10,
+            22,
+        ]

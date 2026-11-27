@@ -61,12 +61,14 @@ def runtime_environment() -> str:
     return f"Standalone Python (Python {python_version})"
 
 
+OHMRAKEL42_ALGORITHM_NAME = "OHMRAKEL42"
+
+
 class ConfigScope(StrEnum):
     """Configuration scope for x-scope json_schema_extra."""
 
     GENERAL = "GENERAL"
-    GENETIC = "GENETIC"
-    GENETIC0 = "GENETIC0"
+    OHMRAKEL42 = OHMRAKEL42_ALGORITHM_NAME
     UNUSED = "UNUSED"
 
 

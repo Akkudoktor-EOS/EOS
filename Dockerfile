@@ -22,7 +22,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /opt/eos
 
-# Build toolchain for the numpy/scipy/pandas/matplotlib stack. python3 is
+# Build toolchain for the numpy/scipy/pandas stack. python3 is
 # explicit because the Home Assistant base image ships without it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \

@@ -1279,3 +1279,46 @@ class TestDataSequenceSparseGuard:
 
         after = await seq.db_count_records()
         assert after == before
+
+
+@pytest.mark.asyncio
+class TestMeasurementCompaction:
+    """The measurements keep the resolution the thermal state estimation reads."""
+
+    async def test_minute_readings_of_the_thermal_history_are_not_downsampled(self, config_eos):
+        """With the default tiers readings older than two hours became 15-minute values.
+
+        The room history of a thermal zone (up to a week) is read in one-minute steps and a
+        reading holds for a few minutes: 15-minute values give 20 % coverage and the zone
+        cannot be planned.
+        """
+        from akkudoktoreos.measurement.measurement import (
+            Measurement,
+            MeasurementDataRecord,
+        )
+
+        config_eos.measurement.load_emr_keys = ["load0_mr"]
+        Measurement.reset_instance()
+        measurement = Measurement()
+        try:
+            await measurement.delete_by_datetime()
+            await measurement._db_init_metadata()
+            now = to_datetime().in_timezone("UTC").set(second=0, microsecond=0)
+            for minute in range(720):  # one reading per minute for 12 hours
+                await measurement.db_insert_record(
+                    MeasurementDataRecord(
+                        date_time=now.subtract(minutes=minute), load0_mr=100.0 + minute
+                    )
+                )
+            await measurement.db_save_records()
+            before = await measurement.db_count_records()
+            assert before == 720
+
+            assert await measurement.db_compact() == 0
+
+            assert await measurement.db_count_records() == before
+            # state_history_hours is at most 168 h
+            assert measurement.db_compact_tiers()[0][0].total_seconds() >= 7 * 24 * 3600
+        finally:
+            Measurement.reset_instance()
+

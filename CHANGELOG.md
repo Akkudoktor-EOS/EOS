@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### OHMRAKEL42 cutover
+
+- OHMRAKEL42 provides periodic and on-demand optimization. Startup migrates the active
+  GENETIC and GENETIC0 planning settings into the optimization block.
+- POST /v1/optimize keeps its configured-device interface. POST /optimize continues
+  to accept hourly requests during its deprecation period.
+- The historical PDF URLs serve OHMRAKEL42 summaries during their deprecation
+  period. Their removal version is pending.
+- Battery adapters use binary discharge by default. A capable adapter can opt in to
+  staged discharge per battery.
+
 ### Energy planning update: read before upgrading
 
 This update brings the complete GENETIC energy planner to the current EOS interfaces.
@@ -30,7 +41,7 @@ settings into the profile adjustment and **drops the configured efficiencies**: 
 efficiencies apply instead, which can change plans. The configuration is now saved to the
 configuration file automatically. Back up configuration and stored data, then check device IDs,
 battery and inverter profiles, tariff units, battery measurements and the resulting plans. Read the
-[upgrade guide](docs/akkudoktoreos/upgrade-genetic.md) for the compatibility changes and a short
+[upgrade guide](docs/akkudoktoreos/upgrade-ohmrakel42.md) for the compatibility changes and a short
 test procedure. These changes are not yet a tagged release.
 
 ### Added

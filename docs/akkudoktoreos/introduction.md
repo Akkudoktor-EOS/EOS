@@ -104,7 +104,7 @@ consumption behaviour.
 
 ## Simulation Results
 
-Based on the input data, the EOS uses a genetic algorithm to create a cost-optimized
+Based on the input data, EOS uses OHMRAKEL42 to create a cost-optimized
 schedule for the coming hours from numerous simulations of the overall system.
 
 The plan created contains for each of the coming hours
@@ -168,8 +168,7 @@ with the respective devices receiving their instructions according to the plan.
 
 ## Limitations
 
-The plan calculated by EOS is cost-optimized due to the genetic algorithm used, but not
-necessarily cost-optimal, since genetic algorithms do not always find the global optimum,
+OHMRAKEL42 improves the plan's cost through local search without guaranteeing a global optimum,
 but usually find good local optima very quickly in a large solution space.
 
 ## Links

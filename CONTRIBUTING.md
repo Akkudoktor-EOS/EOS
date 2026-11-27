@@ -119,8 +119,8 @@ could change unrelated tests. Create another test file only for a distinct respo
 when the existing suite would become unwieldy; avoid one file per bug or pull request.
 
 For example, keep time-window model tests in `tests/test_configabc.py`, measurement channels
-and persistence in `tests/test_measurement.py`, and GENETIC0 parameter preparation in
-`tests/test_genetic0params.py`. Keep provider-specific suites and unit/system tests separate.
+and persistence in `tests/test_measurement.py`, and planning request preparation in
+`tests/test_planningrequestdevices.py`. Keep provider-specific suites and unit/system tests separate.
 When moving tests, verify that parametrized cases and fixture behavior are preserved with
 `pytest --collect-only` and an execution of the affected suites.
 

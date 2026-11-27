@@ -15,6 +15,7 @@ from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixed
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     EnergyChartsElecPrice,
 )
+from akkudoktoreos.prediction.elecpriceresidualload import ElecPriceResidualLoad
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
@@ -572,3 +573,63 @@ class TestFeedInTariffEnergyCharts:
         )
         assert len(raw_result) == 1
         assert not raw_result.isna().any()
+
+
+class TestFeedInTariffMirrorsExchangePrice:
+    """With direct marketing the feed-in market price is the exchange price of the elecprice provider."""
+
+    @pytest.fixture
+    def mirror_provider(self, config_eos):
+        config_eos.merge_settings_from_dict(
+            {
+                "elecprice": {"provider": "ElecPriceResidualLoad", "smard": {"region": "DE-LU"}},
+                "feedintariff": {
+                    "provider": "FeedInTariffEnergyCharts",
+                    "direct_marketing_enabled": True,
+                    "energycharts": {"bidding_zone": "DE-LU"},
+                },
+            }
+        )
+        provider = FeedInTariffEnergyCharts()
+        provider.highest_orig_datetime = None
+        assert provider.enabled()
+        provider._db_reset_state()
+        return provider
+
+    @pytest.mark.asyncio
+    async def test_series_is_mirrored_without_own_fetch(self, mirror_provider):
+        start = to_datetime("2026-11-23 00:00:00", in_timezone="Europe/Berlin")
+        get_ems().set_start_datetime(start)
+        hours = mirror_provider.config.prediction.hours
+        index = pd.date_range(
+            start.subtract(hours=48), start.add(hours=hours + 1), freq="15min", inclusive="left"
+        )
+        raw = pd.Series(np.linspace(0.00005, 0.00015, len(index)), index=index)
+        elecprice_provider = ElecPriceResidualLoad()
+        elecprice_provider._db_reset_state()
+        await elecprice_provider.key_from_series("elecprice_marketprice_raw_wh", raw)
+
+        with patch.object(mirror_provider, "_request_forecast") as fetch:
+            await mirror_provider._update_data(force_update=True)
+
+        fetch.assert_not_called()
+        mirrored = await mirror_provider.key_to_raw_series(
+            key="feed_in_tariff_raw_wh",
+            start_datetime=start,
+            end_datetime=start.add(hours=hours),
+        )
+        expected = raw[(raw.index >= pd.Timestamp(start)) & (raw.index < pd.Timestamp(start.add(hours=hours)))]
+        assert len(mirrored) == len(expected)
+        np.testing.assert_allclose(mirrored.to_numpy(), expected.to_numpy())
+
+    @pytest.mark.asyncio
+    async def test_no_mirror_without_direct_marketing(self, mirror_provider):
+        get_ems().set_start_datetime(to_datetime("2026-11-23 00:00:00", in_timezone="Europe/Berlin"))
+        mirror_provider.config.feedintariff.direct_marketing_enabled = False
+        assert await mirror_provider._mirror_elecprice_raw() is False
+
+    @pytest.mark.asyncio
+    async def test_no_mirror_for_other_price_provider(self, mirror_provider):
+        get_ems().set_start_datetime(to_datetime("2026-11-23 00:00:00", in_timezone="Europe/Berlin"))
+        mirror_provider.config.elecprice.provider = "ElecPriceFixed"
+        assert await mirror_provider._mirror_elecprice_raw() is False

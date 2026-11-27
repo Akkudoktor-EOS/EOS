@@ -7,7 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| direct_marketing_enabled | `EOS_FEEDINTARIFF__DIRECT_MARKETING_ENABLED` | `bool` | `rw` | `False` | Enable export-aware GENETIC optimization. Sale revenues remain those of the configured feed-in provider or explicit forecast; purchase prices never replace them. |
+| direct_marketing_enabled | `EOS_FEEDINTARIFF__DIRECT_MARKETING_ENABLED` | `bool` | `rw` | `False` | Enable export-aware OHMRAKEL42 optimization. Sale revenues remain those of the configured feed-in provider or explicit forecast; purchase prices never replace them. |
 | dvhubonline | `EOS_FEEDINTARIFF__DVHUBONLINE` | `FeedInTariffDvhubOnlineCommonSettings` | `rw` | `required` | DvhubOnline feed in tariff provider settings. |
 | energycharts | `EOS_FEEDINTARIFF__ENERGYCHARTS` | `FeedInTariffEnergyChartsCommonSettings` | `rw` | `required` | EnergyCharts feed in tariff provider settings. |
 | feedintarifffixed | `EOS_FEEDINTARIFF__FEEDINTARIFFFIXED` | `FeedInTariffFixedCommonSettings` | `rw` | `required` | Fixed feed in tariff provider settings. |

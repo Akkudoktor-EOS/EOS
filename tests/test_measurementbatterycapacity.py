@@ -232,7 +232,7 @@ def test_http_reads_database_and_stores_only_explicit_estimate(database_case):
     assert battery.capacity_estimate is not None
     assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(expected_wh)
     assert battery.effective_nominal_capacity_wh == 12000
-    database_case.merge_settings_from_dict({"optimization": {"genetic": {"individuals": 100}}})
+    database_case.merge_settings_from_dict({"optimization": {"measurement_max_age_seconds": 100}})
     battery = database_case.devices.batteries["battery"]
     assert battery.capacity_estimate is not None
     assert battery.capacity_estimate.estimated_capacity_wh == pytest.approx(expected_wh)

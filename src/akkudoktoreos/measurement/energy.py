@@ -75,6 +75,8 @@ def energy_intervals(
     Null/invalid observations break continuity. Meter resets invalidate that segment.
     Fixed interval energy is uniformly allocated when a target cuts its source interval.
     """
+    if channel.quantity not in ("power", "cumulative_energy", "interval_energy"):
+        raise ValueError("Energy conversion requires a power or energy channel.")
     left, right = _timestamp(start), _timestamp(end)
     if right <= left or type(interval_seconds) is not int or interval_seconds <= 0:
         raise ValueError("Require end > start and positive integer interval_seconds.")

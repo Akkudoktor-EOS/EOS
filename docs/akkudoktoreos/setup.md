@@ -83,8 +83,8 @@ Assistant** step if you do not use Home Assistant, and set up only the devices y
   a unit without a size.
 - **The state of charge is a factor.** The measurement `<device_id>-soc-factor` of a battery or an
   electric vehicle goes from `0.0` (empty) to `1.0` (full), not from 0 to 100.
-- **The state of charge must be fresh.** The GENETIC optimization does not use a state of charge
-  older than `optimization.genetic.measurement_max_age_seconds` (300 seconds by default) and then
+- **The state of charge must be fresh.** OHMRAKEL42 does not use a state of charge
+  older than `optimization.measurement_max_age_seconds` (300 seconds by default) and then
   plans with an empty battery.
 - **The status of the Measurements step only looks at the configuration.** The assistant does not
   check whether measurements actually arrive at EOS. If your own system sends the state of charge

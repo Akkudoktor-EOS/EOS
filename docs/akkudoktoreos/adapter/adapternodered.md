@@ -104,7 +104,7 @@ responsible for executing the actual control actions.
 
 An existing Node-RED scheduler can call `POST /v1/optimize` with device SoC and
 forecast overrides. Hardware settings and the desired charging target remain in EOS
-configuration. See the [upgrade guide](../upgrade-genetic.md) for the request contract.
+configuration. See the [upgrade guide](../upgrade-ohmrakel42.md) for the request contract.
 
 ### Reuse the latest available EV SoC
 

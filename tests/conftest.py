@@ -11,11 +11,13 @@ import tempfile
 import time
 from collections.abc import Sequence
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
 from http import HTTPStatus
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generator,
     Iterator,
@@ -38,7 +40,10 @@ from xprocess import ProcessStarter, XProcess
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_config, get_prediction, singletons_init
 from akkudoktoreos.core.version import _version_date_hash, version
+from akkudoktoreos.measurement.quality import MeasurementSample
 from akkudoktoreos.server.server import get_default_host
+from akkudoktoreos.thermal.thermallearning import estimate_thermal_state
+from akkudoktoreos.thermal.thermalmodels import ThermalRC2Parameters
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser
@@ -896,3 +901,45 @@ def set_other_timezone():
     # Restore the original timezone
     cast(Callable[[pendulum.Timezone | pendulum.FixedTimezone], None], pendulum.set_local_timezone)(original_timezone)
     assert pendulum.local_timezone() == original_timezone
+
+
+# --- Shared thermal learning test helpers (used by test_thermallearning) -----------------
+
+LEARNING_NOW = datetime(2026, 1, 3, 12, tzinfo=timezone.utc)
+
+
+def learning_sample(
+    key: str, when: datetime, value: float | None, status: str = "measured"
+) -> MeasurementSample:
+    return MeasurementSample.model_validate(
+        {"key": key, "date_time": when, "value": value, "quality": {"status": status}}
+    )
+
+
+def learning_model() -> ThermalRC2Parameters:
+    return ThermalRC2Parameters(
+        room_loss_per_hour=0.1,
+        room_mass_exchange_per_hour=0.3,
+        mass_capacity_ratio=4.0,
+        electric_gain_kelvin_per_kwh=1.0,
+    )
+
+
+def learning_history() -> tuple[list[MeasurementSample], list[MeasurementSample], list[MeasurementSample]]:
+    room = [learning_sample("room", LEARNING_NOW - timedelta(minutes=240 - k), 20.0) for k in range(241)]
+    return room, [learning_sample("outdoor", LEARNING_NOW, 5.0)], [learning_sample("power", LEARNING_NOW, 1500.0)]
+
+
+def learning_observer(**updates: Any):
+    room, outside, power = learning_history()
+    inputs = {
+        "model": learning_model(),
+        "room": room,
+        "outdoor": outside,
+        "power": power,
+        "now": LEARNING_NOW,
+        "start": LEARNING_NOW + timedelta(minutes=15),
+        "max_age_seconds": 180,
+        "minimum_history_hours": 2,
+    }
+    return estimate_thermal_state(**{**inputs, **updates})

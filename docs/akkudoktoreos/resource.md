@@ -144,7 +144,7 @@ fallback values:
   outside the hard cutoffs of the profile charging or discharging is inhibited.
 - **Efficiencies**: the profile efficiency curves at the charge and discharge power.
 
-The GENETIC optimization evaluates the profile at the measured battery temperature, or at 25 °C if
+OHMRAKEL42 evaluates the profile at the measured battery temperature, or at 25 °C if
 no temperature is measured. Its battery simulation then limits the charge and discharge power
 by the SoC at the start of each charge or discharge step, and takes the charge and discharge
 efficiency at the power of the slot.
@@ -161,7 +161,7 @@ capacity in the adjustment, its read-only fields are empty (`null`) and EOS logs
 the battery whenever the configuration is set up or changed. A power limit in the adjustment above
 the profile limit has no effect and is logged as a warning.
 
-The parameter preparation of the GENETIC and GENETIC0 optimizations always succeeds for such a
+The parameter preparation of OHMRAKEL42 always succeeds for such a
 configuration error. It resolves whatever the configuration allows and fills only the rest with
 the defaults of earlier versions, and it logs an error that names the battery, the problem and the
 default values used:
@@ -203,7 +203,7 @@ A battery profile is a JSON document with:
 - optionally the nominal voltage and model power limits,
 - optionally the cell chemistry and the periodic full charge the battery management system needs
   to recalibrate its SoC: `full_charge_interval_days` (none by default) and
-  `full_charge_detect_percentage` (default 99), see the periodic full charge of the GENETIC
+  `full_charge_detect_percentage` (default 99), see the periodic full charge of OHMRAKEL42
   optimization.
 
 All of these are required, except the optional ones. Unknown keys are rejected, so a misspelled
@@ -381,58 +381,10 @@ the measured temperature.
 
 ## Home Appliance
 
-The optimization algorithm supports one start of the home appliance within the optimization
-horizon.
+Appliances can have multiple scheduled starts per horizon. See the cycle and deadline
+settings below.
 
-### Home Appliance Simulation
-
-### GENETIC0 Home Appliance Configuration
-
-Home appliance to run within the optimization horizon.
-
-```json
-{
-  "dishwasher1": {
-    "device_id": "dishwasher1",
-    "consumption_wh": 2000,
-    "duration_h": 3
-  }
-}
-```
-
-Home appliance to run within a time window of 5 hours starting at 8:00 every day and another time
-window of 3 hours starting at 15:00 every day. See
-[Time Window Sequence Configuration](configtimewindow-page) for more information.
-
-```json
-{
-  "dishwasher1": {
-    "device_id": "dishwasher1",
-    "consumption_wh": 2000,
-    "duration_h": 3,
-    "time_windows": {
-      "windows": [
-        {
-          "start_time": "08:00",
-          "duration": "5 hours"
-        },
-        {
-          "start_time": "15:00",
-          "duration": "3 hours"
-        }
-      ]
-    }
-  }
-}
-```
-
-:::{admonition} Note
-:class: note
-The optimization algorithm always restricts to one start within the optimization horizon per
-energy management run.
-:::
-
-### GENETIC Home Appliance Configuration
+### Home appliance configuration
 
 Home appliance to run once, unconstrained, within the optimization horizon:
 
@@ -530,7 +482,7 @@ logged.
 
 :::{admonition} Note
 :class: note
-Unlike GENETIC0, the GENETIC algorithm can plan multiple cycles -- and therefore multiple starts
+OHMRAKEL42 can plan multiple cycles -- and therefore multiple starts
 -- of the same appliance within a single energy management run, whenever `num_cycles` (or the
 number of distinct cycle indices in `cycle_time_windows`) is greater than 1.
 :::

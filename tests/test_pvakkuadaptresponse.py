@@ -122,3 +122,30 @@ def test_weather_weights_are_trained_by_horizon_on_matching_members():
     assert fitted["6-24h"]["weights"]["icon_d2"] > fitted["6-24h"]["weights"]["icon_seamless"]
     assert not fitted["24-48h"]["fitted"]
     assert abs(sum(fitted["6-24h"]["weights"].values()) - 1) < 1e-9
+
+
+def test_streamed_long_rows_equal_list_and_paging(tmp_path):
+    import pandas as pd
+
+    from akkudoktoreos.prediction.pvakkuadaptstore import PVLearningStore
+
+    store = PVLearningStore(tmp_path / "learning.sqlite3")
+    base = pd.Timestamp("2026-09-01T00:00Z")
+    for hour in range(5):
+        issue = base + pd.Timedelta(hours=hour)
+        store.remember_long(
+            "s",
+            issue,
+            [
+                (issue + pd.Timedelta(minutes=15 * step), dict(planes={}, members={}))
+                for step in range(1, 9)
+            ],
+        )
+    end = base + pd.Timedelta(days=1)
+    full = store.long_rows("s", base, end)
+    assert len(full) > 5
+    for chunk in (1, 3, 1000):
+        assert list(store.iter_long_rows("s", base, end, chunk=chunk)) == full
+    assert [(r["target_ms"], r["issue_ms"]) for r in full] == sorted(
+        (r["target_ms"], r["issue_ms"]) for r in full
+    )
