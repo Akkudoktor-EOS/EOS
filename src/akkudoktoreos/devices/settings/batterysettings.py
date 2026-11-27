@@ -34,7 +34,8 @@ Configuration fields are inputs, in three groups:
   the technical SOC bounds of the profile), ``charge_rates``,
   ``min_charge_power_w``, ``levelized_cost_of_storage_amt_kwh``, the minimum SoC
   deadline, the grid export rates and the periodic full charge target
-  (``full_charge_soc_percentage``, ``full_charge_allow_grid``).
+  (``full_charge_soc_percentage``, ``full_charge_allow_grid``,
+  ``full_charge_completion`` with its counter, hold estimate and hold limit).
 - Runtime state: ``capacity_estimation`` / ``capacity_estimate``.
 
 Computed fields are outputs, all named ``effective_*``. They are evaluated on
@@ -73,7 +74,7 @@ Measurements versus resolution
 """
 
 import re
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 import numpy as np
 from loguru import logger
@@ -984,6 +985,69 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             "examples": [False, True],
         },
     )
+    full_charge_completion: Literal["soc", "measurement"] = Field(
+        default="soc",
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "When a periodic full charge counts as done. 'soc': as soon as the "
+                "measured state of charge reaches the detection threshold once. "
+                "'measurement': when the completion counter "
+                "'measurement_key_full_charge_completed' goes up. Your own script "
+                "increments it by whatever rule fits the battery management system "
+                "(hold time, cell voltage difference, balancing finished). While the "
+                "counter is pending and the measured state of charge is at or above "
+                "the detection threshold, an enforced full charge "
+                "('full_charge_allow_grid') keeps the battery charging without "
+                "discharge, see 'full_charge_max_hold_hours'."
+            ),
+            "examples": ["soc", "measurement"],
+        },
+    )
+    full_charge_completed_measurement_key: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Measurement key of the full charge completion counter. Defaults to "
+                "'<device_id>-full-charge-completed' when null. Only read if "
+                "'full_charge_completion' is 'measurement'."
+            ),
+            "examples": [None, "battery1-full-charge-completed"],
+        },
+    )
+    full_charge_hold_hours: Optional[float] = Field(
+        default=None,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Expected time the battery has to stay at 'full_charge_soc_percentage' "
+                "until your script reports the full charge as done [h]. Only a planning "
+                "estimate for 'full_charge_completion' 'measurement': the optimizer "
+                "places the full charge so that the battery can stay full this long "
+                "before the deadline, e.g. in cheap hours or under PV. Whether the full "
+                "charge is done still comes only from the completion counter."
+            ),
+            "examples": [None, 4],
+        },
+    )
+    full_charge_max_hold_hours: float = Field(
+        default=12.0,
+        gt=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "x-scope": [str(ConfigScope.GENETIC)],
+            "description": (
+                "Safety limit for 'full_charge_completion' 'measurement' [h]. If the "
+                "battery has been at or above the detection threshold this long and "
+                "the completion counter has still not gone up, the battery is no longer "
+                "held full and an error is logged."
+            ),
+            "examples": [12.0],
+        },
+    )
 
     def resolve_full_charge(self) -> BatteryFullCharge:
         """Return the effective periodic full charge policy of this battery.
@@ -1255,9 +1319,17 @@ class BatteriesCommonSettings(DevicesBaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def measurement_key_full_charge_completed(self) -> str:
+        """Measurement key for the full charge completion counter."""
+        return self.full_charge_completed_measurement_key or (
+            f"{self.device_id}-full-charge-completed"
+        )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def measurement_keys(self) -> list[str]:
         """All measurement keys for this battery."""
-        return [
+        keys = [
             self.measurement_key_soc_factor,
             self.measurement_key_temperature_degc,
             self.measurement_key_charge_power_w,
@@ -1267,3 +1339,6 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             self.measurement_key_power_l3_w,
             self.measurement_key_power_3_phase_sym_w,
         ]
+        if self.full_charge_completion == "measurement":
+            keys.append(self.measurement_key_full_charge_completed)
+        return keys

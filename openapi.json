@@ -3991,6 +3991,75 @@
             "x-scope": [
               "GENETIC"
             ]
+          },
+          "full_charge_completion": {
+            "type": "string",
+            "enum": [
+              "soc",
+              "measurement"
+            ],
+            "title": "Full Charge Completion",
+            "description": "When a periodic full charge counts as done. 'soc': as soon as the measured state of charge reaches the detection threshold once. 'measurement': when the completion counter 'measurement_key_full_charge_completed' goes up. Your own script increments it by whatever rule fits the battery management system (hold time, cell voltage difference, balancing finished). While the counter is pending and the measured state of charge is at or above the detection threshold, an enforced full charge ('full_charge_allow_grid') keeps the battery charging without discharge, see 'full_charge_max_hold_hours'.",
+            "default": "soc",
+            "examples": [
+              "soc",
+              "measurement"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_completed_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Completed Measurement Key",
+            "description": "Measurement key of the full charge completion counter. Defaults to '<device_id>-full-charge-completed' when null. Only read if 'full_charge_completion' is 'measurement'.",
+            "examples": [
+              null,
+              "battery1-full-charge-completed"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_hold_hours": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Hold Hours",
+            "description": "Expected time the battery has to stay at 'full_charge_soc_percentage' until your script reports the full charge as done [h]. Only a planning estimate for 'full_charge_completion' 'measurement': the optimizer places the full charge so that the battery can stay full this long before the deadline, e.g. in cheap hours or under PV. Whether the full charge is done still comes only from the completion counter.",
+            "examples": [
+              null,
+              4
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_max_hold_hours": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Full Charge Max Hold Hours",
+            "description": "Safety limit for 'full_charge_completion' 'measurement' [h]. If the battery has been at or above the detection threshold this long and the completion counter has still not gone up, the battery is no longer held full and an error is logged.",
+            "default": 12.0,
+            "examples": [
+              12.0
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
           }
         },
         "type": "object",
@@ -4237,6 +4306,75 @@
               "GENETIC"
             ]
           },
+          "full_charge_completion": {
+            "type": "string",
+            "enum": [
+              "soc",
+              "measurement"
+            ],
+            "title": "Full Charge Completion",
+            "description": "When a periodic full charge counts as done. 'soc': as soon as the measured state of charge reaches the detection threshold once. 'measurement': when the completion counter 'measurement_key_full_charge_completed' goes up. Your own script increments it by whatever rule fits the battery management system (hold time, cell voltage difference, balancing finished). While the counter is pending and the measured state of charge is at or above the detection threshold, an enforced full charge ('full_charge_allow_grid') keeps the battery charging without discharge, see 'full_charge_max_hold_hours'.",
+            "default": "soc",
+            "examples": [
+              "soc",
+              "measurement"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_completed_measurement_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Completed Measurement Key",
+            "description": "Measurement key of the full charge completion counter. Defaults to '<device_id>-full-charge-completed' when null. Only read if 'full_charge_completion' is 'measurement'.",
+            "examples": [
+              null,
+              "battery1-full-charge-completed"
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_hold_hours": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Hold Hours",
+            "description": "Expected time the battery has to stay at 'full_charge_soc_percentage' until your script reports the full charge as done [h]. Only a planning estimate for 'full_charge_completion' 'measurement': the optimizer places the full charge so that the battery can stay full this long before the deadline, e.g. in cheap hours or under PV. Whether the full charge is done still comes only from the completion counter.",
+            "examples": [
+              null,
+              4
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
+          "full_charge_max_hold_hours": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Full Charge Max Hold Hours",
+            "description": "Safety limit for 'full_charge_completion' 'measurement' [h]. If the battery has been at or above the detection threshold this long and the completion counter has still not gone up, the battery is no longer held full and an error is logged.",
+            "default": 12.0,
+            "examples": [
+              12.0
+            ],
+            "x-scope": [
+              "GENETIC"
+            ]
+          },
           "effective_nominal_capacity_wh": {
             "anyOf": [
               {
@@ -4395,6 +4533,12 @@
             "description": "Measurement key for symmetric 3-phase power [W].",
             "readOnly": true
           },
+          "measurement_key_full_charge_completed": {
+            "type": "string",
+            "title": "Measurement Key Full Charge Completed",
+            "description": "Measurement key for the full charge completion counter.",
+            "readOnly": true
+          },
           "measurement_keys": {
             "items": {
               "type": "string"
@@ -4424,6 +4568,7 @@
           "measurement_key_power_l2_w",
           "measurement_key_power_l3_w",
           "measurement_key_power_3_phase_sym_w",
+          "measurement_key_full_charge_completed",
           "measurement_keys"
         ],
         "title": "BatteriesCommonSettings",
@@ -18009,6 +18154,40 @@
             "examples": [
               null,
               "2026-11-20T07:00:00+01:00"
+            ]
+          },
+          "full_charge_hold_hours": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Hold Hours",
+            "description": "Hours the battery has to stay at 'full_charge_soc_percentage' without interruption before 'full_charge_deadline_datetime' [h]. None or 0 means reaching the target once is enough.",
+            "examples": [
+              null,
+              4
+            ]
+          },
+          "full_charge_hold_until_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Charge Hold Until Datetime",
+            "description": "Keep the battery charging without discharge until this moment, at least for the first slot: a full charge is being held until its completion is reported. A date time without timezone is read as local time. None means no hold.",
+            "examples": [
+              null,
+              "2026-11-20T15:00:00+01:00"
             ]
           }
         },

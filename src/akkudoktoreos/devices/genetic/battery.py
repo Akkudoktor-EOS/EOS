@@ -237,7 +237,35 @@ class SolarPanelBatteryParameters(BaseBatteryParameters):
         },
     )
 
-    @field_validator("full_charge_deadline_datetime", mode="before")
+    full_charge_hold_hours: Optional[float] = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        json_schema_extra={
+            "description": (
+                "Hours the battery has to stay at 'full_charge_soc_percentage' without "
+                "interruption before 'full_charge_deadline_datetime' [h]. None or 0 "
+                "means reaching the target once is enough."
+            ),
+            "examples": [None, 4],
+        },
+    )
+    full_charge_hold_until_datetime: Optional[DateTime] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Keep the battery charging without discharge until this moment, at "
+                "least for the first slot: a full charge is being held until its "
+                "completion is reported. A date time without timezone is read as "
+                "local time. None means no hold."
+            ),
+            "examples": [None, "2026-11-20T15:00:00+01:00"],
+        },
+    )
+
+    @field_validator(
+        "full_charge_deadline_datetime", "full_charge_hold_until_datetime", mode="before"
+    )
     @classmethod
     def transform_full_charge_deadline(cls, value: Any) -> Optional[DateTime]:
         """Accept the usual date time representations, naive input is local time."""
