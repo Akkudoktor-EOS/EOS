@@ -667,6 +667,8 @@ def fastapi_config_get_key(
         ) from e
 
 
+# Synchronous on purpose: FastAPI runs it in a worker thread, so reading a large log file does
+# not block the event loop.
 @app.get("/v1/logging/log", tags=["logging"])
 def fastapi_logging_get_log(
     limit: int = Query(100, description="Maximum number of log entries to return."),
@@ -689,9 +691,6 @@ def fastapi_logging_get_log(
 
     Filters and returns log entries based on the specified query parameters. The log
     file is expected to contain newline-delimited JSON entries.
-
-    The endpoint is synchronous on purpose: FastAPI runs it in a worker thread, so reading a
-    large log file does not block the event loop.
 
     Args:
         limit (int): Maximum number of entries to return.
