@@ -61,7 +61,7 @@ def test_issued_forecast_immutable_and_day_ahead_baseline_freezes(tmp_path):
 def provider(config_eos):
     config_eos.merge_settings_from_dict(
         dict(
-            general=dict(latitude=50.8588, longitude=7.3747, timezone="Europe/Berlin"),
+            general=dict(latitude=50.0, longitude=10.0, timezone="Europe/Berlin"),
             pvforecast=dict(
                 provider="PVForecastAdaptiveAkkudoktor",
                 adaptive=dict(regional_weather_model=None, weather_models=["icon_seamless"]),
