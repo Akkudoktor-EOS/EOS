@@ -74,6 +74,22 @@ If the `file_level` configuration is set, log records are written to a rotating 
 file is in the data output directory and named `eos.log`. You may directly read the file or use
 the `/v1/logging/log` endpoint to access the file log.
 
+The endpoint returns the matching entries as written to the file, one JSON object per entry with
+the formatted `text` and the loguru `record` (level, message, time and more):
+
+- `level` returns only the entries of exactly this level, `contains` and `regex` match the
+  message.
+- `from_time` and `to_time` take ISO 8601 times. A time without a UTC offset is in the
+  location's time zone (`general.timezone`), or in UTC when no location is set.
+- `limit` caps the number of entries. Without `tail` the oldest matching entries are returned,
+  with `tail=true` the newest, both in file order.
+- Only the current `eos.log` is read, not the files left by log rotation.
+
+```bash
+# the newest warning
+curl "http://localhost:8503/v1/logging/log?tail=true&limit=1&level=WARNING"
+```
+
 :::{admonition} Note
 :class: note
 The `/v1/logging/log` endpoint needs file logging to be enabled. Otherwise old or no logging
