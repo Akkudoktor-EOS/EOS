@@ -677,11 +677,11 @@ def fastapi_logging_get_log(
     regex: Optional[str] = Query(None, description="Filter logs by matching regex in message."),
     from_time: Optional[str] = Query(
         None,
-        description="Start time (ISO format) for filtering logs. Without a UTC offset, the time is in the location's time zone.",
+        description="Start time (ISO 8601). Without UTC offset: location's time zone.",
     ),
     to_time: Optional[str] = Query(
         None,
-        description="End time (ISO format) for filtering logs. Without a UTC offset, the time is in the location's time zone.",
+        description="End time (ISO 8601). Without UTC offset: location's time zone.",
     ),
     tail: bool = Query(
         False, description="If True, returns the most recent matching entries (tail mode)."

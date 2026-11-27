@@ -894,9 +894,9 @@ Returns:
 
 - `regex` (query, optional): Filter logs by matching regex in message.
 
-- `from_time` (query, optional): Start time (ISO format) for filtering logs. Without a UTC offset, the time is in the location's time zone.
+- `from_time` (query, optional): Start time (ISO 8601). Without UTC offset: location's time zone.
 
-- `to_time` (query, optional): End time (ISO format) for filtering logs. Without a UTC offset, the time is in the location's time zone.
+- `to_time` (query, optional): End time (ISO 8601). Without UTC offset: location's time zone.
 
 - `tail` (query, optional): If True, returns the most recent matching entries (tail mode).
 
