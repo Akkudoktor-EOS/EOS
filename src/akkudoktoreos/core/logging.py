@@ -7,12 +7,12 @@ import re
 import sys
 from pathlib import Path
 from types import FrameType
-from typing import Any, List, Optional, cast
+from typing import Any, BinaryIO, Iterator, List, Optional
 
-import pendulum
 from loguru import logger
 
 from akkudoktoreos.core.logabc import LOGGING_LEVELS
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
 class InterceptHandler(pylogging.Handler):
@@ -151,8 +151,12 @@ def read_file_log(
     from_time: Optional[str] = None,
     to_time: Optional[str] = None,
     tail: bool = False,
+    timezone: Optional[str] = None,
 ) -> List[dict]:
     """Read and filter structured log entries from a JSON-formatted log file.
+
+    The file is the EOS file sink: one loguru record per line, serialized as
+    ``{"text": ..., "record": {...}}``. The filters read level, message and time from ``record``.
 
     Args:
         log_path (Path): Path to the JSON-formatted log file.
@@ -162,84 +166,108 @@ def read_file_log(
         regex (Optional[str], optional): Filter logs whose message matches this regular expression. Defaults to None.
         from_time (Optional[str], optional): ISO 8601 datetime string to filter logs not earlier than this time. Defaults to None.
         to_time (Optional[str], optional): ISO 8601 datetime string to filter logs not later than this time. Defaults to None.
-        tail (bool, optional): If True, read the last lines of the file (like `tail -n`). Defaults to False.
+        tail (bool, optional): If True, return the newest `limit` matching entries (like `tail -n`), in
+            file order. Defaults to False.
+        timezone (Optional[str], optional): Time zone for `from_time` and `to_time` strings without a UTC
+            offset. Defaults to UTC.
 
     Returns:
         List[dict]: A list of filtered log entries as dictionaries.
 
     Raises:
         FileNotFoundError: If the log file does not exist.
-        ValueError: If the datetime strings are invalid or improperly formatted.
+        ValueError: If the datetime strings or the regular expression are invalid.
         Exception: For other unforeseen I/O or parsing errors.
     """
     if not log_path.exists():
         raise FileNotFoundError("Log file not found")
 
+    zone = timezone or "UTC"
     try:
-        from_dt = cast(pendulum.DateTime, pendulum.parse(from_time)) if from_time else None
-        to_dt = cast(pendulum.DateTime, pendulum.parse(to_time)) if to_time else None
+        # Compare POSIX timestamps: cheap per record, and independent of time zones.
+        from_ts = to_datetime(from_time, in_timezone=zone).timestamp() if from_time else None
+        to_ts = to_datetime(to_time, in_timezone=zone).timestamp() if to_time else None
     except Exception as e:
-        raise ValueError(f"Invalid date/time format: {e}")
+        raise ValueError(f"Invalid date/time format: {e}") from e
 
-    regex_pattern = re.compile(regex) if regex else None
+    try:
+        regex_pattern = re.compile(regex) if regex else None
+    except re.error as e:
+        raise ValueError(f"Invalid regular expression: {e}") from e
 
     def matches_filters(log: dict) -> bool:
-        if level and log.get("level", {}).get("name") != level.upper():
+        # The file sink uses ``serialize=True``: every line is ``{"text": ..., "record": {...}}``.
+        rec = log.get("record", log)
+        message = rec.get("message", "")
+        if level and rec.get("level", {}).get("name") != level.upper():
             return False
-        if contains and contains.lower() not in log.get("message", "").lower():
+        if contains and contains.lower() not in message.lower():
             return False
-        if regex_pattern and not regex_pattern.search(log.get("message", "")):
+        if regex_pattern and not regex_pattern.search(message):
             return False
-        if from_dt or to_dt:
+        if from_ts is not None or to_ts is not None:
+            record_time = rec.get("time")
             try:
-                log_time = cast(pendulum.DateTime, pendulum.parse(log["time"]))
+                # loguru serializes the time as {"repr": ..., "timestamp": ...}
+                if isinstance(record_time, dict):
+                    log_ts = float(record_time["timestamp"])
+                else:
+                    log_ts = to_datetime(record_time, in_timezone=zone).timestamp()
             except Exception:
                 return False
-            if from_dt and log_time < from_dt:
+            if from_ts is not None and log_ts < from_ts:
                 return False
-            if to_dt and log_time > to_dt:
+            if to_ts is not None and log_ts > to_ts:
                 return False
         return True
 
-    matched_logs = []
-    lines: list[str] = []
-
-    if tail:
-        with log_path.open("rb") as f:
-            f.seek(0, 2)
-            end = f.tell()
-            buffer = bytearray()
-            pointer = end
-
-            while pointer > 0 and len(lines) < limit * 5:
-                pointer -= 1
-                f.seek(pointer)
-                byte = f.read(1)
-                if byte == b"\n":
-                    if buffer:
-                        line = buffer[::-1].decode("utf-8", errors="ignore")
-                        lines.append(line)
-                        buffer.clear()
-                else:
-                    buffer.append(byte[0])
-            if buffer:
-                line = buffer[::-1].decode("utf-8", errors="ignore")
-                lines.append(line)
-        lines = lines[::-1]
-    else:
-        with log_path.open("r", encoding="utf-8", newline=None) as f_txt:
-            lines = f_txt.readlines()
-
-    for line in lines:
+    def parse(line: bytes | str) -> Optional[dict]:
         if not line.strip():
-            continue
+            return None
         try:
-            log = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if matches_filters(log):
-            matched_logs.append(log)
-            if len(matched_logs) >= limit:
-                break
+            return json.loads(line)
+        except json.JSONDecodeError:  # e.g. a line still being written
+            return None
+
+    matched_logs: list[dict] = []
+    if tail:
+        # Newest first, stop as soon as `limit` matches are found, return in file order.
+        with log_path.open("rb") as f:
+            for raw in _iter_lines_reverse(f):
+                log = parse(raw)
+                if log is not None and matches_filters(log):
+                    matched_logs.append(log)
+                    if len(matched_logs) >= limit:
+                        break
+        matched_logs.reverse()
+    else:
+        with log_path.open("r", encoding="utf-8", errors="replace") as f_txt:
+            for line in f_txt:  # stream, don't load a 100 MB file into memory
+                log = parse(line)
+                if log is not None and matches_filters(log):
+                    matched_logs.append(log)
+                    if len(matched_logs) >= limit:
+                        break
 
     return matched_logs
+
+
+def _iter_lines_reverse(f: BinaryIO, block_size: int = 64 * 1024) -> Iterator[bytes]:
+    r"""Yield the lines of a binary file from the last to the first, reading block-wise.
+
+    Splitting on ``b"\n"`` is safe for UTF-8: the byte never occurs inside a multi-byte sequence.
+    """
+    f.seek(0, os.SEEK_END)
+    pos = f.tell()
+    rest = b""
+    while pos > 0:
+        size = min(block_size, pos)
+        pos -= size
+        f.seek(pos)
+        parts = (f.read(size) + rest).split(b"\n")
+        rest = parts.pop(0)  # may be incomplete, keep for the next block
+        for part in reversed(parts):
+            if part.strip():
+                yield part
+    if rest.strip():
+        yield rest

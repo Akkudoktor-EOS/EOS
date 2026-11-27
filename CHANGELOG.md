@@ -213,6 +213,10 @@ test procedure. These changes are not yet a tagged release.
   not exist ([#913](https://github.com/Akkudoktor-EOS/EOS/issues/913)).
 - Configuration migration keeps map entries with `/` in their keys; prediction providers are
   validated before the prediction exists.
+- `GET /v1/logging/log` filters by `level`, `contains`, `regex`, `from_time` and `to_time`
+  instead of returning nothing, and `tail=true` returns the newest matching entries. An invalid
+  regular expression is answered with 400 instead of 500
+  ([#1602](https://github.com/Akkudoktor-EOS/EOS/issues/1602)).
 - Planning: the AC setpoint caps the total charge where the inverter does; EVs can finish
   charging within the final slot; full SoC targets are accepted; energy below the minimum state
   of charge is preserved; GENETIC battery discharge is limited by the discharge power.
