@@ -847,6 +847,27 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataR
     def db_namespace(self) -> str:
         return "Measurement"
 
+    def db_compact_tiers(self) -> list[tuple[Duration, Duration]]:
+        """Measurements are never compacted; the raw readings are kept as stored.
+
+        The generic compaction resamples every key to the mean of each bucket and fills
+        empty buckets by time interpolation. For measurements that invents and shifts
+        values:
+
+        - a meter outage longer than its gap limit, which has no energy value, becomes
+          interpolated energy marked as complete;
+        - a cumulative meter's bucket mean is stored at the bucket start, half a bucket
+          too early, which moves energy across the compaction cutoff;
+        - ``interval_energy`` channels are averaged while their ``interval_seconds``
+          stays, so energy and coverage shrink;
+        - ``sample_quality`` is dropped, so invalid or unavailable readings are averaged
+          in as valid ones.
+
+        Returns:
+            An empty list: no compaction tiers.
+        """
+        return []
+
     def db_keep_datetime(self) -> Optional[DateTime]:
         """Earliest datetime from which database records should be retained.
 

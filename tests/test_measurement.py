@@ -7,7 +7,7 @@ import pytest_asyncio
 from pendulum import datetime, duration
 from pydantic import ValidationError
 
-from akkudoktoreos.core.coreabc import get_measurement
+from akkudoktoreos.core.coreabc import get_database, get_measurement
 from akkudoktoreos.core.dataabc import DataSequence
 from akkudoktoreos.core.databaseabc import DatabaseTimestamp
 from akkudoktoreos.measurement.measurement import (
@@ -777,3 +777,68 @@ class TestMeasurementCommonPeriod:
             assert await measurement.keys_common_period(["meter_a_mr", "meter_b_mr"], "test") is None
 
         assert self.warnings(caplog, "meter 'meter_a_mr' last reported at") > 0
+
+
+@pytest.mark.asyncio
+class TestMeasurementCompaction:
+    """Database compaction keeps the raw measurements."""
+
+    @pytest_asyncio.fixture
+    async def stored_meter(self, config_eos, tmp_path):
+        """Grid import meter in a SQLite store, read every 5 minutes, with a 6 h outage.
+
+        The meter counts 0.05 kWh per 5 minutes (600 W) from 00:00 to 12:00 and does not
+        report between 02:00 and 08:00 (longer than the default gap limit of 3 h).
+        """
+        config_eos.measurement.grid_import_emr_keys = ["grid_import_mr"]
+        config_eos.general.data_folder_path = tmp_path
+        # The database keeps its backend, and so its storage path, while the provider
+        # stays the same: switch to no database first, so that SQLite opens in tmp_path.
+        config_eos.database.provider = None
+        await get_database().open()
+        config_eos.database.provider = "SQLite"
+        await get_database().open()
+        measurement = get_measurement()
+        measurement._db_reset_state()
+        start = to_datetime("2024-01-01T00:00:00Z")
+        try:
+            for step in range(12 * 12 + 1):
+                if 24 < step < 96:
+                    continue
+                await measurement.update_value(
+                    start.add(minutes=5 * step), "grid_import_mr", 100.0 + 0.05 * step
+                )
+            await measurement.save()
+            yield measurement, start
+        finally:
+            config_eos.database.provider = None
+            await get_database().open()
+            measurement._db_reset_state()
+
+    async def test_meter_outage_stays_unknown(self, stored_meter) -> None:
+        """A meter outage longer than the gap limit stays unknown after compaction."""
+        measurement, start = stored_meter
+        outage = (start.add(hours=3), start.add(hours=7))
+        before = await measurement.energy_intervals("grid_import_mr", *outage, 3600)
+        assert [interval.coverage_status for interval in before] == ["invalid"] * 4
+
+        await measurement.db_compact()
+
+        after = await measurement.energy_intervals("grid_import_mr", *outage, 3600)
+        assert [(interval.energy_wh, interval.coverage_status) for interval in after] == [
+            (None, "invalid")
+        ] * 4
+
+    async def test_meter_readings_stay_unchanged(self, stored_meter) -> None:
+        """Compaction keeps the readings, so the energy at the compaction cutoff stays right."""
+        measurement, start = stored_meter
+        readings = await measurement.key_to_lists("grid_import_mr")
+
+        await measurement.db_compact()
+
+        # Newest reading 12:00: the 2 h tier would compact everything before 10:00.
+        energy = await measurement.energy_intervals(
+            "grid_import_mr", start.add(hours=9), start.add(hours=10), 900
+        )
+        assert [interval.energy_wh for interval in energy] == pytest.approx([150.0] * 4)
+        assert await measurement.key_to_lists("grid_import_mr") == readings
