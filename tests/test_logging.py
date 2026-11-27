@@ -64,7 +64,11 @@ def serialized_log(tmp_path):
     def log_at(level: str, message: str) -> None:
         nonlocal minute
         at = LOG_START.add(minutes=minute)
-        logger.patch(lambda record: record.update(time=at)).log(level, message)
+
+        def set_time(record):
+            record["time"] = at
+
+        logger.patch(set_time).log(level, message)
         minute += 1
 
     for i in range(300):
