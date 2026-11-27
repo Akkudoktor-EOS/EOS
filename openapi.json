@@ -1363,7 +1363,7 @@
           "logging"
         ],
         "summary": "Fastapi Logging Get Log",
-        "description": "Get structured log entries from the EOS log file.\n\nFilters and returns log entries based on the specified query parameters. The log\nfile is expected to contain newline-delimited JSON entries.\n\nArgs:\n    limit (int): Maximum number of entries to return.\n    level (Optional[str]): Filter logs by severity level (e.g., DEBUG, INFO).\n    contains (Optional[str]): Return only logs that include this string in the message.\n    regex (Optional[str]): Return logs that match this regular expression in the message.\n    from_time (Optional[str]): ISO 8601 timestamp to filter logs not older than this.\n    to_time (Optional[str]): ISO 8601 timestamp to filter logs not newer than this.\n    tail (bool): If True, fetch the most recent log entries (like `tail`).\n\nReturns:\n    JSONResponse: A JSON list of log entries.",
+        "description": "Get structured log entries from the EOS log file.\n\nFilters and returns log entries based on the specified query parameters. The log\nfile is expected to contain newline-delimited JSON entries.\n\nArgs:\n    limit (int): Maximum number of entries to return.\n    level (Optional[str]): Filter logs by severity level (e.g., DEBUG, INFO).\n    contains (Optional[str]): Return only logs that include this string in the message.\n    regex (Optional[str]): Return logs that match this regular expression in the message.\n    from_time (Optional[str]): ISO 8601 timestamp to filter logs not older than this.\n        Without a UTC offset, the time is in the location's time zone (UTC without location).\n    to_time (Optional[str]): ISO 8601 timestamp to filter logs not newer than this.\n        Without a UTC offset, the time is in the location's time zone (UTC without location).\n    tail (bool): If True, fetch the most recent matching entries (like `tail`).\n\nReturns:\n    JSONResponse: A JSON list of log entries.",
         "operationId": "fastapi_logging_get_log_v1_logging_log_get",
         "parameters": [
           {
@@ -1445,10 +1445,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Start time (ISO format) for filtering logs.",
+              "description": "Start time (ISO 8601). Without UTC offset: location's time zone.",
               "title": "From Time"
             },
-            "description": "Start time (ISO format) for filtering logs."
+            "description": "Start time (ISO 8601). Without UTC offset: location's time zone."
           },
           {
             "name": "to_time",
@@ -1463,10 +1463,10 @@
                   "type": "null"
                 }
               ],
-              "description": "End time (ISO format) for filtering logs.",
+              "description": "End time (ISO 8601). Without UTC offset: location's time zone.",
               "title": "To Time"
             },
-            "description": "End time (ISO format) for filtering logs."
+            "description": "End time (ISO 8601). Without UTC offset: location's time zone."
           },
           {
             "name": "tail",
@@ -1474,11 +1474,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "If True, returns the most recent lines (tail mode).",
+              "description": "If True, returns the most recent matching entries (tail mode).",
               "default": false,
               "title": "Tail"
             },
-            "description": "If True, returns the most recent lines (tail mode)."
+            "description": "If True, returns the most recent matching entries (tail mode)."
           }
         ],
         "responses": {

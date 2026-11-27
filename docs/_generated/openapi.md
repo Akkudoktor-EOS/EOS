@@ -873,8 +873,10 @@ Args:
     contains (Optional[str]): Return only logs that include this string in the message.
     regex (Optional[str]): Return logs that match this regular expression in the message.
     from_time (Optional[str]): ISO 8601 timestamp to filter logs not older than this.
+        Without a UTC offset, the time is in the location's time zone (UTC without location).
     to_time (Optional[str]): ISO 8601 timestamp to filter logs not newer than this.
-    tail (bool): If True, fetch the most recent log entries (like `tail`).
+        Without a UTC offset, the time is in the location's time zone (UTC without location).
+    tail (bool): If True, fetch the most recent matching entries (like `tail`).
 
 Returns:
     JSONResponse: A JSON list of log entries.
@@ -892,11 +894,11 @@ Returns:
 
 - `regex` (query, optional): Filter logs by matching regex in message.
 
-- `from_time` (query, optional): Start time (ISO format) for filtering logs.
+- `from_time` (query, optional): Start time (ISO 8601). Without UTC offset: location's time zone.
 
-- `to_time` (query, optional): End time (ISO format) for filtering logs.
+- `to_time` (query, optional): End time (ISO 8601). Without UTC offset: location's time zone.
 
-- `tail` (query, optional): If True, returns the most recent lines (tail mode).
+- `tail` (query, optional): If True, returns the most recent matching entries (tail mode).
 
 **Responses**:
 

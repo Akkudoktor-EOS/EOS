@@ -667,17 +667,25 @@ def fastapi_config_get_key(
         ) from e
 
 
+# Synchronous on purpose: FastAPI runs it in a worker thread, so reading a large log file does
+# not block the event loop.
 @app.get("/v1/logging/log", tags=["logging"])
-async def fastapi_logging_get_log(
+def fastapi_logging_get_log(
     limit: int = Query(100, description="Maximum number of log entries to return."),
     level: Optional[str] = Query(None, description="Filter by log level (e.g., INFO, ERROR)."),
     contains: Optional[str] = Query(None, description="Filter logs containing this substring."),
     regex: Optional[str] = Query(None, description="Filter logs by matching regex in message."),
     from_time: Optional[str] = Query(
-        None, description="Start time (ISO format) for filtering logs."
+        None,
+        description="Start time (ISO 8601). Without UTC offset: location's time zone.",
     ),
-    to_time: Optional[str] = Query(None, description="End time (ISO format) for filtering logs."),
-    tail: bool = Query(False, description="If True, returns the most recent lines (tail mode)."),
+    to_time: Optional[str] = Query(
+        None,
+        description="End time (ISO 8601). Without UTC offset: location's time zone.",
+    ),
+    tail: bool = Query(
+        False, description="If True, returns the most recent matching entries (tail mode)."
+    ),
 ) -> JSONResponse:
     """Get structured log entries from the EOS log file.
 
@@ -690,8 +698,10 @@ async def fastapi_logging_get_log(
         contains (Optional[str]): Return only logs that include this string in the message.
         regex (Optional[str]): Return logs that match this regular expression in the message.
         from_time (Optional[str]): ISO 8601 timestamp to filter logs not older than this.
+            Without a UTC offset, the time is in the location's time zone (UTC without location).
         to_time (Optional[str]): ISO 8601 timestamp to filter logs not newer than this.
-        tail (bool): If True, fetch the most recent log entries (like `tail`).
+            Without a UTC offset, the time is in the location's time zone (UTC without location).
+        tail (bool): If True, fetch the most recent matching entries (like `tail`).
 
     Returns:
         JSONResponse: A JSON list of log entries.
@@ -709,6 +719,7 @@ async def fastapi_logging_get_log(
             from_time=from_time,
             to_time=to_time,
             tail=tail,
+            timezone=get_config().general.timezone,
         )
         return JSONResponse(content=logs)
     except ValueError as e:
@@ -716,7 +727,6 @@ async def fastapi_logging_get_log(
             status=400,
             title="Error on log retrieval",
             detail=str(e),
-            cause=e,
         ) from e
 
 
