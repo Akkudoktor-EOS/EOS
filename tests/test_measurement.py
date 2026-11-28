@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from akkudoktoreos.core.coreabc import get_measurement
 from akkudoktoreos.core.dataabc import DataSequence
 from akkudoktoreos.core.databaseabc import DatabaseTimestamp
+from akkudoktoreos.measurement.energy import hourly_energy_to_meter_readings
 from akkudoktoreos.measurement.measurement import (
     MeasurementChannelSettings,
     MeasurementCommonSettings,
@@ -481,6 +482,58 @@ class TestMeasurement:
         # Expected total load per interval
         expected = np.array([100, 100])  # Differences between consecutive meter readings
         np.testing.assert_array_equal(result, expected)
+
+    async def test_load_total_kwh_of_hourly_energy_readings(self, measurement_eos):
+        """Hour energy converted for `/gesamtlast` comes back for exactly its own hour.
+
+        The energy of the row that starts at 06:00 is the load of [06:00, 07:00).
+        """
+        measurement_eos.config.measurement.load_emr_keys = ["gesamtlast_emr"]
+        await measurement_eos.delete_by_datetime(None, None)
+        rows = [
+            ("2026-11-26T04:00:00+01:00", 1.0),
+            ("2026-11-26T05:00:00+01:00", 2.0),
+            ("2026-11-26T06:00:00+01:00", 3.0),
+            ("2026-11-26T07:00:00+01:00", 0.5),
+            ("2026-11-26T08:00:00+01:00", 4.0),
+        ]
+        dates, values = hourly_energy_to_meter_readings(
+            [(to_datetime(time), kwh) for time, kwh in rows]
+        )
+        await measurement_eos.key_from_lists("gesamtlast_emr", dates, values)
+
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=to_datetime("2026-11-26T06:00:00+01:00"),
+            end_datetime=to_datetime("2026-11-26T07:00:00+01:00"),
+            interval=to_duration("1 hour"),
+        )
+        np.testing.assert_allclose(result, [3.0])
+
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=to_datetime("2026-11-26T04:00:00+01:00"),
+            end_datetime=to_datetime("2026-11-26T09:00:00+01:00"),
+            interval=to_duration("1 hour"),
+        )
+        np.testing.assert_allclose(result, [kwh for _, kwh in rows])
+
+    async def test_load_total_kwh_of_hourly_energy_on_daylight_saving_change(self, measurement_eos):
+        """On 25.10.2026 (25 hours in Europe/Berlin) every elapsed hour keeps its own energy."""
+        measurement_eos.config.measurement.load_emr_keys = ["gesamtlast_emr"]
+        await measurement_eos.delete_by_datetime(None, None)
+        first = to_datetime("2026-10-24T22:00:00+00:00")  # 00:00 CEST
+        energy = [1.0 + k / 10 for k in range(25)]
+        dates, values = hourly_energy_to_meter_readings(
+            [(first + to_duration(f"{k} hours"), kwh) for k, kwh in enumerate(energy)]
+        )
+        await measurement_eos.key_from_lists("gesamtlast_emr", dates, values)
+
+        result = await measurement_eos.load_total_kwh(
+            start_datetime=first,
+            end_datetime=first + to_duration("25 hours"),
+            interval=to_duration("1 hour"),
+        )
+
+        np.testing.assert_allclose(result, energy)
 
     async def test_load_total_kwh_no_data(self, measurement_eos):
         """Test total load calculation with no data."""

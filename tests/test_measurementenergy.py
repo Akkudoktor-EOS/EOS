@@ -8,10 +8,14 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from akkudoktoreos.measurement.energy import energy_intervals, valid_reading
+from akkudoktoreos.measurement.energy import (
+    energy_intervals,
+    hourly_energy_to_meter_readings,
+    valid_reading,
+)
 from akkudoktoreos.measurement.measurement import MeasurementChannelSettings
 from akkudoktoreos.measurement.quality import SampleQuality
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 START = datetime(2026, 9, 10, tzinfo=timezone.utc)
 
@@ -162,3 +166,157 @@ async def test_measurement_wrapper_preserves_asynchronous_channels(config_eos):
 def test_valid_reading(value: Any, quality: SampleQuality | None, expected: float | None) -> None:
     """One rule decides which raw readings count, shared by conversion and scans."""
     assert valid_reading(value, quality) == expected
+
+
+def hour_start(text: str):
+    """Start of an hour, with an explicit offset so that the instant is unambiguous."""
+    return to_datetime(text)
+
+
+class TestHourlyEnergyToMeterReadings:
+    """Energy of whole hours as cumulative meter readings (`/gesamtlast`)."""
+
+    def test_reading_sits_at_the_end_of_its_hour(self):
+        """Start reading 0.0 on the first hour, then each running sum at the end of its hour."""
+        dates, values = hourly_energy_to_meter_readings(
+            [
+                (hour_start("2026-11-26T05:00:00+01:00"), 2.0),
+                (hour_start("2026-11-26T06:00:00+01:00"), 3.0),
+                (hour_start("2026-11-26T07:00:00+01:00"), 0.5),
+            ]
+        )
+
+        assert [d.isoformat() for d in dates] == [
+            to_datetime("2026-11-26T05:00:00+01:00").isoformat(),
+            to_datetime("2026-11-26T06:00:00+01:00").isoformat(),
+            to_datetime("2026-11-26T07:00:00+01:00").isoformat(),
+            to_datetime("2026-11-26T08:00:00+01:00").isoformat(),
+        ]
+        assert values == [0.0, 2.0, 5.0, 5.5]
+
+    def test_energy_of_an_hour_is_the_difference_across_that_hour(self):
+        """R(t + 1 h) - R(t) is the energy that was passed in for the hour starting at t."""
+        energy = {
+            to_datetime("2026-11-26T05:00:00+01:00"): 2.0,
+            to_datetime("2026-11-26T06:00:00+01:00"): 3.0,
+            to_datetime("2026-11-26T07:00:00+01:00"): 0.5,
+        }
+        dates, values = hourly_energy_to_meter_readings(energy.items())
+        reading = {d.timestamp(): v for d, v in zip(dates, values)}
+
+        for start, kwh in energy.items():
+            end = start + to_duration("1 hour")
+            assert reading[end.timestamp()] - reading[start.timestamp()] == pytest.approx(kwh)
+
+    def test_empty_input(self):
+        assert hourly_energy_to_meter_readings([]) == ([], [])
+
+    def test_single_hour(self):
+        dates, values = hourly_energy_to_meter_readings(
+            [(hour_start("2026-11-26T06:00:00+01:00"), 1.5)]
+        )
+
+        assert [d.isoformat() for d in dates] == [
+            to_datetime("2026-11-26T06:00:00+01:00").isoformat(),
+            to_datetime("2026-11-26T07:00:00+01:00").isoformat(),
+        ]
+        assert values == [0.0, 1.5]
+
+    def test_unsorted_input_is_sorted_by_time_not_by_text(self):
+        """Hours in any order give the readings of the sorted hours, also across a day change."""
+        ordered = [
+            (hour_start("2026-11-26T23:00:00+01:00"), 1.0),
+            (hour_start("2026-11-27T00:00:00+01:00"), 2.0),
+            (hour_start("2026-11-27T01:00:00+01:00"), 4.0),
+        ]
+        shuffled = [ordered[2], ordered[0], ordered[1]]
+
+        assert hourly_energy_to_meter_readings(shuffled) == hourly_energy_to_meter_readings(ordered)
+        dates, values = hourly_energy_to_meter_readings(shuffled)
+        assert values == [0.0, 1.0, 3.0, 7.0]
+        assert dates == sorted(dates)
+
+    def test_mixed_offsets_are_ordered_by_instant(self):
+        """Wall clock text of different offsets does not decide the order, the instant does."""
+        later_in_utc = (hour_start("2026-11-26T06:00:00+00:00"), 2.0)  # 07:00 in Berlin
+        earlier_in_utc = (hour_start("2026-11-26T06:30:00+01:00"), 1.0)  # 05:30 UTC
+
+        dates, values = hourly_energy_to_meter_readings([later_in_utc, earlier_in_utc])
+
+        assert values == [0.0, 1.0, 3.0]
+        assert dates[0].timestamp() == earlier_in_utc[0].timestamp()
+        assert dates[1].timestamp() == earlier_in_utc[0].timestamp() + 3600
+
+    def test_duplicate_hour_keeps_its_last_value(self):
+        """A repeated hour is one hour, not two: its energy is not added twice."""
+        dates, values = hourly_energy_to_meter_readings(
+            [
+                (hour_start("2026-11-26T06:00:00+01:00"), 1.0),
+                (hour_start("2026-11-26T07:00:00+01:00"), 2.0),
+                (hour_start("2026-11-26T06:00:00+01:00"), 3.0),
+            ]
+        )
+
+        assert len(dates) == 3
+        assert values == [0.0, 3.0, 5.0]
+
+    def test_duplicate_hour_in_another_offset_is_the_same_hour(self):
+        dates, values = hourly_energy_to_meter_readings(
+            [
+                (hour_start("2026-11-26T06:00:00+01:00"), 1.0),
+                (hour_start("2026-11-26T05:00:00+00:00"), 4.0),
+            ]
+        )
+
+        assert len(dates) == 2
+        assert values == [0.0, 4.0]
+
+    def test_gap_hour_gets_no_reading(self):
+        """A missing hour is not filled with zero: the readings skip it."""
+        dates, values = hourly_energy_to_meter_readings(
+            [
+                (hour_start("2026-11-26T06:00:00+01:00"), 1.0),
+                (hour_start("2026-11-26T07:00:00+01:00"), 2.0),
+                (hour_start("2026-11-26T09:00:00+01:00"), 4.0),  # 08:00 is missing
+            ]
+        )
+
+        assert [d.timestamp() for d in dates] == [
+            to_datetime(text).timestamp()
+            for text in (
+                "2026-11-26T06:00:00+01:00",
+                "2026-11-26T07:00:00+01:00",
+                "2026-11-26T08:00:00+01:00",
+                "2026-11-26T10:00:00+01:00",
+            )
+        ]
+        assert values == [0.0, 1.0, 3.0, 7.0]
+
+    def test_hours_are_elapsed_hours_on_the_daylight_saving_change(self):
+        """25.10.2026 in Europe/Berlin has 25 hours; the wall clock 02:00 happens twice."""
+        first = to_datetime("2026-10-24T22:00:00+00:00")  # 00:00 CEST
+        hours = [(first + to_duration(f"{k} hours"), 1.0 + k / 10) for k in range(25)]
+
+        dates, values = hourly_energy_to_meter_readings(hours)
+
+        assert len(dates) == 26
+        assert all(b.timestamp() - a.timestamp() == 3600 for a, b in zip(dates, dates[1:]))
+        assert values[0] == 0.0
+        assert values[-1] == pytest.approx(sum(energy for _, energy in hours))
+        # Both 02:00 of that night are distinct readings.
+        berlin = [d.in_timezone("Europe/Berlin") for d in dates]
+        two_o_clock = [d for d in berlin if d.hour == 2 and d.minute == 0]
+        assert len(two_o_clock) == 2
+        assert {d.utcoffset().total_seconds() for d in two_o_clock} == {7200, 3600}
+
+    def test_text_hours_with_both_offsets_of_the_change_stay_two_hours(self):
+        """02:00+02:00 and 02:00+01:00 are different instants and keep their own energy."""
+        dates, values = hourly_energy_to_meter_readings(
+            [
+                (hour_start("2026-10-25T02:00:00+02:00"), 1.0),
+                (hour_start("2026-10-25T02:00:00+01:00"), 2.0),
+            ]
+        )
+
+        assert len(dates) == 3
+        assert values == [0.0, 1.0, 3.0]

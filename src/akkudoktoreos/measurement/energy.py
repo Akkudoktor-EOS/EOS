@@ -9,6 +9,7 @@ from math import isfinite
 from typing import TYPE_CHECKING, Iterable, Literal
 
 from akkudoktoreos.measurement.quality import SampleQuality
+from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
 if TYPE_CHECKING:
     from akkudoktoreos.measurement.measurement import MeasurementChannelSettings
@@ -59,6 +60,54 @@ def valid_reading(value: object, quality: SampleQuality | None = None) -> float 
     if quality is not None and quality.status in ("invalid", "unavailable"):
         return None
     return float(value)
+
+
+def hourly_energy_to_meter_readings(
+    hourly_energy_kwh: Iterable[tuple[DateTime, float]],
+) -> tuple[list[DateTime], list[float]]:
+    """Cumulative meter readings for energy values of whole hours.
+
+    Each input is the energy [kWh] of the hour that starts at its time, from `time` to
+    `time + 1 hour`. A meter reading is the energy used up to its time, so the reading
+    that includes an hour belongs to the end of that hour: the first hour gets the
+    start reading 0.0 at its own time, every hour then the running sum at `time + 1
+    hour`. Reading the meter between two readings (`Measurement.load_total_kwh`) gives
+    back exactly the energy that was passed in for that hour.
+
+    Hours are absolute: `time + 1 hour` is one elapsed hour, also on the days of the
+    daylight saving time change. The input order does not matter, the hours are sorted
+    by time. An hour that is given twice keeps its last value. A missing hour gets no
+    reading; the following hour then spans the gap, and the meter conversion spreads its
+    energy evenly over the gap or leaves it unknown, as it does for any meter gap.
+
+    Args:
+        hourly_energy_kwh: Pairs of hour start and energy [kWh] of that hour.
+
+    Returns:
+        The reading times, oldest first, and the cumulative readings [kWh]. Both lists are
+        empty for an empty input.
+    """
+    # Key by the instant (epoch seconds), not by the DateTime: two DateTimes of the same
+    # timezone compare by their wall clock, which merges the two 02:00 of the day the
+    # daylight saving time ends.
+    hours: dict[float, tuple[DateTime, float]] = {}
+    for hour_start, energy in hourly_energy_kwh:
+        hours[hour_start.timestamp()] = (hour_start, energy)
+
+    one_hour = to_duration("1 hour")
+    reading_dates: list[DateTime] = []
+    reading_values: list[float] = []
+    reading_kwh = 0.0
+    for index, instant in enumerate(sorted(hours)):
+        hour_start, energy = hours[instant]
+        if index == 0:
+            # Start reading before the first hour.
+            reading_dates.append(hour_start)
+            reading_values.append(0.0)
+        reading_kwh += energy
+        reading_dates.append(hour_start + one_hour)
+        reading_values.append(reading_kwh)
+    return reading_dates, reading_values
 
 
 def energy_intervals(

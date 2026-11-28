@@ -55,6 +55,7 @@ from akkudoktoreos.core.types import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
+from akkudoktoreos.measurement.energy import hourly_energy_to_meter_readings
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.optimization.request import EnergyManagementRunRequest
 from akkudoktoreos.optimization.solutionmodel import Ohmrakel42Solution
@@ -2054,12 +2055,10 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     await get_measurement().key_delete_by_datetime(
         key=measurement_key
     )  # delete all gesamtlast_emr measurements
-    energy = {}
+    hourly_energy_kwh: list[tuple[DateTime, float]] = []
     try:
         for data_dict in request.measured_data:
-            dt_str = to_datetime(data_dict["time"], as_string=True)
-            value = float(data_dict["Last"])
-            energy[dt_str] = value
+            hourly_energy_kwh.append((to_datetime(data_dict["time"]), float(data_dict["Last"])))
     except KeyError as e:
         raise EOSProblem(
             status=404,
@@ -2075,19 +2074,9 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             cause=e,
         ) from e
 
-    energy_mr_dates = []
-    energy_mr_values = []
-    energy_mr = 0.0
-    for i, key in enumerate(sorted(energy)):
-        energy_mr += energy[key]
-        dt = to_datetime(key)
-        if i == 0:
-            # first element, add start value before
-            dt_before = dt - to_duration("1 hour")
-            energy_mr_dates.append(dt_before)
-            energy_mr_values.append(0.0)
-        energy_mr_dates.append(dt)
-        energy_mr_values.append(energy_mr)
+    # `time` is the start of the hour and `Last` the energy of that hour (time .. time + 1 hour),
+    # so each meter reading belongs to the end of its hour.
+    energy_mr_dates, energy_mr_values = hourly_energy_to_meter_readings(hourly_energy_kwh)
     await get_measurement().key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
     # Ensure there is only one optimization/ energy management run at a time
