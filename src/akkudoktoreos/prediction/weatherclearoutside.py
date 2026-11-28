@@ -118,8 +118,9 @@ class WeatherClearOutside(WeatherProvider):
             1. **Retrieve Web Content**: Uses a helper method to fetch or retrieve cached ClearOutside HTML content.
 
             2. **Extract Forecast Date and Timezone**:
-                - Parses the forecast's start and end dates and the UTC offset from the "Generated"
-                    header.
+                - Parses the forecast's start and end dates from the "Generated" header, validates
+                    the timezone header, and derives the location's timezone from the configured
+                    coordinates.
 
             3. **Extract Weather Data**:
                 - For each day in the 7-day forecast, the function finds detailed weather parameters
@@ -161,21 +162,21 @@ class WeatherClearOutside(WeatherProvider):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Extract timezone offset
+        # Validate timezone header and derive the location's IANA timezone from coordinates
         timezone_pattern = r"Timezone: UTC([+-]\d+)\.(\d+)"
         timezone_match = re.search(timezone_pattern, p_generated.get_text())
-        if timezone_match:
-            hours = int(timezone_match.group(1))
-            # Convert the decimal part to minutes (e.g., .50 -> 30 minutes)
-            minutes = int(timezone_match.group(2)) * 6  # Multiply by 6 to convert to minutes
-
-            # Create the timezone object using offset
-            utc_offset = float(hours) + float(minutes) / 60.0
-            forecast_timezone = to_timezone(utc_offset=utc_offset)
-        else:
+        if not timezone_match:
             error_msg = "Clearoutside schema change. Could not extract forecast timezone."
             logger.error(error_msg)
             raise ValueError(error_msg)
+
+        latitude = self.config.general.latitude
+        longitude = self.config.general.longitude
+        if latitude is None or longitude is None:
+            error_msg = "Latitude and longitude must be configured for ClearOutside forecast."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        forecast_timezone = to_timezone(location=(latitude, longitude))
 
         forecast_start_datetime = to_datetime(
             forecast_start_date, in_timezone=forecast_timezone, to_maxtime=False

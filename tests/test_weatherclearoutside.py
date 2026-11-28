@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock, patch
@@ -173,6 +173,9 @@ async def test_update_data(mock_get, provider, sample_clearout_1_html, sample_cl
 
     # Verify the data
     assert len(provider) == 165  # 6 days, 24 hours per day - 7th day 21 hours
+    assert compare_datetimes(
+        provider.records[0].date_time, to_datetime("2024-10-25T22:00:00Z", in_timezone="UTC")
+    ).same_instant
 
     # Check that specific values match the expected output
     # for i, record in enumerate(weather_data.records):
@@ -180,6 +183,77 @@ async def test_update_data(mock_get, provider, sample_clearout_1_html, sample_cl
     #    assert record.datetime == sample_clearout_1_data.records[i].datetime
     #    assert record.data['total_clouds'] == sample_clearout_1_data.records[i].data['total_clouds']
     #    # Check additional weather attributes as necessary
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("latitude", "longitude", "header_offset", "expected_first_utc"),
+    [
+        pytest.param(22.57, 88.36, "UTC+5.50", "2024-10-25T18:30:00Z", id="kolkata"),
+        pytest.param(-8.91, -140.10, "UTC-9.50", "2024-10-26T09:30:00Z", id="marquesas"),
+        pytest.param(27.72, 85.32, "UTC+5.75", "2024-10-25T18:15:00Z", id="kathmandu"),
+    ],
+)
+@patch("requests.get")
+async def test_update_data_fractional_timezone_offsets(
+    mock_get,
+    provider,
+    config_eos,
+    cache_store,
+    sample_clearout_1_html,
+    latitude,
+    longitude,
+    header_offset,
+    expected_first_utc,
+):
+    """Forecast timestamps use the location's IANA timezone for fractional UTC offsets."""
+    html = sample_clearout_1_html.replace("Timezone: UTC+2.00", f"Timezone: {header_offset}", 1)
+    assert f"Timezone: {header_offset}" in html
+
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = html
+    mock_get.return_value = mock_response
+
+    config_eos.merge_settings_from_dict(
+        {
+            "general": {
+                "latitude": latitude,
+                "longitude": longitude,
+            }
+        }
+    )
+    cache_store.clear(clear_all=True)
+    provider._db_reset_state()
+
+    expected_first = to_datetime(expected_first_utc, in_timezone="UTC")
+    get_ems().set_start_datetime(
+        to_datetime(expected_first, in_timezone=config_eos.general.timezone)
+    )
+
+    await provider.update_data(force_update=True)
+
+    assert len(provider) == 165
+    assert compare_datetimes(provider.records[0].date_time, expected_first).same_instant
+
+
+@pytest.mark.asyncio
+@patch("requests.get")
+async def test_update_data_missing_timezone_header(
+    mock_get, provider, cache_store, sample_clearout_1_html
+):
+    """Missing timezone header still raises the ClearOutside schema error."""
+    html = sample_clearout_1_html.replace("Timezone: UTC+2.00", "", 1)
+    assert "Timezone:" not in html
+
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = html
+    mock_get.return_value = mock_response
+
+    cache_store.clear(clear_all=True)
+    with pytest.raises(ValueError, match="Could not extract forecast timezone"):
+        await provider.update_data(force_update=True)
 
 
 @pytest.mark.asyncio
@@ -259,25 +333,18 @@ def test_clearoutsides_development_scraper(provider, sample_clearout_1_html):
     assert forecast_start_date == "26/10/24"
     assert forecast_end_date == "01/11/24"
 
-    # Extract timezone offset
+    # Validate timezone header and derive timezone from location
     timezone_pattern = r"Timezone: UTC([+-]\d+)\.(\d+)"
     timezone_match = re.search(timezone_pattern, p_generated.get_text())
-    if timezone_match:
-        hours = int(timezone_match.group(1))
-        assert hours == 2
-        # Convert the decimal part to minutes (e.g., .50 -> 30 minutes)
-        minutes = int(timezone_match.group(2)) * 6  # Multiply by 6 to convert to minutes
-        assert minutes == 0
-
-        # Create the timezone object using timedelta for the offset
-        forecast_timezone = to_timezone(utc_offset=hours + minutes / 60, as_string=False)
-    else:
-        assert False
+    assert timezone_match is not None
+    forecast_timezone = to_timezone(location=(lat, lon))
 
     forecast_start_datetime = to_datetime(
-        forecast_start_date, in_timezone=forecast_timezone, to_naiv=False, to_maxtime=False
+        forecast_start_date, in_timezone=forecast_timezone, to_maxtime=False
     )
-    assert forecast_start_datetime == datetime(2024, 10, 26, 0, 0)
+    assert compare_datetimes(
+        forecast_start_datetime, to_datetime("2024-10-26 00:00:00", in_timezone=forecast_timezone)
+    ).equal
 
     # Find all paragraphs with id 'day_<x>'. There should be seven.
     p_days = soup.find_all(id=re.compile(r"day_[0-9]"))
